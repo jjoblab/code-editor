@@ -71,62 +71,22 @@ public final class CommentSyntax {
     /**
      * Resolves the comment syntax for the given language id.
      *
-     * <p>The id is normalized (trimmed, lowercased with {@code Locale.ROOT});
-     * unknown ids fall back to {@link #C_STYLE} so the Java-first history of
-     * this editor is preserved.</p>
+     * <p>v3.36.0 — the resolution is registry-driven (roadmap item 7): the
+     * id is normalized (trimmed, lowercased with {@code Locale.ROOT}) and
+     * looked up in {@link jo.codeeditor.languages.LanguageRegistry}. The
+     * built-in profiles carry exactly the syntaxes the old switch returned
+     * in v3.35.0, and a custom language registered by the host with a
+     * {@code commentSyntax(...)} is honored here automatically. Unknown ids
+     * fall back to {@link #C_STYLE} so the Java-first history of this
+     * editor is preserved.</p>
      */
     public static CommentSyntax forLanguage(String language) {
         if (language == null) return C_STYLE;
         String lang = language.trim().toLowerCase(Locale.ROOT);
         if (lang.isEmpty()) return C_STYLE;
-        switch (lang) {
-            // ── Hash languages ─────────────────────────────────────
-            case "python": case "py":
-                return new CommentSyntax("#", null, null);
-            case "ruby": case "rb":
-                return new CommentSyntax("#", null, null);
-            case "shell": case "bash": case "sh":
-                return new CommentSyntax("#", null, null);
-            case "toml":
-                return new CommentSyntax("#", null, null);
-            case "properties": case "ini":
-                return new CommentSyntax("#", null, null);
-            case "smali":
-                return new CommentSyntax("#", null, null);
-            case "yaml": case "yml":
-                return new CommentSyntax("#", null, null);
-
-            // ── XML family: block only (VS Code-style line fallback) ──
-            case "xml": case "html": case "htm": case "svg":
-                return new CommentSyntax(null, "<!--", "-->");
-            case "markdown": case "md":
-                return new CommentSyntax(null, "<!--", "-->");
-
-            // ── No comments at all ──────────────────────────────────
-            case "json":
-                return NONE;
-
-            // ── Lua ─────────────────────────────────────────────────
-            case "lua":
-                return new CommentSyntax("--", "--[[", "]]");
-
-            // ── SQL: dash line + C-style block ─────────────────────
-            case "sql":
-                return new CommentSyntax("--", "/*", "*/");
-
-            // ── C-family (default) ─────────────────────────────────
-            case "java": case "kotlin": case "kt":
-            case "c": case "h":
-            case "cpp": case "cc": case "hpp": case "cxx":
-            case "go": case "rust": case "rs":
-            case "javascript": case "js":
-            case "typescript": case "ts":
-            case "php": case "swift": case "dart":
-            case "groovy": case "gradle":
-            case "scala": case "css": case "scss":
-            default:
-                return C_STYLE;
-        }
+        jo.codeeditor.languages.LanguageProfile profile =
+                jo.codeeditor.languages.LanguageRegistry.forName(lang);
+        return profile != null ? profile.commentSyntax : C_STYLE;
     }
 
     @Override

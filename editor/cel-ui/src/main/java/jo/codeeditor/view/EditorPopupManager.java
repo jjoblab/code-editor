@@ -1531,6 +1531,9 @@ class EditorPopupManager {
         view.diagnosticPopupItem = diag;
         view.diagnosticPopupOffset = offset;
         view.diagnosticPopupVisible = true;
+        // v3.36.0 (roadmap item 5): opening the detail popup from the
+        // grouped list sheet closes that sheet (chip → list → detail chain).
+        view.diagnosticListSheetLine = -1;
         if (view.completionVisible) dismissCompletion();
         if (view.quickDocVisible) dismissQuickDoc();
         if (view.signatureHelpVisible) dismissSignatureHelp();
@@ -1544,6 +1547,38 @@ class EditorPopupManager {
         view.diagnosticPopupVisible = false;
         view.diagnosticPopupItem = null;
         view.diagnosticPopupOffset = -1;
+        view.invalidate();
+    }
+
+    // ── v3.36.0: Grouped diagnostic list sheet (roadmap item 5) ────
+
+    /**
+     * Opens the grouped sheet listing every diagnostic whose start sits on
+     * {@code line} (CodeAssist diagnosticsByStartLine port). A line with a
+     * single diagnostic opens the detail popup directly instead.
+     */
+    void showDiagnosticListSheet(int line) {
+        if (view.session == null) return;
+        if (line < 0 || line >= view.session.getDocument().lineCount()) return;
+        List<DiagnosticShift.Diagnostic> group =
+                view.session.getDiagnosticsForLine(line);
+        if (group.isEmpty()) return;
+        if (group.size() == 1) {
+            // Fast path: a single diagnostic — skip the list, open detail.
+            showDiagnosticPopup(group.get(0), group.get(0).start);
+            return;
+        }
+        view.diagnosticListSheetLine = line;
+        if (view.completionVisible) dismissCompletion();
+        if (view.quickDocVisible) dismissQuickDoc();
+        if (view.signatureHelpVisible) dismissSignatureHelp();
+        if (view.codeActionsPopupVisible) dismissCodeActions();
+        if (view.navMenuVisible) dismissNavMenu();
+        view.invalidate();
+    }
+
+    void dismissDiagnosticListSheet() {
+        view.diagnosticListSheetLine = -1;
         view.invalidate();
     }
 }

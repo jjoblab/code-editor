@@ -2,9 +2,11 @@
 
 Une bibliothèque Java **standalone pour Android** qui reproduit l'architecture de l'éditeur de code de [CodeAssist](https://github.com/tyron12233/CodeAssist) — un IDE Android construit from scratch avec un éditeur custom (pas Sora Editor).
 
-> **v3.35.0** — alignée sur l'analyse des évolutions editor de CodeAssist v3.9 → v3.20
+> **v3.36.0** — alignée sur l'analyse des évolutions editor de CodeAssist v3.9 → v3.20
 > (portage `LineOverlay`, prefetch idle, buckets par ligne, commentaires language-driven,
-> cache de layouts contenu-adressé, fold index O(log folds), correctifs lifecycle & API 24).
+> cache de layouts contenu-adressé, fold index O(log folds), correctifs lifecycle & API 24 ;
+> v3.36.0 : diagnostics groupés par ligne, keymap rebindable, registre de langages
+> contribuables, sweep des onglets ouverts, SPI plugins décorations, Gradle 9/AGP 9).
 > Voir `RAPPORT_ANALYSE_V3.34.0.md` et `CHANGELOG.md` pour le détail.
 
 ## Modules
@@ -20,7 +22,7 @@ Une bibliothèque Java **standalone pour Android** qui reproduit l'architecture 
 
 ### Via JitPack (recommandé)
 
-1. Poussez ce dépôt sur GitHub, puis créez un tag : `git tag v3.35.0 && git push origin v3.35.0`
+1. Poussez ce dépôt sur GitHub, puis créez un tag : `git tag v3.36.0 && git push origin v3.36.0`
 2. Ajoutez le dépôt JitPack dans le `settings.gradle.kts` de l'app consommatrice :
 
 ```kotlin
@@ -38,10 +40,10 @@ dependencyResolutionManagement {
 ```kotlin
 dependencies {
     // Le module UI embarque transitivement cel-core et cel-lsp-api.
-    implementation("com.github.<votre-user>.code-editor:cel-ui:v3.35.0")
+    implementation("com.github.<votre-user>.code-editor:cel-ui:v3.36.0")
 
     // Optionnel — intégration Language Server Protocol (LSP4J).
-    implementation("com.github.<votre-user>.code-editor:cel-lsp:v3.35.0")
+    implementation("com.github.<votre-user>.code-editor:cel-lsp:v3.36.0")
 }
 ```
 
@@ -117,6 +119,32 @@ editorView.setTheme(EditorTheme.DARK);
 // lignes autour du viewport sont pré-chauffées après 150 ms de scroll calme.
 ```
 
+### Extensibilité (v3.36.0)
+
+```java
+// 1. Enregistrer son propre langage — coloration + commentaires pris en
+//    charge immédiatement (registre observable) :
+LanguageRegistry.register(LanguageProfile.builder("mylang")
+        .family(SyntaxFamily.C_LIKE)
+        .alias("ml").extension("ml")
+        .keywords("if", "else", "repeat", "until")
+        .commentSyntax(new CommentSyntax("#", null, null))
+        .build());
+session.setLanguage("mylang");
+
+// 2. Rebind un raccourci clavier :
+editorView.setKeymap(EditorKeymap.defaults()
+        .bind(EditorCommands.REDO, KeyEvent.KEYCODE_Z, true, true)); // Ctrl+Shift+Z
+
+// 3. Décorer l'éditeur depuis un plugin (un painter qui throw est retiré,
+//    jamais un crash) :
+editorView.getPainterHost().register(new TodoPainter());
+
+// 4. Rafraîchir les diagnostics de tous les onglets ouverts (gap 40 ms,
+//    saute focus/read-only/gros fichiers) :
+OpenTabDiagnosticsSweep.start(openEditorViews);
+```
+
 ### LSP ( Language Server Protocol)
 
 ```java
@@ -133,8 +161,8 @@ project.shutdown(); // borné à 2 s par serveur (v3.34.0)
 
 ```bash
 ./gradlew testDebugUnitTest
-# 855 tests (v3.35.0), 0 failures :
-#   cel-core 637 · cel-lsp-api 22 · cel-lsp 15 · cel-ui 181
+# 907 tests (v3.36.0), 0 failures :
+#   cel-core 655 · cel-lsp-api 22 · cel-lsp 15 · cel-ui 215
 ```
 
 ## Performances
@@ -153,24 +181,26 @@ project.shutdown(); // borné à 2 s par serveur (v3.34.0)
 | Ligne pour un Y écran | O(log n × log folds) | Recherche binaire sur visibleIndex = l − hiddenAbove(l) (v3.35.0) |
 | maxH (scroll horizontal) | O(1) par appel | maxCols mémoïsé par (session, doc, inlayRev), scan une fois par édition (v3.35.0) |
 | Layouts ligatures | O(1) sur hit | Cache contenu-adressé LRU 64, clé = texte de ligne (v3.35.0) |
+| Diagnostics par ligne de début | O(bucket) | Buckets mémoïsés, tri sévérité-desc (v3.36.0, portage diagnosticsByStartLine) |
+| Chips diagnostics | O(lignes visibles) | Itération des buckets groupés, badge de compte (v3.36.0) |
 | Grands fichiers | gating | > 2,5 M chars ou > 50 k lignes : analyse/folding/inlays coupés, édition conservée |
 
 ## Build
 
 ```bash
-# Prérequis : JDK 17, Android SDK (platform 34, build-tools 34.0.0)
+# Prérequis : JDK 17, Android SDK (platform 34)
 ./gradlew assembleDebug          # AARs debug des 4 modules
 ./gradlew assembleRelease        # AARs release
-./gradlew testDebugUnitTest      # tests
-./gradlew lintDebug              # 0 erreur (v3.34.0)
+./gradlew testDebugUnitTest      # tests (AGP 9 : la variante debug porte les tests unitaires)
+./gradlew lintDebug              # 0 erreur
 ./gradlew publishToMavenLocal    # publication Maven locale (jo.codeeditor:*)
 ```
 
-Gradle wrapper **8.7** · AGP **8.5.2** · `compileSdk 34` · `minSdk 24` · Java **17**.
+Gradle wrapper **9.5.1** · AGP **9.0.0** · `compileSdk 34` · `minSdk 24` · Java **17**.
 
 ## Crédits
 
-Architecture basée sur l'analyse du projet [CodeAssist](https://github.com/tyron12233/CodeAssist) par tyron12233 (évolutions v3.9 → v3.20 intégrées en v3.34.0). Implémentation en Java pur pour Android.
+Architecture basée sur l'analyse du projet [CodeAssist](https://github.com/tyron12233/CodeAssist) par tyron12233 (évolutions v3.9 → v3.20 intégrées en v3.34.0-v3.36.0). Implémentation en Java pur pour Android.
 
 ## Licence
 

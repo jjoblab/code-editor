@@ -3,6 +3,8 @@ package jo.codeeditor.view;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.function.IntPredicate;
 
 /**
@@ -29,6 +31,15 @@ public class GutterView {
 
     /** v3.7.2: screen density (px/dp), used to size the diagnostic dot. */
     private float density = 1f;
+
+    /**
+     * v3.36.0 (roadmap item 9) — plugin gutter marks: line → ARGB color.
+     * Drawn as a thin vertical bar at the RIGHT edge of the line-number
+     * area (VCS-blame style) — opposite corner from the diagnostic dots,
+     * so the two never collide. Set by the renderer from the painter
+     * host's frame.
+     */
+    private Map<Integer, Integer> pluginMarks = new HashMap<>(0);
 
     public GutterView(EditorMetrics metrics, EditorTheme theme) {
         this.metrics = metrics;
@@ -66,6 +77,14 @@ public class GutterView {
      */
     public void setHiddenLineChecker(IntPredicate checker) {
         this.hiddenLineChecker = checker;
+    }
+
+    /**
+     * v3.36.0 (roadmap item 9) — sets the plugin gutter marks (line → ARGB
+     * color). An empty/null map clears them.
+     */
+    public void setPluginMarks(Map<Integer, Integer> lineToColor) {
+        this.pluginMarks = lineToColor != null ? lineToColor : new HashMap<>(0);
     }
 
     /**
@@ -126,7 +145,7 @@ public class GutterView {
                 // so the Y stays correct).
                 if (y + lineHeight < 0) continue;
                 if (y > viewHeight) break;
-                drawLineNumber(canvas, numberPaint, textX, y, lineHeight, i, currentLine);
+                drawLineNumber(canvas, numberPaint, textX, y, lineHeight, i, currentLine, lineNumberAreaRight);
             }
         } else {
             // Legacy path: no folds, every doc line is visible.
@@ -134,7 +153,7 @@ public class GutterView {
             int lastLine = Math.min(totalLines - 1, (int) ((scrollTop + viewHeight) / lineHeight));
             for (int i = firstLine; i <= lastLine; i++) {
                 float y = paddingTop + i * lineHeight - scrollTop;
-                drawLineNumber(canvas, numberPaint, textX, y, lineHeight, i, currentLine);
+                drawLineNumber(canvas, numberPaint, textX, y, lineHeight, i, currentLine, lineNumberAreaRight);
             }
         }
     }
@@ -154,7 +173,8 @@ public class GutterView {
      *  circle (no inner highlight halo — CodeAssist draws a plain circle).
      */
     private void drawLineNumber(Canvas canvas, Paint numberPaint, float textX,
-                                 float y, float lineHeight, int lineIdx, int currentLine) {
+                                 float y, float lineHeight, int lineIdx, int currentLine,
+                                 float lineNumberAreaRight) {
         String lineStr = String.valueOf(lineIdx + 1);
         float lineNumberWidth = numberPaint.measureText(lineStr);
 
@@ -188,6 +208,21 @@ public class GutterView {
             dotPaint.setColor(getDiagnosticColor(sev));
             dotPaint.setStyle(Paint.Style.FILL);
             canvas.drawCircle(dotCenterX, dotY, dotR, dotPaint);
+        }
+
+        // v3.36.0 (roadmap item 9) — plugin gutter mark: thin vertical bar
+        // at the RIGHT edge of the line-number area (2dp wide, 60% of the
+        // row height), VCS-blame style. Drawn last so it stays visible over
+        // the glass background.
+        Integer markColor = pluginMarks.get(lineIdx);
+        if (markColor != null) {
+            Paint markPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            markPaint.setColor(markColor);
+            markPaint.setStyle(Paint.Style.FILL);
+            float barX = lineNumberAreaRight - 2.5f * density;
+            float barY = y + lineHeight * 0.2f;
+            canvas.drawRect(barX, barY, barX + 2f * density,
+                    barY + lineHeight * 0.6f, markPaint);
         }
     }
 

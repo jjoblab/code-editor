@@ -83,9 +83,10 @@ public class EditorView extends View {
     float hOffset = 0;
 
     // ── Zoom ───────────────────────────────────────────────────────
-    float fontScale = 1.0f;
-    private static final float MIN_FONT_SCALE = 0.6f;
-    private static final float MAX_FONT_SCALE = 2.6f;
+    // v3.36.0 (roadmap item 11): the zoom state (fontScale + scale
+    // mutations) moved to EditorZoomController; EditorView keeps the
+    // public delegating wrappers.
+    final EditorZoomController zoom = new EditorZoomController(this);
     static final float BASE_TEXT_SIZE_SP = 14f;
 
     // ── Find highlights (visual decoration) ───────────────────────
@@ -1050,6 +1051,20 @@ public class EditorView extends View {
     // One pill per line — the most severe Error/Warning — placed after the
     // line end; tapping it opens the diagnostic sheet.
     static final float DIAG_CHIP_GAP_CHARS = 3f;
+
+    // ── v3.36.0: Grouped diagnostic list sheet (roadmap item 5) ──
+    // Port of CodeAssist v3.20 diagnosticsByStartLine(): when a line
+    // carries MULTIPLE diagnostics, its chip shows a count badge and its
+    // tap opens this grouped sheet first — every diagnostic starting on
+    // the line gets a row (severity dot + message); tapping a row opens
+    // the per-diagnostic popup with the quick fixes. Before this, the
+    // chip/gutter only surfaced the MOST severe diagnostic of the line:
+    // a warning hidden behind an error on the same line was unreachable.
+    // -1 = hidden.
+    int diagnosticListSheetLine = -1;
+    static final float DIAG_LIST_ROW_DP = 44f;
+    static final int DIAG_LIST_MAX_ROWS = 8;
+
     // ── Selection handles (mobile) ─────────────────────────────────
     // After a long-press or double-tap, two draggable handles appear at
     // the start and end of the selection. Dragging a handle moves that
@@ -1120,6 +1135,41 @@ public class EditorView extends View {
     final EditorInputHandler inputHandler;
     final EditorPopupManager popupManager;
     private final EditorKeyHandler keyHandler;
+
+    /**
+     * v3.36.0 (roadmap item 6) — the data-driven, rebindable keymap.
+     * {@link EditorKeyHandler} resolves every hardware key event through
+     * this table; replace it with {@link #setKeymap(EditorKeymap)} to
+     * rebind commands at runtime (see {@link EditorCommands}).
+     */
+    EditorKeymap keymap = EditorKeymap.defaults();
+
+    /**
+     * v3.36.0 — Replaces the hardware-key keymap (fluent rebinding, see
+     * {@link EditorKeymap#defaults}). Pass null to restore the default
+     * table. Changes apply from the next key event.
+     */
+    public void setKeymap(EditorKeymap keymap) {
+        this.keymap = keymap != null ? keymap : EditorKeymap.defaults();
+    }
+
+    /** v3.36.0 — The active keymap (mutable — rebind directly if needed). */
+    public EditorKeymap getKeymap() {
+        return keymap;
+    }
+
+    /**
+     * v3.36.0 (roadmap item 9) — the plugin painter host. Register
+     * {@link EditorDecorationPainter}s to add text decorations, gutter
+     * marks and phantom inlays without touching the editor's own layers.
+     * A painter that throws is removed instead of crashing the editor.
+     */
+    final EditorPainterHost painterHost = new EditorPainterHost();
+
+    /** v3.36.0 — The plugin painter host (register/unregister painters). */
+    public EditorPainterHost getPainterHost() {
+        return painterHost;
+    }
 
     // ── Language SPI (v2.0.0) ────────────────────────────────────
     // The Language instance provides all language intelligence (completion,
@@ -2039,7 +2089,7 @@ public class EditorView extends View {
 
     public EditorMetrics getMetrics() { return metrics; }
     public EditorTheme getTheme() { return theme; }
-    public float getFontScale() { return fontScale; }
+    public float getFontScale() { return zoom.fontScale; }
     public float getVOffset() { return vOffset; }
     public float getHOffset() { return hOffset; }
 
@@ -2883,235 +2933,55 @@ public class EditorView extends View {
     // v2.31: Diagnostic sheet / chip geometry (shared by draw + hit-test)
     // ════════════════════════════════════════════════════════════════
 
+        int countWrappedLines(String msg, float maxW) {
+        return EditorPopupAnchors.countWrappedLines(this, msg, maxW);
+    }
+
+
+        float[] diagnosticSheetMetrics() {
+        return EditorPopupAnchors.diagnosticSheetMetrics(this);
+    }
+
+
+        float[] diagnosticListSheetMetrics() {
+        return EditorPopupAnchors.diagnosticListSheetMetrics(this);
+    }
+
+
     /**
-     * v2.31: Word-wraps {@code msg} with the diagnostic-sheet text paint and
-     * returns the number of visual lines (min 1). Used by BOTH the draw pass
-     * and the hit-test so they always agree on the panel height.
+     * v3.36.0 (roadmap item 5): opens the grouped diagnostic sheet for
+     * {@code line} (public host API).
      */
-    int countWrappedLines(String msg, float maxW) {
-        if (msg == null || msg.isEmpty()) return 1;
-        int lines = 1;
-        StringBuilder cur = new StringBuilder();
-        for (String word : msg.split("\\s+")) {
-            String test = cur.length() == 0 ? word : cur + " " + word;
-            if (textPaint.measureText(test) > maxW && cur.length() > 0) {
-                lines++;
-                cur = new StringBuilder(word);
-            } else {
-                cur = cur.length() == 0 ? new StringBuilder(word) : cur.append(" ").append(word);
-            }
-        }
-        return lines;
+    public void showDiagnosticListSheet(int line) {
+        popupManager.showDiagnosticListSheet(line);
+    }
+
+    /** v3.36.0: closes the grouped diagnostic sheet (public host API). */
+    public void dismissDiagnosticListSheet() {
+        popupManager.dismissDiagnosticListSheet();
+    }
+
+    /** v3.36.0: true while the grouped diagnostic sheet is showing. */
+    public boolean isDiagnosticListSheetVisible() {
+        return diagnosticListSheetLine >= 0;
     }
 
     /**
-     * v2.31: Shared geometry of the diagnostic sheet (the CodeAssist
-     * DiagnosticSheet port). Returns {@code null} when nothing is showing,
-     * else {@code [panelTop, panelBottom, actionStartY, actionRowH,
-     * closeCx, closeCy, closeR]} — the single source of truth used by the
-     * renderer AND the tap hit-test.
+     * v3.36.0 (roadmap item 8) — the wired {@code DiagnosticsProvider}
+     * (package access for {@link OpenTabDiagnosticsSweep}), or null when
+     * the current language has none.
      */
-    float[] diagnosticSheetMetrics() {
-        if (!diagnosticPopupVisible || diagnosticPopupItem == null || session == null) return null;
-        DiagnosticShift.Diagnostic d = diagnosticPopupItem;
-        float density = getResources().getDisplayMetrics().density;
-        int line = session.getDocument().lineForOffset(d.start);
-        List<CodeAction> actions = codeActionsByLine.get(line);
-        int actionCount = actions != null ? actions.size() : 0;
-        String msg = d.message != null ? d.message : "";
-        textPaint.setTypeface(metrics.getTypeface());
-        textPaint.setTextSize(metrics.getTextSize() * 0.85f);
-        int msgLines = Math.min(countWrappedLines(msg, getWidth() - 24 * density),
-            DIAG_SHEET_MAX_MSG_LINES);
-        textPaint.setTextSize(metrics.getTextSize());
-        float headerH = DIAG_SHEET_HEADER_DP * density;
-        float msgH = Math.max(1, msgLines) * DIAG_SHEET_MSG_LINE_DP * density;
-        float actionsH = actionCount > 0
-            ? DIAG_SHEET_ACTIONS_BLOCK_DP * density + actionCount * DIAG_SHEET_ACTION_ROW_DP * density
-            : 0;
-        float sheetH = headerH + msgH + actionsH + DIAG_SHEET_BOTTOM_PAD_DP * density;
-        float panelTop = Math.max(0, getHeight() - sheetH);
-        float actionStartY = panelTop + headerH + msgH + DIAG_SHEET_ACTIONS_BLOCK_DP * density;
-        return new float[]{
-            panelTop, getHeight(), actionStartY, DIAG_SHEET_ACTION_ROW_DP * density,
-            getWidth() - 30 * density, panelTop + headerH * 0.5f, 15 * density};
+    jo.codeeditor.lang.DiagnosticsProvider getDiagnosticsProviderSpi() {
+        return diagnosticsProviderSpi;
     }
 
-    /**
-     * v2.34 — géométrie partagée + liste d'actions de la toolbar flottante de
-     * sélection (portage {@code SelectionToolbar} de CodeAssist). SOURCE
-     * UNIQUE de vérité pour le rendu ({@code EditorRenderer.drawSelectionToolbar})
-     * ET le hit-test ({@code EditorInputHandler}) — avant v2.34, le calcul de
-     * layout était dupliqué des deux côtés (risque de divergence).
-     *
-     * <p>Jeu d'actions (parité CodeAssist {@code EditorOverlays.kt}) :</p>
-     * <ul>
-     *   <li><b>Copy / Cut</b> — uniquement si la sélection est non-collapsed ;</li>
-     *   <li><b>Paste / Select all</b> — toujours (mode collapsed : re-tap sur
-     *       le caret, comme le toggle {@code reTap} de CodeAssist) ;</li>
-     *   <li><b>divider</b> — si au moins un bouton icône est présent ;</li>
-     *   <li><b>Docs ℹ</b> — si un quick-doc resolver est câblé ;</li>
-     *   <li><b>Actions ⋯</b> — si des quick-fixes existent pour la ligne de la
-     *       sélection ({@code codeActionsByLine} — équivalent CodeAssist du
-     *       menu contextuel Quick fixes).</li>
-     * </ul>
-     */
-    SelectionToolbarMetrics selectionToolbarMetrics() {
-        if (!selectionToolbarVisible || session == null) return null;
-        Selection sel = session.getSelection();
-        float density = getResources().getDisplayMetrics().density;
 
-        // Ancre = extrémité ACTIVE de la sélection (le bout qui suit le
-        // doigt — parité CodeAssist geometry.caretGeometry(selActive)).
-        // Inlay-aware + fold-aware via caretScreenPos.
-        float[] anchor = caretScreenPos(sel.end);
-        float anchorScreenX = anchor[0];
-        float anchorScreenY = anchor[1];
-
-        // ★ v2.36 — parité CodeAssist EXACTE : CodeEditor.kt fournit TOUJOURS
-        // onDocs ET onMenu non-null — la pill affiche donc en permanence
-        // Copy/Cut (si sélection) + Paste + Select all | ℹ Docs | ⋯ Actions.
-        // Avant, les icônes étaient masquées sans quick-fixes sur la ligne :
-        // l'utilisateur perdait l'accès à Docs et au menu GO TO.
-        boolean hasSelection = !sel.isCursor();
-
-        // ── Construction de la liste d'actions ──────────────────────
-        textPaint.setTypeface(android.graphics.Typeface.DEFAULT);
-        textPaint.setTextSize(13 * density);
-        SelectionToolbarMetrics m = new SelectionToolbarMetrics();
-        m.padX = 12 * density;
-        m.padY = 8 * density;
-        m.btnGap = 2 * density;
-        m.h = 14 * density + 2 * m.padY;
-        m.radius = m.h * 0.5f;
-        float iconW = 32 * density; // 16dp icon + 2×8dp padding
-
-        if (hasSelection) {
-            m.addText(SEL_ACT_COPY, "Copy", textPaint.measureText("Copy"));
-            m.addText(SEL_ACT_CUT, "Cut", textPaint.measureText("Cut"));
-        }
-        m.addText(SEL_ACT_PASTE, "Paste", textPaint.measureText("Paste"));
-        m.addText(SEL_ACT_SELECT_ALL, "Select all", textPaint.measureText("Select all"));
-        m.addIcon(SEL_ACT_DOCS);
-        m.addIcon(SEL_ACT_ACTIONS);
-        m.dividerCount = 1;
-        float dividerW = 6 * density;
-
-        // ── Layout provisionnel (une passe) + largeur totale ────────
-        // Le divider occupe un gap dédié (dividerW) à la transition entre
-        // le groupe texte et le groupe icônes — pas de chevauchement.
-        m.applyIconWidth(iconW);
-        float cursor = 0;
-        for (int i = 0; i < m.count; i++) {
-            m.itemX[i] = cursor;
-            cursor += m.itemW[i];
-            boolean dividerBefore = m.dividerCount > 0 && m.isIcon[i]
-                    && i > 0 && !m.isIcon[i - 1];
-            cursor += (i == m.count - 1) ? 0 : (dividerBefore ? dividerW : m.btnGap);
-        }
-        float totalW = cursor;
-        if (m.dividerCount > 0) {
-            m.dividerX = m.firstIconX() - dividerW * 0.5f;
-        }
-
-        // ── Position de la pill (ancre centrée, clamp viewport) ─────
-        m.w = totalW;
-        m.x = anchorScreenX - totalW * 0.5f;
-        if (m.x < 4) m.x = 4;
-        if (m.x + totalW > getWidth() - 4) m.x = getWidth() - totalW - 4;
-        if (m.x < 0) m.x = 0; // viewport plus étroit que la pill
-        m.y = anchorScreenY - m.h - 6 * density;
-        if (m.y < 4) {
-            // Pas de place au-dessus — bascule SOUS la ligne (amélioration
-            // locale conservée : CodeAssist clampe à 0).
-            m.y = anchorScreenY + metrics.getLineHeight() + 6 * density;
-        }
-        // Décalage du layout provisionnel vers la position finale.
-        for (int i = 0; i < m.count; i++) {
-            m.itemX[i] += m.x;
-        }
-        m.dividerX += m.x;
-        textPaint.setTypeface(metrics.getTypeface());
-        textPaint.setTextSize(metrics.getTextSize());
-        return m;
+        EditorPopupAnchors.SelectionToolbarMetrics selectionToolbarMetrics() {
+        return EditorPopupAnchors.selectionToolbarMetrics(this);
     }
 
-    /**
-     * v2.34 — géométrie de la toolbar de sélection : la pill + les items
-     * actionnables (texte ou icône) + les positions des dividers. Consommée
-     * par le rendu et le hit-test (une seule source de layout).
-     */
-    static final class SelectionToolbarMetrics {
-        float x, y;                       // coin haut-gauche de la pill
-        float w, h;                       // dimensions de la pill
-        float radius;                     // rayon (pill complète)
-        float padX, padY, btnGap;
-        int count;                        // items actionnables
-        final float[] itemX = new float[8];
-        final float[] itemW = new float[8];
-        final int[] action = new int[8];
-        final String[] label = new String[8]; // null pour un item icône
-        final boolean[] isIcon = new boolean[8];
-        float dividerX = Float.MIN_VALUE;  // 1 divider max (avant les icônes)
-        int dividerCount;
 
-        void addText(int act, String text, float width) {
-            itemX[count] = -1; // rempli par la passe de layout
-            itemW[count] = width + 2 * padX;
-            action[count] = act;
-            label[count] = text;
-            isIcon[count] = false;
-            count++;
-        }
-
-        void addIcon(int act) {
-            itemX[count] = -1;
-            itemW[count] = 0; // rempli par applyIconWidth(iconW)
-            action[count] = act;
-            label[count] = null;
-            isIcon[count] = true;
-            count++;
-        }
-
-        /** La position (provisionnelle) du premier item icône. */
-        float firstIconX() {
-            for (int i = 0; i < count; i++) {
-                if (isIcon[i]) return itemX[i];
-            }
-            return Float.MIN_VALUE;
-        }
-
-        /** Applique la largeur réelle des items icônes. */
-        void applyIconWidth(float iconW) {
-            for (int i = 0; i < count; i++) {
-                if (isIcon[i]) itemW[i] = iconW;
-            }
-        }
-
-        /** True si (x, y) est dans la pill (le geste y est englouti). */
-        boolean contains(float px, float py) {
-            return px >= x && px <= x + w && py >= y && py <= y + h;
-        }
-
-        /**
-         * L'INDEX d'item à (px, py), ou -1. Les dividers et les gaps entre
-         * items ne sont pas actionnables (parité CodeAssist : seuls les items
-         * ont un onClick).
-         */
-        int itemIndexAt(float px, float py) {
-            if (!contains(px, py)) return -1;
-            for (int i = 0; i < count; i++) {
-                if (px >= itemX[i] && px < itemX[i] + itemW[i]) return i;
-            }
-            return -1;
-        }
-
-        /** L'action à (px, py), ou -1 (délègue à {@link #itemIndexAt}). */
-        int actionAt(float px, float py) {
-            int i = itemIndexAt(px, py);
-            return i < 0 ? -1 : action[i];
-        }
-    }
+    
 
     // ════════════════════════════════════════════════════════════════
     // v2.36 : NavMenu — métriques du menu contextuel unifié
@@ -3191,113 +3061,83 @@ public class EditorView extends View {
         return h;
     }
 
+        float[] navMenuMetrics() {
+        return EditorPopupAnchors.navMenuMetrics(this);
+    }
+
+
+            float[] diagnosticChipMetrics(DiagnosticShift.Diagnostic d, int line, int badgeCount) {
+        return EditorPopupAnchors.diagnosticChipMetrics(this, d, line, badgeCount);
+    }
+
+
+        float[] diagnosticChipMetrics(DiagnosticShift.Diagnostic d, int line) {
+        return EditorPopupAnchors.diagnosticChipMetrics(this, d, line);
+    }
+
+
     /**
-     * v2.36 — géométrie du popup : {x, y, w, h} du rectangle, ancré SOUS la
-     * ligne du caret (parité NavMenuLayer : caretX clampé au gutter, bas de
-     * ligne + 6dp, marge 8dp, bascule AU-DESSUS si le bas déborde). La
-     * hauteur visible est bornée à NAV_MENU_MAX_HEIGHT_DP (360) — le contenu
-     * déborde via navMenuScrollY.
+     * v3.36.0 (roadmap item 5): the Error/Warning diagnostics whose start
+     * sits on {@code line}, most-severe-first — the chip's group. Uses
+     * the session's memoized start-line buckets (getDiagnosticsForLine),
+     * so a per-frame call is O(visible lines), not O(total diagnostics).
      */
-    float[] navMenuMetrics() {
-        if (!navMenuVisible || navMenuLine < 0) return null;
-        float density = getResources().getDisplayMetrics().density;
-        float contentH = navMenuContentHeight();
-        float maxH = NAV_MENU_MAX_HEIGHT_DP * density;
-        float h = Math.min(contentH, maxH);
-        float w = Math.min(NAV_MENU_MAX_WIDTH_DP * density,
-                Math.max(NAV_MENU_MIN_WIDTH_DP * density,
-                        (getWidth() - 2 * NAV_MENU_MARGIN_DP * density) * 0.9f));
-        // Ancre : X du caret (clampé ≥ gutter + marge), bas de la ligne.
-        float[] caret = caretScreenPos(navMenuCaretOffset);
-        float anchorX = Math.max(metrics.getGutterWidth() + NAV_MENU_MARGIN_DP * density,
-                caret[0]);
-        float anchorY = docLineToY(navMenuLine) - vOffset
-                + metrics.getLineHeight() + NAV_MENU_GAP_DP * density;
-        float x = anchorX - NAV_MENU_MARGIN_DP * density;
-        if (x + w > getWidth() - NAV_MENU_MARGIN_DP * density) {
-            x = getWidth() - NAV_MENU_MARGIN_DP * density - w;
-        }
-        if (x < NAV_MENU_MARGIN_DP * density) x = NAV_MENU_MARGIN_DP * density;
-        float y = anchorY;
-        if (y + h > getHeight() - NAV_MENU_MARGIN_DP * density) {
-            // Pas de place en dessous — bascule AU-DESSUS de la ligne.
-            y = docLineToY(navMenuLine) - vOffset - h - NAV_MENU_GAP_DP * density;
-        }
-        if (y < NAV_MENU_MARGIN_DP * density) y = NAV_MENU_MARGIN_DP * density;
-        return new float[]{x, y, w, h};
+    List<DiagnosticShift.Diagnostic> chipDiagnosticsForLine(int line) {
+        if (session == null) return new ArrayList<>(0);
+        List<DiagnosticShift.Diagnostic> all = session.getDiagnosticsForLine(line);
+        // Buckets are severity-desc sorted, so the Error/Warning prefix is
+        // everything up to the first Info/Hint.
+        int n = 0;
+        while (n < all.size() && all.get(n).severity >= 2) n++;
+        return new ArrayList<>(all.subList(0, n));
     }
 
     /**
-     * v2.31: The diagnostic CHIP pill geometry for {@code d} on {@code line}
-     * (CodeAssist DiagnosticChip port): a severity-tinted pill placed after
-     * the line end + a 3-char gap, vertically centred on the line. Returns
-     * {@code [x, y, w, h]} or null when the pill would be fully off-screen.
-     * Single source of truth for the draw pass and the tap hit-test.
+     * v3.36.0 (roadmap item 5): a chip hit — the line, its Error/Warning
+     * group (most-severe-first) and the primary diagnostic shown in the
+     * pill. Replaces the single-diagnostic return of
+     * {@link #findDiagnosticChipAt} for the tap flow: a line with several
+     * diagnostics opens the grouped sheet instead of jumping straight to
+     * the most severe one.
      */
-    float[] diagnosticChipMetrics(DiagnosticShift.Diagnostic d, int line) {
-        if (session == null) return null;
+    static final class DiagnosticChipHit {
+        final int line;
+        final List<DiagnosticShift.Diagnostic> diagnostics;
+
+        DiagnosticChipHit(int line, List<DiagnosticShift.Diagnostic> diagnostics) {
+            this.line = line;
+            this.diagnostics = diagnostics;
+        }
+
+        /** The most severe diagnostic of the group (never null when built). */
+        DiagnosticShift.Diagnostic primary() {
+            return diagnostics.get(0);
+        }
+    }
+
+    /**
+     * v3.36.0: The diagnostic chip (with its group) under the screen point
+     * (x, y), or null — drives the chip tap → grouped sheet → detail
+     * popup interaction (CodeAssist v3.20 parity).
+     */
+    DiagnosticChipHit findDiagnosticChipHitAt(float x, float y) {
+        if (!diagnosticChipsEnabled || session == null) return null;
         EditorDocument doc = session.getDocument();
+        int line = docLineForScreenY(y);
         if (line < 0 || line >= doc.lineCount()) return null;
-        float density = getResources().getDisplayMetrics().density;
-        float charWidth = metrics.getCharWidth();
-        float lineHeight = metrics.getLineHeight();
-        int lineLen = doc.lineEnd(line) - doc.lineStart(line);
-        float chipX;
-        float y;
-        if (wordWrap && wrapModel != null) {
-            // ★ v2.33 — CodeAssist DiagnosticChipsLayer : la chip se place
-            // après la FIN de la DERNIÈRE rangée repliée (lastSub), pas sur
-            // la première ni à la longueur NON repliée (l'ancienne approximation
-            // posait la pill au-delà du bord droit → pill invisible).
-            WrapRows wr = wrapRowsFor(line, lineLen);
-            int lastRow = wr.rows - 1;
-            float textAreaLeft = metrics.getGutterWidth() + metrics.getPadLeft();
-            if (lastRow == 0) {
-                // Rangée unique : les inlays sont tissés → colonne VISUELLE.
-                int visualLen = visualColFor(line, lineLen);
-                chipX = textAreaLeft + visualLen * charWidth
-                        + charWidth * DIAG_CHIP_GAP_CHARS;
-            } else {
-                int rowStart = wr.rowStartCol(lastRow);
-                int rowEnd = wr.rowEndCol(lastRow, lineLen);
-                chipX = textAreaLeft + wr.wrapIndentCols * charWidth
-                        + (rowEnd - rowStart) * charWidth
-                        + charWidth * DIAG_CHIP_GAP_CHARS;
-            }
-            y = docLineToY(line) + lastRow * lineHeight - vOffset;
-        } else {
-            // Inlay-aware visual line length so the chip never covers a hint.
-            int visualLen = visualColFor(line, lineLen);
-            chipX = metrics.getGutterWidth() + metrics.getPadLeft()
-                + visualLen * charWidth - hOffset + charWidth * DIAG_CHIP_GAP_CHARS;
-            y = docLineToY(line) - vOffset;
+        if (isLineFoldedCached(line)) return null;
+        List<DiagnosticShift.Diagnostic> group = chipDiagnosticsForLine(line);
+        if (group.isEmpty()) return null;
+        float[] m = diagnosticChipMetrics(group.get(0), line, group.size());
+        if (m == null) return null;
+        if (x >= m[0] && x <= m[0] + m[2] && y >= m[1] && y <= m[1] + m[3]) {
+            return new DiagnosticChipHit(line, group);
         }
-        if (y + lineHeight < 0 || y > getHeight()) return null;
-        // Content-sized pill height (~1.24em, CodeAssist) centred in the row.
-        float pillH = metrics.getTextSize() * 1.25f;
-        float pillY = y + (lineHeight - pillH) * 0.5f;
-        // Message truncated with an ellipsis so the pill fits the viewport.
-        textPaint.setTypeface(metrics.getTypeface());
-        textPaint.setTextSize(metrics.getTextSize());
-        textPaint.setFakeBoldText(true);
-        String msg = d.message != null ? d.message : "";
-        float padX = 6 * density;
-        float iconR = metrics.getTextSize() * 0.26f;
-        float iconGap = 5 * density;
-        float avail = getWidth() - chipX - 4 * density - padX * 2 - iconR * 2 - iconGap;
-        String label = msg;
-        if (label.length() > 90) label = label.substring(0, 88) + "…";
-        while (label.length() > 1 && textPaint.measureText(label) > avail) {
-            label = label.substring(0, label.length() - 2) + "…";
-        }
-        textPaint.setFakeBoldText(false);
-        float textW = textPaint.measureText(label);
-        float pillW = padX + iconR * 2 + iconGap + textW + padX;
-        if (chipX + pillW < metrics.getGutterWidth()) return null; // fully under the gutter
-        return new float[]{chipX, pillY, pillW, pillH, iconR, iconGap, padX};
+        return null;
     }
 
-    /**
+
+        /**
      * v2.31: The most severe Error/Warning diagnostic whose start sits on
      * {@code line} — the one that gets a chip (CodeAssist parity: Info/Hint
      * stay squiggle+gutter only). Exposed for the chip hit-test.
@@ -3306,35 +3146,25 @@ public class EditorView extends View {
         if (session == null) return null;
         EditorDocument doc = session.getDocument();
         if (doc == null || line < 0 || line >= doc.lineCount()) return null;
-        int lineStart = doc.lineStart(line);
-        int lineEnd = doc.lineEnd(line);
-        DiagnosticShift.Diagnostic best = null;
-        for (DiagnosticShift.Diagnostic d : session.getDiagnostics()) {
-            if (d.severity != 3 && d.severity != 2) continue;
-            if (d.start < lineStart || d.start > lineEnd) continue;
-            if (best == null || d.severity > best.severity) best = d;
-        }
-        return best;
+        List<DiagnosticShift.Diagnostic> group = chipDiagnosticsForLine(line);
+        return group.isEmpty() ? null : group.get(0);
     }
 
-    /**
+
+        /**
      * v2.31: The diagnostic chip under the screen point (x, y), or null —
      * drives the chip tap → sheet interaction (CodeAssist
      * DiagnosticChipsLayer's {@code onClick = onOpenSheet}).
+     *
+     * <p>v3.36.0: kept for compatibility (tests + single-diagnostic fast
+     * path) — the tap flow now uses {@link #findDiagnosticChipHitAt}
+     * which carries the whole group.</p>
      */
     DiagnosticShift.Diagnostic findDiagnosticChipAt(float x, float y) {
-        if (!diagnosticChipsEnabled || session == null) return null;
-        EditorDocument doc = session.getDocument();
-        int line = docLineForScreenY(y);
-        if (line < 0 || line >= doc.lineCount()) return null;
-        if (isLineFoldedCached(line)) return null;
-        DiagnosticShift.Diagnostic d = chipDiagnosticForLine(line);
-        if (d == null) return null;
-        float[] m = diagnosticChipMetrics(d, line);
-        if (m == null) return null;
-        if (x >= m[0] && x <= m[0] + m[2] && y >= m[1] && y <= m[1] + m[3]) return d;
-        return null;
+        DiagnosticChipHit hit = findDiagnosticChipHitAt(x, y);
+        return hit != null ? hit.primary() : null;
     }
+
 
     /**
      * v3.33.10: Helper kept for callers that previously went through
@@ -3799,116 +3629,25 @@ public class EditorView extends View {
     // Zoom
     // ════════════════════════════════════════════════════════════════
 
-    /** Sets the font scale directly (clamped to [0.6, 2.6]). */
-    public void setFontScale(float scale) {
-        fontScale = clampFontScale(scale);
-        metrics.setTextSize(spToPx(BASE_TEXT_SIZE_SP) * fontScale);
-        // Re-clamp scroll offsets — content size changed.
-        vOffset = clamp(vOffset, 0, maxV());
-        hOffset = clamp(hOffset, 0, maxH());
-        requestLayout();
-        invalidate();
+        public void setFontScale(float scale) {
+        zoom.setFontScale(scale);
     }
 
-    /**
-     * ★ v2.58 — Applique un scale pinch en ANCRANT le caret à sa position
-     * écran actuelle. Le caret reste visuellement fixe pendant le pinch
-     * (le viewport défile virtuellement sous lui) ET sa taille suit le
-     * font-scale (lineHeight est dérivé de metrics, déjà mis à jour).
-     *
-     * <p><b>Comportement attendu par l'utilisateur</b> : « lorsque je fais
-     * un pince pour zoomer, le caret devrait rester fixé à sa position et
-     * agrandir ou réduire en même temps que le pinch zoom ».</p>
-     *
-     * <p><b>Algorithme</b> :
-     * <ol>
-     *   <li>Capturer (cx, cy) = {@link #caretScreenPos(int)} du caret
-     *       AVANT d'appliquer le scale (avec les anciennes metrics).</li>
-     *   <li>Appliquer le nouveau scale → metrics re-set, lineHeight /
-     *       charWidth changent → {@link #caretScreenPos(int)} renverrait
-     *       une nouvelle position (nx, ny) si les offsets restaient
-     *       inchangés.</li>
-     *   <li>Calculer le delta (cx - nx, cy - ny) et l'ajouter à
-     *       {@link #hOffset} / {@link #vOffset} (puis clamp).</li>
-     * </ol>
-     * Le caret est maintenant à (cx, cy) écran — sa position visuelle
-     * n'a pas bougé, mais sa hauteur/largeur suivent le nouveau font.
-     */
-    public void applyPinchScale(float scaleFactor) {
-        float newScale = clampFontScale(fontScale * scaleFactor);
-        if (newScale == fontScale) return; // no-op (clamp saturé)
 
-        // (1) Capture caret's CURRENT screen position (old metrics).
-        float cx = 0f, cy = 0f;
-        boolean hasCaret = (session != null && !session.isReadOnly());
-        if (hasCaret) {
-            int caretOffset = session.getSelection().start;
-            float[] pos = caretScreenPos(caretOffset);
-            cx = pos[0];
-            cy = pos[1];
-        }
-
-        // (2) Apply the new scale (mirrors setFontScale's body but without
-        // requestLayout — pinch fires continuously, requestLayout would
-        // thrash the framework. EditorView's onMeasure will be re-run by
-        // the next invalidate anyway).
-        fontScale = newScale;
-        metrics.setTextSize(spToPx(BASE_TEXT_SIZE_SP) * fontScale);
-
-        // (3) If we had a caret, adjust offsets to keep it anchored.
-        if (hasCaret) {
-            // Recompute caret position with the NEW metrics and the OLD
-            // offsets — caretScreenPos reads vOffset/hOffset live, so
-            // this returns where the caret WOULD land if we didn't touch
-            // the offsets.
-            //
-            // Math : on veut newPos_after == (cx, cy) (caret ancré).
-            //   pos = anchor(line, col, metrics) - offset
-            //   où anchor = padTop + line * lh (vertical), et
-            //   gutterW + padLeft + col * charWidth (horizontal).
-            //
-            //   Avant le scale  : cy  = anchor_old - vOffset_old
-            //   Après (métriques nouvelles, offsets inchangés) :
-            //     newPos_y = anchor_new - vOffset_old
-            //   On veut : anchor_new - vOffset_new = cy
-            //     → vOffset_new = anchor_new - cy
-            //                = (newPos_y + vOffset_old) - cy
-            //                = vOffset_old + (newPos_y - cy)
-            //
-            //   Donc : vOffset += (newPos_y - cy)
-            //   (et symétriquement hOffset += (newPos_x - cx))
-            //
-            // NOTE : le signe est (+) car on veut AMENER le caret à cy,
-            // pas l'éloigner. C'est la position NOUVELLE (newPos) moins
-            // l'ANCIENNE (cx, cy), ce qui est intuitif : "combien le caret
-            // a bougé à cause du scale → compenser ce mouvement".
-            float[] newPos = caretScreenPos(session.getSelection().start);
-            float dx = newPos[0] - cx;
-            float dy = newPos[1] - cy;
-            hOffset += dx;
-            vOffset += dy;
-        }
-
-        // (4) Clamp to valid scroll range (post-scale).
-        vOffset = clamp(vOffset, 0, maxV());
-        hOffset = clamp(hOffset, 0, maxH());
-
-        // (5) Cancel any in-flight caret glide — the caret is anchored
-        // by our offset adjustment, a glide would override it.
-        if (caretAnim != null) {
-            caretAnim.onEditOrMove();
-        }
-
-        invalidate();
+        public void applyPinchScale(float scaleFactor) {
+        zoom.applyPinchScale(scaleFactor);
     }
+
 
     // v3.18.0: Convenience methods for font size +/- from Canvas icons.
-    public void increaseFontSize() {
-        setFontScale(clampFontScale(fontScale * 1.15f));
+        public void increaseFontSize() {
+        zoom.increaseFontSize();
     }
-    public void decreaseFontSize() {
-        setFontScale(clampFontScale(fontScale / 1.15f));
+
+        public void decreaseFontSize() {
+        zoom.decreaseFontSize();
     }
+
 
     // v3.18.0: Non-printable characters toggle.
     public void setShowNonPrintable(boolean show) {
@@ -3984,9 +3723,10 @@ public class EditorView extends View {
         return 0;
     }
 
-    static float clampFontScale(float s) {
-        return Math.max(MIN_FONT_SCALE, Math.min(MAX_FONT_SCALE, s));
+        static float clampFontScale(float s) {
+        return EditorZoomController.clampFontScale(s);
     }
+
 
     // ════════════════════════════════════════════════════════════════
     // Helpers

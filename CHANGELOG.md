@@ -7,6 +7,167 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v3.36.0] — 2026-09-17 — Extensibilité & UX (roadmap items 5-11)
+
+Troisième itération post-rapport : les items 5 à 11 de la roadmap v3.34.0
+(le 12 — CI GitHub Actions — est volontairement reporté). Au menu : les
+diagnostics groupés par ligne, la keymap rebindable, le registre de
+langages contribuables, le sweep des onglets ouverts, le SPI de
+décorations plugins, la migration Gradle 9 / AGP 9 et la suite du
+démantèlement d'`EditorView` — toujours sans breaking change d'API
+publique (nouveautés additives ; les signatures existantes sont
+déléguées).
+
+### Added
+
+- **Diagnostics groupés par ligne de début (roadmap item 5, portage
+  `diagnosticsByStartLine()` de CodeAssist v3.20)** — une ligne portant
+  une erreur ET un warning ne surfait que la plus sévère : le warning
+  était inatteignable depuis la chip. Désormais :
+  `EditorSession.getDiagnosticsForLine(line)` expose le groupe par ligne
+  de début (buckets mémoïsés sur la référence de liste — même pattern que
+  les buckets inlays/sem v3.34.0, tri sévérité-décroissante puis
+  offset-croissant) ; la **chip** porte un **badge de compte** (cercle
+  plein couleur sévérité + compte blanc) quand la ligne a plusieurs
+  Error/Warning (la largeur du badge est incluse dans la géométrie
+  partagée draw/hit-test) ; le tap ouvre la **sheet groupée** (scrim +
+  panel docké bas, une rangée par diagnostic — info incluse, dot de
+  sévérité + message tronqué, plafond 8 rangées + rangée « …et N de
+  plus ») ; le tap d'une rangée ouvre le popup détail existant (message
+  complet + quick fixes). Une ligne à diagnostic unique ouvre toujours
+  directement le popup détail. La sheet est modale (geste englouti
+  comme le popup détail), Esc la referme — Esc referme désormais AUSSI
+  le popup détail (petit gain UX au passage).
+- **Keymap data-driven rebindable (roadmap item 6, portage
+  `EditorKeymap`/`EditorCommands` de CodeAssist v3.20)** — les cascades
+  Ctrl+shortcuts et mouvement/édition d'`EditorKeyHandler` sont
+  remplacées par une table de bindings résolue par event :
+  `EditorCommands` (~45 ids : undo/redo, presse-papiers, déclencheurs
+  LSP, navigation, zoom, édition, mouvement + variantes EXTEND_*),
+  `EditorKeymap.defaults()` (portage verbatim des raccourcis v3.35.0),
+  `view.setKeymap()` / `view.getKeymap()` pour rebind runtime
+  (`km.bind(EditorCommands.REDO, KEYCODE_Z, true, true)` = Ctrl+Shift+Z
+  redo à la IntelliJ). La résolution se fait en 4 passes (exact → sans
+  ctrl → sans shift → sans aucun) pour préserver les habitudes héritées
+  des cascades : Ctrl+flèches déplacent toujours le caret, Ctrl+Tab
+  indente, Ctrl+Shift+A sélectionne tout, Shift+Enter insère un saut de
+  ligne. Les intercepteurs de popups (complétion, signature help, code
+  actions, go-to-symbol) gardent la priorité sur la keymap. Les chords
+  (séquences à deux touches, `Outcome.Pending` chez CodeAssist) restent
+  en future work.
+- **Registre de langages contribuables (roadmap item 7, portage
+  `EditorLanguageRegistry`/`EditorLanguageProfile` de CodeAssist
+  v3.20)** — nouveau package `jo.codeeditor.languages` (cel-core) :
+  `LanguageProfile` (nom canonique, alias, extensions, mots-clés,
+  `SyntaxFamily`, `CommentSyntax` — builder fluide, immuable),
+  `LanguageRegistry` (lookups insensibles à la casse par nom/alias ET par
+  extension de fichier, register/unregister/override de built-ins,
+  **listeners observables** notifiés à chaque mutation,
+  `resetToBuiltins()` pour les tests), `SyntaxFamily` (14 familles
+  lexicales), `BuiltinLanguages` (les 27 langages intégrés — tables de
+  mots-clés déplacées verbatim depuis `SyntaxHighlighter`). Le highlighter
+  route désormais par famille (switch sur le profil) et
+  `CommentSyntax.forLanguage` délègue au registre : **un hôte peut
+  enregistrer son propre langage** (`LanguageRegistry.register(profile)`)
+  et coloration + toggles de commentaires le prennent en charge
+  immédiatement. `EditorSession.getLanguageProfile()` expose le profil
+  actif.
+- **Sweep diagnostics des onglets ouverts (roadmap item 8, portage
+  `OpenTabDiagnosticsSweep` de CodeAssist v3.20)** — l'éditeur ne
+  rafraîchissait les diagnostics que de l'onglet focus (debounce) : les
+  onglets arrière-plan gardaient leurs points rouges périmés. Le sweep
+  (`OpenTabDiagnosticsSweep.start(List<EditorView>)`) parcourt les
+  onglets ouverts, recalcule chaque provider HORS main thread, applique
+  sur le main thread avec un **gap de 40 ms entre onglets** (CodeAssist),
+  et saute : l'onglet focus (son debounce le possède), les sessions
+  read-only, les gros documents (`isLarge()` — même gating que l'analyse
+  sémantique), les onglets sans provider et les vues détachées. Un
+  résultat dont la session a changé pendant le vol est jeté (garde
+  d'identité), `cancel()` arrête la marche, un provider qui throw est
+  compté sauté sans tuer le sweep.
+- **SPI décorations plugins (roadmap item 9, portage
+  `EditorPainterHost` de CodeAssist v3.20)** — les hôtes peuvent
+  décorer l'éditeur sans toucher à ses couches :
+  `EditorDecorationPainter` (SPI : `paint(EditorPaintContext)` une fois
+  par frame), `EditorPaintContext` (fenêtre visible, métriques, et
+  `addTextDecoration` / `addGutterMark` / `addPluginInlay`),
+  `EditorDecorations` + `DecorationStyles` (UNDERLINE / BOX /
+  STRIKE_THROUGH). Le rendu : soulignés/encadrés/barrés par range
+  (wrap-aware, au-dessus des squiggles), **barres de gutter** façon
+  VCS-blame (bord droit de la zone numéros, n'entrent jamais en
+  collision avec les dots de diagnostics), **inlays fantômes** après la
+  fin de ligne (85 %, se placent après la chip diagnostic le cas
+  échéant). **Un painter qui throw est retiré du registre au lieu de
+  crasher l'éditeur** (politique CodeAssist), avec listeners
+  `onPainterRemoved` pour télémétrie. `loadFromClasspath()` charge les
+  painters déclarés en `META-INF/services/…EditorDecorationPainter`
+  (ServiceLoader). Accès : `view.getPainterHost()`.
+- **`GutterView.setPluginMarks(Map<Integer,Integer>)`** — l'API des
+  barres de gutter plugins (consommée par le renderer depuis la frame du
+  painter host).
+
+### Fixed
+
+- **Routage des alias de langages (item 7, conséquence assumée)** — les
+  ids courts qui tombaient à travers les chaînes de strings du
+  highlighter vers le tokenizer C générique (avec les mots-clés Java !)
+  routent désormais vers leur vrai tokenizer : `py` → Python (`#`
+  commenté), `md` → Markdown, `svg`/`htm` → XML, `ini` → properties,
+  `kt` → mots-clés Kotlin, `rs` → mots-clés Rust. Le comportement des
+  noms canoniques est inchangé octet pour octet (tests v3.35.0
+  inchangés).
+
+### Changed
+
+- **Migration Gradle 9.5.1 / AGP 9.0.0 (roadmap item 10)** — wrapper
+  8.7 → 9.5.1, plugin 8.5.2 → 9.0.0 (génération de CodeAssist v3.20).
+  Build, tests, lint et publication validés sur le nouveau toolchain.
+  Note AGP 9 : la tâche `testReleaseUnitTest` n'existe plus (les tests
+  unitaires tournent sur la variante debug ; la release est validée par
+  `assembleRelease` + lint). `jitpack.yml` inchangé (JDK 17).
+- **Démantèlement d'`EditorView` (roadmap item 11) : 5 066 → 4 626
+  lignes (−440)** — deux extractions vers le pattern managers :
+  `EditorPopupAnchors` (toute la géométrie des popup-anchors partagée
+  draw/hit-test : sheet détail, sheet groupée, chips + badge, toolbar de
+  sélection + sa classe `SelectionToolbarMetrics`, NavMenu, compteur de
+  word-wrap ; EditorView garde des wrappers déléguants aux signatures
+  historiques — renderer, input handler et tests inchangés) et
+  `EditorZoomController` (l'état `fontScale` + `setFontScale`,
+  `applyPinchScale` ancré caret v2.58, `increaseFontSize`/
+  `decreaseFontSize`, bornes [0.6, 2.6] ; delegates publics préservés).
+- **`EditorRenderer.drawDiagnosticChips`** — itère les buckets par ligne
+  du groupe (mémoïsés) au lieu de reconstruire une HashMap de toute la
+  liste à chaque frame ; le draw reste O(lignes visibles).
+- **`chipDiagnosticForLine`/`findDiagnosticChipAt`** — réimplémentés sur
+  les buckets (le second délègue au nouveau hit groupé
+  `findDiagnosticChipHitAt` qui porte la ligne + le groupe complet).
+
+### Validation
+
+- `assembleDebug` + `assembleRelease` : OK sur les 4 modules (Gradle
+  9.5.1 / AGP 9.0.0).
+- Tests : **907 / 0 échec** (cel-core 655, cel-lsp-api 22, cel-lsp 15,
+  cel-ui 215) — 855 en v3.35.0, **+52 nouveaux** :
+  `LanguageRegistryTest` 14 (lookups, familles, mots-clés, parité
+  commentaires v3.35.0, register/unregister/override, listeners,
+  langage custom → highlighter + commentaires), `DiagnosticsByLineTest`
+  4 (buckets par ligne de début, tri, mémoïsation, offsets
+  pathologiques), `EditorKeymapTest` 10 (table par défaut, 4 passes de
+  résolution, rebind/unbind, instances neuves), `DiagnosticGroupedSheetTest`
+  8 (groupe chip + badge, hit groupé, sheet multi vs popup mono, cap 8
+  rangées, tap rangée → détail, scrim, smoke render),
+  `EditorPainterHostTest` 6 (collecte 3 types, painter qui throw retiré +
+  listener, dédup par id, clamps hostiles, smoke render),
+  `OpenTabDiagnosticsSweepTest` 10 (application onglet arrière-plan,
+  éligibilité focus/read-only/large/sans provider/détaché, provider qui
+  throw, stale-guard, cancel, liste vide).
+- Lint : **0 erreur** (22 warnings informationnels — versions de deps +
+  ClickableViewAccessibility préexistants ; aucun dans les nouveaux
+  fichiers).
+- `publishToMavenLocal` : `jo.codeeditor:cel-{core,lsp-api,lsp,ui}:3.36.0`
+  (aar + sources + pom + module), POM de `cel-ui` transitif vers `cel-core`
+  et `cel-lsp-api` (scope compile).
+
 ## [v3.35.0] — 2026-09-16 — Commentaires language-driven & caches de rendu (roadmap items 1-4)
 
 Deuxième itération post-rapport : les quatre premiers items de la roadmap

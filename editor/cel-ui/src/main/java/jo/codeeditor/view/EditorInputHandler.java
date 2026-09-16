@@ -278,7 +278,9 @@ class EditorInputHandler {
                 // v2.31: the diagnostic sheet is MODAL — consume the gesture so
                 // the editor neither scrolls nor places the caret under the
                 // scrim; the UP event resolves via handleTap.
-                if (view.diagnosticPopupVisible) {
+                // v3.36.0 (roadmap item 5): the grouped list sheet is modal
+                // the same way.
+                if (view.diagnosticPopupVisible || view.diagnosticListSheetLine >= 0) {
                     sheetGesture = true;
                     if (!scroller.isFinished()) scroller.abortAnimation();
                     return true;
@@ -290,7 +292,7 @@ class EditorInputHandler {
                 // v2.34: the selection toolbar swallows its gesture (CodeAssist
                 // Popup parity) — press feedback + action on release.
                 if (view.selectionToolbarVisible) {
-                    EditorView.SelectionToolbarMetrics m = view.selectionToolbarMetrics();
+                    EditorPopupAnchors.SelectionToolbarMetrics m = view.selectionToolbarMetrics();
                     if (m != null && m.contains(x, y)) {
                         toolbarGesture = true;
                         view.selectionToolbarPressedIdx = m.itemIndexAt(x, y);
@@ -764,6 +766,39 @@ class EditorInputHandler {
             view.dismissCompletion();
         }
 
+        // v3.36.0 (roadmap item 5): grouped diagnostic list sheet — a tap on
+        // a row opens the detail popup for that diagnostic (so a warning
+        // hidden behind an error on the same line becomes reachable); the
+        // close button and the scrim dismiss.
+        if (view.diagnosticListSheetLine >= 0) {
+            float[] m = view.diagnosticListSheetMetrics();
+            if (m != null) {
+                float closeCx = m[6], closeCy = m[7], closeR = m[8];
+                float dxClose = x - closeCx, dyClose = y - closeCy;
+                if (dxClose * dxClose + dyClose * dyClose <= closeR * closeR) {
+                    view.dismissDiagnosticListSheet();
+                    return;
+                }
+                if (y >= m[0] + m[2] && y <= m[1]) {
+                    int row = (int) ((y - (m[0] + m[2])) / m[3]);
+                    int rows = (int) m[4];
+                    if (row >= 0 && row < rows && view.session != null) {
+                        List<DiagnosticShift.Diagnostic> all =
+                                view.session.getDiagnosticsForLine(view.diagnosticListSheetLine);
+                        if (row < all.size()) {
+                            DiagnosticShift.Diagnostic d = all.get(row);
+                            view.dismissDiagnosticListSheet();
+                            view.showDiagnosticPopup(d, d.start);
+                            return;
+                        }
+                    }
+                }
+            }
+            // Any other tap (scrim included) dismisses the modal sheet.
+            view.dismissDiagnosticListSheet();
+            return;
+        }
+
         // Diagnostic popup hit-test (v2.31: CodeAssist-style modal sheet).
         if (view.diagnosticPopupVisible) {
             if (hitTestDiagnosticSheetClose(x, y)) {
@@ -896,9 +931,16 @@ class EditorInputHandler {
         // cursor before/after the diagnostic range. The v3.4.0/v3.14.0
         // squiggle-hit code was removed for that parity.
         if (x >= view.metrics.getGutterWidth() && tapCount == 1) {
-            DiagnosticShift.Diagnostic chipDiag = view.findDiagnosticChipAt(x, y);
-            if (chipDiag != null) {
-                view.showDiagnosticPopup(chipDiag, chipDiag.start);
+            // v3.36.0 (roadmap item 5): a line with SEVERAL diagnostics opens
+            // the grouped sheet first; a single one opens the detail popup
+            // directly (CodeAssist diagnosticsByStartLine parity).
+            EditorView.DiagnosticChipHit chipHit = view.findDiagnosticChipHitAt(x, y);
+            if (chipHit != null) {
+                if (chipHit.diagnostics.size() > 1) {
+                    view.showDiagnosticListSheet(chipHit.line);
+                } else {
+                    view.showDiagnosticPopup(chipHit.primary(), chipHit.primary().start);
+                }
                 return;
             }
         }
@@ -1269,7 +1311,7 @@ class EditorInputHandler {
      */
     boolean handleSelectionToolbarTap(float x, float y) {
         if (!view.selectionToolbarVisible || view.session == null) return false;
-        EditorView.SelectionToolbarMetrics m = view.selectionToolbarMetrics();
+        EditorPopupAnchors.SelectionToolbarMetrics m = view.selectionToolbarMetrics();
         if (m == null) return false;
         int act = m.actionAt(x, y);
         if (act < 0) return false;

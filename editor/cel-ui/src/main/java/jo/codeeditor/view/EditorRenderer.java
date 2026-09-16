@@ -131,6 +131,14 @@ class EditorRenderer {
             ? clamp(view.docLineForScreenY(height), 0, doc.lineCount() - 1)
             : lastVisible;
 
+        // v3.36.0 (roadmap item 9) — plugin decorations: run the registered
+        // EditorDecorationPainters ONCE per frame (empty host is a no-op
+        // returning a shared EMPTY frame). Gutter marks are pushed to the
+        // GutterView before its draw; text decorations + plugin inlays are
+        // drawn inside the text-area clip after the squiggles.
+        final EditorPainterHost.Frame pluginFrame =
+                view.painterHost.apply(view, firstDocVisible, lastDocVisible);
+
         // 1. Editor background
         view.bgPaint.setColor(view.theme.editorBg);
         canvas.drawRect(0, 0, width, height, view.bgPaint);
@@ -294,6 +302,13 @@ class EditorRenderer {
         // inside the text-area clip, exactly like CodeAssist's EditorRendering.
         drawBracketMatchBoxes(canvas, doc, textAreaLeft, lineHeight, firstVisible, lastVisible);
 
+        // v3.36.0 (roadmap item 9) — plugin text decorations + plugin
+        // inlays, on top of the editor's own layers (inside the clip so
+        // they never bleed into the gutter).
+        if (!pluginFrame.isEmpty()) {
+            drawPluginDecorations(canvas, doc, pluginFrame, textAreaLeft, lineHeight);
+        }
+
         canvas.restore();
 
         // v3.16.0: Draw the gutter ON TOP of the text as a semi-transparent
@@ -301,6 +316,16 @@ class EditorRenderer {
         // gutter is faintly visible through the 88%-alpha background.
         canvas.save();
         canvas.clipRect(0, 0, gutterWidth, height);
+        // v3.36.0 (roadmap item 9) — plugin gutter marks (VCS-blame bars).
+        if (!pluginFrame.gutterMarks.isEmpty()) {
+            java.util.Map<Integer, Integer> marks = new java.util.HashMap<>(pluginFrame.gutterMarks.size() * 2);
+            for (EditorDecorations.GutterMark gm : pluginFrame.gutterMarks) {
+                marks.put(gm.line, gm.color);
+            }
+            view.gutterView.setPluginMarks(marks);
+        } else {
+            view.gutterView.setPluginMarks(null);
+        }
         view.gutterView.draw(canvas, view.vOffset, height, doc.lineCount(), currentLine);
         drawFoldChevrons(canvas, doc, firstVisible, lastVisible, lineHeight, paddingTop);
         canvas.restore();
@@ -345,6 +370,7 @@ class EditorRenderer {
         if (view.diagnosticChipsEnabled) {
             drawDiagnosticChips(canvas, doc, firstVisible, lastVisible, lineHeight, paddingTop);
         }
+        drawDiagnosticListSheet(canvas);
         drawSelectionToolbar(canvas);
         drawDiagnosticPopup(canvas);
         drawDiagnosticSheet(canvas);
@@ -2756,21 +2782,154 @@ class EditorRenderer {
     }
 
     // ════════════════════════════════════════════════════════════════
+    // ═════════════════════════════════════════════════════════════════
+    // v3.36.0: Plugin decorations (roadmap item 9 — EditorPainterHost)
+    // ═════════════════════════════════════════════════════════════════
+
+    /**
+     * v3.36.0 (roadmap item 9) — draws the frame's plugin decorations:
+     * <ul>
+     *   <li><b>Text decorations</b> — underline / box / strike-through
+     *       over document ranges, wrap-aware (a range spanning several
+     *       wrapped rows draws one segment per row), drawn on top of the
+     *       squiggles inside the text-area clip;</li>
+     *   <li><b>Plugin inlays</b> — phantom text after the line end at
+     *       85% size. When the line carries a diagnostic chip, the inlay
+     *       starts after the chip (+8dp) so the two never overlap.</li>
+     * </ul>
+     * Decorations are passive (not hit-testable) by design — interactive
+     * overlays remain the editor's own layers.
+     */
+    void drawPluginDecorations(Canvas canvas, EditorDocument doc,
+                               EditorPainterHost.Frame frame,
+                               float textAreaLeft, float lineHeight) {
+        float density = view.getResources().getDisplayMetrics().density;
+        float charWidth = view.metrics.getCharWidth();
+
+        // ── Text decorations ─────────────────────────────────────
+        for (EditorDecorations.TextDecoration td : frame.textDecorations) {
+            int start = clamp(td.start, 0, doc.length());
+            int end = clamp(td.end, start, doc.length());
+            if (end <= start) continue;
+            int startLine = doc.lineForOffset(start);
+            int endLine = doc.lineForOffset(Math.max(start, end - 1));
+            for (int line = startLine; line <= endLine; line++) {
+                if (view.isLineFoldedCached(line)) continue;
+                float lineY = view.docLineToY(line) - view.vOffset;
+                if (lineY + lineHeight < 0 || lineY > view.getHeight()) continue;
+                int lineStart = doc.lineStart(line);
+                int lineEnd = doc.lineEnd(line);
+                int s = Math.max(start, lineStart) - lineStart;
+                int e = Math.min(end, lineEnd) - lineStart;
+                if (e <= s) continue;
+                int lineLen = lineEnd - lineStart;
+                // Wrap-aware: one segment per wrapped row the range touches
+                // (single-row geometry when word wrap is off).
+                EditorView.WrapRows wr = view.wrapRowsFor(line, lineLen);
+                int rowA = wr.rowForCol(s);
+                int rowB = wr.rowForCol(Math.max(s, e - 1));
+                for (int row = rowA; row <= rowB; row++) {
+                    int rs = Math.max(s, wr.rowStartCol(row));
+                    int re = Math.min(e, wr.rowEndCol(row, lineLen));
+                    if (re <= rs) continue;
+                    float rowY = lineY + row * lineHeight;
+                    float rowIndent = row == 0 ? 0f : wr.wrapIndentCols * charWidth;
+                    float x1 = textAreaLeft - view.hOffset + rowIndent + rs * charWidth;
+                    float x2 = textAreaLeft - view.hOffset + rowIndent + re * charWidth;
+                    switch (td.style) {
+                        case EditorDecorations.DecorationStyles.BOX:
+                            view.selPaint.setStyle(Paint.Style.STROKE);
+                            view.selPaint.setStrokeWidth(1f);
+                            view.selPaint.setColor(td.color);
+                            canvas.drawRoundRect(x1, rowY + lineHeight * 0.08f,
+                                    x2, rowY + lineHeight * 0.92f, 3f, 3f, view.selPaint);
+                            view.selPaint.setStyle(Paint.Style.FILL);
+                            view.selPaint.setStrokeWidth(1f);
+                            break;
+                        case EditorDecorations.DecorationStyles.STRIKE_THROUGH:
+                            view.selPaint.setColor(td.color);
+                            view.selPaint.setStyle(Paint.Style.FILL);
+                            canvas.drawRect(x1, rowY + lineHeight * 0.5f - 1f,
+                                    x2, rowY + lineHeight * 0.5f + 1f, view.selPaint);
+                            break;
+                        case EditorDecorations.DecorationStyles.UNDERLINE:
+                        default:
+                            view.selPaint.setColor(td.color);
+                            view.selPaint.setStyle(Paint.Style.FILL);
+                            canvas.drawRect(x1, rowY + lineHeight * 0.86f,
+                                    x2, rowY + lineHeight * 0.86f + 2.5f * density,
+                                    view.selPaint);
+                            break;
+                    }
+                }
+            }
+        }
+
+        // ── Plugin inlays ────────────────────────────────────────
+        for (EditorDecorations.PluginInlay inlay : frame.pluginInlays) {
+            int off = clamp(inlay.offset, 0, doc.length());
+            int line = doc.lineForOffset(off);
+            if (view.isLineFoldedCached(line)) continue;
+            int lineStart = doc.lineStart(line);
+            int lineLen = doc.lineEnd(line) - lineStart;
+            EditorView.WrapRows wr = view.wrapRowsFor(line, lineLen);
+            int lastRow = wr.rows - 1;
+            // X after the visual line end (mirrors the diagnostic chip's
+            // placement rules so the two stack instead of overlapping).
+            float x;
+            if (view.wordWrap && view.wrapModel != null && lastRow > 0) {
+                int rowStart = wr.rowStartCol(lastRow);
+                int rowEnd = wr.rowEndCol(lastRow, lineLen);
+                x = textAreaLeft + wr.wrapIndentCols * charWidth
+                        + (rowEnd - rowStart) * charWidth + charWidth;
+            } else {
+                int visualLen = view.visualColFor(line, lineLen);
+                x = textAreaLeft + visualLen * charWidth - view.hOffset + charWidth;
+            }
+            List<DiagnosticShift.Diagnostic> chip = view.chipDiagnosticsForLine(line);
+            if (!chip.isEmpty()) {
+                float[] cm = view.diagnosticChipMetrics(chip.get(0), line, chip.size());
+                if (cm != null && cm[0] + cm[2] + 8 * density > x) {
+                    x = cm[0] + cm[2] + 8 * density;
+                }
+            }
+            float y = view.docLineToY(line) + lastRow * lineHeight - view.vOffset;
+            if (y + lineHeight < 0 || y > view.getHeight()) continue;
+            view.textPaint.setTypeface(view.metrics.getTypeface());
+            view.textPaint.setTextSize(view.metrics.getTextSize() * 0.85f);
+            view.textPaint.setColor(inlay.color);
+            canvas.drawText(inlay.text, x,
+                    y + lineHeight * 0.5f
+                        - (view.textPaint.ascent() + view.textPaint.descent()) * 0.5f,
+                    view.textPaint);
+        }
+        view.textPaint.setTextSize(view.metrics.getTextSize());
+        view.selPaint.setStyle(Paint.Style.FILL);
+    }
+
     // Diagnostic chips overlay
     // ════════════════════════════════════════════════════════════════
 
-    /**
+        /**
      * v2.31 — CodeAssist DiagnosticChip port: ONE pill per line (the most
      * severe Error/Warning diagnostic), placed after the line end + a 3-char
      * gap, vertically centred on the row. Severity colour at 16% alpha
      * background (full pill shape, no border), severity-coloured dot icon +
      * semibold message. Tapping it opens the diagnostic sheet (hit-test in
-     * EditorInputHandler.handleTap via EditorView.findDiagnosticChipAt).
+     * EditorInputHandler.handleTap via EditorView.findDiagnosticChipHitAt).
      *
      * <p>The chips layer is clipped to the code area (right of the gutter)
      * so a chip that scrolls left slides UNDER the gutter instead of
      * overlapping it — same as CodeAssist's DiagnosticChipsLayer clip.
-     * Info/Hint diagnostics get NO chip (squiggle + gutter dot only).
+     * Info/Hint diagnostics get NO chip (squiggle + gutter dot only).</p>
+     *
+     * <p><b>v3.36.0 (roadmap item 5, CodeAssist diagnosticsByStartLine
+     * port):</b> the per-line groups come from the session's memoized
+     * start-line buckets (no more per-frame HashMap of the whole list),
+     * and a line carrying several Error/Warning diagnostics gets a count
+     * badge at the right end of its pill — tapping it opens the grouped
+     * sheet where every diagnostic of the line is reachable, instead of
+     * only the most severe one.</p>
      */
     void drawDiagnosticChips(Canvas canvas, EditorDocument doc,
                               int firstVisible, int lastVisible,
@@ -2780,26 +2939,18 @@ class EditorRenderer {
         // maxH() l'utilise pour rendre scrollable le débordement de chip.
         view.chipExtentContentX = 0f;
         if (!view.diagnosticChipsEnabled) return;
-        List<DiagnosticShift.Diagnostic> diags = view.session.getDiagnostics();
-        if (diags.isEmpty()) return;
-        // One chip per line — the most severe Error/Warning on it.
-        java.util.Map<Integer, DiagnosticShift.Diagnostic> chipPerLine = new java.util.HashMap<>();
-        for (DiagnosticShift.Diagnostic d : diags) {
-            if (d.severity != 3 && d.severity != 2) continue; // Error/Warning only
-            int line = doc.lineForOffset(d.start);
-            if (line < firstVisible || line > lastVisible) continue;
-            if (view.isLineFoldedCached(line)) continue;
-            DiagnosticShift.Diagnostic cur = chipPerLine.get(line);
-            if (cur == null || d.severity > cur.severity) chipPerLine.put(line, d);
-        }
-        if (chipPerLine.isEmpty()) return;
+        if (view.session.getDiagnostics().isEmpty()) return;
         canvas.save();
         canvas.clipRect(view.metrics.getGutterWidth(), 0, view.getWidth(), view.getHeight());
-        for (java.util.Map.Entry<Integer, DiagnosticShift.Diagnostic> e : chipPerLine.entrySet()) {
-            DiagnosticShift.Diagnostic d = e.getValue();
-            float[] m = view.diagnosticChipMetrics(d, e.getKey());
+        for (int line = firstVisible; line <= lastVisible; line++) {
+            if (view.isLineFoldedCached(line)) continue;
+            List<DiagnosticShift.Diagnostic> group = view.chipDiagnosticsForLine(line);
+            if (group.isEmpty()) continue;
+            DiagnosticShift.Diagnostic d = group.get(0);
+            float[] m = view.diagnosticChipMetrics(d, line, group.size());
             if (m == null) continue;
-            float x = m[0], y = m[1], w = m[2], h = m[3], iconR = m[4], iconGap = m[5], padX = m[6];
+            float x = m[0], y = m[1], w = m[2], h = m[3], iconR = m[4],
+                    iconGap = m[5], padX = m[6], badgeD = m[7], badgeGap = m[8];
             int color = getSquiggleColor(d.severity);
             RectF rect = new RectF(x, y, x + w, y + h);
             // Pill background: severity colour at 16% alpha (CodeAssist).
@@ -2820,7 +2971,7 @@ class EditorRenderer {
             String label = d.message != null ? d.message : "";
             // Re-truncate identically to diagnosticChipMetrics (shared sizing).
             float avail = view.getWidth() - x - 4 * view.getResources().getDisplayMetrics().density
-                - padX * 2 - iconR * 2 - iconGap;
+                - padX * 2 - iconR * 2 - iconGap - (badgeD > 0 ? badgeD + badgeGap : 0f);
             if (label.length() > 90) label = label.substring(0, 88) + "…";
             while (label.length() > 1 && view.textPaint.measureText(label) > avail) {
                 label = label.substring(0, label.length() - 2) + "…";
@@ -2828,13 +2979,30 @@ class EditorRenderer {
             float baseline = y + h * 0.5f
                 - (view.textPaint.ascent() + view.textPaint.descent()) * 0.5f;
             canvas.drawText(label, x + padX + iconR * 2 + iconGap, baseline, view.textPaint);
+            float textW = view.textPaint.measureText(label);
+            // v3.36.0 — count badge (roadmap item 5): filled severity circle
+            // + white count, only when the line has several diagnostics.
+            if (badgeD > 0) {
+                float bcx = x + padX + iconR * 2 + iconGap + textW + badgeGap + badgeD * 0.5f;
+                view.selPaint.setColor(color);
+                canvas.drawCircle(bcx, y + h * 0.5f, badgeD * 0.5f, view.selPaint);
+                String count = String.valueOf(group.size());
+                view.textPaint.setTextSize(h * 0.55f);
+                view.textPaint.setColor(0xFFFFFFFF);
+                float cw = view.textPaint.measureText(count);
+                float cbaseline = y + h * 0.5f
+                    - (view.textPaint.ascent() + view.textPaint.descent()) * 0.5f;
+                canvas.drawText(count, bcx - cw * 0.5f, cbaseline, view.textPaint);
+                view.textPaint.setTextSize(view.metrics.getTextSize());
+                view.textPaint.setColor(color);
+            }
             // ★ v2.33 — étendue CONTENU (hors gutter, indépendante du scroll :
             // +hOffset annule la soustraction écran) de la chip — maxH()
             // l'utilise pour rendre scrollable le débordement (pattern
             // onChipExtent de CodeAssist).
-            float textW = view.textPaint.measureText(label);
             float extent = x - view.metrics.getGutterWidth() + view.hOffset
-                    + padX + iconR * 2 + iconGap + textW + padX;
+                    + padX + iconR * 2 + iconGap + textW
+                    + (badgeD > 0 ? badgeGap + badgeD : 0f) + padX;
             if (extent > view.chipExtentContentX) {
                 view.chipExtentContentX = extent;
             }
@@ -2842,6 +3010,7 @@ class EditorRenderer {
         }
         canvas.restore();
     }
+
 
     // ════════════════════════════════════════════════════════════════
     // Selection toolbar (floating Copy/Cut/Paste/All)
@@ -2869,7 +3038,7 @@ class EditorRenderer {
      */
     void drawSelectionToolbar(Canvas canvas) {
         if (!view.selectionToolbarVisible || view.session == null) return;
-        EditorView.SelectionToolbarMetrics m = view.selectionToolbarMetrics();
+        EditorPopupAnchors.SelectionToolbarMetrics m = view.selectionToolbarMetrics();
         if (m == null || m.count == 0) return;
         float density = view.getResources().getDisplayMetrics().density;
 
@@ -2959,7 +3128,7 @@ class EditorRenderer {
      * ToolbarIconItem de CodeAssist (onSurfaceVariant).
      */
     private void drawSelectionToolbarIcon(Canvas canvas,
-            EditorView.SelectionToolbarMetrics m, int i, int color,
+            EditorPopupAnchors.SelectionToolbarMetrics m, int i, int color,
             float alpha, float dy, float density) {
         float cx = m.itemX[i] + m.itemW[i] * 0.5f;
         float cy = m.y + m.h * 0.5f + dy;
@@ -3180,6 +3349,118 @@ class EditorRenderer {
     }
 
     // ════════════════════════════════════════════════════════════════
+
+    // ═════════════════════════════════════════════════════════════════
+    // v3.36.0: Grouped diagnostic list sheet (roadmap item 5)
+    // ═════════════════════════════════════════════════════════════════
+
+    /**
+     * v3.36.0 (roadmap item 5) — draws the GROUPED diagnostic sheet: a
+     * modal bottom sheet listing EVERY diagnostic whose start sits on the
+     * chip's line (CodeAssist v3.20 diagnosticsByStartLine port). Same
+     * visual language as the per-diagnostic popup (scrim, glass panel with
+     * rounded TOP corners, hairline border, severity dots). Tapping a row
+     * opens the detail popup with the full message + quick fixes; the
+     * geometry comes from {@link EditorView#diagnosticListSheetMetrics}
+     * (shared with the tap hit-test). Before this, a warning hidden behind
+     * an error on the same line was unreachable from the chip.
+     */
+    void drawDiagnosticListSheet(Canvas canvas) {
+        if (view.diagnosticListSheetLine < 0 || view.session == null) return;
+        float[] m = view.diagnosticListSheetMetrics();
+        if (m == null) return;
+        float panelTop = m[0], panelBottom = m[1], headerH = m[2], rowH = m[3];
+        int rows = (int) m[4];
+        boolean more = m[5] > 0f;
+        float closeCx = m[6], closeCy = m[7], closeR = m[8];
+        float density = view.getResources().getDisplayMetrics().density;
+        float width = view.getWidth();
+        float radius = EditorView.DIAG_SHEET_RADIUS_DP * density;
+        float padX = 16 * density;
+
+        List<DiagnosticShift.Diagnostic> all =
+                view.session.getDiagnosticsForLine(view.diagnosticListSheetLine);
+
+        // 1. Scrim over the editor above the panel (tap = dismiss).
+        view.bgPaint.setColor(android.graphics.Color.argb(96, 0, 0, 0));
+        canvas.drawRect(0, 0, width, panelTop, view.bgPaint);
+
+        // 2. Panel — rounded TOP corners only (bottom-docked sheet shape).
+        Path panel = scratchPath;
+        panel.reset();
+        panel.moveTo(0, panelBottom);
+        panel.lineTo(0, panelTop + radius);
+        panel.quadTo(0, panelTop, radius, panelTop);
+        panel.lineTo(width - radius, panelTop);
+        panel.quadTo(width, panelTop, width, panelTop + radius);
+        panel.lineTo(width, panelBottom);
+        panel.close();
+        view.bgPaint.setColor(view.theme.glassBg);
+        canvas.drawPath(panel, view.bgPaint);
+        view.caretPaint.setStyle(Paint.Style.STROKE);
+        view.caretPaint.setStrokeWidth(1f);
+        view.caretPaint.setColor(view.theme.glassBorder);
+        canvas.drawPath(panel, view.caretPaint);
+
+        // 3. Header — severity dot + "N problems on line L" + close button.
+        int color = getSquiggleColor(all.get(0).severity);
+        view.selPaint.setColor(color);
+        view.selPaint.setAntiAlias(true);
+        canvas.drawCircle(padX + 5 * density, closeCy, 5 * density, view.selPaint);
+        view.textPaint.setTypeface(view.metrics.getTypeface());
+        view.textPaint.setTextSize(view.metrics.getTextSize() * 0.85f);
+        view.textPaint.setFakeBoldText(true);
+        view.textPaint.setColor(color);
+        String title = all.size() + (all.size() == 1 ? " problem" : " problems")
+                + " on line " + (view.diagnosticListSheetLine + 1);
+        canvas.drawText(title, padX + 14 * density,
+                closeCy + view.metrics.getTextSize() * 0.30f, view.textPaint);
+        view.textPaint.setFakeBoldText(false);
+        // Close (×): outline circle + glyph.
+        view.caretPaint.setStrokeWidth(1.2f * density);
+        view.caretPaint.setColor(view.theme.gutterText);
+        canvas.drawCircle(closeCx, closeCy, closeR * 0.62f, view.caretPaint);
+        view.textPaint.setColor(view.theme.gutterText);
+        view.textPaint.setTextSize(view.metrics.getTextSize() * 0.9f);
+        float xGlyphW = view.textPaint.measureText("×") * 0.5f;
+        canvas.drawText("×", closeCx - xGlyphW,
+                closeCy + view.metrics.getTextSize() * 0.32f, view.textPaint);
+
+        // 4. Rows — one per diagnostic on the line (severity dot + message).
+        for (int i = 0; i < rows && i < all.size(); i++) {
+            DiagnosticShift.Diagnostic d = all.get(i);
+            float rowY = panelTop + headerH + i * rowH;
+            view.selPaint.setColor(getSquiggleColor(d.severity));
+            canvas.drawCircle(padX + 3.2f * density, rowY + rowH * 0.5f,
+                    3.2f * density, view.selPaint);
+            view.textPaint.setTypeface(view.metrics.getTypeface());
+            view.textPaint.setTextSize(view.metrics.getTextSize() * 0.9f);
+            view.textPaint.setColor(view.theme.textColor);
+            String msg = d.message != null ? d.message : "";
+            float avail = width - padX * 2 - 12 * density;
+            while (msg.length() > 1 && view.textPaint.measureText(msg) > avail) {
+                msg = msg.substring(0, msg.length() - 2) + "…";
+            }
+            canvas.drawText(msg, padX + 12 * density,
+                    rowY + rowH * 0.5f + view.metrics.getTextSize() * 0.32f,
+                    view.textPaint);
+        }
+        // 5. Truncation notice row (not tappable).
+        if (more) {
+            float rowY = panelTop + headerH + rows * rowH;
+            view.textPaint.setTypeface(view.metrics.getTypeface());
+            view.textPaint.setTextSize(view.metrics.getTextSize() * 0.8f);
+            view.textPaint.setColor(view.theme.gutterText);
+            String extra = "…" + (all.size() - EditorView.DIAG_LIST_MAX_ROWS) + " more";
+            canvas.drawText(extra, padX + 12 * density,
+                    rowY + rowH * 0.5f + view.metrics.getTextSize() * 0.30f,
+                    view.textPaint);
+        }
+        view.textPaint.setTextSize(view.metrics.getTextSize());
+        view.caretPaint.setStrokeWidth(1f);
+        view.caretPaint.setStyle(Paint.Style.FILL);
+    }
+
     // Local helpers (delegating to EditorView where shared)
     // ════════════════════════════════════════════════════════════════
 

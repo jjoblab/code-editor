@@ -120,11 +120,11 @@ public class EditorSelectionToolbarTest {
     }
 
     /** Selects the word « greet » (line 2), shows the toolbar, returns the metrics. */
-    private static EditorView.SelectionToolbarMetrics viewWithWordSelected(EditorView view) {
+    private static EditorPopupAnchors.SelectionToolbarMetrics viewWithWordSelected(EditorView view) {
         int greet = DOC.indexOf("greet");
         view.getSession().selectWordAt(greet);
         view.showSelectionToolbar();
-        EditorView.SelectionToolbarMetrics m = view.selectionToolbarMetrics();
+        EditorPopupAnchors.SelectionToolbarMetrics m = view.selectionToolbarMetrics();
         assertNotNull("metrics must exist when the toolbar is visible", m);
         return m;
     }
@@ -134,7 +134,7 @@ public class EditorSelectionToolbarTest {
                 .getSystemService(Context.CLIPBOARD_SERVICE);
     }
 
-    private static int indexOfAction(EditorView.SelectionToolbarMetrics m, int action) {
+    private static int indexOfAction(EditorPopupAnchors.SelectionToolbarMetrics m, int action) {
         for (int i = 0; i < m.count; i++) {
             if (m.action[i] == action) return i;
         }
@@ -173,7 +173,7 @@ public class EditorSelectionToolbarTest {
         // Cursor selection at 'greet' start — the collapsed (re-tap) mode.
         view.getSession().setSelection(DOC.indexOf("greet"));
         view.showSelectionToolbar();
-        EditorView.SelectionToolbarMetrics m = view.selectionToolbarMetrics();
+        EditorPopupAnchors.SelectionToolbarMetrics m = view.selectionToolbarMetrics();
         assertNotNull(m);
         // ★ v2.36 : parité CodeAssist EXACTE — onDocs/onMenu TOUJOURS fournis :
         // le mode collapsed montre Paste + Select all | ℹ Docs | ⋯ Actions.
@@ -189,7 +189,7 @@ public class EditorSelectionToolbarTest {
     @Test
     public void metrics_withSelection_sixActionsAlways() {
         EditorView view = newView();
-        EditorView.SelectionToolbarMetrics m = viewWithWordSelected(view);
+        EditorPopupAnchors.SelectionToolbarMetrics m = viewWithWordSelected(view);
         // ★ v2.36 : Copy/Cut/Paste/Select all + ℹ + ⋯ TOUJOURS — CodeAssist
         // fournit onDocs/onMenu en permanence (CodeEditor.kt l.1057-1063) ;
         // avant, sans quick-fixes sur la ligne, l'utilisateur perdait l'accès
@@ -214,7 +214,7 @@ public class EditorSelectionToolbarTest {
         actions.add(new EditorView.CodeAction("Fix it", "quickfix", () -> { }));
         view.codeActionsByLine.put(greetLine, actions);
 
-        EditorView.SelectionToolbarMetrics m = viewWithWordSelected(view);
+        EditorPopupAnchors.SelectionToolbarMetrics m = viewWithWordSelected(view);
         assertEquals("Copy/Cut/Paste/SelectAll + Docs + Actions", 6, m.count);
         assertEquals(1, m.dividerCount);
         int docsIdx = indexOfAction(m, EditorView.SEL_ACT_DOCS);
@@ -229,7 +229,7 @@ public class EditorSelectionToolbarTest {
         // bouton Actions ouvre le menu unifié qui montre GO TO ou
         // « Nothing found in source. » (CodeAssist : onMenu toujours fourni).
         view.codeActionsByLine.remove(greetLine);
-        EditorView.SelectionToolbarMetrics m2 = view.selectionToolbarMetrics();
+        EditorPopupAnchors.SelectionToolbarMetrics m2 = view.selectionToolbarMetrics();
         assertEquals("icons stay without quick-fixes (v2.36)", 6, m2.count);
         assertEquals(1, m2.dividerCount);
     }
@@ -241,7 +241,7 @@ public class EditorSelectionToolbarTest {
         view.setCodeActionsResolver((text, line) -> new ArrayList<>());
         view.codeActionsByLine.put(2, List.of(
                 new EditorView.CodeAction("Fix", "quickfix", () -> { })));
-        EditorView.SelectionToolbarMetrics m = viewWithWordSelected(view);
+        EditorPopupAnchors.SelectionToolbarMetrics m = viewWithWordSelected(view);
         float cy = m.y + m.h * 0.5f;
 
         // Every actionable item resolves to ITS action at its center.
@@ -266,7 +266,7 @@ public class EditorSelectionToolbarTest {
     @Test
     public void tapCopy_copiesToClipboard_andDismissesChrome() {
         EditorView view = newView();
-        EditorView.SelectionToolbarMetrics m = viewWithWordSelected(view);
+        EditorPopupAnchors.SelectionToolbarMetrics m = viewWithWordSelected(view);
         int copyIdx = indexOfAction(m, EditorView.SEL_ACT_COPY);
         view.handlesVisible = true;
 
@@ -284,7 +284,7 @@ public class EditorSelectionToolbarTest {
     @Test
     public void tapCut_removesText_andDismissesChrome() {
         EditorView view = newView();
-        EditorView.SelectionToolbarMetrics m = viewWithWordSelected(view);
+        EditorPopupAnchors.SelectionToolbarMetrics m = viewWithWordSelected(view);
         int cutIdx = indexOfAction(m, EditorView.SEL_ACT_CUT);
         view.handlesVisible = true;
 
@@ -301,7 +301,7 @@ public class EditorSelectionToolbarTest {
     @Test
     public void tapSelectAll_keepsToolbarVisible() {
         EditorView view = newView();
-        EditorView.SelectionToolbarMetrics m = viewWithWordSelected(view);
+        EditorPopupAnchors.SelectionToolbarMetrics m = viewWithWordSelected(view);
         int allIdx = indexOfAction(m, EditorView.SEL_ACT_SELECT_ALL);
 
         tap(view, m.itemX[allIdx] + m.itemW[allIdx] * 0.5f, m.y + m.h * 0.5f);
@@ -312,7 +312,7 @@ public class EditorSelectionToolbarTest {
                 + "Copy/Cut become available on the full selection)",
                 view.selectionToolbarVisible);
         // And the refreshed metrics now include Copy/Cut on the full selection.
-        EditorView.SelectionToolbarMetrics m2 = view.selectionToolbarMetrics();
+        EditorPopupAnchors.SelectionToolbarMetrics m2 = view.selectionToolbarMetrics();
         assertEquals(6, m2.count);
         assertEquals(EditorView.SEL_ACT_COPY, m2.action[0]);
     }
@@ -324,7 +324,7 @@ public class EditorSelectionToolbarTest {
         int greet = DOC.indexOf("greet");
         view.getSession().setSelection(greet);
         view.showSelectionToolbar();
-        EditorView.SelectionToolbarMetrics m = view.selectionToolbarMetrics();
+        EditorPopupAnchors.SelectionToolbarMetrics m = view.selectionToolbarMetrics();
         assertNotNull(m);
         clipboard(view).setPrimaryClip(ClipData.newPlainText("test", "hi()"));
 
@@ -346,7 +346,7 @@ public class EditorSelectionToolbarTest {
         view.codeActionsByLine.put(2, actions);
 
         // Docs button → chrome hidden.
-        EditorView.SelectionToolbarMetrics m = viewWithWordSelected(view);
+        EditorPopupAnchors.SelectionToolbarMetrics m = viewWithWordSelected(view);
         int docsIdx = indexOfAction(m, EditorView.SEL_ACT_DOCS);
         tap(view, m.itemX[docsIdx] + m.itemW[docsIdx] * 0.5f, m.y + m.h * 0.5f);
         assertFalse("Docs closes the pill", view.selectionToolbarVisible);
@@ -354,7 +354,7 @@ public class EditorSelectionToolbarTest {
         // ★ v2.36 : le bouton Actions ouvre le MENU CONTEXTUEL UNIFIÉ
         // (NavMenu de CodeAssist) — plus la popup plate de quick-fixes.
         viewWithWordSelected(view);
-        EditorView.SelectionToolbarMetrics m2 = view.selectionToolbarMetrics();
+        EditorPopupAnchors.SelectionToolbarMetrics m2 = view.selectionToolbarMetrics();
         int actsIdx = indexOfAction(m2, EditorView.SEL_ACT_ACTIONS);
         tap(view, m2.itemX[actsIdx] + m2.itemW[actsIdx] * 0.5f, m2.y + m2.h * 0.5f);
         assertFalse("Actions closes the pill", view.selectionToolbarVisible);
@@ -403,7 +403,7 @@ public class EditorSelectionToolbarTest {
                 view.selectionToolbarVisible);
         assertTrue(view.selectionToolbarShownAt > 0);
         // Collapsed: Paste/Select all + the two icons (v2.36).
-        EditorView.SelectionToolbarMetrics m = view.selectionToolbarMetrics();
+        EditorPopupAnchors.SelectionToolbarMetrics m = view.selectionToolbarMetrics();
         assertEquals(4, m.count);
         assertEquals(EditorView.SEL_ACT_PASTE, m.action[0]);
 
@@ -458,7 +458,7 @@ public class EditorSelectionToolbarTest {
     @Test
     public void tapOnToolbarGap_doesNotMoveCaretOrDismiss() {
         EditorView view = newView();
-        EditorView.SelectionToolbarMetrics m = viewWithWordSelected(view);
+        EditorPopupAnchors.SelectionToolbarMetrics m = viewWithWordSelected(view);
         int caretBefore = view.getSession().getSelection().start;
         int pasteIdx = indexOfAction(m, EditorView.SEL_ACT_PASTE);
         // A gap between items: swallowed (CodeAssist Popup parity — the

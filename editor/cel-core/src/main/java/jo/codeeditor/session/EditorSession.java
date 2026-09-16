@@ -234,6 +234,18 @@ public class EditorSession {
     }
     public String getText() { return doc.getText(); }
     public String getLanguage() { return language; }
+
+    /**
+     * v3.36.0 — The language profile registered for this session's language
+     * id (roadmap item 7), or null when the id is unknown to the
+     * {@link jo.codeeditor.languages.LanguageRegistry}. The profile exposes
+     * the family, aliases, extensions, keyword set and comment syntax the
+     * editor is actually using for this session.
+     */
+    public jo.codeeditor.languages.LanguageProfile getLanguageProfile() {
+        return jo.codeeditor.languages.LanguageRegistry.forName(language);
+    }
+
     public List<StyledLine> getStyledLines() { return Collections.unmodifiableList(styledLines); }
     public UndoManager getUndoManager() { return undoManager; }
     public List<DiagnosticShift.Diagnostic> getDiagnostics() {
@@ -385,6 +397,49 @@ public class EditorSession {
     /** Same memoization for semantic tokens (tokens may span lines). */
     private volatile Map<Integer, List<DiagnosticShift.SemanticToken>> semTokensByLine;
     private volatile List<DiagnosticShift.SemanticToken> semTokensIndexedFor = Collections.emptyList();
+
+    /** v3.36.0 — same memoization for diagnostics grouped by start line. */
+    private volatile Map<Integer, List<DiagnosticShift.Diagnostic>> diagnosticsByLine;
+    private volatile List<DiagnosticShift.Diagnostic> diagnosticsIndexedFor = Collections.emptyList();
+
+    /**
+     * v3.36.0 — Returns every diagnostic whose START offset sits on the
+     * given document line (roadmap item 5, port of CodeAssist v3.20's
+     * {@code diagnosticsByStartLine()}). The bucket is sorted
+     * most-severe-first (then by start offset), so the first element is the
+     * line's "primary" diagnostic — the one the chip shows. Memoized on
+     * the diagnostics list reference with the same pattern as
+     * {@link #getInlayHintsForLine} (v3.34.0): re-pushing the same list is
+     * free, an edit (which replaces the list via DiagnosticShift) costs
+     * one O(D) rebuild instead of an O(D) filter per queried line.
+     */
+    public List<DiagnosticShift.Diagnostic> getDiagnosticsForLine(int line) {
+        List<DiagnosticShift.Diagnostic> source = diagnostics;
+        Map<Integer, List<DiagnosticShift.Diagnostic>> idx = diagnosticsByLine;
+        if (idx == null || diagnosticsIndexedFor != source) {
+            idx = buildDiagnosticBuckets(source);
+            diagnosticsByLine = idx;
+            diagnosticsIndexedFor = source;
+        }
+        List<DiagnosticShift.Diagnostic> bucket = idx.get(line);
+        return bucket != null ? bucket : Collections.emptyList();
+    }
+
+    private Map<Integer, List<DiagnosticShift.Diagnostic>> buildDiagnosticBuckets(
+            List<DiagnosticShift.Diagnostic> source) {
+        if (source.isEmpty()) return Collections.emptyMap();
+        Map<Integer, List<DiagnosticShift.Diagnostic>> m = new HashMap<>(source.size() * 2);
+        for (DiagnosticShift.Diagnostic d : source) {
+            int start = Math.max(0, Math.min(d.start, doc.length()));
+            int line = doc.lineForOffset(start);
+            m.computeIfAbsent(line, k -> new ArrayList<>(2)).add(d);
+        }
+        for (List<DiagnosticShift.Diagnostic> bucket : m.values()) {
+            bucket.sort((a, b) -> a.severity != b.severity
+                    ? b.severity - a.severity : a.start - b.start);
+        }
+        return m;
+    }
 
     /**
      * v3.34.0 — Returns the inlay hints that fall on the given document

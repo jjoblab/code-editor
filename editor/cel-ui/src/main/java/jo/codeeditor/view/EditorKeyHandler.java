@@ -11,6 +11,17 @@ import java.util.List;
  * {@code onKeyDown} with its full switch cascade (popup navigation,
  * Ctrl+shortcuts, movement/editing keys, printable character fall-through).
  *
+ * <p><b>v3.36.0 (roadmap item 6) — data-driven keymap:</b> the
+ * Ctrl+shortcut and movement/editing cascades were replaced by a
+ * {@link EditorKeymap} lookup (port of CodeAssist v3.20's
+ * {@code EditorKeymap}/{@code EditorCommands}). The key event is resolved
+ * to a command id ({@link EditorCommands}) and dispatched by
+ * {@link #executeCommand}; hosts rebind commands via
+ * {@code EditorView.setKeymap(EditorKeymap)}. The default table reproduces
+ * the pre-v3.36.0 behavior, and the state-dependent popup interceptors
+ * (completion / signature help / code actions / go-to-symbol navigation
+ * while visible) run BEFORE the keymap so they keep priority.</p>
+ *
  * <p>EditorView delegates {@code onKeyDown} to this class. The key handler
  * calls back into EditorView's public/package-private API for:
  * <ul>
@@ -87,6 +98,16 @@ class EditorKeyHandler {
             view.dismissQuickDoc();
             return true;
         }
+        // ── v3.36.0: grouped diagnostic list sheet dismissal (Esc) ──
+        if (view.diagnosticListSheetLine >= 0 && keyCode == KeyEvent.KEYCODE_ESCAPE) {
+            view.dismissDiagnosticListSheet();
+            return true;
+        }
+        // ── v3.36.0: diagnostic detail popup dismissal (Esc) ──────
+        if (view.diagnosticPopupVisible && keyCode == KeyEvent.KEYCODE_ESCAPE) {
+            view.dismissDiagnosticPopup();
+            return true;
+        }
         // ── Code actions popup navigation (when visible) ─────────
         if (view.codeActionsPopupVisible && !ctrl) {
             switch (keyCode) {
@@ -133,149 +154,13 @@ class EditorKeyHandler {
             }
         }
 
-        // Ctrl-modified shortcuts
-        if (ctrl) {
-            switch (keyCode) {
-                case KeyEvent.KEYCODE_Z:
-                    view.session.undo(); view.onTextChanged(); return true;
-                case KeyEvent.KEYCODE_Y:
-                    view.session.redo(); view.onTextChanged(); return true;
-                case KeyEvent.KEYCODE_A:
-                    view.session.selectAll(); view.invalidate(); return true;
-                case KeyEvent.KEYCODE_C:
-                    view.copy(); return true;
-                case KeyEvent.KEYCODE_X:
-                    view.cut(); return true;
-                case KeyEvent.KEYCODE_V:
-                    view.paste(); return true;
-                case KeyEvent.KEYCODE_D:
-                    view.session.duplicateSelection(); view.onTextChanged(); return true;
-                case KeyEvent.KEYCODE_F:
-                    if (view.selectionListener instanceof EditorView.OnFindRequestedListener) {
-                        ((EditorView.OnFindRequestedListener) view.selectionListener).onFindRequested();
-                    }
-                    return true;
-                case KeyEvent.KEYCODE_S:
-                    if (view.selectionListener instanceof EditorView.OnSaveRequestedListener) {
-                        ((EditorView.OnSaveRequestedListener) view.selectionListener).onSaveRequested();
-                    }
-                    return true;
-                case KeyEvent.KEYCODE_SPACE:
-                    // Ctrl+Space = explicit completion trigger.
-                    view.refreshCompletion();
-                    return true;
-                case KeyEvent.KEYCODE_P:
-                    // Ctrl+P = signature help trigger (LSP convention).
-                    view.triggerSignatureHelp();
-                    return true;
-                case KeyEvent.KEYCODE_PERIOD:
-                    // Ctrl+. = code actions at caret (LSP convention).
-                    if (view.session != null) {
-                        EditorDocument doc = view.session.getDocument();
-                        int line = EditorView.clamp(doc.lineForOffset(view.session.getSelection().start),
-                            0, doc.lineCount() - 1);
-                        if (view.codeActionsByLine.containsKey(line)) {
-                            view.showCodeActions(line);
-                            return true;
-                        }
-                    }
-                    return false;
-                case KeyEvent.KEYCODE_O:
-                    // Ctrl+Shift+O = go-to-symbol (VS Code convention).
-                    if (shift) {
-                        view.showGoToSymbol();
-                        return true;
-                    }
-                    return false;
-                case KeyEvent.KEYCODE_I:
-                    // v3.33.11: Ctrl+Shift+I = format document (VS Code
-                    // convention, also matches IntelliJ's Ctrl+Alt+L on Linux).
-                    if (shift) {
-                        view.formatDocument();
-                        return true;
-                    }
-                    return false;
-                case KeyEvent.KEYCODE_L:
-                    // v3.33.11: Ctrl+Shift+L = show code actions at caret
-                    // (alternative to Ctrl+. when the latter isn't available
-                    // on some soft keyboards).
-                    if (shift) {
-                        if (view.session != null) {
-                            EditorDocument doc = view.session.getDocument();
-                            int line = EditorView.clamp(doc.lineForOffset(view.session.getSelection().start),
-                                0, doc.lineCount() - 1);
-                            view.showCodeActions(line);
-                        }
-                        return true;
-                    }
-                    return false;
-                case KeyEvent.KEYCODE_EQUALS:
-                case KeyEvent.KEYCODE_PLUS:
-                case KeyEvent.KEYCODE_NUMPAD_ADD:
-                    view.setFontScale(EditorView.clampFontScale(view.fontScale * 1.1f)); return true;
-                case KeyEvent.KEYCODE_MINUS:
-                case KeyEvent.KEYCODE_NUMPAD_SUBTRACT:
-                    view.setFontScale(EditorView.clampFontScale(view.fontScale / 1.1f)); return true;
-                case KeyEvent.KEYCODE_0:
-                    view.setFontScale(1f); return true;
-            }
-        }
-
-        // Movement / editing keys
-        switch (keyCode) {
-            case KeyEvent.KEYCODE_DEL:
-                view.session.backspace(); view.onTextChanged(); return true;
-            case KeyEvent.KEYCODE_FORWARD_DEL:
-                view.session.deleteForward(); view.onTextChanged(); return true;
-            case KeyEvent.KEYCODE_ENTER:
-            case KeyEvent.KEYCODE_NUMPAD_ENTER:
-            case KeyEvent.KEYCODE_DPAD_CENTER:
-                view.session.commitText("\n"); view.onTextChanged(); return true;
-            case KeyEvent.KEYCODE_DPAD_LEFT:
-                view.session.moveHorizontal(-1, shift); view.invalidate(); return true;
-            case KeyEvent.KEYCODE_DPAD_RIGHT:
-                view.session.moveHorizontal(1, shift); view.invalidate(); return true;
-            case KeyEvent.KEYCODE_DPAD_UP:
-                view.session.moveVertical(-1, shift); view.invalidate(); return true;
-            case KeyEvent.KEYCODE_DPAD_DOWN:
-                view.session.moveVertical(1, shift); view.invalidate(); return true;
-            case KeyEvent.KEYCODE_MOVE_HOME:
-                view.session.moveLineStart(shift); view.invalidate(); return true;
-            case KeyEvent.KEYCODE_MOVE_END:
-                view.session.moveLineEnd(shift); view.invalidate(); return true;
-            case KeyEvent.KEYCODE_PAGE_UP:
-                view.session.moveVertical(-10, shift); view.invalidate(); return true;
-            case KeyEvent.KEYCODE_PAGE_DOWN:
-                view.session.moveVertical(10, shift); view.invalidate(); return true;
-            case KeyEvent.KEYCODE_TAB:
-                if (shift) view.session.dedent(); else view.session.indent();
-                view.onTextChanged(); return true;
-            case KeyEvent.KEYCODE_SPACE:
-                view.session.commitText(" "); view.onTextChanged(); return true;
-            case KeyEvent.KEYCODE_F1:
-                // F1 = quick doc (IDE convention).
-                if (view.session != null) view.showQuickDoc(view.session.getSelection().start);
-                return true;
-            case KeyEvent.KEYCODE_F2:
-                // F2 = rename (IDE convention — Gap 8).
-                view.showRename();
-                return true;
-            case KeyEvent.KEYCODE_F12:
-                // v3.33.11: F12 = go-to-definition (VS Code convention).
-                // Shift+F12 = find-references.
-                if (shift) {
-                    view.showReferences();
-                } else {
-                    view.jumpToDefinition();
-                }
-                return true;
-            case KeyEvent.KEYCODE_G:
-                // Ctrl+G = go-to-line (VS Code convention — Gap 8).
-                if (ctrl) {
-                    view.showGoToLine();
-                    return true;
-                }
-                break;
+        // ── v3.36.0 (roadmap item 6): data-driven command dispatch ──
+        // The keymap (rebindable via EditorView.setKeymap) resolves the
+        // event to a command; the default table is a verbatim port of the
+        // pre-v3.36.0 Ctrl+shortcut and movement/editing switch cascades.
+        EditorKeymap.Binding binding = view.keymap.resolve(keyCode, ctrl, shift);
+        if (binding != null) {
+            return executeCommand(binding.command);
         }
 
         // Printable character fall-through: respect Shift / AltGr via unicodeChar.
@@ -288,5 +173,158 @@ class EditorKeyHandler {
             }
         }
         return false;
+    }
+
+    /**
+     * v3.36.0 — Executes one {@link EditorCommands} id. Returns true when
+     * the key was consumed. {@link EditorCommands#CODE_ACTIONS} returns
+     * false when the caret's line has no actions (the key then falls
+     * through, exactly like the pre-v3.36.0 {@code if (ctrl)} cascade).
+     */
+    private boolean executeCommand(String command) {
+        switch (command) {
+            // ── History ───────────────────────────────────────────
+            case EditorCommands.UNDO:
+                view.session.undo(); view.onTextChanged(); return true;
+            case EditorCommands.REDO:
+                view.session.redo(); view.onTextChanged(); return true;
+
+            // ── Selection / clipboard ─────────────────────────────
+            case EditorCommands.SELECT_ALL:
+                view.session.selectAll(); view.invalidate(); return true;
+            case EditorCommands.COPY:
+                view.copy(); return true;
+            case EditorCommands.CUT:
+                view.cut(); return true;
+            case EditorCommands.PASTE:
+                view.paste(); return true;
+            case EditorCommands.DUPLICATE:
+                view.session.duplicateSelection(); view.onTextChanged(); return true;
+
+            // ── File / host actions ───────────────────────────────
+            case EditorCommands.FIND:
+                if (view.selectionListener instanceof EditorView.OnFindRequestedListener) {
+                    ((EditorView.OnFindRequestedListener) view.selectionListener).onFindRequested();
+                }
+                return true;
+            case EditorCommands.SAVE:
+                if (view.selectionListener instanceof EditorView.OnSaveRequestedListener) {
+                    ((EditorView.OnSaveRequestedListener) view.selectionListener).onSaveRequested();
+                }
+                return true;
+
+            // ── Language intelligence ─────────────────────────────
+            case EditorCommands.TRIGGER_COMPLETION:
+                view.refreshCompletion();
+                return true;
+            case EditorCommands.TRIGGER_SIGNATURE_HELP:
+                view.triggerSignatureHelp();
+                return true;
+            case EditorCommands.CODE_ACTIONS:
+                // Ctrl+. — only consumed when the caret's line has actions
+                // (LSP convention; pre-v3.36.0 behavior preserved).
+                if (view.session != null) {
+                    EditorDocument doc = view.session.getDocument();
+                    int line = EditorView.clamp(doc.lineForOffset(view.session.getSelection().start),
+                        0, doc.lineCount() - 1);
+                    if (view.codeActionsByLine.containsKey(line)) {
+                        view.showCodeActions(line);
+                        return true;
+                    }
+                }
+                return false;
+            case EditorCommands.CODE_ACTIONS_AT_CARET:
+                // Ctrl+Shift+L — unlike Ctrl+., always opens (empty state
+                // shows "no actions"), an alternative for soft keyboards.
+                if (view.session != null) {
+                    EditorDocument doc = view.session.getDocument();
+                    int line = EditorView.clamp(doc.lineForOffset(view.session.getSelection().start),
+                        0, doc.lineCount() - 1);
+                    view.showCodeActions(line);
+                }
+                return true;
+            case EditorCommands.QUICK_DOC:
+                if (view.session != null) view.showQuickDoc(view.session.getSelection().start);
+                return true;
+            case EditorCommands.RENAME:
+                view.showRename();
+                return true;
+            case EditorCommands.FORMAT_DOCUMENT:
+                view.formatDocument();
+                return true;
+
+            // ── Navigation ────────────────────────────────────────
+            case EditorCommands.GO_TO_LINE:
+                view.showGoToLine();
+                return true;
+            case EditorCommands.GO_TO_SYMBOL:
+                view.showGoToSymbol();
+                return true;
+            case EditorCommands.GO_TO_DEFINITION:
+                view.jumpToDefinition();
+                return true;
+            case EditorCommands.FIND_REFERENCES:
+                view.showReferences();
+                return true;
+
+            // ── Zoom ──────────────────────────────────────────────
+            case EditorCommands.ZOOM_IN:
+                view.setFontScale(EditorView.clampFontScale(view.zoom.fontScale * 1.1f)); return true;
+            case EditorCommands.ZOOM_OUT:
+                view.setFontScale(EditorView.clampFontScale(view.zoom.fontScale / 1.1f)); return true;
+            case EditorCommands.ZOOM_RESET:
+                view.setFontScale(1f); return true;
+
+            // ── Editing ───────────────────────────────────────────
+            case EditorCommands.BACKSPACE:
+                view.session.backspace(); view.onTextChanged(); return true;
+            case EditorCommands.DELETE_FORWARD:
+                view.session.deleteForward(); view.onTextChanged(); return true;
+            case EditorCommands.NEW_LINE:
+                view.session.commitText("\n"); view.onTextChanged(); return true;
+            case EditorCommands.INDENT:
+                view.session.indent(); view.onTextChanged(); return true;
+            case EditorCommands.DEDENT:
+                view.session.dedent(); view.onTextChanged(); return true;
+            case EditorCommands.INSERT_SPACE:
+                view.session.commitText(" "); view.onTextChanged(); return true;
+
+            // ── Caret movement (Shift = extend) ───────────────────
+            case EditorCommands.MOVE_LEFT:
+                view.session.moveHorizontal(-1, false); view.invalidate(); return true;
+            case EditorCommands.EXTEND_LEFT:
+                view.session.moveHorizontal(-1, true); view.invalidate(); return true;
+            case EditorCommands.MOVE_RIGHT:
+                view.session.moveHorizontal(1, false); view.invalidate(); return true;
+            case EditorCommands.EXTEND_RIGHT:
+                view.session.moveHorizontal(1, true); view.invalidate(); return true;
+            case EditorCommands.MOVE_UP:
+                view.session.moveVertical(-1, false); view.invalidate(); return true;
+            case EditorCommands.EXTEND_UP:
+                view.session.moveVertical(-1, true); view.invalidate(); return true;
+            case EditorCommands.MOVE_DOWN:
+                view.session.moveVertical(1, false); view.invalidate(); return true;
+            case EditorCommands.EXTEND_DOWN:
+                view.session.moveVertical(1, true); view.invalidate(); return true;
+            case EditorCommands.LINE_START:
+                view.session.moveLineStart(false); view.invalidate(); return true;
+            case EditorCommands.EXTEND_LINE_START:
+                view.session.moveLineStart(true); view.invalidate(); return true;
+            case EditorCommands.LINE_END:
+                view.session.moveLineEnd(false); view.invalidate(); return true;
+            case EditorCommands.EXTEND_LINE_END:
+                view.session.moveLineEnd(true); view.invalidate(); return true;
+            case EditorCommands.PAGE_UP:
+                view.session.moveVertical(-10, false); view.invalidate(); return true;
+            case EditorCommands.EXTEND_PAGE_UP:
+                view.session.moveVertical(-10, true); view.invalidate(); return true;
+            case EditorCommands.PAGE_DOWN:
+                view.session.moveVertical(10, false); view.invalidate(); return true;
+            case EditorCommands.EXTEND_PAGE_DOWN:
+                view.session.moveVertical(10, true); view.invalidate(); return true;
+
+            default:
+                return false;
+        }
     }
 }
