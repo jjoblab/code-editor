@@ -1,5 +1,9 @@
 package jo.codeeditor.highlight;
 
+import jo.codeeditor.languages.LanguageProfile;
+import jo.codeeditor.languages.LanguageRegistry;
+import jo.codeeditor.languages.SyntaxFamily;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -35,16 +39,28 @@ import java.util.Set;
  */
 public class SyntaxHighlighter {
 
-    private static final Set<String> JAVA_KEYWORDS = new HashSet<>(Arrays.asList(
-        "abstract", "assert", "boolean", "break", "byte", "case", "catch", "char",
-        "class", "const", "continue", "default", "do", "double", "else", "enum",
-        "extends", "final", "finally", "float", "for", "goto", "if", "implements",
-        "import", "instanceof", "int", "interface", "long", "native", "new",
-        "package", "private", "protected", "public", "return", "short", "static",
-        "strictfp", "super", "switch", "synchronized", "this", "throw", "throws",
-        "transient", "try", "void", "volatile", "while", "var", "yield", "record",
-        "sealed", "permits", "non-sealed"
-    ));
+    // ═════════════════════════════════════════════════════════════════
+    // v3.36.0 — Keyword tables now live in jo.codeeditor.languages
+    // (BuiltinLanguages / LanguageProfile) so the registry is the single
+    // source of truth for language metadata (roadmap item 7). They are
+    // aliased here because the per-language tokenizers (styleJson,
+    // stylePython, styleLua, styleShell, styleSql, styleToml, styleSmali)
+    // reference them per token.
+    // ═════════════════════════════════════════════════════════════════
+
+    /** v3.36.0 — resolves a built-in keyword table through the
+     * registry (single source of truth: the tables moved to BuiltinLanguages,
+     * exposed as the profiles' keyword sets).
+     */
+    private static Set<String> builtinKeywords(String tableId) {
+        // The table ids in this class are the canonical language names
+        // uppercased with a _KEYWORDS suffix.
+        LanguageProfile p = LanguageRegistry.forName(
+                tableId.replace("_KEYWORDS", "").toLowerCase(java.util.Locale.ROOT));
+        return p != null ? p.keywords : java.util.Collections.emptySet();
+    }
+
+    private static final Set<String> JAVA_KEYWORDS = builtinKeywords("JAVA_KEYWORDS");
 
     private static final Set<String> JAVA_TYPES = new HashSet<>(Arrays.asList(
         "String", "Object", "Integer", "Long", "Double", "Float", "Boolean",
@@ -54,49 +70,18 @@ public class SyntaxHighlighter {
         "TreeSet", "Arrays", "Collections", "Stream", "Optional"
     ));
 
-    private static final Set<String> KT_KEYWORDS = new HashSet<>(Arrays.asList(
-        "as", "break", "class", "continue", "do", "else", "false", "for",
-        "fun", "if", "in", "interface", "is", "null", "object", "package",
-        "return", "super", "this", "throw", "true", "try", "typealias",
-        "typeof", "val", "var", "when", "while", "by", "catch", "constructor",
-        "delegate", "dynamic", "field", "file", "finally", "get", "import",
-        "init", "param", "property", "receiver", "set", "setparam", "where",
-        "abstract", "actual", "annotation", "companion", "const", "crossinline",
-        "data", "enum", "expect", "external", "final", "infix", "inline",
-        "inner", "internal", "lateinit", "noinline", "open", "operator", "out",
-        "override", "private", "protected", "public", "reified", "sealed",
-        "suspend", "tailrec", "vararg"
-    ));
+    private static final Set<String> KT_KEYWORDS = builtinKeywords("KT_KEYWORDS");
 
-    private static final Set<String> XML_KEYWORDS = new HashSet<>(Arrays.asList(
-        "xmlns", "android", "app", "tools", "schema", "layout"
-    ));
+    private static final Set<String> XML_KEYWORDS = builtinKeywords("XML_KEYWORDS");
 
     // ── v3.1.0: JSON keywords (true, false, null) ──────────────
-    private static final Set<String> JSON_KEYWORDS = new HashSet<>(Arrays.asList(
-        "true", "false", "null"
-    ));
+    private static final Set<String> JSON_KEYWORDS = builtinKeywords("JSON_KEYWORDS");
 
     // ── v3.1.0: Python keywords ────────────────────────────────
-    private static final Set<String> PYTHON_KEYWORDS = new HashSet<>(Arrays.asList(
-        "False", "None", "True", "and", "as", "assert", "async", "await",
-        "break", "class", "continue", "def", "del", "elif", "else", "except",
-        "finally", "for", "from", "global", "if", "import", "in", "is",
-        "lambda", "nonlocal", "not", "or", "pass", "raise", "return", "try",
-        "while", "with", "yield", "self", "cls"
-    ));
+    private static final Set<String> PYTHON_KEYWORDS = builtinKeywords("PYTHON_KEYWORDS");
 
     // ── v3.1.0: JavaScript / TypeScript keywords ───────────────
-    private static final Set<String> JS_KEYWORDS = new HashSet<>(Arrays.asList(
-        "break", "case", "catch", "class", "const", "continue", "debugger",
-        "default", "delete", "do", "else", "export", "extends", "finally",
-        "for", "function", "if", "import", "in", "instanceof", "let", "new",
-        "of", "return", "super", "switch", "this", "throw", "try", "typeof",
-        "var", "void", "while", "with", "yield", "async", "await", "static",
-        "get", "set", "public", "private", "protected", "readonly", "abstract",
-        "as", "interface", "enum", "type", "namespace", "module", "declare",
-        "from", "undefined", "null", "true", "false", "NaN", "Infinity"
-    ));
+    private static final Set<String> JS_KEYWORDS = builtinKeywords("JS_KEYWORDS");
 
     // ── v3.1.0: Python built-in types ──────────────────────────
     private static final Set<String> PYTHON_TYPES = new HashSet<>(Arrays.asList(
@@ -120,11 +105,7 @@ public class SyntaxHighlighter {
     private static final String OPERATORS = "+-*/%=!<>&|^~?:";
 
     // ── v3.2.0: Lua keywords ────────────────────────────────────
-    private static final Set<String> LUA_KEYWORDS = new HashSet<>(Arrays.asList(
-        "and", "break", "do", "else", "elseif", "end", "false", "for",
-        "function", "goto", "if", "in", "local", "nil", "not", "or",
-        "repeat", "return", "then", "true", "until", "while", "continue"
-    ));
+    private static final Set<String> LUA_KEYWORDS = builtinKeywords("LUA_KEYWORDS");
 
     // ── v3.2.0: Lua built-in functions ─────────────────────────
     private static final Set<String> LUA_BUILTINS = new HashSet<>(Arrays.asList(
@@ -146,35 +127,12 @@ public class SyntaxHighlighter {
     // numbers, annotations, operators.
     // ═══════════════════════════════════════════════════════════════════
 
-    // ── C keywords (C89 + C99 + C11) ────────────────────────────
-    private static final Set<String> C_KEYWORDS = new HashSet<>(Arrays.asList(
-        "auto", "break", "case", "char", "const", "continue", "default",
-        "do", "double", "else", "enum", "extern", "float", "for", "goto",
-        "if", "inline", "int", "long", "register", "restrict", "return",
-        "short", "signed", "sizeof", "static", "struct", "switch", "typedef",
-        "union", "unsigned", "void", "volatile", "while", "_Bool", "_Complex",
-        "_Imaginary", "_Atomic", "_Alignas", "_Alignof", "_Noreturn",
-        "_Static_assert", "_Thread_local", "_Generic"
-    ));
+    // ── C keywords (C89 + C99 + C11) — v3.36.0: table moved to
+    // BuiltinLanguages, aliased for the registry below. ────────────
+    private static final Set<String> C_KEYWORDS = builtinKeywords("C_KEYWORDS");
 
     // ── C++ keywords (C++11 + C++14 + C++17 + C++20) ────────────
-    private static final Set<String> CPP_KEYWORDS = new HashSet<>(Arrays.asList(
-        "alignas", "alignof", "and", "and_eq", "asm", "auto", "bitand",
-        "bitor", "bool", "break", "case", "catch", "char", "char8_t",
-        "char16_t", "char32_t", "class", "compl", "concept", "const",
-        "consteval", "constexpr", "constinit", "const_cast", "continue",
-        "co_await", "co_return", "co_yield", "decltype", "default", "delete",
-        "do", "double", "dynamic_cast", "else", "enum", "explicit", "export",
-        "extern", "false", "float", "for", "friend", "goto", "if", "inline",
-        "int", "long", "mutable", "namespace", "new", "noexcept", "nullptr",
-        "operator", "or", "or_eq", "private", "protected", "public",
-        "register", "reinterpret_cast", "requires", "return", "short",
-        "signed", "sizeof", "static", "static_assert", "static_cast",
-        "struct", "switch", "template", "this", "thread_local", "throw",
-        "true", "try", "typedef", "typeid", "typename", "union", "unsigned",
-        "using", "virtual", "void", "volatile", "wchar_t", "while", "xor",
-        "xor_eq", "final", "override"
-    ));
+    private static final Set<String> CPP_KEYWORDS = builtinKeywords("CPP_KEYWORDS");
 
     // ── C/C++ standard library types (subset, most common) ─────
     private static final Set<String> CPP_TYPES = new HashSet<>(Arrays.asList(
@@ -187,12 +145,7 @@ public class SyntaxHighlighter {
     ));
 
     // ── Go keywords (Go 1.x) ───────────────────────────────────
-    private static final Set<String> GO_KEYWORDS = new HashSet<>(Arrays.asList(
-        "break", "case", "chan", "const", "continue", "default", "defer",
-        "else", "fallthrough", "for", "func", "go", "goto", "if", "import",
-        "interface", "map", "package", "range", "return", "select", "struct",
-        "switch", "type", "var", "nil", "true", "false", "iota"
-    ));
+    private static final Set<String> GO_KEYWORDS = builtinKeywords("GO_KEYWORDS");
 
     // ── Go built-in functions ───────────────────────────────────
     private static final Set<String> GO_BUILTINS = new HashSet<>(Arrays.asList(
@@ -204,13 +157,7 @@ public class SyntaxHighlighter {
     ));
 
     // ── Rust keywords (Rust 2021) ───────────────────────────────
-    private static final Set<String> RUST_KEYWORDS = new HashSet<>(Arrays.asList(
-        "as", "async", "await", "break", "const", "continue", "crate",
-        "dyn", "else", "enum", "extern", "false", "fn", "for", "if", "impl",
-        "in", "let", "loop", "match", "mod", "move", "mut", "pub", "ref",
-        "return", "self", "Self", "static", "struct", "super", "trait",
-        "true", "try", "type", "unsafe", "use", "where", "while"
-    ));
+    private static final Set<String> RUST_KEYWORDS = builtinKeywords("RUST_KEYWORDS");
 
     // ── Rust built-in types ─────────────────────────────────────
     private static final Set<String> RUST_TYPES = new HashSet<>(Arrays.asList(
@@ -221,124 +168,25 @@ public class SyntaxHighlighter {
     ));
 
     // ── Ruby keywords ───────────────────────────────────────────
-    private static final Set<String> RUBY_KEYWORDS = new HashSet<>(Arrays.asList(
-        "BEGIN", "END", "alias", "and", "begin", "break", "case", "class",
-        "def", "defined?", "do", "else", "elsif", "end", "ensure", "false",
-        "for", "if", "in", "module", "next", "nil", "not", "or", "redo",
-        "rescue", "retry", "return", "self", "super", "then", "true",
-        "undef", "unless", "until", "when", "while", "yield", "__FILE__",
-        "__LINE__", "__ENCODING__"
-    ));
+    private static final Set<String> RUBY_KEYWORDS = builtinKeywords("RUBY_KEYWORDS");
 
     // ── PHP keywords ───────────────────────────────────────────
-    private static final Set<String> PHP_KEYWORDS = new HashSet<>(Arrays.asList(
-        "abstract", "and", "array", "as", "break", "callable", "case",
-        "catch", "class", "clone", "const", "continue", "declare", "default",
-        "die", "do", "echo", "else", "elseif", "empty", "enddeclare",
-        "endfor", "endforeach", "endif", "endswitch", "endwhile", "enum",
-        "eval", "exit", "extends", "final", "finally", "fn", "for", "foreach",
-        "function", "global", "goto", "if", "implements", "include",
-        "include_once", "instanceof", "insteadof", "interface", "isset",
-        "list", "match", "namespace", "new", "or", "print", "private",
-        "protected", "public", "readonly", "require", "require_once",
-        "return", "static", "switch", "throw", "trait", "try", "unset",
-        "use", "var", "while", "xor", "yield", "true", "false", "null",
-        "int", "float", "bool", "string", "object", "mixed", "void",
-        "never", "array", "iterable", "callable", "self", "parent", "static"
-    ));
+    private static final Set<String> PHP_KEYWORDS = builtinKeywords("PHP_KEYWORDS");
 
     // ── Swift keywords ─────────────────────────────────────────
-    private static final Set<String> SWIFT_KEYWORDS = new HashSet<>(Arrays.asList(
-        "associatedtype", "class", "deinit", "enum", "extension", "fileprivate",
-        "func", "import", "init", "inout", "internal", "let", "open",
-        "operator", "private", "protocol", "public", "static", "struct",
-        "subscript", "typealias", "var", "break", "case", "continue",
-        "default", "defer", "do", "else", "fallthrough", "for", "guard",
-        "if", "in", "repeat", "return", "switch", "where", "while", "as",
-        "Any", "catch", "false", "is", "nil", "rethrows", "super", "self",
-        "Self", "throw", "throws", "true", "try", "async", "await", "yield",
-        "actor", "unsafe"
-    ));
+    private static final Set<String> SWIFT_KEYWORDS = builtinKeywords("SWIFT_KEYWORDS");
 
     // ── Dart keywords ───────────────────────────────────────────
-    private static final Set<String> DART_KEYWORDS = new HashSet<>(Arrays.asList(
-        "abstract", "as", "assert", "async", "await", "break", "case", "catch",
-        "class", "const", "continue", "covariant", "default", "deferred",
-        "do", "dynamic", "else", "enum", "export", "extends", "extension",
-        "external", "factory", "false", "final", "finally", "for", "Function",
-        "get", "hide", "if", "implements", "import", "in", "interface", "is",
-        "library", "mixin", "new", "null", "on", "operator", "part", "rethrow",
-        "return", "set", "show", "static", "super", "switch", "sync", "this",
-        "throw", "true", "try", "typedef", "var", "void", "while", "with",
-        "yield"
-    ));
+    private static final Set<String> DART_KEYWORDS = builtinKeywords("DART_KEYWORDS");
 
     // ── Groovy keywords (Java superset + Groovy-specific) ──────
-    private static final Set<String> GROOVY_KEYWORDS = new HashSet<>(Arrays.asList(
-        "abstract", "as", "assert", "break", "case", "catch", "class",
-        "const", "continue", "def", "default", "do", "else", "enum",
-        "extends", "false", "final", "finally", "float", "for", "goto",
-        "if", "implements", "import", "in", "instanceof", "int", "interface",
-        "long", "native", "new", "null", "package", "private", "protected",
-        "public", "return", "short", "static", "strictfp", "super", "switch",
-        "synchronized", "this", "throw", "throws", "trait", "transient",
-        "true", "try", "void", "volatile", "while", "it", "Closure"
-    ));
+    private static final Set<String> GROOVY_KEYWORDS = builtinKeywords("GROOVY_KEYWORDS");
 
     // ── SQL keywords (ANSI + common DB extensions) ──────────────
-    private static final Set<String> SQL_KEYWORDS = new HashSet<>(Arrays.asList(
-        "ABORT", "ACTION", "ADD", "AFTER", "ALL", "ALTER", "ANALYZE", "AND",
-        "AS", "ASC", "ATTACH", "AUTOINCREMENT", "BEFORE", "BEGIN", "BETWEEN",
-        "BY", "CASCADE", "CASE", "CAST", "CHECK", "COLLATE", "COMMIT",
-        "CONFLICT", "CONSTRAINT", "CREATE", "CROSS", "CURRENT_DATE",
-        "CURRENT_TIME", "CURRENT_TIMESTAMP", "DATABASE", "DEFAULT", "DEFERRABLE",
-        "DEFERRED", "DELETE", "DETACH", "DISTINCT", "DROP", "EACH", "ELSE",
-        "END", "ESCAPE", "EXCEPT", "EXCLUSIVE", "EXISTS", "EXPLAIN", "FOR",
-        "FOREIGN", "FROM", "FULL", "GLOB", "GROUP", "HAVING", "IF", "IGNORE",
-        "IMMEDIATE", "IN", "INDEX", "INNER", "INSERT", "INSTEAD", "INTERSECT",
-        "INTO", "IS", "ISNULL", "JOIN", "KEY", "LEFT", "LIKE", "LIMIT",
-        "MATCH", "NATURAL", "NO", "NOT", "NOTNULL", "NULL", "OF", "OFFSET",
-        "ON", "OR", "ORDER", "OUTER", "PLAN", "PRAGMA", "PRIMARY", "QUERY",
-        "REFERENCES", "REGEXP", "REINDEX", "RELEASE", "RENAME", "REPLACE",
-        "RESTRICT", "RIGHT", "ROLLBACK", "ROW", "SAVEPOINT", "SELECT", "SET",
-        "TABLE", "TEMP", "TEMPORARY", "THEN", "TO", "TRANSACTION", "TRIGGER",
-        "UNION", "UNIQUE", "UPDATE", "USING", "VACUUM", "VALUES", "VIEW",
-        "VIRTUAL", "WHEN", "WHERE", "WITH", "WITHOUT",
-        // Lowercase variants (some queries mix)
-        "abort", "action", "add", "after", "all", "alter", "analyze", "and",
-        "as", "asc", "attach", "autoincrement", "before", "begin", "between",
-        "by", "cascade", "case", "cast", "check", "collate", "commit",
-        "conflict", "constraint", "create", "cross", "database", "default",
-        "deferrable", "deferred", "delete", "detach", "distinct", "drop",
-        "each", "else", "end", "escape", "except", "exclusive", "exists",
-        "explain", "for", "foreign", "from", "full", "glob", "group",
-        "having", "if", "ignore", "immediate", "in", "index", "inner",
-        "insert", "instead", "intersect", "into", "is", "isnull", "join",
-        "key", "left", "like", "limit", "match", "natural", "no", "not",
-        "notnull", "null", "of", "offset", "on", "or", "order", "outer",
-        "plan", "pragma", "primary", "query", "references", "regexp",
-        "reindex", "release", "rename", "replace", "restrict", "right",
-        "rollback", "row", "savepoint", "select", "set", "table", "temp",
-        "temporary", "then", "to", "transaction", "trigger", "union",
-        "unique", "update", "using", "vacuum", "values", "view", "virtual",
-        "when", "where", "with", "without",
-        // Types
-        "INTEGER", "TEXT", "REAL", "BLOB", "NUMERIC", "BOOLEAN", "VARCHAR",
-        "CHAR", "DATE", "DATETIME", "TIMESTAMP", "DECIMAL", "FLOAT", "DOUBLE",
-        "INT", "BIGINT", "SMALLINT", "TINYINT"
-    ));
+    private static final Set<String> SQL_KEYWORDS = builtinKeywords("SQL_KEYWORDS");
 
     // ── Shell/Bash keywords & builtins ─────────────────────────
-    private static final Set<String> SHELL_KEYWORDS = new HashSet<>(Arrays.asList(
-        "if", "then", "else", "elif", "fi", "case", "esac", "for", "while",
-        "until", "do", "done", "in", "function", "select", "time", "coproc",
-        "export", "readonly", "local", "declare", "typeset", "unset",
-        "shift", "source", "return", "exit", "trap", "set", "unset", "alias",
-        "unalias", "echo", "printf", "read", "test", "true", "false",
-        "cd", "pwd", "pushd", "popd", "dirs", "bg", "fg", "jobs", "kill",
-        "wait", "nohup", "exec", "eval", "let", "break", "continue",
-        "getopts", "hash", "history", "suspend", "ulimit", "umask"
-    ));
+    private static final Set<String> SHELL_KEYWORDS = builtinKeywords("SHELL_KEYWORDS");
 
     // ── CSS at-rules ───────────────────────────────────────────
     private static final Set<String> CSS_AT_RULES = new HashSet<>(Arrays.asList(
@@ -400,14 +248,7 @@ public class SyntaxHighlighter {
     ));
 
     // ── Smali keywords (Android dex bytecode) ──────────────────
-    private static final Set<String> SMALI_KEYWORDS = new HashSet<>(Arrays.asList(
-        ".class", ".super", ".source", ".implements", ".field", ".method",
-        ".end method", ".registers", ".locals", ".prologue", ".line", ".param",
-        ".parameter", ".annotation", ".end annotation", ".enum",
-        ".array-data", ".end array-data", ".packed-switch", ".end packed-switch",
-        ".sparse-switch", ".end sparse-switch", ".subannotation",
-        ".catch", ".catchall", ".annotation"
-    ));
+    private static final Set<String> SMALI_KEYWORDS = builtinKeywords("SMALI_KEYWORDS");
 
     // ── Smali register/vim keywords ─────────────────────────────
     private static final Set<String> SMALI_REGISTERS = new HashSet<>(Arrays.asList(
@@ -417,14 +258,10 @@ public class SyntaxHighlighter {
     ));
 
     // ── TOML keywords (none, but reserved) ──────────────────────
-    private static final Set<String> TOML_KEYWORDS = new HashSet<>(Arrays.asList(
-        "true", "false", "inf", "nan"
-    ));
+    private static final Set<String> TOML_KEYWORDS = builtinKeywords("TOML_KEYWORDS");
 
     // ── Properties keywords (none, but reserved) ───────────────
-    private static final Set<String> PROPERTIES_KEYWORDS = new HashSet<>(Arrays.asList(
-        "true", "false"
-    ));
+    private static final Set<String> PROPERTIES_KEYWORDS = builtinKeywords("PROPERTIES_KEYWORDS");
 
     /**
      * Optional TextMate tokenizer (v2.43). If non-null and reports
@@ -500,54 +337,53 @@ public class SyntaxHighlighter {
             return tm.tokenize(line, entryState, language);
         }
         // v2.46 — Parser maison: language dispatch.
-        // Languages with specialized tokenizers (own state machines):
-        if ("log".equals(language)) {
-            return styleLog(line);
+        // v3.36.0 — registry-driven (roadmap item 7): the tokenizer family
+        // comes from the language profile (LanguageRegistry), so aliases
+        // declared in the profile (py, md, htm, svg, ini, kt, rs… and any
+        // language a host registers) route to the right tokenizer instead
+        // of falling through the old string chains to the generic C-like
+        // path with the Java keyword set.
+        LanguageProfile profile = LanguageRegistry.forName(language);
+        SyntaxFamily family = profile != null ? profile.family : SyntaxFamily.C_LIKE;
+        switch (family) {
+            case LOG:
+                return styleLog(line);
+            case MARKDOWN:
+                return styleMarkdown(line, entryState);
+            case PYTHON:
+                return stylePython(line, entryState);
+            case JSON:
+                return styleJson(line, entryState);
+            case LUA:
+                return styleLua(line, entryState);
+            case XML:
+                // v2.44 — HTML falls through to the XML tokenizer when TextMate
+                // is disabled (large files) or unavailable. The XML tokenizer
+                // handles HTML tags, attributes, comments, CDATA, and entities.
+                return styleXml(line, entryState);
+            case CSS:
+                return styleCss(line, entryState);
+            case SHELL:
+                return styleShell(line, entryState);
+            case YAML:
+                return styleYaml(line, entryState);
+            case SQL:
+                return styleSql(line, entryState);
+            case PROPERTIES:
+                return styleProperties(line, entryState);
+            case TOML:
+                return styleToml(line, entryState);
+            case SMALI:
+                return styleSmali(line, entryState);
+            case C_LIKE:
+            default:
+                // C-like languages share the generic Java path but get their
+                // own keyword set via getKeywords(). Includes: java, kotlin,
+                // javascript, typescript, c, cpp, go, rust, ruby, php, swift,
+                // dart, groovy — plus any custom language a host registered
+                // with SyntaxFamily.C_LIKE.
+                return styleCLike(line, entryState, language);
         }
-        if ("markdown".equals(language)) {
-            return styleMarkdown(line, entryState);
-        }
-        if ("python".equals(language)) {
-            return stylePython(line, entryState);
-        }
-        if ("json".equals(language)) {
-            return styleJson(line, entryState);
-        }
-        if ("lua".equals(language)) {
-            return styleLua(line, entryState);
-        }
-        if ("xml".equals(language) || "html".equals(language)) {
-            // v2.44 — HTML falls through to the XML tokenizer when TextMate
-            // is disabled (large files) or unavailable. The XML tokenizer
-            // handles HTML tags, attributes, comments, CDATA, and entities.
-            return styleXml(line, entryState);
-        }
-        // v2.46 — New specialized tokenizers (parser maison):
-        if ("css".equals(language) || "scss".equals(language) || "less".equals(language)) {
-            return styleCss(line, entryState);
-        }
-        if ("shell".equals(language) || "bash".equals(language) || "sh".equals(language)) {
-            return styleShell(line, entryState);
-        }
-        if ("yaml".equals(language) || "yml".equals(language)) {
-            return styleYaml(line, entryState);
-        }
-        if ("sql".equals(language)) {
-            return styleSql(line, entryState);
-        }
-        if ("properties".equals(language)) {
-            return styleProperties(line, entryState);
-        }
-        if ("toml".equals(language)) {
-            return styleToml(line, entryState);
-        }
-        if ("smali".equals(language)) {
-            return styleSmali(line, entryState);
-        }
-        // C-like languages share the generic Java path but get their own
-        // keyword set via getKeywords(). Includes: java, kotlin, javascript,
-        // typescript, c, cpp, go, rust, ruby, php, swift, dart, groovy.
-        return styleCLike(line, entryState, language);
     }
 
     /**
@@ -1287,32 +1123,14 @@ public class SyntaxHighlighter {
     }
 
     private Set<String> getKeywords(String language) {
+        // v3.36.0 — registry-driven lookup (roadmap item 7): built-ins keep
+        // the exact v3.35.0 keyword sets (the table moved verbatim to
+        // BuiltinLanguages), and custom languages registered by the host via
+        // LanguageRegistry.register() are honored here too. Unknown ids keep
+        // the historical Java-keyword fallback.
         if (language == null) return JAVA_KEYWORDS;
-        switch (language.toLowerCase(java.util.Locale.ROOT)) {
-            case "kotlin": return KT_KEYWORDS;
-            case "xml": return XML_KEYWORDS;
-            case "json": return JSON_KEYWORDS;
-            case "python": case "py": return PYTHON_KEYWORDS;
-            case "javascript": case "js": case "typescript": case "ts":
-                return JS_KEYWORDS;
-            case "lua": return LUA_KEYWORDS;
-            // ── v2.46 — parser maison: additional C-like languages ──
-            case "c": case "h": return C_KEYWORDS;
-            case "cpp": case "cc": case "hpp": case "cxx": return CPP_KEYWORDS;
-            case "go": return GO_KEYWORDS;
-            case "rust": case "rs": return RUST_KEYWORDS;
-            case "ruby": case "rb": return RUBY_KEYWORDS;
-            case "php": return PHP_KEYWORDS;
-            case "swift": return SWIFT_KEYWORDS;
-            case "dart": return DART_KEYWORDS;
-            case "groovy": case "gradle": return GROOVY_KEYWORDS;
-            case "sql": return SQL_KEYWORDS;
-            case "shell": case "bash": case "sh": return SHELL_KEYWORDS;
-            case "smali": return SMALI_KEYWORDS;
-            case "toml": return TOML_KEYWORDS;
-            case "properties": return PROPERTIES_KEYWORDS;
-            default: return JAVA_KEYWORDS;
-        }
+        LanguageProfile profile = LanguageRegistry.forName(language);
+        return profile != null ? profile.keywords : JAVA_KEYWORDS;
     }
 
     /** v3.1.0: Returns true if the word is ALL_CAPS (at least 2 chars, all uppercase + digits + _). */
