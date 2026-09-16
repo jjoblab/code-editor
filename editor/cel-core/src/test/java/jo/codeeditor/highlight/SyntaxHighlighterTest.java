@@ -227,7 +227,6 @@ class SyntaxHighlighterTest {
     void htmlFallsBackToXmlTokenizer_whenNoTextMateRegistered() {
         // Default state: no TextMate tokenizer registered.
         SyntaxHighlighter.setTextMateTokenizer(null);
-        SyntaxHighlighter.setTextMateEnabled(true);
         try {
             StyledLine line = hl.styleLine(
                 "<div class=\"container\">",
@@ -245,17 +244,18 @@ class SyntaxHighlighterTest {
         } finally {
             // Reset global state for other tests.
             SyntaxHighlighter.setTextMateTokenizer(null);
-            SyntaxHighlighter.setTextMateEnabled(true);
         }
     }
 
     /**
-     * v2.44 — The textMateEnabled toggle is a circuit breaker: when
-     * disabled, even if a TextMate tokenizer IS registered, styleLine
-     * should fall through to the built-in tokenizer.
+     * v3.37.0 (B13) — The TextMate circuit breaker is now a per-call
+     * gate ({@code styleLine(..., allowTextMate)}): when {@code false},
+     * even if a TextMate tokenizer IS registered, styleLine falls
+     * through to the built-in tokenizer. Replaces the removed global
+     * {@code setTextMateEnabled(false)} static toggle.
      */
     @Test
-    void textMateEnabledToggle_disablesDelegation() {
+    void textMateGate_disablesDelegation() {
         // Register a fake TextMate tokenizer that would delegate to itself
         // (causing infinite recursion if not bypassed).
         TextMateTokenizer fake = new TextMateTokenizer() {
@@ -266,34 +266,32 @@ class SyntaxHighlighterTest {
             @Override
             public StyledLine tokenize(String line, int entryState, String language) {
                 throw new AssertionError(
-                    "TextMate should be bypassed when textMateEnabled=false");
+                    "TextMate should be bypassed when allowTextMate=false");
             }
         };
         SyntaxHighlighter.setTextMateTokenizer(fake);
-        SyntaxHighlighter.setTextMateEnabled(false);
         try {
-            assertTrue(!SyntaxHighlighter.isTextMateEnabled(),
-                "toggle should report disabled");
-            // Should NOT call fake.tokenize — should use built-in Java
-            // tokenizer and produce a KEYWORD token for "public".
+            // Local gate closed — should NOT call fake.tokenize, should use
+            // the built-in Java tokenizer and produce a KEYWORD for "public".
             StyledLine line = hl.styleLine("public class Foo",
-                LexState.NORMAL, "java");
+                LexState.NORMAL, "java", false);
             assertTrue(
                 line.spans.stream().anyMatch(s -> s.type == TokenType.KEYWORD),
                 "built-in Java tokenizer should produce KEYWORD");
         } finally {
             SyntaxHighlighter.setTextMateTokenizer(null);
-            SyntaxHighlighter.setTextMateEnabled(true);
         }
     }
 
     /**
-     * v2.44 — When textMateEnabled=true AND a TextMate tokenizer IS
-     * registered AND it reports isAvailable(language)=true, styleLine
-     * delegates to it. Verified via a stub that returns a sentinel span.
+     * v3.37.0 (B13) — When {@code allowTextMate=true} AND a TextMate
+     * tokenizer IS registered AND it reports isAvailable(language)=true,
+     * styleLine delegates to it. Verified via a stub that returns a
+     * sentinel span. The legacy 3-arg overload must behave the same
+     * (it delegates with the gate open).
      */
     @Test
-    void textMateEnabledToggle_delegatesWhenEnabled() {
+    void textMateGate_delegatesWhenEnabled() {
         TextMateTokenizer stub = new TextMateTokenizer() {
             @Override
             public boolean isAvailable(String language) {
@@ -309,20 +307,21 @@ class SyntaxHighlighterTest {
             }
         };
         SyntaxHighlighter.setTextMateTokenizer(stub);
-        SyntaxHighlighter.setTextMateEnabled(true);
         try {
-            assertTrue(SyntaxHighlighter.isTextMateEnabled(),
-                "toggle should report enabled");
-            StyledLine line = hl.styleLine("public class Foo",
-                LexState.NORMAL, "java");
-            // All spans should be ANNOTATION (sentinel) — proving
-            // delegation happened.
+            // Explicit open gate.
+            StyledLine gated = hl.styleLine("public class Foo",
+                LexState.NORMAL, "java", true);
             assertTrue(
-                line.spans.stream().allMatch(s -> s.type == TokenType.ANNOTATION),
-                "delegation should have happened");
+                gated.spans.stream().allMatch(s -> s.type == TokenType.ANNOTATION),
+                "delegation should have happened (explicit gate)");
+            // Legacy 3-arg overload = gate open (back-compat contract).
+            StyledLine legacy = hl.styleLine("public class Foo",
+                LexState.NORMAL, "java");
+            assertTrue(
+                legacy.spans.stream().allMatch(s -> s.type == TokenType.ANNOTATION),
+                "legacy 3-arg overload must keep delegating");
         } finally {
             SyntaxHighlighter.setTextMateTokenizer(null);
-            SyntaxHighlighter.setTextMateEnabled(true);
         }
     }
 
