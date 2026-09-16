@@ -1,0 +1,43 @@
+# Third-party notices
+
+## CodeAssist
+
+This library is inspired by the architecture of
+[CodeAssist](https://github.com/tyron12233/CodeAssist) by tyron12233,
+licensed under the GPL-3.0 license.
+
+code-editor-lib is an independent implementation in Java for Android
+(no shared source code with CodeAssist, which is written in Kotlin with
+Compose Multiplatform). The architectural concepts — Rope-based document
+model, incremental per-line tokenizer, IME bridge with composing-region
+handling, per-line render cache, fold model, wrap model, signature help
+controller, code actions controller, navigation menu — were studied from
+CodeAssist's source and reimplemented from scratch.
+
+We thank the CodeAssist team for the reference implementation that guided
+the design of this library.
+
+## OpenJDK
+
+This project is built and tested against Temurin 17 (OpenJDK), licensed
+under the GNU General Public License version 2 with the Classpath Exception.
+The runtime is not distributed with this library — consumers provide their
+own JDK.
+
+## Android SDK
+
+This project compiles against Android API 34 (`android.jar`), licensed
+under the Android Software Development Kit License Agreement. The SDK is
+not distributed with this library — consumers provide their own Android
+SDK.
+
+## LSP4J (planned for v2.2.0 — cel-lsp module)
+
+The `cel-lsp` module (planned for v2.2.0) will depend on
+`org.eclipse.lsp4j:org.eclipse.lsp4j` (Eclipse Public License 2.0).
+LSP4J is NOT bundled with the core `code-editor-lib` — only consumers
+that add the optional `cel-lsp` module dependency will pull in LSP4J.
+
+EPL-2.0 is compatible with the MIT license for combined works. The
+`cel-lsp` module will ship its own NOTICE file documenting the EPL-2.0
+dependency.
