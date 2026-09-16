@@ -65,6 +65,11 @@ public final class EditorCommands {
     public static final String DEDENT = "editor.dedent";
     public static final String INSERT_SPACE = "editor.insert_space";
 
+    // ── Comment toggles (v3.37.0 — natural chord companions, e.g.
+    // IntelliJ-style Ctrl+K Ctrl+C / Ctrl+K Ctrl+U) ────────────────
+    public static final String TOGGLE_LINE_COMMENT = "editor.toggle_line_comment";
+    public static final String TOGGLE_BLOCK_COMMENT = "editor.toggle_block_comment";
+
     // ── Caret movement (EXTEND_* = the same move with a selection) ──
     public static final String MOVE_LEFT = "editor.move_left";
     public static final String EXTEND_LEFT = "editor.extend_left";

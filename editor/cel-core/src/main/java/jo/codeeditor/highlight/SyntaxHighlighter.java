@@ -275,18 +275,6 @@ public class SyntaxHighlighter {
     private static volatile TextMateTokenizer textMateTokenizer;
 
     /**
-     * v2.44 — Global enable/disable toggle for TextMate tokenization.
-     * Allows {@link jo.codeeditor.session.EditorSession} to disable TextMate
-     * for very large documents (where the per-line cost × line count would
-     * risk an ANR) while still benefiting from TextMate on small files.
-     *
-     * <p>Default {@code true} — TextMate is opt-in per language via
-     * {@link TextMateTokenizer#isAvailable(String)}; this toggle is a
-     * finer-grained circuit breaker on top.
-     */
-    private static volatile boolean textMateEnabled = true;
-
-    /**
      * Registers a TextMate tokenizer. Call this once at app startup, before
      * any editor view is created. Pass {@code null} to disable.
      */
@@ -295,33 +283,10 @@ public class SyntaxHighlighter {
     }
 
     /**
-     * v2.44 — Globally enables/disables TextMate delegation. When
-     * {@code false}, {@link #styleLine} skips the TextMate path and falls
-     * through to the built-in tokenizer for all languages.
-     *
-     * <p>Use case: {@link jo.codeeditor.session.EditorSession#setLanguage}
-     * checks the document line count and disables TextMate if it exceeds
-     * a safe threshold (e.g. 1000 lines) to avoid ANR risk from the
-     * synchronous {@code restyleAll()}.
-     *
-     * @since v2.44
-     */
-    public static void setTextMateEnabled(boolean enabled) {
-        textMateEnabled = enabled;
-    }
-
-    /**
-     * v2.44 — Returns {@code true} if TextMate delegation is currently
-     * enabled. Used by tests + future diagnostics.
-     *
-     * @since v2.44
-     */
-    public static boolean isTextMateEnabled() {
-        return textMateEnabled;
-    }
-
-    /**
      * Tokenizes a single line, returning styled spans and the exit state.
+     * Equivalent to {@code styleLine(line, entryState, language, true)} —
+     * TextMate delegation is allowed (a registered tokenizer that reports
+     * {@link TextMateTokenizer#isAvailable(String)} wins).
      *
      * @param line       the line text (without trailing newline)
      * @param entryState the lexer state entering this line
@@ -329,11 +294,32 @@ public class SyntaxHighlighter {
      * @return StyledLine with spans and exit state
      */
     public StyledLine styleLine(String line, int entryState, String language) {
+        return styleLine(line, entryState, language, true);
+    }
+
+    /**
+     * v3.37.0 (B13) — Tokenizes a single line with a <b>caller-local</b>
+     * TextMate circuit breaker.
+     *
+     * <p>History: v2.44 introduced a {@code static volatile textMateEnabled}
+     * toggle mutated by {@code EditorSession.setLanguage} — a global shared
+     * across sessions, where one large document disabled delegation for
+     * <i>every</i> other open tab (design smell B13). The flag has been
+     * removed; the large-document protection now travels as this per-call
+     * parameter, computed from the caller's own document size:
+     * {@code EditorSession} passes {@code lineCount <= TEXTMATE_LINE_LIMIT}
+     * so two sessions with different document sizes never interfere.</p>
+     *
+     * @param allowTextMate {@code false} skips the TextMate path entirely
+     *                      (large-document ANR guard, decided per document)
+     */
+    public StyledLine styleLine(String line, int entryState, String language,
+            boolean allowTextMate) {
         // v2.43 — TextMate delegation (opt-in per language).
-        // v2.44 — guarded by the global textMateEnabled toggle so that
-        // EditorSession can disable TextMate for very large documents.
+        // v3.37.0 (B13) — guarded by the per-call allowTextMate gate
+        // instead of the removed global static toggle.
         TextMateTokenizer tm = textMateTokenizer;
-        if (textMateEnabled && tm != null && tm.isAvailable(language)) {
+        if (allowTextMate && tm != null && tm.isAvailable(language)) {
             return tm.tokenize(line, entryState, language);
         }
         // v2.46 — Parser maison: language dispatch.

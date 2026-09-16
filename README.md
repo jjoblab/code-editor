@@ -2,11 +2,13 @@
 
 Une bibliothèque Java **standalone pour Android** qui reproduit l'architecture de l'éditeur de code de [CodeAssist](https://github.com/tyron12233/CodeAssist) — un IDE Android construit from scratch avec un éditeur custom (pas Sora Editor).
 
-> **v3.36.0** — alignée sur l'analyse des évolutions editor de CodeAssist v3.9 → v3.20
+> **v3.37.0** — alignée sur l'analyse des évolutions editor de CodeAssist v3.9 → v3.20
 > (portage `LineOverlay`, prefetch idle, buckets par ligne, commentaires language-driven,
 > cache de layouts contenu-adressé, fold index O(log folds), correctifs lifecycle & API 24 ;
 > v3.36.0 : diagnostics groupés par ligne, keymap rebindable, registre de langages
-> contribuables, sweep des onglets ouverts, SPI plugins décorations, Gradle 9/AGP 9).
+> contribuables, sweep des onglets ouverts, SPI plugins décorations, Gradle 9/AGP 9 ;
+> v3.37.0 : chords keymap (`Ctrl+K Ctrl+C` à la IntelliJ), retrait de l'état statique
+> textMateEnabled (B13), CI GitHub Actions — roadmap du rapport traitée à 12/12).
 > Voir `RAPPORT_ANALYSE_V3.34.0.md` et `CHANGELOG.md` pour le détail.
 
 ## Modules
@@ -22,7 +24,9 @@ Une bibliothèque Java **standalone pour Android** qui reproduit l'architecture 
 
 ### Via JitPack (recommandé)
 
-1. Poussez ce dépôt sur GitHub, puis créez un tag : `git tag v3.36.0 && git push origin v3.36.0`
+1. Poussez ce dépôt sur GitHub, puis créez un tag : `git tag v3.37.0 && git push origin v3.37.0`
+   (le workflow CI `.github/workflows/ci.yml` vérifie build + tests + lint sur chaque
+   push/PR, et assemble la release + valide la publication Maven sur chaque tag `v*`)
 2. Ajoutez le dépôt JitPack dans le `settings.gradle.kts` de l'app consommatrice :
 
 ```kotlin
@@ -40,10 +44,10 @@ dependencyResolutionManagement {
 ```kotlin
 dependencies {
     // Le module UI embarque transitivement cel-core et cel-lsp-api.
-    implementation("com.github.<votre-user>.code-editor:cel-ui:v3.36.0")
+    implementation("com.github.<votre-user>.code-editor:cel-ui:v3.37.0")
 
     // Optionnel — intégration Language Server Protocol (LSP4J).
-    implementation("com.github.<votre-user>.code-editor:cel-lsp:v3.36.0")
+    implementation("com.github.<votre-user>.code-editor:cel-lsp:v3.37.0")
 }
 ```
 
@@ -136,6 +140,17 @@ session.setLanguage("mylang");
 editorView.setKeymap(EditorKeymap.defaults()
         .bind(EditorCommands.REDO, KeyEvent.KEYCODE_Z, true, true)); // Ctrl+Shift+Z
 
+// 2b. Ou lie une séquence à deux touches (chord, v3.37.0) — la
+//     première touche arme un pending de 2 s, Escape annule :
+editorView.setKeymap(EditorKeymap.defaults()
+        .bindChord(EditorCommands.TOGGLE_LINE_COMMENT,
+                EditorKeymap.KeyStroke.of(KeyEvent.KEYCODE_K, true, false),
+                EditorKeymap.KeyStroke.of(KeyEvent.KEYCODE_C, true, false))
+        .bindChord(EditorCommands.TOGGLE_BLOCK_COMMENT,
+                EditorKeymap.KeyStroke.of(KeyEvent.KEYCODE_K, true, false),
+                EditorKeymap.KeyStroke.of(KeyEvent.KEYCODE_U, true, false)));
+// Ctrl+K Ctrl+C = commenter, Ctrl+K Ctrl+U = décommenter (IntelliJ)
+
 // 3. Décorer l'éditeur depuis un plugin (un painter qui throw est retiré,
 //    jamais un crash) :
 editorView.getPainterHost().register(new TodoPainter());
@@ -161,8 +176,8 @@ project.shutdown(); // borné à 2 s par serveur (v3.34.0)
 
 ```bash
 ./gradlew testDebugUnitTest
-# 907 tests (v3.36.0), 0 failures :
-#   cel-core 655 · cel-lsp-api 22 · cel-lsp 15 · cel-ui 215
+# 922 tests (v3.37.0), 0 failures :
+#   cel-core 655 · cel-lsp-api 22 · cel-lsp 15 · cel-ui 230
 ```
 
 ## Performances
@@ -198,9 +213,18 @@ project.shutdown(); // borné à 2 s par serveur (v3.34.0)
 
 Gradle wrapper **9.5.1** · AGP **9.0.0** · `compileSdk 34` · `minSdk 24` · Java **17**.
 
+## CI
+
+Le workflow GitHub Actions (`.github/workflows/ci.yml`, v3.37.0) exécute sur chaque
+push (main) et chaque PR : `assembleDebug` + `testDebugUnitTest` + `lint` sur JDK 17
+Temurin, avec cache Gradle et validation des wrapper JARs (`gradle/actions/setup-gradle`).
+Sur chaque tag `v*`, un job release ajoute `assembleRelease` + `publishToMavenLocal`
+(dry-run de la publication JitPack) et uploade les AAR/POM en artefacts — un tag ne
+peut plus être poussé à l'aveugle.
+
 ## Crédits
 
-Architecture basée sur l'analyse du projet [CodeAssist](https://github.com/tyron12233/CodeAssist) par tyron12233 (évolutions v3.9 → v3.20 intégrées en v3.34.0-v3.36.0). Implémentation en Java pur pour Android.
+Architecture basée sur l'analyse du projet [CodeAssist](https://github.com/tyron12233/CodeAssist) par tyron12233 (évolutions v3.9 → v3.20 intégrées en v3.34.0-v3.37.0). Implémentation en Java pur pour Android.
 
 ## Licence
 

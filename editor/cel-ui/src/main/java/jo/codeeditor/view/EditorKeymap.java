@@ -34,15 +34,31 @@ import java.util.List;
  *       (the v1.x ctrl-switch ignored shift);</li>
  *   <li>ignore both — e.g. Shift+Enter still inserts a newline.</li>
  * </ol>
- * <p>Alt/meta are never part of a binding (don't-care). Chords
- * (two-key sequences, CodeAssist {@code Outcome.Pending}) are future
- * work.</p>
+ * <p>Alt/meta are never part of a binding (don't-care).</p>
  *
- * <p>The default table reproduces the pre-v3.36.0
- * {@code EditorKeyHandler} behavior: Ctrl+Z/Y/A/C/X/V/D/F/S, Ctrl+Space,
- * Ctrl+P, Ctrl+., Ctrl+Shift+O/I/L, Ctrl+Plus/Minus/0, Ctrl+G,
- * Backspace/Delete/Enter/Tab/Space, arrows + Home/End/PageUp/PageDown
- * (Shift = extend), F1/F2/F12 (Shift+F12 = references).</p>
+ * <h2>Chords (v3.37.0)</h2>
+ * <p>Two-key sequences (port of CodeAssist v3.20's {@code Outcome.Pending}):
+ * the first key arms a short-lived pending state, the second key
+ * completes (or abandons) the sequence — IntelliJ's {@code Ctrl+K Ctrl+C}
+ * style shortcuts. A key that already has a single-key binding ALWAYS
+ * resolves as that binding first; chords only capture keys that would
+ * otherwise fall through, so the default table (chord-free) is 100 %
+ * behavior-compatible with v3.36.0:</p>
+ *
+ * <pre>{@code
+ * EditorKeymap km = EditorKeymap.defaults()
+ *         .bindChord(EditorCommands.TOGGLE_LINE_COMMENT,
+ *                 KeyStroke.of(KeyEvent.KEYCODE_K, true, false),
+ *                 KeyStroke.of(KeyEvent.KEYCODE_C, true, false));
+ * view.setKeymap(km);   // Ctrl+K then Ctrl+C = comment lines
+ * }</pre>
+ *
+ * <p>While a chord is pending, Escape cancels it and the pending state
+ * expires after 2 s of silence. The default table reproduces the
+ * pre-v3.36.0 {@code EditorKeyHandler} behavior: Ctrl+Z/Y/A/C/X/V/D/F/S,
+ * Ctrl+Space, Ctrl+P, Ctrl+., Ctrl+Shift+O/I/L, Ctrl+Plus/Minus/0,
+ * Ctrl+G, Backspace/Delete/Enter/Tab/Space, arrows + Home/End/PageUp/
+ * PageDown (Shift = extend), F1/F2/F12 (Shift+F12 = references).</p>
  *
  * <p>Not thread-safe — read and mutate on the UI thread, then hand the
  * instance to {@code EditorView.setKeymap}.</p>
@@ -90,7 +106,91 @@ public final class EditorKeymap {
         }
     }
 
+    /**
+     * v3.37.0 — One physical key event segment of a chord: key code +
+     * ctrl/shift modifiers (alt/meta are don't-cares, like single
+     * bindings). Value class with structural equality.
+     */
+    public static final class KeyStroke {
+        public final int keyCode;
+        public final boolean ctrl;
+        public final boolean shift;
+
+        public KeyStroke(int keyCode, boolean ctrl, boolean shift) {
+            this.keyCode = keyCode;
+            this.ctrl = ctrl;
+            this.shift = shift;
+        }
+
+        /** Factory (readable at call sites: {@code KeyStroke.of(KEYCODE_K, true, false)}). */
+        public static KeyStroke of(int keyCode, boolean ctrl, boolean shift) {
+            return new KeyStroke(keyCode, ctrl, shift);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (!(o instanceof KeyStroke)) return false;
+            KeyStroke k = (KeyStroke) o;
+            return keyCode == k.keyCode && ctrl == k.ctrl && shift == k.shift;
+        }
+
+        @Override
+        public int hashCode() {
+            int h = keyCode;
+            h = 31 * h + (ctrl ? 1 : 0);
+            h = 31 * h + (shift ? 1 : 0);
+            return h;
+        }
+
+        @Override
+        public String toString() {
+            return KeyEvent.keyCodeToString(keyCode)
+                    + (ctrl ? "+ctrl" : "") + (shift ? "+shift" : "");
+        }
+    }
+
+    /** v3.37.0 — One chord table row: {@code command} bound to the
+     * two-stroke sequence {@code first}, then {@code second}. */
+    public static final class ChordBinding {
+        public final String command;
+        public final KeyStroke first;
+        public final KeyStroke second;
+
+        public ChordBinding(String command, KeyStroke first, KeyStroke second) {
+            if (command == null || first == null || second == null) {
+                throw new IllegalArgumentException("command/first/second is null");
+            }
+            this.command = command;
+            this.first = first;
+            this.second = second;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (!(o instanceof ChordBinding)) return false;
+            ChordBinding c = (ChordBinding) o;
+            return command.equals(c.command) && first.equals(c.first)
+                    && second.equals(c.second);
+        }
+
+        @Override
+        public int hashCode() {
+            int h = command.hashCode();
+            h = 31 * h + first.hashCode();
+            h = 31 * h + second.hashCode();
+            return h;
+        }
+
+        @Override
+        public String toString() {
+            return command + "@" + first + " " + second;
+        }
+    }
+
     private final List<Binding> table = new ArrayList<>();
+    private final List<ChordBinding> chords = new ArrayList<>();
 
     /** An empty keymap (every key falls through to the printable path). */
     public EditorKeymap() {}
@@ -180,17 +280,23 @@ public final class EditorKeymap {
         return this;
     }
 
-    /** Removes EVERY binding of {@code command} (fluent). */
+    /** Removes EVERY binding of {@code command} — single-key rows AND
+     * chord rows (fluent). */
     public EditorKeymap unbind(String command) {
         if (command == null) return this;
         table.removeIf(b -> b.command.equals(command));
+        chords.removeIf(c -> c.command.equals(command));
         return this;
     }
 
-    /** True when {@code command} has at least one binding. */
+    /** True when {@code command} has at least one binding (single-key
+     * or chord). */
     public boolean isBound(String command) {
         for (Binding b : table) {
             if (b.command.equals(command)) return true;
+        }
+        for (ChordBinding c : chords) {
+            if (c.command.equals(command)) return true;
         }
         return false;
     }
@@ -206,6 +312,89 @@ public final class EditorKeymap {
     /** An unmodifiable view of the whole table (introspection / UI). */
     public List<Binding> bindings() {
         return Collections.unmodifiableList(table);
+    }
+
+    /** The first chord bound to {@code command} (introspection / UI),
+     * or null. */
+    public ChordBinding chordBindingFor(String command) {
+        for (ChordBinding c : chords) {
+            if (c.command.equals(command)) return c;
+        }
+        return null;
+    }
+
+    /** An unmodifiable view of the chord table (introspection / UI). */
+    public List<ChordBinding> chordBindings() {
+        return Collections.unmodifiableList(chords);
+    }
+
+    // ── Chords (v3.37.0) ─────────────────────────────────────────
+
+    /**
+     * Binds the two-key sequence {@code first} then {@code second} to
+     * {@code command} (fluent). A later chord with the same two strokes
+     * replaces an earlier one. The first key of a chord only captures
+     * events that no single-key binding resolves — unbind the simple
+     * binding first if both exist (see class javadoc).
+     */
+    public EditorKeymap bindChord(String command, KeyStroke first, KeyStroke second) {
+        ChordBinding chord = new ChordBinding(command, first, second);
+        for (int i = 0; i < chords.size(); i++) {
+            ChordBinding c = chords.get(i);
+            if (c.first.equals(first) && c.second.equals(second)) {
+                chords.set(i, chord);
+                return this;
+            }
+        }
+        chords.add(chord);
+        return this;
+    }
+
+    /**
+     * Resolves the FIRST key of a potential chord: returns the registered
+     * first-stroke when some chord starts at this key event (same
+     * four-pass modifier fallback as {@link #resolve}), else null. The
+     * returned stroke is what {@link #resolveChord} expects as
+     * {@code first} — the event's modifiers may differ from the binding's.
+     */
+    public KeyStroke resolveChordStart(int keyCode, boolean ctrl, boolean shift) {
+        KeyStroke s = matchChordStart(keyCode, ctrl, shift);
+        if (s == null) s = matchChordStart(keyCode, false, shift);
+        if (s == null) s = matchChordStart(keyCode, ctrl, false);
+        if (s == null) s = matchChordStart(keyCode, false, false);
+        return s;
+    }
+
+    private KeyStroke matchChordStart(int keyCode, boolean ctrl, boolean shift) {
+        for (int i = 0; i < chords.size(); i++) {
+            KeyStroke f = chords.get(i).first;
+            if (f.keyCode == keyCode && f.ctrl == ctrl && f.shift == shift) return f;
+        }
+        return null;
+    }
+
+    /**
+     * Completes a pending chord: resolves the second key event against
+     * every chord whose first stroke is {@code first} (same four-pass
+     * modifier fallback on the second stroke), or null when the sequence
+     * is not a chord (the key is then processed as a fresh keystroke).
+     */
+    public ChordBinding resolveChord(KeyStroke first, int keyCode, boolean ctrl, boolean shift) {
+        ChordBinding c = matchChord(first, keyCode, ctrl, shift);
+        if (c == null) c = matchChord(first, keyCode, false, shift);
+        if (c == null) c = matchChord(first, keyCode, ctrl, false);
+        if (c == null) c = matchChord(first, keyCode, false, false);
+        return c;
+    }
+
+    private ChordBinding matchChord(KeyStroke first, int keyCode, boolean ctrl, boolean shift) {
+        for (int i = 0; i < chords.size(); i++) {
+            ChordBinding c = chords.get(i);
+            if (!c.first.equals(first)) continue;
+            if (c.second.keyCode == keyCode
+                    && c.second.ctrl == ctrl && c.second.shift == shift) return c;
+        }
+        return null;
     }
 
     /**

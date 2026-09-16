@@ -7,6 +7,103 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v3.37.0] — 2026-09-17 — Chords, hygiène B13 & CI (fin de roadmap)
+
+Quatrième itération post-rapport : les trois points restants de la
+roadmap v3.34.0 — l'item 12 (CI GitHub Actions, précédemment reporté),
+le retrait complet de l'état statique `textMateEnabled` (B13, noté
+« sans effet tant que tm4e n'est pas réintroduit ») et les chords
+keymap (`Outcome.Pending` chez CodeAssist, future work de l'item 6).
+La roadmap v3.34.0 est maintenant traitée à 12/12.
+
+### Added
+
+- **Chords keymap — séquences à deux touches (complément roadmap item
+  6, portage `Outcome.Pending` de CodeAssist v3.20)** —
+  `EditorKeymap.bindChord(command, first, second)` lie une séquence
+  style IntelliJ `Ctrl+K Ctrl+C` à une commande. Nouvelles classes de
+  valeur : `EditorKeymap.KeyStroke` (keyCode + ctrl/shift, factory
+  `KeyStroke.of(KEYCODE_K, true, false)`) et `EditorKeymap.ChordBinding`.
+  Résolution : `resolveChordStart(kc, ctrl, shift)` détecte si une
+  touche démarre un chord (mêmes 4 passes de modificateurs que
+  `resolve`), `resolveChord(first, kc, ctrl, shift)` complète la
+  séquence (4 passes sur le second segment). Dans `EditorKeyHandler`,
+  la première touche arme un état **pending** ; la seconde exécute le
+  chord ou est traitée comme une frappe fraîche (elle peut elle-même
+  ré-armer un chord) ; **Escape annule** le pending ; le pending
+  **expire après 2 s** — vérifié par timestamp sur une horloge
+  injectable (`LongSupplier clock`, zéro Handler, zéro fuite au
+  detach). Priorité : un binding single-key résout TOUJOURS en premier
+  — les chords ne capturent que les touches qui tomberaient sinon dans
+  le fall-through, donc la table par défaut (sans chord) est 100 %
+  compatible v3.36.0.
+- **Commandes `TOGGLE_LINE_COMMENT` / `TOGGLE_BLOCK_COMMENT`** — les
+  toggles de commentaires language-driven (v3.35.0, B11) deviennent des
+  commandes keymap exécutables au clavier, seules ou en chord (le duo
+  naturel : `Ctrl+K Ctrl+C` / `Ctrl+K Ctrl+U` à la IntelliJ).
+- **CI GitHub Actions (roadmap item 12)** — `.github/workflows/ci.yml` :
+  job **build** (chaque push main + chaque PR) = checkout + JDK 17
+  Temurin + `gradle/actions/setup-gradle` (cache + validation des
+  wrapper JARs) + `assembleDebug` + `testDebugUnitTest` + `lint`, upload
+  des rapports en artefact sur échec ; job **release** (tags `v*`) =
+  `assembleRelease` + `publishToMavenLocal` (dry-run de la publication
+  JitPack : AAR + sources + POM pour les 4 modules) + upload des
+  artefacts. Concurrency cancel-in-progress sur les PR ; PRs en lecture
+  de cache seule (main reste l'unique écrivain).
+
+### Changed
+
+- **B13 — retrait de l'état statique
+  `SyntaxHighlighter.textMateEnabled`** — le toggle global introduit en
+  v2.44 était muté par `EditorSession.setLanguage` : deux sessions
+  partageaient le drapeau, si bien qu'un grand document coupait la
+  délégation TextMate de tous les autres onglets. Le circuit breaker
+  grands documents devient **local à chaque passe de restyle** :
+  nouvelle surcharge `styleLine(line, entryState, language,
+  allowTextMate)` ; les 4 sites d'appel d'`EditorSession`
+  (`spliceStyles` ×2, `restyleAll`, `doAsyncRestyle`) calculent
+  `allowTextMate = lineCount <= TEXTMATE_LINE_LIMIT` (800 lignes,
+  constante qui remplace la `MAX_LINES_FOR_TEXTMATE` v2.44 dépréciée)
+  sur LEUR PROPRE taille de document. L'ancienne signature 3-arg
+  délègue avec le gate ouvert (contrat inchangé pour les appelants
+  externes). En production tm4e est absent (tokenizer null) : aucun
+  changement observable ; si un hôte réintroduit un tokenizer, il
+  retrouve la sémantique v2.44 saine — petits documents délèguent,
+  gros documents non, **par session**.
+
+### Removed
+
+- `SyntaxHighlighter.setTextMateEnabled(boolean)` et
+  `SyntaxHighlighter.isTextMateEnabled()` — sans effet depuis le retrait
+  de tm4e (v2.55) ; le seul appelant était `EditorSession.setLanguage`
+  lui-même. `setTextMateTokenizer(TextMateTokenizer)` (injection du
+  tokenizer) est conservé.
+- `EditorSession.MAX_LINES_FOR_TEXTMATE` (dépréciée v2.55) — remplacée
+  par `TEXTMATE_LINE_LIMIT`.
+
+### Validation
+
+- `assembleDebug` + `assembleRelease` : BUILD SUCCESSFUL (4 modules,
+  Gradle 9.5.1 / AGP 9.0.0).
+- `testDebugUnitTest` : **922 tests / 0 échec** (cel-core 655,
+  cel-lsp-api 22, cel-lsp 15, cel-ui 230) — 907 en v3.36.0, +15 :
+  `EditorKeymapTest` 11 → 20 (+9 chords : bind/resolve, 4 passes sur
+  start et second, rebind, unbind, isBound/chordBindingFor, value
+  classes KeyStroke/ChordBinding, defaults sans chord, priorité
+  single-key), nouveau `EditorChordKeyHandlerTest` (6 : séquence
+  complète avec round-trip toggle, annulation Escape, expiration 2 s
+  sur horloge figée, repli single-key, ré-armement, défaut inchangé) ;
+  tests B13 réécrits (même compte) : `textMateGate_disables/delegates`
+  + 3 tests session (petit doc délègue, gros doc skip, **une session
+  grosse n'affecte pas une session petite** — le test du design smell).
+- Lint : **0 erreur** (warnings informationnels préexistants :
+  GradleDependency/NewerVersionAvailable, ClickableViewAccessibility,
+  DefaultLocale — aucun dans les nouveaux fichiers).
+- `publishToMavenLocal` : `jo.codeeditor:cel-{core,lsp-api,lsp,ui}:3.37.0`
+  (aar + sources.jar + pom + module), POM cel-ui transitif vérifié.
+- CI : workflow YAML validé (syntaxe + actions v4 : checkout, setup-java
+  Temurin 17, gradle/actions/setup-gradle avec wrapper validation).
+
 ## [v3.36.0] — 2026-09-17 — Extensibilité & UX (roadmap items 5-11)
 
 Troisième itération post-rapport : les items 5 à 11 de la roadmap v3.34.0

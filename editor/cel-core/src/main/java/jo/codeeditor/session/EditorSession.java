@@ -281,12 +281,14 @@ public class EditorSession {
         // c.-à-d. doc ≤ 800 lignes ET tm4e registered — donc jamais pour
         // le parser maison seul).
         //
-        // Maintenant que tm4e est retiré de l'app (v2.55), on déclenche
-        // TOUJOURS restyleAllAsync() pour setLanguage. Le parser maison
-        // est ~10–50× plus rapide que tm4e par ligne, donc même un
-        // fichier de 5000 lignes se tokenize en < 1 s — mais c'est
-        // suffisant pour justifier l'async (file switch, undo, redo
-        // restent non-bloquants pour l'UI).
+        // v3.37.0 (B13) — l'appel SyntaxHighlighter.setTextMateEnabled(false)
+        // a été RETIRÉ : ce mutateur d'état global statique (introduit v2.44)
+        // était un design smell — deux sessions partageaient le drapeau,
+        // si bien qu'un grand document coupait la délégation TextMate de
+        // TOUS les autres onglets ouverts. La protection grands documents
+        // est désormais locale à chaque boucle de restyle : chaque site
+        // d'appel à styleLine passe allowTextMate = (lineCount <=
+        // TEXTMATE_LINE_LIMIT), calculé sur SA propre taille de document.
         //
         // La mécanique d'async est robuste :
         //   - Snapshot du doc (immutable EditorDocument) → pas de race
@@ -297,7 +299,6 @@ public class EditorSession {
         //   - Atomic swap du volatile styledLines
         //   - Thread interruption check dans la boucle worker
         //   - Listener cross-thread (EditorView posts onLinesReset sur l'UI)
-        SyntaxHighlighter.setTextMateEnabled(false);
         restyleAllAsync();
         // v3.3.0: Auto-detect fold regions when the language is set.
         detectFolds();
@@ -307,20 +308,20 @@ public class EditorSession {
     }
 
     /**
-     * v2.55 — Anciennement {@code MAX_LINES_FOR_TEXTMATE = 800}, threshold
-     * au-dessus duquel on désactivait tm4e pour éviter l'ANR (5 s+).
+     * v3.37.0 (B13) — Large-document TextMate circuit breaker, decided
+     * per restyle pass (replaces the removed global static
+     * {@code SyntaxHighlighter.textMateEnabled} toggle and the deprecated
+     * v2.44 {@code MAX_LINES_FOR_TEXTMATE = 800} constant).
      *
-     * <p>Conservé pour back-compat (tests, documentations), mais tm4e
-     * étant retiré de l'app en v2.55, cette constante n'a plus d'effet
-     * sur le dispatch de restyle. Le parser maison gère correctement
-     * les fichiers de toute taille — pour un fichier 5000 lignes,
-     * restyleAllAsync prend ~500 ms en background, ce qui est sous le
-     * seuil ANR de 5 s.
-     *
-     * @deprecated v2.55 — tm4e retiré de l'app, constante sans effet.
+     * <p>Documents with more lines than this limit skip TextMate
+     * delegation and use the built-in tokenizer, whose per-line cost is
+     * 10–50× lower. The gate is passed as a parameter to
+     * {@code styleLine(line, state, language, allowTextMate)} at every
+     * call site, so it is computed from THIS session's document — a
+     * 5000-line tab no longer disables TextMate for a small tab in
+     * another EditorView (the exact design smell B13 removed).</p>
      */
-    @Deprecated
-    static final int MAX_LINES_FOR_TEXTMATE = 800;
+    static final int TEXTMATE_LINE_LIMIT = 800;
 
     /**
      * Detects fold regions for the current document + language.
@@ -847,6 +848,9 @@ public class EditorSession {
         for (int i = 0; i < insertion.length(); i++) {
             if (insertion.charAt(i) == '\n') newLineCount++;
         }
+        // v3.37.0 (B13): TextMate gate computed from THIS document's size
+        // (was: global static toggle shared across all sessions).
+        boolean allowTextMate = doc.lineCount() <= TEXTMATE_LINE_LIMIT;
         for (int i = 0; i < removedLines && firstLine < styledLines.size(); i++) {
             styledLines.remove(firstLine);
         }
@@ -859,7 +863,7 @@ public class EditorSession {
         for (int i = 0; i < newLineCount; i++) {
             int lineNum = firstLine + i;
             String lineText = doc.lineText(lineNum);
-            StyledLine styled = highlighter.styleLine(lineText, entryState, language);
+            StyledLine styled = highlighter.styleLine(lineText, entryState, language, allowTextMate);
             styledLines.add(lineNum, styled);
             entryState = styled.exitState;
         }
@@ -869,7 +873,7 @@ public class EditorSession {
             StyledLine current = styledLines.get(nextLine);
             if (current.entryState == prevState) break;
             String lineText = doc.lineText(nextLine);
-            StyledLine restyled = highlighter.styleLine(lineText, prevState, language);
+            StyledLine restyled = highlighter.styleLine(lineText, prevState, language, allowTextMate);
             styledLines.set(nextLine, restyled);
             nextLine++;
         }
@@ -926,10 +930,12 @@ public class EditorSession {
 
     private void restyleAll() {
         styledLines.clear();
+        // v3.37.0 (B13): per-call TextMate gate (was: global static toggle).
+        boolean allowTextMate = doc.lineCount() <= TEXTMATE_LINE_LIMIT;
         int state = LexState.NORMAL;
         for (int i = 0; i < doc.lineCount(); i++) {
             String lineText = doc.lineText(i);
-            StyledLine styled = highlighter.styleLine(lineText, state, language);
+            StyledLine styled = highlighter.styleLine(lineText, state, language, allowTextMate);
             styledLines.add(styled);
             state = styled.exitState;
         }
@@ -1122,6 +1128,9 @@ public class EditorSession {
         // O(N^2) total) by splitting the snapshot text ourselves.
         List<StyledLine> newStyled = new ArrayList<>(lineCountSnapshot);
         int state = LexState.NORMAL;
+        // v3.37.0 (B13): TextMate gate from the SNAPSHOT's own size —
+        // decided per async pass, immune to cross-session interference.
+        boolean allowTextMate = lineCountSnapshot <= TEXTMATE_LINE_LIMIT;
         int start = 0;
         for (int i = 0; i < lineCountSnapshot; i++) {
             // Check for interruption (cancellation).
@@ -1133,7 +1142,7 @@ public class EditorSession {
             String lineText = (end < 0)
                 ? textSnapshot.substring(start)
                 : textSnapshot.substring(start, end);
-            StyledLine styled = highlighter.styleLine(lineText, state, langSnapshot);
+            StyledLine styled = highlighter.styleLine(lineText, state, langSnapshot, allowTextMate);
             newStyled.add(styled);
             state = styled.exitState;
             if (end < 0) break;

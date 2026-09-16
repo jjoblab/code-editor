@@ -361,66 +361,108 @@ class EditorSessionTest {
         assertFalse(s.getStyledLines().isEmpty());
     }
 
-    // ── v2.44 — TextMate circuit breaker for large documents ─────
+    // ── v3.37.0 (B13) — TextMate gate: per-call, no global static ────
 
-    /**
-     * v2.55 — Avec tm4e retiré de l'app, SyntaxHighlighter.setTextMateEnabled(false)
-     * est appelé à chaque setLanguage. Le flag textMateEnabled reste FALSE
-     * quel que soit le tailleur du doc — le parser maison gère tout.
-     */
-    @Test
-    void setLanguage_smallDocument_keepsTextMateEnabled() {
-        // Single-line document — way under the 800-line threshold.
-        EditorSession s = new SessionBuilder("public class Foo {}").build();
-        s.setLanguage("java");
-        // v2.55 : textMateEnabled doit être FALSE (tm4e retiré de l'app).
-        assertFalse(jo.codeeditor.highlight.SyntaxHighlighter.isTextMateEnabled(),
-            "v2.55: TextMate must be disabled (tm4e removed from app)");
+    /** Stub tokenizer : sentinel ANNOTATION span sur toute la ligne. */
+    private static jo.codeeditor.highlight.TextMateTokenizer sentinelTokenizer() {
+        return new jo.codeeditor.highlight.TextMateTokenizer() {
+            @Override
+            public boolean isAvailable(String language) {
+                return "java".equals(language);
+            }
+            @Override
+            public jo.codeeditor.highlight.StyledLine tokenize(
+                    String line, int entryState, String language) {
+                return new jo.codeeditor.highlight.StyledLine(
+                    java.util.Collections.singletonList(
+                        new jo.codeeditor.highlight.LineSpan(
+                            0, line.length(),
+                            jo.codeeditor.highlight.TokenType.ANNOTATION)),
+                    entryState, entryState);
+            }
+        };
     }
 
     /**
-     * v2.44 — A document with line count above the threshold disables
-     * TextMate to avoid ANR risk on synchronous restyleAll().
-     * v2.55 — TextMate est désormais TOUJOURS désactivé (tm4e retiré de
-     * l'app). Ce test vérifie que pour un gros doc, textMateEnabled reste
-     * false (comportement inchangé depuis v2.55).
+     * v3.37.0 (B13) — Petit document + tokenizer enregistré disponible
+     * → délégation ACTIVE (sémantique v2.44 d'origine, restaurée : le
+     * hack v2.55 « setTextMateEnabled(false) à chaque setLanguage » est
+     * retiré). En production tm4e étant absent, le tokenizer reste null
+     * et ce path ne s'active jamais — le test le prouve avec un stub.
      */
     @Test
-    void setLanguage_largeDocument_disablesTextMate() {
-        // Build a document with MAX_LINES_FOR_TEXTMATE + 1 lines.
+    void setLanguage_smallDocument_delegatesToRegisteredTokenizer() throws Exception {
+        jo.codeeditor.highlight.SyntaxHighlighter.setTextMateTokenizer(sentinelTokenizer());
+        try {
+            EditorSession s = new SessionBuilder("public class Foo {}").build();
+            s.setLanguage("java");
+            if (s.isAsyncRestylePending()) s.awaitPendingRestyle();
+            assertTrue(
+                s.getStyledLines().get(0).spans.stream()
+                    .allMatch(x -> x.type == jo.codeeditor.highlight.TokenType.ANNOTATION),
+                "small doc must delegate to the registered tokenizer");
+        } finally {
+            jo.codeeditor.highlight.SyntaxHighlighter.setTextMateTokenizer(null);
+        }
+    }
+
+    /**
+     * v3.37.0 (B13) — Document au-delà de TEXTMATE_LINE_LIMIT → le gate
+     * local se ferme pour SA passe de restyle : le parser maison tokenise
+     * tout, le tokenizer enregistré n'est jamais consulté.
+     */
+    @Test
+    void setLanguage_largeDocument_skipsRegisteredTokenizer() throws Exception {
         StringBuilder big = new StringBuilder();
-        int lines = jo.codeeditor.session.EditorSession.MAX_LINES_FOR_TEXTMATE + 1;
+        int lines = jo.codeeditor.session.EditorSession.TEXTMATE_LINE_LIMIT + 1;
         for (int i = 0; i < lines; i++) {
             big.append("line ").append(i).append('\n');
         }
-        EditorSession s = new SessionBuilder(big.toString()).build();
-        s.setLanguage("java");
-        assertFalse(jo.codeeditor.highlight.SyntaxHighlighter.isTextMateEnabled(),
-            "TextMate should be disabled for large docs");
+        jo.codeeditor.highlight.SyntaxHighlighter.setTextMateTokenizer(sentinelTokenizer());
+        try {
+            EditorSession s = new SessionBuilder(big.toString()).build();
+            s.setLanguage("java");
+            if (s.isAsyncRestylePending()) s.awaitPendingRestyle();
+            assertTrue(
+                s.getStyledLines().stream().noneMatch(l -> l.spans.stream()
+                    .anyMatch(x -> x.type == jo.codeeditor.highlight.TokenType.ANNOTATION)),
+                "large doc must skip TextMate (per-call gate closed)");
+        } finally {
+            jo.codeeditor.highlight.SyntaxHighlighter.setTextMateTokenizer(null);
+        }
     }
 
     /**
-     * v2.55 — Avant : switcher d'un gros doc à un petit doc réactivait tm4e.
-     * Après v2.55 : tm4e est retiré de l'app, le flag reste FALSE quelle
-     * que soit la tailleur du doc. Le parser maison gère tout.
+     * LE test du design smell B13 : avant v3.37, le drapeau global
+     * statique coupé par la session du gros document désactivait la
+     * délégation TextMate pour la session du petit document. Le gate
+     * étant désormais local à chaque passe de restyle, les deux
+     * sessions coexistent sans interférer.
      */
     @Test
-    void setLanguage_switchFromLargeToSmall_reEnablesTextMate() {
-        // First: large document → disabled.
+    void setLanguage_largeSession_doesNotAffectSmallSession() throws Exception {
         StringBuilder big = new StringBuilder();
-        int lines = jo.codeeditor.session.EditorSession.MAX_LINES_FOR_TEXTMATE + 1;
+        int lines = jo.codeeditor.session.EditorSession.TEXTMATE_LINE_LIMIT + 1;
         for (int i = 0; i < lines; i++) {
             big.append("x\n");
         }
-        EditorSession s1 = new SessionBuilder(big.toString()).build();
-        s1.setLanguage("java");
-        assertFalse(jo.codeeditor.highlight.SyntaxHighlighter.isTextMateEnabled());
+        jo.codeeditor.highlight.SyntaxHighlighter.setTextMateTokenizer(sentinelTokenizer());
+        try {
+            EditorSession large = new SessionBuilder(big.toString()).build();
+            large.setLanguage("java");
+            if (large.isAsyncRestylePending()) large.awaitPendingRestyle();
 
-        // Second: small document — v2.55 : tm4e ne se réactive plus.
-        EditorSession s2 = new SessionBuilder("x").build();
-        s2.setLanguage("java");
-        assertFalse(jo.codeeditor.highlight.SyntaxHighlighter.isTextMateEnabled(),
-            "v2.55: TextMate must remain disabled even for small docs (tm4e removed)");
+            EditorSession small = new SessionBuilder("public class Foo {}").build();
+            small.setLanguage("java");
+            if (small.isAsyncRestylePending()) small.awaitPendingRestyle();
+
+            assertTrue(
+                small.getStyledLines().get(0).spans.stream()
+                    .allMatch(x -> x.type == jo.codeeditor.highlight.TokenType.ANNOTATION),
+                "B13: a large session must NOT disable TextMate for a small session");
+        } finally {
+            jo.codeeditor.highlight.SyntaxHighlighter.setTextMateTokenizer(null);
+        }
     }
 
     // ── v2.45 — Async restyle path ───────────────────────────────────────
@@ -495,7 +537,7 @@ class EditorSessionTest {
     @Test
     void largeDocument_usesSyncRestyle_populatesImmediately() throws Exception {
         StringBuilder big = new StringBuilder();
-        int lines = jo.codeeditor.session.EditorSession.MAX_LINES_FOR_TEXTMATE + 1;
+        int lines = jo.codeeditor.session.EditorSession.TEXTMATE_LINE_LIMIT + 1;
         for (int i = 0; i < lines; i++) {
             big.append("x\n");
         }

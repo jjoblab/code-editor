@@ -14,13 +14,13 @@ plugins {
 }
 
 group = "jo.codeeditor"
-// v3.36.0 (2026-09-17) — minor bump : diagnostics groupés par ligne
-// (sheet + badge), keymap data-driven rebindable, registre de langages
-// contribuables, sweep diagnostics des onglets ouverts, SPI plugins
-// décorations (EditorPainterHost), migration Gradle 9.5.1 / AGP 9,
-// démantèlement EditorView (popup-anchors + zoom extraits) — sans
-// breaking change d'API publique (nouveautés additives).
-version = "3.36.0"
+// v3.37.0 (2026-09-17) — minor bump : chords keymap (Outcome.Pending,
+// commandes TOGGLE_LINE/BLOCK_COMMENT), retrait de l'état statique
+// SyntaxHighlighter.textMateEnabled (B13 — gate allowTextMate par appel),
+// CI GitHub Actions (roadmap item 12). API : additions additives ;
+// retrait interne des mutateurs statiques setTextMateEnabled/
+// isTextMateEnabled (sans effet depuis le retrait de tm4e v2.55).
+version = "3.37.0"
 
 // v3.34.0: propagate group/version to every module so `maven-publish`
 // publications (added in each module's build.gradle.kts) get consistent

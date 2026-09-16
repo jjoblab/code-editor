@@ -203,4 +203,156 @@ public class EditorKeymapTest {
         assertNotEquals(b1, "cmd");
         assertNotNull(b1.toString());
     }
+
+    // ── v3.37.0 — Chords (two-key sequences, Outcome.Pending port) ────
+
+    /** Ctrl+K → Ctrl+C helper stroke. */
+    private static EditorKeymap.KeyStroke ctrlK() {
+        return EditorKeymap.KeyStroke.of(KeyEvent.KEYCODE_K, true, false);
+    }
+
+    private static EditorKeymap.KeyStroke ctrlC() {
+        return EditorKeymap.KeyStroke.of(KeyEvent.KEYCODE_C, true, false);
+    }
+
+    @Test
+    public void chord_bindAndResolve() {
+        EditorKeymap km = new EditorKeymap();
+        km.bindChord(EditorCommands.TOGGLE_LINE_COMMENT, ctrlK(), ctrlC());
+        // The first key arms the pending state…
+        EditorKeymap.KeyStroke start = km.resolveChordStart(
+            KeyEvent.KEYCODE_K, true, false);
+        assertNotNull(start);
+        assertEquals(ctrlK(), start);
+        // …the second key completes the sequence.
+        EditorKeymap.ChordBinding chord = km.resolveChord(
+            start, KeyEvent.KEYCODE_C, true, false);
+        assertNotNull(chord);
+        assertEquals(EditorCommands.TOGGLE_LINE_COMMENT, chord.command);
+        // An unrelated second key does not complete the chord.
+        assertNull(km.resolveChord(start, KeyEvent.KEYCODE_X, true, false));
+        // A key that starts no chord returns null.
+        assertNull(km.resolveChordStart(KeyEvent.KEYCODE_F, true, false));
+    }
+
+    @Test
+    public void chord_startAndSecond_useFourPassModifierFallback() {
+        EditorKeymap km = new EditorKeymap();
+        km.bindChord(EditorCommands.TOGGLE_LINE_COMMENT,
+            EditorKeymap.KeyStroke.of(KeyEvent.KEYCODE_K, true, false),
+            EditorKeymap.KeyStroke.of(KeyEvent.KEYCODE_C, true, false));
+        // Event presses Ctrl+Shift+K: pass 3 (drop shift) matches the
+        // registered (K, ctrl, false) first stroke — and the RETURNED
+        // stroke is the binding's, not the event's.
+        EditorKeymap.KeyStroke start = km.resolveChordStart(
+            KeyEvent.KEYCODE_K, true, true);
+        assertEquals(ctrlK(), start);
+        // Second key pressed with an extra modifier also falls back.
+        EditorKeymap.ChordBinding chord = km.resolveChord(
+            start, KeyEvent.KEYCODE_C, true, true);
+        assertNotNull(chord);
+        assertEquals(EditorCommands.TOGGLE_LINE_COMMENT, chord.command);
+    }
+
+    @Test
+    public void chord_rebindReplacesEarlierChord() {
+        EditorKeymap km = new EditorKeymap();
+        km.bindChord(EditorCommands.TOGGLE_LINE_COMMENT, ctrlK(), ctrlC());
+        km.bindChord(EditorCommands.TOGGLE_BLOCK_COMMENT, ctrlK(), ctrlC());
+        assertEquals(1, km.chordBindings().size());
+        assertEquals(EditorCommands.TOGGLE_BLOCK_COMMENT,
+            km.chordBindings().get(0).command);
+        // Distinct second stroke → distinct row.
+        km.bindChord(EditorCommands.FORMAT_DOCUMENT, ctrlK(),
+            EditorKeymap.KeyStroke.of(KeyEvent.KEYCODE_F, true, false));
+        assertEquals(2, km.chordBindings().size());
+    }
+
+    @Test
+    public void chord_unbindAlsoRemovesChords() {
+        EditorKeymap km = new EditorKeymap();
+        km.bindChord(EditorCommands.TOGGLE_LINE_COMMENT, ctrlK(), ctrlC());
+        assertTrue(km.isBound(EditorCommands.TOGGLE_LINE_COMMENT));
+        assertNotNull(km.chordBindingFor(EditorCommands.TOGGLE_LINE_COMMENT));
+        km.unbind(EditorCommands.TOGGLE_LINE_COMMENT);
+        assertFalse(km.isBound(EditorCommands.TOGGLE_LINE_COMMENT));
+        assertNull(km.chordBindingFor(EditorCommands.TOGGLE_LINE_COMMENT));
+        assertEquals(0, km.chordBindings().size());
+        assertNull(km.resolveChordStart(KeyEvent.KEYCODE_K, true, false));
+    }
+
+    @Test
+    public void chord_isBoundAndBindingForIncludeChords() {
+        EditorKeymap km = new EditorKeymap();
+        // Command exists ONLY as a chord: isBound true, bindings() empty.
+        km.bindChord(EditorCommands.TOGGLE_LINE_COMMENT, ctrlK(), ctrlC());
+        assertTrue(km.isBound(EditorCommands.TOGGLE_LINE_COMMENT));
+        assertEquals(0, km.bindings().size());
+        assertEquals(1, km.chordBindings().size());
+        EditorKeymap.ChordBinding c =
+            km.chordBindingFor(EditorCommands.TOGGLE_LINE_COMMENT);
+        assertNotNull(c);
+        assertEquals(ctrlK(), c.first);
+        assertEquals(ctrlC(), c.second);
+    }
+
+    @Test
+    public void chord_keyStrokeValueClass() {
+        EditorKeymap.KeyStroke a = EditorKeymap.KeyStroke.of(KeyEvent.KEYCODE_K, true, false);
+        EditorKeymap.KeyStroke b = new EditorKeymap.KeyStroke(KeyEvent.KEYCODE_K, true, false);
+        EditorKeymap.KeyStroke c = EditorKeymap.KeyStroke.of(KeyEvent.KEYCODE_K, true, true);
+        assertEquals(a, b);
+        assertEquals(a.hashCode(), b.hashCode());
+        assertNotEquals(a, c);
+        assertNotEquals(a, null);
+        assertNotEquals(a, "K");
+        assertNotNull(a.toString());
+    }
+
+    @Test
+    public void chord_chordBindingValueClass() {
+        EditorKeymap.ChordBinding c1 =
+            new EditorKeymap.ChordBinding("cmd", ctrlK(), ctrlC());
+        EditorKeymap.ChordBinding c2 =
+            new EditorKeymap.ChordBinding("cmd", ctrlK(), ctrlC());
+        EditorKeymap.ChordBinding c3 =
+            new EditorKeymap.ChordBinding("other", ctrlK(), ctrlC());
+        assertEquals(c1, c2);
+        assertEquals(c1.hashCode(), c2.hashCode());
+        assertNotEquals(c1, c3);
+        assertNotEquals(c1, null);
+        assertNotEquals(c1, "cmd");
+        assertNotNull(c1.toString());
+        assertThrows(IllegalArgumentException.class,
+            () -> new EditorKeymap.ChordBinding(null, ctrlK(), ctrlC()));
+        assertThrows(IllegalArgumentException.class,
+            () -> new EditorKeymap.ChordBinding("cmd", null, ctrlC()));
+        assertThrows(IllegalArgumentException.class,
+            () -> new EditorKeymap.ChordBinding("cmd", ctrlK(), null));
+    }
+
+    @Test
+    public void defaults_haveNoChords() {
+        // v3.36.0 back-compat: the default table stays chord-free, so
+        // every key resolves exactly like before (single-key dispatch).
+        EditorKeymap km = EditorKeymap.defaults();
+        assertEquals(0, km.chordBindings().size());
+        assertNull(km.resolveChordStart(KeyEvent.KEYCODE_K, true, false));
+    }
+
+    @Test
+    public void chord_singleKeyBindingWinsOverChordStart() {
+        // Priority contract: a key with a single-key binding resolves as
+        // that binding — the handler only consults resolveChordStart()
+        // after resolve() missed, so a bound key never arms a chord.
+        // This test pins the keymap side of that contract: both can
+        // coexist in the table without interference.
+        EditorKeymap km = EditorKeymap.defaults();
+        km.bindChord(EditorCommands.TOGGLE_LINE_COMMENT, ctrlK(), ctrlC());
+        // Ctrl+Z still resolves as UNDO (single-key), while Ctrl+K (not
+        // single-bound by default) starts the chord.
+        assertEquals(EditorCommands.UNDO,
+            km.resolve(KeyEvent.KEYCODE_Z, true, false).command);
+        assertNotNull(km.resolveChordStart(KeyEvent.KEYCODE_K, true, false));
+    }
 }
