@@ -211,7 +211,7 @@ figure dans [`USAGE.md`](USAGE.md).
 
 ```bash
 ./gradlew test
-# 922 tests, 0 failure :
+# 934 tests, 0 failure :
 #   cel-core 655 · cel-lsp-api 22 · cel-lsp 15 · cel-ui 230
 ```
 

@@ -65,5 +65,18 @@ afterEvaluate {
                 version = project.version.toString()
             }
         }
+        // Dépôt GitHub Packages — activé par les propriétés gpr.user /
+        // gpr.key (~/.gradle/gradle.properties en local, -P… dans la CI) ;
+        // sans identifiants seule publishToMavenLocal reste utilisable.
+        repositories {
+            maven {
+                name = "GitHubPackages"
+                url = uri("https://maven.pkg.github.com/jjoblab/code-editor")
+                credentials {
+                    username = (findProperty("gpr.user") as String?) ?: System.getenv("GPR_USERNAME")
+                    password = (findProperty("gpr.key") as String?) ?: System.getenv("GPR_TOKEN")
+                }
+            }
+        }
     }
 }

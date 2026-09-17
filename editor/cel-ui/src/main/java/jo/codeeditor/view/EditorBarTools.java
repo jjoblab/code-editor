@@ -7,7 +7,6 @@ import android.util.AttributeSet;
 import android.view.MotionEvent;
 import android.view.View;
 import android.widget.LinearLayout;
-import jo.codeeditor.view.chrome.SymbolBarView;
 
 /**
  * Barre d'outils de l'éditeur — placée directement au-dessus de l'EditorView,

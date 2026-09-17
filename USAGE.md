@@ -424,7 +424,7 @@ activez R8 en release, ajoutez ces règles à `proguard-rules.pro` :
 -keep public class jo.codeeditor.view.EditorView { *; }
 -keep public class jo.codeeditor.view.chrome.EditorTheme { *; }
 -keep public class jo.codeeditor.view.EditorMetrics { *; }
--keep public class jo.codeeditor.view.EditorKeymap { *; }
+-keep public class jo.codeeditor.view.input.EditorKeymap { *; }
 -keep public class jo.codeeditor.session.EditorSession { *; }
 -keep public class jo.codeeditor.document.EditorDocument { *; }
 -keep public class jo.codeeditor.document.Selection { *; }

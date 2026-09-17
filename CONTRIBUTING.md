@@ -55,7 +55,7 @@ sdk.dir=/path/to/your/android-sdk
 ### Compiler et tester
 
 ```bash
-# Suite de tests complète (922 tests).
+# Suite de tests complète (934 tests).
 ./gradlew test
 
 # AARs des 4 modules.
@@ -80,9 +80,11 @@ sdk.dir=/path/to/your/android-sdk
   rendu — un offset périmé d'une frame ne doit jamais crasher la vue.
   Utilisez le helper `clamp(int, lo, hi)`.
 - **Tests** : JUnit 5 (Jupiter) sur la JVM hôte, sans `androidTest`
-  instrumenté (Robolectric couvre les besoins Android). Exception
-  préexistante : `:cel-lsp` tourne en JUnit 4 (Robolectric). Si un
-  comportage n'est pas testable sans Android, documentez-le dans la PR.
+  instrumenté (Robolectric couvre les besoins Android). Exceptions :
+  `:cel-ui` tourne en JUnit 4 (Robolectric ne supporte pas encore JUnit 5)
+  et `:cel-lsp` combine les deux générations sur la plateforme JUnit 5
+  (moteur vintage pour ses tests Robolectric). Si un comportement n'est
+  pas testable sans Android, documentez-le dans la PR.
 - **Pas d'emoji dans le code source** (sauf chaînes affichées à
   l'utilisateur si déjà présentes).
 

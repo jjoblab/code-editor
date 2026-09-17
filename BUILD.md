@@ -81,7 +81,7 @@ Chaque module `editor/<module>/` suit la disposition standard
 | Android | `compileSdk 34`, `minSdk 24` |
 | Java source/cible | 17 |
 | Encodage | UTF-8 |
-| Tests | JUnit 5 (Jupiter), sauf `:cel-lsp` (JUnit 4 + Robolectric) |
+| Tests | JUnit 5 (Jupiter) ; `:cel-ui` en JUnit 4 (Robolectric) ; `:cel-lsp` sur la plateforme JUnit 5 avec moteur vintage (tests Jupiter + JUnit 4/Robolectric) |
 
 ## Artefacts
 
@@ -115,9 +115,15 @@ un jar de sources :
 
 ### Publication sur GitHub Packages (méthode principale)
 
-La publication est **manuelle** : aucun workflow GitHub Actions automatisé
-n'existe à ce jour (la CI ne fait que valider `publishToMavenLocal` sur les
-tags `v*`).
+Deux chemins, au choix :
+
+**A. Workflow GitHub Actions** — `.github/workflows/publish.yml`, à
+déclencher manuellement (onglet Actions > « Publication GitHub Packages » >
+Run workflow). Il publie les 4 modules avec le `GITHUB_TOKEN` du runner
+(injecté dans les propriétés `gpr.user`/`gpr.key`) ; aucune configuration
+locale n'est nécessaire.
+
+**B. En local**, avec un jeton d'accès personnel :
 
 1. Créez un jeton d'accès personnel GitHub avec le droit `write:packages`.
 2. Renseignez vos identifiants dans `~/.gradle/gradle.properties` :
@@ -127,32 +133,20 @@ gpr.user=<votre-utilisateur-github>
 gpr.key=<votre-jeton-d-acces>
 ```
 
-3. Ajoutez le dépôt GitHub Packages au bloc `publishing` du module à
-   publier (par ex. `editor/cel-ui/build.gradle.kts`) :
-
-```kotlin
-publishing {
-    repositories {
-        maven {
-            name = "GitHubPackages"
-            url = uri("https://maven.pkg.github.com/jjoblab/code-editor")
-            credentials {
-                username = providers.gradleProperty("gpr.user").get()
-                password = providers.gradleProperty("gpr.key").get()
-            }
-        }
-    }
-    publications {
-        // … publications existantes (jo.codeeditor:<module>) …
-    }
-}
-```
-
-4. Publiez :
+3. Publiez :
 
 ```bash
 ./gradlew publish
 ```
+
+Le dépôt `GitHubPackages` est déjà configuré dans le bloc `publishing` des
+4 modules — il s'active uniquement quand les propriétés `gpr.user`/`gpr.key`
+(ou les variables d'environnement `GPR_USERNAME`/`GPR_TOKEN`) sont
+renseignées ; `publishToMavenLocal` reste utilisable sans identifiants.
+
+> **Note** : GitHub Packages refuse le remplacement d'une version déjà
+> publiée — incrémentez `version` dans `build.gradle.kts` (racine) avant
+> chaque publication.
 
 Les consommateurs ajoutent alors le dépôt `maven.pkg.github.com/jjoblab/code-editor`
 avec un jeton `read:packages` — voir la section Installation du

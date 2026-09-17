@@ -1,5 +1,7 @@
 package jo.codeeditor.view;
 
+import jo.codeeditor.view.input.EditorKeymap;
+
 import android.view.KeyEvent;
 
 import org.junit.Test;

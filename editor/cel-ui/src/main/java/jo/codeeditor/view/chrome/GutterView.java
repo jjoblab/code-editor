@@ -1,7 +1,6 @@
 package jo.codeeditor.view.chrome;
 
 import jo.codeeditor.view.EditorMetrics;
-import jo.codeeditor.view.EditorView;
 
 import android.graphics.Canvas;
 import android.graphics.Paint;

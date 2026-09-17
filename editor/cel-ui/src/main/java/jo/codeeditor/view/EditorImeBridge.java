@@ -1,5 +1,7 @@
 package jo.codeeditor.view;
 
+import androidx.annotation.RestrictTo;
+
 import android.os.Build;
 import android.text.InputType;
 import android.view.inputmethod.BaseInputConnection;
@@ -44,7 +46,8 @@ import jo.codeeditor.shift.EditSpan;
  * {@code connectionGeneration}) reste dans EditorView (package-private) et
  * est accédé/muté par ce pont.
  */
-class EditorImeBridge {
+@RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+public class EditorImeBridge {
 
     private final EditorView view;
 
@@ -150,13 +153,13 @@ class EditorImeBridge {
      * Reçoit les rappels de {@link EditorSession} et les pousse vers le
      * {@link InputMethodManager}. Enregistré comme listener IME de la session.
      */
-    final EditorSession.ImeListener listener = new EditorSession.ImeListener() {
+    public final EditorSession.ImeListener listener = new EditorSession.ImeListener() {
         @Override
         public void onTextChanged(EditSpan span) {
             // CaretAnimator.onEditOrMove() est le point d'entrée unique —
-            // il définit view.lastEditTime, réinitialise la bascule de
-            // clignotement, rend le caret visible et annule tout glissement
-            // en cours.
+            // il met à jour l'horodatage de dernière activité, réinitialise
+            // la bascule de clignotement, rend le caret visible et annule
+            // tout glissement en cours.
             view.caretAnim.onEditOrMove();
             if (view.extractedTextMonitorToken != -1) {
                 InputMethodManager imm = view.imm();

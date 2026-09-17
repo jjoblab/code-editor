@@ -1,7 +1,5 @@
 package jo.codeeditor.view.chrome;
 
-import android.graphics.Color;
-
 import jo.codeeditor.highlight.TokenType;
 
 /**

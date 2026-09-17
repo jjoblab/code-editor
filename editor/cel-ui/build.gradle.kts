@@ -53,8 +53,10 @@ dependencies {
     testImplementation("org.robolectric:robolectric:4.13")
     testImplementation("androidx.test:core:1.6.1")
     testImplementation("androidx.test.ext:junit:1.2.1")
-    testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+
+    // Marquage @RestrictTo des scells internes partagés avec les
+    // sous-packages de view/ (compileOnly : annotation absente du POM publié).
+    compileOnly("androidx.annotation:annotation:1.8.0")
 }
 
 tasks.withType<JavaCompile>().configureEach {
@@ -80,6 +82,19 @@ afterEvaluate {
                 groupId = project.group.toString()
                 artifactId = "cel-ui"
                 version = project.version.toString()
+            }
+        }
+        // Dépôt GitHub Packages — activé par les propriétés gpr.user /
+        // gpr.key (~/.gradle/gradle.properties en local, -P… dans la CI) ;
+        // sans identifiants seule publishToMavenLocal reste utilisable.
+        repositories {
+            maven {
+                name = "GitHubPackages"
+                url = uri("https://maven.pkg.github.com/jjoblab/code-editor")
+                credentials {
+                    username = (findProperty("gpr.user") as String?) ?: System.getenv("GPR_USERNAME")
+                    password = (findProperty("gpr.key") as String?) ?: System.getenv("GPR_TOKEN")
+                }
             }
         }
     }

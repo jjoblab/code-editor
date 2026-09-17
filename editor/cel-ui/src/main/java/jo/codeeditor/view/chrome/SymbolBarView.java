@@ -3,15 +3,10 @@ package jo.codeeditor.view.chrome;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Paint;
-import android.graphics.Rect;
 import android.util.AttributeSet;
 import android.view.MotionEvent;
 import android.view.View;
-import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
-
-import java.util.Arrays;
-import java.util.List;
 
 /**
  * Barre de symboles/actions placée au-dessus du clavier IME, comme
