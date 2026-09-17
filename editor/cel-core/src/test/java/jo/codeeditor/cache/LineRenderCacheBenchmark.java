@@ -20,7 +20,31 @@ class LineRenderCacheBenchmark {
 
     private static final int WARMUP_ITERATIONS = 1000;
     private static final int BENCHMARK_ITERATIONS = 10_000;
+    private static final int MEASUREMENT_ROUNDS = 5;
     private static final int CACHE_CAP = LineRenderCache.MAX_ENTRIES;
+
+    /**
+     * Mesure robuste : minimum du temps écoulé sur plusieurs tours.
+     *
+     * <p>Le minimum est l'estimation la moins bruitée d'un micro-benchmark —
+     * le scheduler, le GC et les migrations de cœur ne peuvent qu'AJOUTER du
+     * temps, jamais en retirer. Sans cela, un unique tour peut être faussé par
+     * une pause de quelques centaines de microsecondes et faire exploser le
+     * ratio triple/single au point de faire échouer l'assertion sur un CI
+     * chargé (défaut constaté à la base sur ce test).</p>
+     */
+    private static long minElapsedNs(int rounds, Runnable body) {
+        long best = Long.MAX_VALUE;
+        for (int round = 0; round < rounds; round++) {
+            long start = System.nanoTime();
+            body.run();
+            long elapsed = System.nanoTime() - start;
+            if (elapsed < best) {
+                best = elapsed;
+            }
+        }
+        return best;
+    }
 
     @Test
     void benchmark_cacheHit_isO1() {
@@ -151,24 +175,31 @@ class LineRenderCacheBenchmark {
             cache.put(new LineRenderCache.LineCacheEntry(
                 i, 1, 2, 3, null, null, null, null, "L" + i));
         }
-        // Mesure triple-stamp.
-        long start = System.nanoTime();
-        for (int i = 0; i < BENCHMARK_ITERATIONS; i++) {
+        // Échauffement (JIT) puis mesure en minimum de 5 tours pour chaque
+        // variante — voir minElapsedNs pour la justification.
+        for (int i = 0; i < WARMUP_ITERATIONS; i++) {
             cache.get(i % 100, 1, 2, 3);
-        }
-        long tripleNs = System.nanoTime() - start;
-        // Mesure single-stamp.
-        start = System.nanoTime();
-        for (int i = 0; i < BENCHMARK_ITERATIONS; i++) {
             cache.get(i % 100, 1);
         }
-        long singleNs = System.nanoTime() - start;
+        Runnable tripleLoop = () -> {
+            for (int i = 0; i < BENCHMARK_ITERATIONS; i++) {
+                cache.get(i % 100, 1, 2, 3);
+            }
+        };
+        Runnable singleLoop = () -> {
+            for (int i = 0; i < BENCHMARK_ITERATIONS; i++) {
+                cache.get(i % 100, 1);
+            }
+        };
+        long tripleNs = minElapsedNs(MEASUREMENT_ROUNDS, tripleLoop);
+        long singleNs = minElapsedNs(MEASUREMENT_ROUNDS, singleLoop);
         System.out.printf("[benchmark] triple-stamp: %.1f ns/op, single-stamp: %.1f ns/op, ratio: %.2fx%n",
             tripleNs / (double) BENCHMARK_ITERATIONS,
             singleNs / (double) BENCHMARK_ITERATIONS,
             tripleNs / (double) singleNs);
         // Le triple-stamp doit être au plus 5x plus lent que le single-stamp (3 comparaisons
-        // d'entiers contre 1 — la recherche HashMap domine, mais le jitter CI peut amplifier).
+        // d'entiers contre 1 — la recherche HashMap domine). Le minimum sur 5 tours rend le
+        // ratio insensible au jitter CI qui amplifiait artificiellement les deux extrêmes.
         double ratio = tripleNs / (double) singleNs;
         assertTrue(ratio < 5.0,
             "triple-stamp validation too slow vs single-stamp: " + ratio + "x (expected < 5x)");

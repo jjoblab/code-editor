@@ -1,6 +1,7 @@
-# v3.34.0 — JitPack build environment.
-# The library targets Java 17 (AGP 8.5.2 + Gradle 8.7 require it); without
-# this file JitPack may pick a JDK that cannot run the build at all.
+# Environnement de build JitPack.
+# La bibliothèque cible Java 17 (AGP 9.0.0 + Gradle 9.5.1 l'exigent au
+# minimum) ; sans ce fichier JitPack peut choisir un JDK incapable
+# d'exécuter le build.
 jdk:
   - openjdk17
 

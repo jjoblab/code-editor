@@ -1,17 +1,34 @@
 package jo.codeeditor.view;
 
+import jo.codeeditor.view.chrome.EditorTheme;
+import jo.codeeditor.view.chrome.GutterView;
+import jo.codeeditor.view.input.EditorInputHandler;
+import jo.codeeditor.view.input.EditorKeyHandler;
+import jo.codeeditor.view.input.EditorKeymap;
+import jo.codeeditor.view.input.EditorScrollManager;
+import jo.codeeditor.view.input.EditorZoomController;
+import jo.codeeditor.view.popup.EditorHoverQuickDoc;
+import jo.codeeditor.view.popup.EditorPopupAnchors;
+import jo.codeeditor.view.popup.EditorPopupManager;
+import jo.codeeditor.view.preview.EditorPreviewController;
+import jo.codeeditor.view.preview.EditorPreviewHost;
+import jo.codeeditor.view.preview.EditorPreviewSheet;
+import jo.codeeditor.view.render.CaretAnimator;
+import jo.codeeditor.view.render.EditorPainterHost;
+import jo.codeeditor.view.render.EditorRenderer;
+import jo.codeeditor.view.render.EditorShapedLayoutCache;
+
+import androidx.annotation.RestrictTo;
+
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Rect;
 import android.util.TypedValue;
-import android.view.GestureDetector;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
-import android.view.ScaleGestureDetector;
 import android.view.View;
 import android.view.inputmethod.InputMethodManager;
-import android.widget.OverScroller;
 
 import jo.codeeditor.cache.LineRenderCache;
 import jo.codeeditor.document.EditorDocument;
@@ -27,7 +44,6 @@ import jo.codeeditor.shift.DiagnosticShift;
 
 import java.util.ArrayList;
 import java.util.List;
-import jo.codeeditor.view.chrome.BreadcrumbBar;
 import jo.codeeditor.view.chrome.EditorTheme;
 import jo.codeeditor.view.chrome.GutterView;
 
@@ -70,40 +86,56 @@ import jo.codeeditor.view.chrome.GutterView;
  */
 public class EditorView extends View {
 
-    EditorSession session;
-    final EditorMetrics metrics;
-    EditorTheme theme;
-    final GutterView gutterView;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public EditorSession session;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public final EditorMetrics metrics;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public EditorTheme theme;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public final GutterView gutterView;
 
     // ── État de défilement ────────────────────────────────────────
-    float vOffset = 0;
-    float hOffset = 0;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public float vOffset = 0;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public float hOffset = 0;
 
     // ── Zoom ───────────────────────────────────────────────────────
     // L'état de zoom (fontScale + mutations d'échelle) vit dans
     // EditorZoomController ; EditorView ne conserve que les wrappers
     // publics de délégation.
-    final EditorZoomController zoom = new EditorZoomController(this);
-    static final float BASE_TEXT_SIZE_SP = 14f;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public final EditorZoomController zoom = new EditorZoomController(this);
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static final float BASE_TEXT_SIZE_SP = 14f;
 
     // ── Surlignages de recherche (décoration visuelle) ────────────
     // Renseignés par l'hôte (ex. barre Rechercher/Remplacer) — chaque
     // occurrence dans le viewport est teintée theme.findMatch, la
     // courante theme.findCurrent.
-    final List<Match> findHighlights = new ArrayList<>();
-    int findCurrentIndex = -1;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public final List<Match> findHighlights = new ArrayList<>();
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public int findCurrentIndex = -1;
 
     // ── Popup de complétion ────────────────────────────────────────
     // Complétion simple par mots-clés intégrée à la vue. L'hôte peut
     // aussi piloter en externe un CompletionController plus riche et
     // alimenter les items via setCompletionItems(items, tokenStart,
     // prefix).
-    final List<jo.codeeditor.completion.CompletionSession.Item> completionItems = new ArrayList<>();
-    int completionSelected = 0;
-    int completionScrollOffset = 0;
-    int completionTokenStart = -1;
-    String completionPrefix = "";
-    boolean completionVisible = false;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public final List<jo.codeeditor.completion.CompletionSession.Item> completionItems = new ArrayList<>();
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public int completionSelected = 0;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public int completionScrollOffset = 0;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public int completionTokenStart = -1;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public String completionPrefix = "";
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public boolean completionVisible = false;
     // Cache côté client pour le filtrage de complétion.
     // Quand le provider retourne des items pour un token, on les met en
     // cache comme jeu de « base ». Aux frappes suivantes qui étendent le
@@ -111,20 +143,28 @@ public class EditorView extends View {
     // casse + fuzzy) au lieu de re-requêter le provider — le popup reste
     // ainsi réactif et stable pendant qu'un serveur LSP lent rattrape
     // son retard.
-    List<jo.codeeditor.completion.CompletionSession.Item> completionBaseItems = new ArrayList<>();
-    int completionBaseTokenStart = -1;
-    static final int COMPLETION_MAX_ROWS = 8;
-    static final float COMPLETION_ROW_HEIGHT_DP = 28f;
-    static final float COMPLETION_WIDTH_DP = 280f;
-    CompletionProvider completionProvider;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public List<jo.codeeditor.completion.CompletionSession.Item> completionBaseItems = new ArrayList<>();
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public int completionBaseTokenStart = -1;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static final int COMPLETION_MAX_ROWS = 8;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static final float COMPLETION_ROW_HEIGHT_DP = 28f;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static final float COMPLETION_WIDTH_DP = 280f;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public CompletionProvider completionProvider;
 
     // ── Retour à la ligne (word wrap) ──────────────────────────────
     // Quand activé, les lignes longues se replient sur plusieurs rangées
     // visuelles dans la zone de texte. Le modèle de wrap met en cache le
     // nombre de rangées par ligne et fournit la correspondance
     // O(log L) ligne-doc ↔ rangée-visuelle via sommes préfixes.
-    boolean wordWrap = false;
-    jo.codeeditor.wrap.WrapModel wrapModel;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public boolean wordWrap = false;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public jo.codeeditor.wrap.WrapModel wrapModel;
     int wrapWidthPx = 0;
 
     /**
@@ -134,7 +174,8 @@ public class EditorView extends View {
      * étend la largeur scrollable (maxH).
      * 0 = aucune chip dessinée ce frame.
      */
-    float chipExtentContentX = 0f;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public float chipExtentContentX = 0f;
 
     /**
      * Géométrie de repli d'UNE ligne en mode word-wrap (source unique
@@ -149,11 +190,14 @@ public class EditorView extends View {
      * laisserait la queue de la ligne (jusqu'à {@code wrapIndentCols}
      * caractères) jamais dessinée.</p>
      */
-    static final class WrapRows {
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static final class WrapRows {
         final int maxColsPerRow;   // capacité de la 1re rangée
-        final int wrapIndentCols;  // indentation (cols) des rangées de continuation
+        @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+        public final int wrapIndentCols;  // indentation (cols) des rangées de continuation
         final int colsPerCont;     // capacité d'une rangée de continuation
-        final int rows;            // nombre total de rangées (≥1)
+        @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+        public final int rows;            // nombre total de rangées (≥1)
 
         WrapRows(int maxColsPerRow, int wrapIndentCols, int colsPerCont, int rows) {
             this.maxColsPerRow = maxColsPerRow;
@@ -163,18 +207,21 @@ public class EditorView extends View {
         }
 
         /** Colonne de début de la rangée {@code r} dans la ligne brute. */
-        int rowStartCol(int r) {
+        @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+        public int rowStartCol(int r) {
             return r <= 0 ? 0 : maxColsPerRow + (r - 1) * colsPerCont;
         }
 
         /** Colonne de fin (EXCLUSIVE, bornée à lineLen) de la rangée {@code r}. */
-        int rowEndCol(int r, int lineLen) {
+        @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+        public int rowEndCol(int r, int lineLen) {
             return Math.min(rowStartCol(r) + (r == 0 ? maxColsPerRow : colsPerCont),
                     lineLen);
         }
 
         /** La rangée (base 0) contenant la colonne {@code col}. */
-        int rowForCol(int col) {
+        @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+        public int rowForCol(int col) {
             if (col < maxColsPerRow) return 0;
             return 1 + (col - maxColsPerRow) / colsPerCont;
         }
@@ -185,7 +232,8 @@ public class EditorView extends View {
      * retourne une rangée unique pleine largeur (délégué à
      * {@link EditorWrapGeometry}).
      */
-    WrapRows wrapRowsFor(int line, int lineLen) {
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public WrapRows wrapRowsFor(int line, int lineLen) {
         return wrapGeometry.wrapRowsFor(line, lineLen);
     }
 
@@ -218,7 +266,8 @@ public class EditorView extends View {
      * les chemins de dessin / hit-test (même sémantique : union des
      * plages {@code (startLine, endLine]} des plis repliés).
      */
-    boolean isLineFoldedCached(int docLine) {
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public boolean isLineFoldedCached(int docLine) {
         return foldIndex.get().isHidden(docLine);
     }
 
@@ -241,13 +290,15 @@ public class EditorView extends View {
      * <p>Sûreté de threads : appelé depuis le thread UI uniquement
      * (chemin de dessin).</p>
      */
-    android.text.StaticLayout shapedLayoutFor(String lineText, StyledLine styled,
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public android.text.StaticLayout shapedLayoutFor(String lineText, StyledLine styled,
                                               android.graphics.Paint paint) {
         return shapedCache.layoutFor(lineText, styled, paint);
     }
 
     /** Nombre de layouts façonnés mémoïsés (tests/diagnostics). */
-    int shapedLayoutCacheSize() {
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public int shapedLayoutCacheSize() {
         return shapedCache.size();
     }
 
@@ -285,11 +336,15 @@ public class EditorView extends View {
     // Repli sur un popup synthétique « function(…) param N » quand aucun
     // résolveur n'est branché — utile pour la démo et pour les langages
     // sans serveur de langage.
-    final jo.codeeditor.completion.SignatureHelpController signatureHelpController =
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public final jo.codeeditor.completion.SignatureHelpController signatureHelpController =
         new jo.codeeditor.completion.SignatureHelpController();
-    boolean signatureHelpVisible = false;
-    jo.codeeditor.completion.SignatureHelpController.SignatureHelp signatureHelpData;
-    SignatureHelpResolver signatureHelpResolver;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public boolean signatureHelpVisible = false;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public jo.codeeditor.completion.SignatureHelpController.SignatureHelp signatureHelpData;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public SignatureHelpResolver signatureHelpResolver;
 
     /**
      * Interface de résolveur pour l'aide de signature — l'hôte en branche
@@ -307,20 +362,26 @@ public class EditorView extends View {
     // Desktop : un survol > 500ms déclenche. Mobile : un long-press sur
     // le symbole déclenche. Fermé par un tap ailleurs, scroll, édition
     // ou Échap.
-    QuickDocResolver quickDocResolver;
-    boolean quickDocVisible = false;
-    jo.codeeditor.doc.QuickDoc.QuickDocContent quickDocContent;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public QuickDocResolver quickDocResolver;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public boolean quickDocVisible = false;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public jo.codeeditor.doc.QuickDoc.QuickDocContent quickDocContent;
     // Provider de diagnostics + poussée débouncée vers la session et la
     // gouttière — possédés par EditorDiagnosticsPusher.
     final EditorDiagnosticsPusher diagnosticsPusher = new EditorDiagnosticsPusher(this);
     // Requêtes de diagnostics (groupes de chips, hit-tests, garde
     // ampoule) — possédées par EditorDiagnosticsLocator.
     final EditorDiagnosticsLocator diagnosticsLocator = new EditorDiagnosticsLocator(this);
-    float quickDocX, quickDocY;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public float quickDocX, quickDocY;
     /** Offset d'ancrage du quick doc : le popup est REPOSITIONNÉ à chaque frame depuis cet offset (il suit le texte au scroll) au lieu de rester figé en coordonnées écran. */
-    int quickDocAnchorOffset;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public int quickDocAnchorOffset;
     /** Scroll vertical du corps du quick doc (drag sur le popup). */
-    float quickDocScrollY;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public float quickDocScrollY;
     // Survol souris → quick doc : dwell 500 ms + slop 20 px, possédés par
     // EditorHoverQuickDoc (enregistre le listener de survol à la
     // construction).
@@ -340,14 +401,22 @@ public class EditorView extends View {
     // au moins une code action. Tap sur l'ampoule → popup avec la liste
     // d'actions. Tap sur une action → apply.run() (le résolveur fournit
     // un Runnable).
-    CodeActionsResolver codeActionsResolver;
-    final java.util.Map<Integer, List<CodeAction>> codeActionsByLine = new java.util.HashMap<>();
-    boolean codeActionsPopupVisible = false;
-    int codeActionsPopupLine = -1;
-    int codeActionsSelected = 0;
-    static final float CODE_ACTIONS_POPUP_WIDTH_DP = 260f;
-    static final float CODE_ACTIONS_ROW_HEIGHT_DP = 28f;
-    static final int CODE_ACTIONS_MAX_ROWS = 8;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public CodeActionsResolver codeActionsResolver;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public final java.util.Map<Integer, List<CodeAction>> codeActionsByLine = new java.util.HashMap<>();
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public boolean codeActionsPopupVisible = false;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public int codeActionsPopupLine = -1;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public int codeActionsSelected = 0;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static final float CODE_ACTIONS_POPUP_WIDTH_DP = 260f;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static final float CODE_ACTIONS_ROW_HEIGHT_DP = 28f;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static final int CODE_ACTIONS_MAX_ROWS = 8;
 
     /**
      * Résolveur des code actions. Retourne une liste de
@@ -383,56 +452,83 @@ public class EditorView extends View {
     // multi-cibles bascule en mode RESULTS (picker de cibles).
 
     /** Le menu est-il visible ? */
-    boolean navMenuVisible = false;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public boolean navMenuVisible = false;
     /** Mode picker : true = liste de cibles d'une option GO TO. */
-    boolean navMenuResultsMode = false;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public boolean navMenuResultsMode = false;
     /** Ligne d'ancrage du popup (sous la ligne du caret). */
-    int navMenuLine = -1;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public int navMenuLine = -1;
     /** Offset caret de résolution (l'extrémité START de la sélection). */
-    int navMenuCaretOffset = -1;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public int navMenuCaretOffset = -1;
     /** Options GO TO applicables (mode Menu) — Declaration /
      *  Implementations / Type declaration / Super (ordre NavKind). */
-    List<NavigationMenu.NavOption> navMenuOptions = new ArrayList<>();
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public List<NavigationMenu.NavOption> navMenuOptions = new ArrayList<>();
     /** Quick fixes (kind quickfix) de la ligne du caret (mode Menu). */
-    List<CodeAction> navMenuQuickFixes = new ArrayList<>();
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public List<CodeAction> navMenuQuickFixes = new ArrayList<>();
     /** Intentions (kind != quickfix) de la ligne du caret (mode Menu). */
-    List<CodeAction> navMenuIntentions = new ArrayList<>();
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public List<CodeAction> navMenuIntentions = new ArrayList<>();
     /** Cibles du picker (mode Results). */
-    List<NavigationMenu.NavTarget> navMenuTargets = new ArrayList<>();
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public List<NavigationMenu.NavTarget> navMenuTargets = new ArrayList<>();
     /** Index de rangée pressée (-1 = aucune) — feedback press. */
-    int navMenuPressedIdx = -1;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public int navMenuPressedIdx = -1;
     /** Décalage vertical de scroll du contenu (pixels), borné. */
-    float navMenuScrollY = 0;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public float navMenuScrollY = 0;
 
-    static final float NAV_MENU_ROW_HEIGHT_DP = 40f;
-    static final float NAV_MENU_HEADER_HEIGHT_DP = 26f;
-    static final float NAV_MENU_MAX_HEIGHT_DP = 360f;
-    static final float NAV_MENU_MIN_WIDTH_DP = 240f;
-    static final float NAV_MENU_MAX_WIDTH_DP = 320f;
-    static final float NAV_MENU_GAP_DP = 6f;
-    static final float NAV_MENU_MARGIN_DP = 8f;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static final float NAV_MENU_ROW_HEIGHT_DP = 40f;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static final float NAV_MENU_HEADER_HEIGHT_DP = 26f;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static final float NAV_MENU_MAX_HEIGHT_DP = 360f;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static final float NAV_MENU_MIN_WIDTH_DP = 240f;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static final float NAV_MENU_MAX_WIDTH_DP = 320f;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static final float NAV_MENU_GAP_DP = 6f;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static final float NAV_MENU_MARGIN_DP = 8f;
 
     /**
      * Une rangée du menu contextuel unifié. SOURCE UNIQUE du
      * rendu et du hit-test (pattern SelectionToolbarMetrics).
      */
-    static final class NavMenuRow {
-        static final int TYPE_HEADER = 0;
-        static final int TYPE_OPTION = 1;
-        static final int TYPE_ACTION = 2;
-        static final int TYPE_TARGET = 3;
-        static final int TYPE_NOTHING = 4;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static final class NavMenuRow {
+        @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+        public static final int TYPE_HEADER = 0;
+        @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+        public static final int TYPE_OPTION = 1;
+        @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+        public static final int TYPE_ACTION = 2;
+        @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+        public static final int TYPE_TARGET = 3;
+        @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+        public static final int TYPE_NOTHING = 4;
         /** Section de la rangée (mode Menu) : 0 = GO TO, 1 = QUICK FIXES, 2 = INTENTIONS. */
         static final int SECTION_GO_TO = 0;
-        static final int SECTION_QUICK_FIXES = 1;
+        @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+        public static final int SECTION_QUICK_FIXES = 1;
         static final int SECTION_INTENTIONS = 2;
-        final int type;
+        @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+        public final int type;
         /** Index dans la liste de section (option / action / target). */
         final int index;
         /** La section d'une rangée TYPE_ACTION (SECTION_*). */
-        final int section;
+        @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+        public final int section;
         /** NavigationMenu.NavOption (TYPE_OPTION) ou CodeAction (TYPE_ACTION). */
-        final Object ref;
+        @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+        public final Object ref;
         NavMenuRow(int type, int index, int section, Object ref) {
             this.type = type;
             this.index = index;
@@ -445,17 +541,28 @@ public class EditorView extends View {
     // Popup centré en haut avec un champ de filtre et une liste de
     // symboles scrollable. Le filtre est un préfixe insensible à la
     // casse + camel-hump (NavigationMenu.filter).
-    SymbolResolver symbolResolver;
-    boolean goToSymbolVisible = false;
-    String goToSymbolFilter = "";
-    List<NavigationMenu.Symbol> goToSymbolAll = new ArrayList<>();
-    List<NavigationMenu.Symbol> goToSymbolFiltered = new ArrayList<>();
-    int goToSymbolSelected = 0;
-    int goToSymbolScrollOffset = 0;
-    static final float GO_TO_SYMBOL_WIDTH_DP = 320f;
-    static final float GO_TO_SYMBOL_ROW_HEIGHT_DP = 26f;
-    static final int GO_TO_SYMBOL_MAX_ROWS = 10;
-    static final float GO_TO_SYMBOL_RADIUS_DP = 6f;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public SymbolResolver symbolResolver;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public boolean goToSymbolVisible = false;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public String goToSymbolFilter = "";
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public List<NavigationMenu.Symbol> goToSymbolAll = new ArrayList<>();
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public List<NavigationMenu.Symbol> goToSymbolFiltered = new ArrayList<>();
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public int goToSymbolSelected = 0;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public int goToSymbolScrollOffset = 0;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static final float GO_TO_SYMBOL_WIDTH_DP = 320f;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static final float GO_TO_SYMBOL_ROW_HEIGHT_DP = 26f;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static final int GO_TO_SYMBOL_MAX_ROWS = 10;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static final float GO_TO_SYMBOL_RADIUS_DP = 6f;
 
     /**
      * Résolveur du popup go-to-symbol. Retourne TOUS les symboles du
@@ -477,7 +584,8 @@ public class EditorView extends View {
     public interface DefinitionResolver {
         List<jo.codeeditor.lang.model.DefinitionLocation> resolve(String text, int offset);
     }
-    DefinitionResolver definitionResolver;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public DefinitionResolver definitionResolver;
 
     /**
      * Resolver pour le go-to-TYPE-declaration (le type du symbole au
@@ -487,7 +595,8 @@ public class EditorView extends View {
     public interface TypeDefinitionResolver {
         List<jo.codeeditor.lang.model.DefinitionLocation> resolve(String text, int offset);
     }
-    TypeDefinitionResolver typeDefinitionResolver;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public TypeDefinitionResolver typeDefinitionResolver;
 
     /**
      * Resolver pour le go-to-IMPLEMENTATIONS (les héritiers DIRECTS du
@@ -498,7 +607,8 @@ public class EditorView extends View {
     public interface ImplementationsResolver {
         List<jo.codeeditor.lang.model.DefinitionLocation> resolve(String text, int offset);
     }
-    ImplementationsResolver implementationsResolver;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public ImplementationsResolver implementationsResolver;
 
     /**
      * Resolver pour le go-to-SUPER (le membre outrepassé dans chaque
@@ -508,7 +618,8 @@ public class EditorView extends View {
     public interface SuperResolver {
         List<jo.codeeditor.lang.model.DefinitionLocation> resolve(String text, int offset);
     }
-    SuperResolver superResolver;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public SuperResolver superResolver;
 
     /** Résolveur du find-references. Retourne une liste de localisations d'usage. */
     public interface ReferencesResolver {
@@ -525,7 +636,8 @@ public class EditorView extends View {
     }
     DocumentHighlightResolver documentHighlightResolver;
     /** Plages document-highlight en cache ; invalidées au déplacement du caret + édition. */
-    final List<int[]> documentHighlights = new ArrayList<>();
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public final List<int[]> documentHighlights = new ArrayList<>();
 
     // ════════════════════════════════════════════════════════════════
     // Surlignage de l'appariement de parenthèses
@@ -540,7 +652,8 @@ public class EditorView extends View {
      * borné ({@link #BRACKET_SCAN_LIMIT}) pour qu'une parenthèse non
      * appariée dans un énorme fichier ne coûte pas O(N) par frappe.
      */
-    int[] bracketPair;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public int[] bracketPair;
 
     /**
      * Plafond du balayage d'appariement de parenthèses
@@ -580,7 +693,8 @@ public class EditorView extends View {
         /** Retourne le nouveau texte, ou null si le rename a échoué. */
         String rename(String text, int offset, String newName);
     }
-    RenameResolver renameResolver;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public RenameResolver renameResolver;
 
     /** Résolveur du formatage. Retourne le nouveau texte complet. */
     public interface FormatterResolver {
@@ -603,7 +717,8 @@ public class EditorView extends View {
 
     // Affichage des caractères non imprimables (espaces, tabulations,
     // sauts de ligne).
-    boolean showNonPrintable = false;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public boolean showNonPrintable = false;
 
     // Bascule de visibilité du caret. Défaut true (caret visible).
     // Découple « cacher le caret » de EditorSession.setReadOnly(boolean) :
@@ -614,30 +729,36 @@ public class EditorView extends View {
     // ConsoleLogView passe donc setFocusable(false) (bloque l'IME)
     // + setCaretVisible(false) (cache le caret) sans toucher à setReadOnly
     // (le programme peut muter le document). Voir EditorRenderer.drawCaret.
-    boolean caretVisible = true;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public boolean caretVisible = true;
 
     // État de la loupe — actif pour le DRAG DE POIGNÉE uniquement
     // (dragHandle alimente X/Y ; UP/CANCEL désactivent). La bulle
     // elle-même est dessinée par EditorRenderer.drawMagnifier (60dp,
     // zoom 2x, ±3 lignes, consciente des inlays). Jamais active pendant
     // le scroll / drag-select — pour ne pas interférer avec la sélection.
-    boolean magnifierActive = false;
-    float magnifierX = 0;
-    float magnifierY = 0;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public boolean magnifierActive = false;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public float magnifierX = 0;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public float magnifierY = 0;
 
     // Bascule des ligatures de police. Quand activée, l'éditeur dessine
     // chaque ligne en un seul appel drawText (au lieu de par span) pour
     // que les ligatures comme ->, =>, ==, !=, >=, <=, &&, ||, :: se
     // forment correctement. La coloration syntaxique est désactivée quand
     // les ligatures sont actives (compromis : ligatures vs couleurs).
-    boolean fontLigatures = false;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public boolean fontLigatures = false;
 
     // Minimap — rendu miniature à la VS Code du fichier entier, dessiné
     // dans une bande étroite sur le bord droit. Montre la structure du
     // document d'un coup d'œil + indique le rectangle du viewport courant.
     // Tap/drag pour scroller. La géométrie (constantes + bornes) vit dans
     // EditorChromePainter, qui dessine la bande.
-    boolean minimapEnabled = false;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public boolean minimapEnabled = false;
 
     // ── Couches de surcharge ─────────────────────────────────────
     // Overlays légers dessinés au Canvas : chips de diagnostic, toolbar
@@ -645,48 +766,71 @@ public class EditorView extends View {
     // go-to-line et rename utilisent un vrai PopupWindow Android +
     // EditText (les versions Canvas seul ne pouvaient pas recevoir la
     // saisie clavier).
-    boolean diagnosticChipsEnabled = true;
-    boolean selectionToolbarVisible = false;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public boolean diagnosticChipsEnabled = true;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public boolean selectionToolbarVisible = false;
     // ── Toolbar de sélection ─────────────────────────────────────
     // La toolbar fonctionne aussi en mode REPLIÉ (re-tap sur le caret →
     // Coller/Sélectionner tout + boutons icônes uniquement), avec feedback
     // de pression et animation d'entrée (entrancePop + cascade par item).
     /** uptimeMillis du dernier affichage — pilote l'animation d'entrée. */
-    long selectionToolbarShownAt = 0L;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public long selectionToolbarShownAt = 0L;
     /** Index de l'item pressé (feedback de pression), -1 = aucun. */
-    int selectionToolbarPressedIdx = -1;
-    static final int SEL_ACT_COPY = 0;
-    static final int SEL_ACT_CUT = 1;
-    static final int SEL_ACT_PASTE = 2;
-    static final int SEL_ACT_SELECT_ALL = 3;
-    static final int SEL_ACT_DOCS = 4;
-    static final int SEL_ACT_ACTIONS = 5;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public int selectionToolbarPressedIdx = -1;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static final int SEL_ACT_COPY = 0;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static final int SEL_ACT_CUT = 1;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static final int SEL_ACT_PASTE = 2;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static final int SEL_ACT_SELECT_ALL = 3;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static final int SEL_ACT_DOCS = 4;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static final int SEL_ACT_ACTIONS = 5;
     // L'état des popups go-to-line et rename (visibilité, texte, offsets,
     // PopupWindow) vit dans EditorGoToLinePopup / EditorRenamePopup —
     // leurs seuls consommateurs.
-    boolean diagnosticSheetVisible = false;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public boolean diagnosticSheetVisible = false;
     // Popup par diagnostic (pattern DiagnosticSheet).
     // Affiche le message COMPLET + quick-fixes d'un seul diagnostic tapé.
     // Redessiné en bottom sheet (scrim + panneau arrondi + en-tête avec
     // libellé de sévérité + fermeture × + rangées de quick-fixes).
-    boolean diagnosticPopupVisible = false;
-    DiagnosticShift.Diagnostic diagnosticPopupItem = null;
-    int diagnosticPopupOffset = -1;
-    int diagnosticSheetScroll = 0;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public boolean diagnosticPopupVisible = false;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public DiagnosticShift.Diagnostic diagnosticPopupItem = null;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public int diagnosticPopupOffset = -1;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public int diagnosticSheetScroll = 0;
 
     // ── Géométrie de la feuille de diagnostic ────────────────────
-    static final float DIAG_SHEET_HEADER_DP = 46f;
-    static final float DIAG_SHEET_MSG_LINE_DP = 19f;
-    static final int DIAG_SHEET_MAX_MSG_LINES = 6;
-    static final float DIAG_SHEET_ACTION_ROW_DP = 44f;
-    static final float DIAG_SHEET_ACTIONS_BLOCK_DP = 36f;
-    static final float DIAG_SHEET_BOTTOM_PAD_DP = 10f;
-    static final float DIAG_SHEET_RADIUS_DP = 16f;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static final float DIAG_SHEET_HEADER_DP = 46f;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static final float DIAG_SHEET_MSG_LINE_DP = 19f;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static final int DIAG_SHEET_MAX_MSG_LINES = 6;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static final float DIAG_SHEET_ACTION_ROW_DP = 44f;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static final float DIAG_SHEET_ACTIONS_BLOCK_DP = 36f;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static final float DIAG_SHEET_BOTTOM_PAD_DP = 10f;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static final float DIAG_SHEET_RADIUS_DP = 16f;
 
     // ── Chip de diagnostic ──
     // Une pastille par ligne — la plus sévère Error/Warning — placée après
     // la fin de ligne ; la taper ouvre la feuille de diagnostic.
-    static final float DIAG_CHIP_GAP_CHARS = 3f;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static final float DIAG_CHIP_GAP_CHARS = 3f;
 
     // ── Feuille de liste de diagnostics groupée ──────────────────
     // Regroupement par ligne de départ (diagnosticsByStartLine) : quand
@@ -698,18 +842,25 @@ public class EditorView extends View {
     // diagnostic le PLUS sévère de la ligne : un avertissement caché
     // derrière une erreur sur la même ligne serait inatteignable.
     // -1 = caché.
-    int diagnosticListSheetLine = -1;
-    static final float DIAG_LIST_ROW_DP = 44f;
-    static final int DIAG_LIST_MAX_ROWS = 8;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public int diagnosticListSheetLine = -1;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static final float DIAG_LIST_ROW_DP = 44f;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static final int DIAG_LIST_MAX_ROWS = 8;
 
     // ── Poignées de sélection (mobile) ────────────────────────────
     // Après un long-press ou un double-tap, deux poignées déplaçables
     // apparaissent au début et à la fin de la sélection. Glisser une
     // poignée déplace cette extrémité de la sélection.
-    boolean handlesVisible = false;
-    int handleDragMode = 0; // 0=aucune, 1=début, 2=fin, 3=caret replié
-    static final float HANDLE_RADIUS_DP = 8f;
-    static final float HANDLE_TAP_RADIUS_DP = 16f;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public boolean handlesVisible = false;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public int handleDragMode = 0; // 0=aucune, 1=début, 2=fin, 3=caret replié
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static final float HANDLE_RADIUS_DP = 8f;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static final float HANDLE_TAP_RADIUS_DP = 16f;
 
     // ── État IME ───────────────────────────────────────────────────
     /**
@@ -719,21 +870,21 @@ public class EditorView extends View {
      * La perte de focus efface le flag pour qu'un refocus passif reste
      * silencieux.
      */
-    boolean wantsKeyboard = false;
-    final EditorImeBridge imeBridge = new EditorImeBridge(this);
-    final EditorScrollManager scrollManager;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public boolean wantsKeyboard = false;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public final EditorImeBridge imeBridge = new EditorImeBridge(this);
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public final EditorScrollManager scrollManager;
     final EditorViewportPrefetcher viewportPrefetcher = new EditorViewportPrefetcher(this);
     int connectionGeneration = 0;
 
     // ── Clignotement + glissement du caret ─────────────────────────
-    // TOUT l'état du caret vit dans caretAnim. Le renderer lit
-    // caretAnim.animX/animY directement. lastEditTime est le seul champ
-    // adjacent au caret conservé sur EditorView car il est aussi lu par
-    // le gestionnaire de scroll et le pont IME comme horodatage de
-    // « dernière activité utilisateur » — caretAnim.updateBlink() le lit
-    // via la ref de vue.
-    final CaretAnimator caretAnim = new CaretAnimator(this);
-    long lastEditTime = 0;
+    // TOUT l'état du caret vit dans caretAnim, y compris l'horodatage
+    // de dernière activité (lastEditTime) : le renderer et le painter
+    // de surlignage le lisent via la référence à l'animateur.
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public final CaretAnimator caretAnim = new CaretAnimator(this);
 
     // ── Souligné ondulé de diagnostic ────────────────────────────
 
@@ -751,20 +902,28 @@ public class EditorView extends View {
     int cursorAnchorMonitorMode = 0;
 
     // ── Peintures réutilisables (évite le GC dans onDraw) ──────────
-    final Paint bgPaint = new Paint();
-    final Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    final Paint selPaint = new Paint();
-    final Paint caretPaint = new Paint();
-    final Paint squigglePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    final Paint guidePaint = new Paint();
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public final Paint bgPaint = new Paint();
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public final Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public final Paint selPaint = new Paint();
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public final Paint caretPaint = new Paint();
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public final Paint squigglePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public final Paint guidePaint = new Paint();
 
     // Tout le dessin Canvas est délégué à ce renderer. EditorView garde
     // ses champs d'état, son API publique, la gestion des entrées, l'IME,
     // etc. — seules les méthodes de dessin ont bougé. Le renderer accède
     // aux champs package-private d'EditorView via la référence `view`.
     private final EditorRenderer renderer;
-    final EditorInputHandler inputHandler;
-    final EditorPopupManager popupManager;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public final EditorInputHandler inputHandler;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public final EditorPopupManager popupManager;
     private final EditorKeyHandler keyHandler;
     final EditorClipboard clipboard = new EditorClipboard(this);
     // Actions de document asynchrones (go-to-definition, formatage,
@@ -777,7 +936,8 @@ public class EditorView extends View {
      * à travers cette table ; remplacez-la via {@link #setKeymap(EditorKeymap)}
      * pour re-binder des commandes à l'exécution (voir {@link EditorCommands}).
      */
-    EditorKeymap keymap = EditorKeymap.defaults();
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public EditorKeymap keymap = EditorKeymap.defaults();
 
     /**
      * Remplace le keymap des touches matérielles (re-binding souple,
@@ -801,7 +961,8 @@ public class EditorView extends View {
      * aux couches propres de l'éditeur. Un painter qui lève est retiré
      * plutôt que de faire planter l'éditeur.
      */
-    final EditorPainterHost painterHost = new EditorPainterHost();
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public final EditorPainterHost painterHost = new EditorPainterHost();
 
     /** L'hôte des painters de plugin (enregistrer/désenregistrer des painters). */
     public EditorPainterHost getPainterHost() {
@@ -814,7 +975,8 @@ public class EditorView extends View {
     // méthodes provider optionnelles. Une fois définie, elle remplace les
     // résolveurs par fonctionnalité.
     /** Accès package pour EditorPopupManager (trigger chars). */
-    Language language;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public Language language;
     /** Coordonne le z-order + la fermeture de tous les popups de l'éditeur. */
     private final PopupCoordinator popupCoordinator = new PopupCoordinator();
 
@@ -824,7 +986,8 @@ public class EditorView extends View {
     final EditorLanguageBridge languageBridge = new EditorLanguageBridge(this);
 
     // ── Listeners ──────────────────────────────────────────────────
-    OnSelectionChangedListener selectionListener;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public OnSelectionChangedListener selectionListener;
     // Listeners de sélection additionnels (BreadcrumbBar, etc.) qui ne
     // remplacent pas le primaire. setOnSelectionChangedListener règle le
     // primaire ; addOnSelectionChangedListener ajoute un secondaire.
@@ -1022,7 +1185,8 @@ public class EditorView extends View {
     }
 
     /** Notifie le listener (package-private — appelé depuis les managers). */
-    void notifyScrollPositionChanged() {
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public void notifyScrollPositionChanged() {
         OnScrollPositionListener l = scrollPositionListener;
         if (l != null) {
             float max = maxV();
@@ -1111,7 +1275,8 @@ public class EditorView extends View {
      * la ligne doc, consciente du wrap et des plis repliés (délégué à
      * {@link EditorWrapGeometry}).
      */
-    float docLineToY(int docLine) {
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public float docLineToY(int docLine) {
         return wrapGeometry.docLineToY(docLine);
     }
 
@@ -1134,7 +1299,8 @@ public class EditorView extends View {
      * Retourne le nombre de rangées visuelles occupées par la ligne doc
      * donnée (≥ 1 ; délégué à {@link EditorWrapGeometry}).
      */
-    int rowsForDocLine(int docLine) {
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public int rowsForDocLine(int docLine) {
         return wrapGeometry.rowsForDocLine(docLine);
     }
 
@@ -1143,7 +1309,8 @@ public class EditorView extends View {
      * en tenant compte des rangées repliées ET des plis repliés
      * (délégué à {@link EditorWrapGeometry}).
      */
-    int docLineForScreenY(float screenY) {
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public int docLineForScreenY(float screenY) {
         return wrapGeometry.docLineForScreenY(screenY);
     }
 
@@ -1271,14 +1438,16 @@ public class EditorView extends View {
         }
     }
 
-    PreviewMode previewMode = PreviewMode.NONE;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public PreviewMode previewMode = PreviewMode.NONE;
 
     // Icônes d'aperçu dessinées au Canvas (coin haut-droit).
     // Quand previewable = true, deux petites icônes sont dessinées :
     // - icône d'aperçu split (à gauche de la paire)
     // - icône d'aperçu full (à droite de la paire)
     // Taper une icône bascule le mode aperçu.
-    boolean previewable = false;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public boolean previewable = false;
     // Tout le reste de l'état d'aperçu (hôte, feuille popup, nom de
     // fichier, listener de mode) vit dans EditorPreviewController ; la
     // vue ne conserve que des relais publics.
@@ -1333,7 +1502,8 @@ public class EditorView extends View {
      * possède l'interaction de fermeture). La feuille elle-même peut
      * basculer entre SHEET_SPLIT et SHEET_FULL via son toggle d'en-tête.
      */
-    int hitTestPreviewIcons(float x, float y) {
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public int hitTestPreviewIcons(float x, float y) {
         return preview.hitTestIcons(x, y);
     }
 
@@ -1467,14 +1637,16 @@ public class EditorView extends View {
     }
 
     /** Applique un multiplicateur d'alpha à une couleur ARGB (pour les icônes d'aperçu). */
-    static int applyAlphaToColor(int color, float alpha) {
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static int applyAlphaToColor(int color, float alpha) {
         int a = (color >>> 24) & 0xFF;
         int newA = (int) (a * alpha);
         return (newA << 24) | (color & 0x00FFFFFF);
     }
 
     /** Reconstruit le modèle de wrap depuis le document courant + la largeur du viewport (délégué à {@link EditorWrapGeometry}). */
-    void rebuildWrapModel() {
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public void rebuildWrapModel() {
         wrapGeometry.rebuildWrapModel();
     }
 
@@ -1508,7 +1680,8 @@ public class EditorView extends View {
         renderer.draw(canvas);
     }
     /** Retourne la région de pli repliée qui COMMENCE à {@code docLine}, ou null (délégué à {@link EditorLineLayoutResolver}). */
-    DiagnosticShift.FoldRegion collapsedFoldStartingAtLine(int docLine) {
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public DiagnosticShift.FoldRegion collapsedFoldStartingAtLine(int docLine) {
         return lineLayouts.collapsedFoldStartingAtLine(docLine);
     }
 
@@ -1517,7 +1690,8 @@ public class EditorView extends View {
      * coloration syntaxique (délégué à
      * {@link EditorLineLayoutResolver}).
      */
-    static jo.codeeditor.highlight.TokenType semanticTypeToTokenType(int semType) {
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static jo.codeeditor.highlight.TokenType semanticTypeToTokenType(int semType) {
         return EditorLineLayoutResolver.semanticTypeToTokenType(semType);
     }
 
@@ -1527,7 +1701,8 @@ public class EditorView extends View {
      * validé par triple-stamp (délégué à
      * {@link EditorLineLayoutResolver}).
      */
-    LineRenderCache.LineCacheEntry layoutForLine(int lineNum, String lineText) {
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public LineRenderCache.LineCacheEntry layoutForLine(int lineNum, String lineText) {
         return lineLayouts.layoutForLine(lineNum, lineText);
     }
 
@@ -1545,7 +1720,8 @@ public class EditorView extends View {
      * pour la ligne donnée, avec repli sur l'identité (délégué à
      * {@link EditorLineLayoutResolver}).
      */
-    int visualColFor(int line, int rawCol) {
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public int visualColFor(int line, int rawCol) {
         return lineLayouts.visualColFor(line, rawCol);
     }
 
@@ -1553,7 +1729,8 @@ public class EditorView extends View {
      * Colonne VISUELLE (tissée d'inlays) → colonne brute du document
      * (délégué à {@link EditorLineLayoutResolver}).
      */
-    int rawColFor(int line, int visualCol) {
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public int rawColFor(int line, int visualCol) {
         return lineLayouts.rawColFor(line, visualCol);
     }
 
@@ -1561,20 +1738,20 @@ public class EditorView extends View {
     // Géométrie feuille / chip de diagnostic (partagée par dessin + hit-test)
     // ════════════════════════════════════════════════════════════════
 
-        int countWrappedLines(String msg, float maxW) {
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public int countWrappedLines(String msg, float maxW) {
         return EditorPopupAnchors.countWrappedLines(this, msg, maxW);
     }
 
-
-        float[] diagnosticSheetMetrics() {
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public float[] diagnosticSheetMetrics() {
         return EditorPopupAnchors.diagnosticSheetMetrics(this);
     }
 
-
-        float[] diagnosticListSheetMetrics() {
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public float[] diagnosticListSheetMetrics() {
         return EditorPopupAnchors.diagnosticListSheetMetrics(this);
     }
-
 
     /**
      * Ouvre la feuille de diagnostics groupée pour {@code line} (API
@@ -1603,11 +1780,10 @@ public class EditorView extends View {
         return diagnosticsPusher.getProvider();
     }
 
-
-        EditorPopupAnchors.SelectionToolbarMetrics selectionToolbarMetrics() {
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public EditorPopupAnchors.SelectionToolbarMetrics selectionToolbarMetrics() {
         return EditorPopupAnchors.selectionToolbarMetrics(this);
     }
-
 
     
 
@@ -1620,7 +1796,8 @@ public class EditorView extends View {
      * {@link EditorNavMenuRows}) : sections en majuscules affichées
      * seulement si non-vides, ou « Nothing found in source. ».
      */
-    List<NavMenuRow> navMenuRows() {
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public List<NavMenuRow> navMenuRows() {
         return navMenuRowsBuilder.navMenuRows();
     }
 
@@ -1628,7 +1805,8 @@ public class EditorView extends View {
      * L'action d'une rangée TYPE_ACTION, résolue depuis sa section
      * (délégué à {@link EditorNavMenuRows}).
      */
-    CodeAction navMenuActionAt(NavMenuRow row) {
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public CodeAction navMenuActionAt(NavMenuRow row) {
         return navMenuRowsBuilder.navMenuActionAt(row);
     }
 
@@ -1637,31 +1815,33 @@ public class EditorView extends View {
      * headers + rangées (délégué à {@link EditorNavMenuRows}). Source du
      * clamp de scroll.
      */
-    float navMenuContentHeight() {
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public float navMenuContentHeight() {
         return navMenuRowsBuilder.navMenuContentHeight();
     }
 
-        float[] navMenuMetrics() {
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public float[] navMenuMetrics() {
         return EditorPopupAnchors.navMenuMetrics(this);
     }
 
-
-            float[] diagnosticChipMetrics(DiagnosticShift.Diagnostic d, int line, int badgeCount) {
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public float[] diagnosticChipMetrics(DiagnosticShift.Diagnostic d, int line, int badgeCount) {
         return EditorPopupAnchors.diagnosticChipMetrics(this, d, line, badgeCount);
     }
 
-
-        float[] diagnosticChipMetrics(DiagnosticShift.Diagnostic d, int line) {
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public float[] diagnosticChipMetrics(DiagnosticShift.Diagnostic d, int line) {
         return EditorPopupAnchors.diagnosticChipMetrics(this, d, line);
     }
-
 
     /**
      * Les diagnostics Error/Warning dont le début se trouve sur
      * {@code line}, le plus sévère d'abord — le groupe de la chip
      * (délégué à {@link EditorDiagnosticsLocator}).
      */
-    List<DiagnosticShift.Diagnostic> chipDiagnosticsForLine(int line) {
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public List<DiagnosticShift.Diagnostic> chipDiagnosticsForLine(int line) {
         return diagnosticsLocator.chipDiagnosticsForLine(line);
     }
 
@@ -1672,9 +1852,12 @@ public class EditorView extends View {
      * pour le flux de tap : une ligne avec plusieurs diagnostics ouvre la
      * feuille groupée au lieu de sauter directement au plus sévère.
      */
-    static final class DiagnosticChipHit {
-        final int line;
-        final List<DiagnosticShift.Diagnostic> diagnostics;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static final class DiagnosticChipHit {
+        @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+        public final int line;
+        @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+        public final List<DiagnosticShift.Diagnostic> diagnostics;
 
         DiagnosticChipHit(int line, List<DiagnosticShift.Diagnostic> diagnostics) {
             this.line = line;
@@ -1682,7 +1865,8 @@ public class EditorView extends View {
         }
 
         /** Le diagnostic le plus sévère du groupe (jamais null une fois construit). */
-        DiagnosticShift.Diagnostic primary() {
+        @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+        public DiagnosticShift.Diagnostic primary() {
             return diagnostics.get(0);
         }
     }
@@ -1692,20 +1876,20 @@ public class EditorView extends View {
      * ou null — pilote l'interaction tap chip → feuille groupée → popup
      * de détail (délégué à {@link EditorDiagnosticsLocator}).
      */
-    DiagnosticChipHit findDiagnosticChipHitAt(float x, float y) {
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public DiagnosticChipHit findDiagnosticChipHitAt(float x, float y) {
         return diagnosticsLocator.findDiagnosticChipHitAt(x, y);
     }
-
 
         /**
      * Le diagnostic Error/Warning le plus sévère dont le début se trouve
      * sur {@code line} — celui qui a une chip (délégué à
      * {@link EditorDiagnosticsLocator}).
      */
-    DiagnosticShift.Diagnostic chipDiagnosticForLine(int line) {
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public DiagnosticShift.Diagnostic chipDiagnosticForLine(int line) {
         return diagnosticsLocator.chipDiagnosticForLine(line);
     }
-
 
         /**
      * La chip de diagnostic sous le point écran (x, y), ou null — pilote
@@ -1716,10 +1900,10 @@ public class EditorView extends View {
      * mono-diagnostic) — le flux de tap utilise désormais
      * {@link #findDiagnosticChipHitAt} qui porte tout le groupe.</p>
      */
-    DiagnosticShift.Diagnostic findDiagnosticChipAt(float x, float y) {
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public DiagnosticShift.Diagnostic findDiagnosticChipAt(float x, float y) {
         return diagnosticsLocator.findDiagnosticChipAt(x, y);
     }
-
 
     /**
      * Aide conservée pour les appelants qui passaient auparavant par
@@ -1789,10 +1973,12 @@ public class EditorView extends View {
     /** Appelé par l'InputConnection après chaque édition pour rafraîchir
      *  le timer plein du caret et scroller le caret en vue. Rafraîchit
      *  aussi le popup de complétion (si visible). */
-    void onTextChanged() {
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public void onTextChanged() {
         // Point d'entrée unique — CaretAnimator.onEditOrMove() met à jour
-        // lastEditTime, réinitialise la bascule de clignotement, rend le
-        // caret visible et annule tout glissement en vol.
+        // son horodatage de dernière activité, réinitialise la bascule de
+        // clignotement, rend le caret visible et annule tout glissement
+        // en vol.
         caretAnim.onEditOrMove();
         // Reconstruit le modèle de wrap — le nombre de lignes ou le contenu
         // du document a pu changer, ce qui affecte les comptes de rangées
@@ -1886,7 +2072,8 @@ public class EditorView extends View {
      * utilisées pour positionner les poignées de sélection (délégué à
      * {@link EditorHitMapper}).
      */
-    float[] caretScreenPos(int offset) {
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public float[] caretScreenPos(int offset) {
         return hitMapper.caretScreenPos(offset);
     }
 
@@ -1895,7 +2082,8 @@ public class EditorView extends View {
      * ligne, conscient du wrap, des plis repliés et des inlays (délégué
      * à {@link EditorHitMapper}).
      */
-    int offsetAt(float x, float y) {
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public int offsetAt(float x, float y) {
         return hitMapper.offsetAt(x, y);
     }
 
@@ -1951,12 +2139,14 @@ public class EditorView extends View {
     }
 
     /** Défilement vertical max : hauteur du contenu moins hauteur du viewport, au moins 0. */
-    float maxV() {
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public float maxV() {
         return scrollManager.maxV();
     }
 
     /** Défilement horizontal max : largeur de la ligne la plus longue moins largeur de la zone de texte, au moins 0. */
-    float maxH() {
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public float maxH() {
         return scrollManager.maxH();
     }
 
@@ -1968,11 +2158,9 @@ public class EditorView extends View {
         zoom.setFontScale(scale);
     }
 
-
         public void applyPinchScale(float scaleFactor) {
         zoom.applyPinchScale(scaleFactor);
     }
-
 
     // Méthodes de commodité pour la taille de police +/- depuis les icônes Canvas.
         public void increaseFontSize() {
@@ -1982,7 +2170,6 @@ public class EditorView extends View {
         public void decreaseFontSize() {
         zoom.decreaseFontSize();
     }
-
 
     // Bascule d'affichage des caractères non imprimables.
     public void setShowNonPrintable(boolean show) {
@@ -2034,38 +2221,44 @@ public class EditorView extends View {
     }
     /** Indique si le survol par appui maintenu est activé. */
     public boolean isTouchHoverEnabled() { return touchHoverEnabled; }
-    boolean touchHoverEnabled = false;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public boolean touchHoverEnabled = false;
 
     // Hit-test des icônes de toolbar (A+, A-, ¶, lig) en haut à droite —
     // possédé par EditorPopupAnchors (appelé par EditorTapResolver).
 
-        static float clampFontScale(float s) {
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static float clampFontScale(float s) {
         return EditorZoomController.clampFontScale(s);
     }
-
 
     // ════════════════════════════════════════════════════════════════
     // Utilitaires
     // ════════════════════════════════════════════════════════════════
 
-    InputMethodManager imm() {
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public InputMethodManager imm() {
         return (InputMethodManager) getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
     }
 
-    float spToPx(float sp) {
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public float spToPx(float sp) {
         return TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, sp,
             getResources().getDisplayMetrics());
     }
 
-    static int clamp(int v, int lo, int hi) {
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static int clamp(int v, int lo, int hi) {
         return Math.max(lo, Math.min(hi, v));
     }
 
-    static float clamp(float v, float lo, float hi) {
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static float clamp(float v, float lo, float hi) {
         return Math.max(lo, Math.min(hi, v));
     }
 
-    static Selection clampSelection(Selection sel, EditorDocument doc) {
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static Selection clampSelection(Selection sel, EditorDocument doc) {
         int start = clamp(sel.start, 0, doc.length());
         int end = clamp(sel.end, 0, doc.length());
         return new Selection(start, end);
@@ -2186,7 +2379,8 @@ public class EditorView extends View {
     }
 
     /** Déclencheur explicite Ctrl+P — efface l'état « rejeté » et re-résout. */
-    void triggerSignatureHelp() {
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public void triggerSignatureHelp() {
         popupManager.triggerSignatureHelp();
     }
 
@@ -2280,7 +2474,8 @@ public class EditorView extends View {
      * de l'ampoule + le hit-test pour réserver l'ampoule aux lignes de
      * diagnostic uniquement (comportement aligné sur CodeAssist).
      */
-    boolean lineHasDiagnostic(int line) {
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public boolean lineHasDiagnostic(int line) {
         return diagnosticsLocator.lineHasDiagnostic(line);
     }
 
@@ -2330,7 +2525,8 @@ public class EditorView extends View {
     public interface OnDefinitionRequestedListener {
         void onDefinitionRequested(List<jo.codeeditor.lang.model.DefinitionLocation> targets);
     }
-    OnDefinitionRequestedListener definitionListener;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public OnDefinitionRequestedListener definitionListener;
     public void setOnDefinitionRequestedListener(OnDefinitionRequestedListener l) {
         this.definitionListener = l;
     }
@@ -2340,7 +2536,8 @@ public class EditorView extends View {
      * reconnaisse les URI du même fichier.
      * Package-private — navMenuNavigate (EditorPopupManager) teste le même-fichier.
      */
-    String currentFilePath = "";
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public String currentFilePath = "";
     public void setCurrentFilePath(String path) {
         this.currentFilePath = path != null ? path : "";
     }
@@ -2526,7 +2723,8 @@ public class EditorView extends View {
      *   <li>L'utilisateur accepte ou referme le popup</li>
      * </ul>
      */
-    void refreshCompletion() {
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public void refreshCompletion() {
         popupManager.refreshCompletion();
     }
 
@@ -2544,7 +2742,8 @@ public class EditorView extends View {
      * {@link #hitTestCompletionPopup} pour qu'ils soient toujours d'accord
      * sur la position du popup.
      */
-    float[] completionPopupAnchor() {
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public float[] completionPopupAnchor() {
         return popupManager.completionPopupAnchor();
     }
 
@@ -2553,10 +2752,10 @@ public class EditorView extends View {
      * popupH, contentH, rowH} ou null. Source unique rendu (renderer) /
      * hit-test (input handler) — le popup suit le texte au scroll.
      */
-    float[] quickDocMetrics() {
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public float[] quickDocMetrics() {
         return renderer.quickDocMetrics();
     }
-
 
     // ════════════════════════════════════════════════════════════════
     // Mode éditeur par blocs + EditorOverlayLayers
@@ -2680,7 +2879,8 @@ public class EditorView extends View {
     }
 
     /** Convertit dp en px. */
-    int dp(int dp) {
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public int dp(int dp) {
         return (int) (dp * getResources().getDisplayMetrics().density + 0.5f);
     }
 
@@ -2702,7 +2902,8 @@ public class EditorView extends View {
      * l'utilisateur tape n'importe où sur une ligne qui porte un diagnostic
      * (pas seulement sur la plage du soulignement).
      */
-    DiagnosticShift.Diagnostic findDiagnosticAtLine(int line) {
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public DiagnosticShift.Diagnostic findDiagnosticAtLine(int line) {
         return diagnosticsLocator.findDiagnosticAtLine(line);
     }
 
@@ -2711,7 +2912,8 @@ public class EditorView extends View {
      * Montre le message COMPLET du diagnostic + les éventuelles quick-fixes
      * du resolver d'actions de code. Ancré au-dessus de la ligne du diagnostic.
      */
-    void showDiagnosticPopup(DiagnosticShift.Diagnostic diag, int offset) {
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public void showDiagnosticPopup(DiagnosticShift.Diagnostic diag, int offset) {
         popupManager.showDiagnosticPopup(diag, offset);
     }
 

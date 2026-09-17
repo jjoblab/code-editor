@@ -1,5 +1,7 @@
 package jo.codeeditor.view;
 
+import jo.codeeditor.view.popup.EditorPopupAnchors;
+
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.RobolectricTestRunner;

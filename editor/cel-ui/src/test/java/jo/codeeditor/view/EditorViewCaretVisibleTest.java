@@ -5,8 +5,6 @@ import org.junit.runner.RunWith;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.RuntimeEnvironment;
 
-import android.content.Context;
-
 import jo.codeeditor.document.EditorDocument;
 import jo.codeeditor.session.EditorSession;
 

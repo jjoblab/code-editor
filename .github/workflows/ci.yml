@@ -1,24 +1,29 @@
-# v3.37.0 (roadmap item 12) — Continuous Integration.
+# Intégration continue.
 #
-# Two jobs:
-#   build   — every push (main) and every PR: assemble the 4 AARs, run the
-#             full unit-test suite, run lint. Zero errors required.
-#   release — only on tags `v*`: additionally assembles the release
-#             variants and validates the Maven publication
-#             (publishToMavenLocal dry-run) so a tag is never pushed
-#             blind — the same contract JitPack will build on demand.
+# Deux jobs :
+#   build   — chaque push (main/master) et chaque PR : assemble les 4 AAR,
+#             exécute la suite complète de tests unitaires, lance lint.
+#             Zéro erreur exigé.
+#   release — uniquement sur les tags `v*` : assemble en plus les variantes
+#             release et valide la publication Maven
+#             (publishToMavenLocal en répétition générale) pour ne jamais
+#             pousser un tag à l'aveugle — le même contrat que JitPack
+#             construira à la demande.
 #
-# Toolchain notes:
-#   * JDK 17 Temurin — matches jitpack.yml and the Gradle 9.5.1 / AGP 9
-#     toolchain (Java 17 is the AGP 9 minimum for library compilation).
-#   * `gradle/actions/setup-gradle` provides the Gradle download cache
-#     AND validates the wrapper JARs (supply-chain protection). PR builds
-#     only read the cache so `main` stays the single cache writer.
-#   * The hosted ubuntu runner ships a preinstalled Android SDK with
-#     accepted licenses; AGP auto-downloads any missing platform
-#     (compileSdk 34) — no local.properties is needed (it is gitignored).
-#   * AGP 9: `testReleaseUnitTest` no longer exists — unit tests run on
-#     the debug variant, which is what this workflow invokes.
+# Notes toolchain :
+#   * JDK 17 Temurin — aligné sur jitpack.yml et la toolchain
+#     Gradle 9.5.1 / AGP 9 (Java 17 est le minimum AGP 9 pour la
+#     compilation des bibliothèques).
+#   * `gradle/actions/setup-gradle` fournit le cache de téléchargement
+#     Gradle ET valide les JAR du wrapper (protection de la chaîne
+#     d'approvisionnement). Les builds de PR ne lisent que le cache pour
+#     que `main` reste l'unique rédacteur du cache.
+#   * Le runner ubuntu hébergé embarque un SDK Android préinstallé avec
+#     les licences acceptées ; AGP télécharge automatiquement toute
+#     plateforme manquante (compileSdk 34) — aucun local.properties
+#     n'est nécessaire (il est gitignoré).
+#   * AGP 9 : `testReleaseUnitTest` n'existe plus — les tests unitaires
+#     tournent sur la variante debug, c'est ce qu'invoque ce workflow.
 name: CI
 
 on:
@@ -36,35 +41,35 @@ concurrency:
 
 jobs:
   build:
-    name: Build, tests & lint (JDK 17)
+    name: Build, tests et lint (JDK 17)
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17 (Temurin)
+      - name: Mise en place JDK 17 (Temurin)
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Gradle (cache + wrapper validation)
+      - name: Mise en place Gradle (cache + validation du wrapper)
         uses: gradle/actions/setup-gradle@v4
         with:
           validate-wrappers: true
           cache-read-only: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master' }}
 
-      - name: Assemble (debug, 4 modules)
+      - name: Assemblage (debug, 4 modules)
         run: ./gradlew assembleDebug --stacktrace
 
-      - name: Unit tests (debug variant, all modules)
+      - name: Tests unitaires (variante debug, tous les modules)
         run: ./gradlew testDebugUnitTest --stacktrace
 
-      - name: Lint (all modules)
+      - name: Lint (tous les modules)
         run: ./gradlew lint --stacktrace
 
-      - name: Upload reports on failure
+      - name: Téléversement des rapports en cas d'échec
         if: failure()
         uses: actions/upload-artifact@v4
         with:
@@ -77,7 +82,7 @@ jobs:
           retention-days: 7
 
   release:
-    name: Release check (tag v*)
+    name: Contrôle de release (tag v*)
     if: startsWith(github.ref, 'refs/tags/v')
     needs: build
     runs-on: ubuntu-latest
@@ -92,18 +97,18 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Gradle (cache)
+      - name: Mise en place Gradle (cache)
         uses: gradle/actions/setup-gradle@v4
         with:
           validate-wrappers: true
 
-      - name: Assemble release + validate Maven publication
-        # publishToMavenLocal is a dry-run of the JitPack build: it must
-        # produce cel-core/cel-lsp-api/cel-lsp/cel-ui AAR + sources.jar
-        # + POM with the version taken from the tag.
+      - name: Assemblage release + validation de la publication Maven
+        # publishToMavenLocal est une répétition générale du build JitPack :
+        # il doit produire les AAR cel-core/cel-lsp-api/cel-lsp/cel-ui +
+        # sources.jar + POM avec la version tirée du tag.
         run: ./gradlew assembleRelease publishToMavenLocal --stacktrace
 
-      - name: Upload release artifacts
+      - name: Téléversement des artefacts de release
         uses: actions/upload-artifact@v4
         with:
           name: release-artifacts

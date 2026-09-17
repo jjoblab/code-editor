@@ -4,7 +4,6 @@ import jo.codeeditor.document.EditorDocument;
 import jo.codeeditor.shift.DiagnosticShift;
 
 import java.util.List;
-import jo.codeeditor.view.chrome.GutterView;
 
 /**
  * Poussée des diagnostics vers l'UI : exécution débouncée (600 ms) du

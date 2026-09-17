@@ -150,35 +150,45 @@ jo.codeeditor.lsp/
 
 ```
 jo.codeeditor/
-├── view/        — EditorView (~2 720 l.) : orchestrateur = cycle de vie
-│                  Android View + API publique + relais vers ~60
-│                  collaborateurs :
-│                  • rendu : EditorRenderer (~530 l.) + 5 painters
-│                    (EditorTextPainter, EditorHighlightPainter,
-│                     EditorDiagnosticsPainter, EditorAssistPopupPainter,
-│                     EditorChromePainter) + EditorDecorationPainter
-│                    (plugins, EditorPainterHost)
-│                  • popups : EditorPopupManager (~240 l.) + les classes
-│                    Editor*Popup (complétion, signature, quick doc, code
-│                    actions, go-to-symbol, go-to-line, rename,
-│                    références, diagnostics)
-│                  • entrée : EditorInputHandler (~635 l.) + famille input
-│                    (EditorTouchScroller, EditorSelectionGestures,
-│                     EditorTapResolver, EditorPopupHitTester,
-│                     EditorTouchHoverController, EditorContextMenuHandler,
-│                     EditorKeyHandler, EditorKeymap, EditorImeBridge)
-│                  • géométrie et caches : EditorMetrics,
-│                    EditorPaintContext, EditorWrapGeometry,
-│                    EditorHitMapper, EditorShapedLayoutCache,
-│                    EditorFoldIndex, EditorLineLayoutResolver…
-│                  • contrôleurs : EditorScrollManager, EditorZoomController,
-│                    EditorPreviewController, EditorPreviewSheet,
-│                    EditorReferencesController, EditorCommands…
-│                  • chrome dessiné : BreadcrumbBar (listener côté vue),
-│                    SymbolBarView, GutterView, EditorTheme
-└── blocks/      — BlockEditor (édition par blocs : BlockNode, BlockType,
+├── view/         — EditorView (~2 700 l.) : orchestrateur = cycle de vie
+│                   Android View + API publique + relais vers ~60
+│                   collaborateurs. Collaborateurs directs : pont IME
+│                   (EditorImeBridge), pont langage (EditorLanguageBridge),
+│                   presse-papiers, plis (EditorFoldIndex), diagnostics
+│                   (DiagnosticsPusher/Locator), géométrie (EditorMetrics,
+│                   EditorWrapGeometry, EditorHitMapper,
+│                   EditorLineLayoutResolver), commandes (EditorCommands)…
+├── view/render/  — rendu Canvas : EditorRenderer (~530 l.) + 5 painters
+│                   (EditorTextPainter, EditorHighlightPainter,
+│                   EditorDiagnosticsPainter, EditorAssistPopupPainter,
+│                   EditorChromePainter), caches (EditorShapedLayoutCache),
+│                   animation du caret (CaretAnimator) et l'API plugins
+│                   (EditorPainterHost, EditorPaintContext,
+│                   EditorDecorationPainter, EditorDecorations)
+├── view/input/   — entrées : EditorInputHandler (~635 l.) + famille
+│                   tactile/clavier (EditorKeyHandler,
+│                   EditorSelectionGestures, EditorTouchScroller,
+│                   EditorTapResolver, EditorTouchHoverController,
+│                   EditorScrollManager, EditorZoomController) +
+│                   EditorKeymap (API publique de configuration)
+├── view/popup/   — fenêtres surgissantes : EditorPopupManager (~240 l.) +
+│                   classes Editor*Popup (complétion, signature, quick doc,
+│                   code actions, go-to-symbol, go-to-line, rename,
+│                   références, diagnostics) + ancres et hit-test
+│                   (EditorPopupAnchors, EditorPopupHitTester)
+├── view/preview/ — aperçu XML délégué : EditorPreviewController,
+│                   EditorPreviewSheet, EditorPreviewHost (contrat hôte)
+├── view/chrome/  — habillage : EditorTheme, GutterView, BreadcrumbBar,
+│                   SymbolBarView
+└── blocks/       — BlockEditor (édition par blocs : BlockNode, BlockType,
                    BlockParser, BlockRenderer, SlotCompletion imbriqués)
 ```
+
+Le couplage interne entre l'orchestrateur et ses sous-packages passe par
+des **scells `@RestrictTo(LIBRARY_GROUP)`** : les membres concernés sont
+publics pour le compilateur mais contractuellement internes au groupe
+`jo.codeeditor` (appliqué par lint, annotation `compileOnly` absente du
+POM publié) — l'API publique d'`EditorView` reste strictement inchangée.
 
 L'ancienne génération de « god classes » a été démantelée en collaborateurs
 par composition (corps déplacés à l'identique, signatures package-privées,
@@ -289,9 +299,10 @@ editorView.setFileName("layout.xml");
    d'aucun `android.*` ; toute la logique y est testée sur la JVM hôte.
 2. **Orchestrateurs + collaborateurs** — chaque grande responsabilité a une
    classe pivot qui délègue à des collaborateurs à champ unique ; les
-   collaborateurs restent dans le package de leur orchestrateur avec des
-   signatures package-privées.
-3. **Testabilité** — 922 tests unitaires JVM (JUnit 5, Robolectric pour le
+   collaborateurs vivent dans le sous-package de leur orchestrateur
+   (render/, input/, popup/, preview/), reliés par des scells
+   `@RestrictTo(LIBRARY_GROUP)` quand l'état partagé l'exige.
+3. **Testabilité** — 934 tests unitaires JVM (JUnit 5, Robolectric pour le
    cycle de vie des vues) ; aucun test instrumenté requis.
 4. **Défensif côté rendu** — tous les offsets sont clampés à
    `[0, doc.length()]` dans le chemin de dessin ; un painter de plugin qui

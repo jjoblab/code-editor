@@ -1,4 +1,5 @@
 package jo.codeeditor.lsp;
+import jo.codeeditor.view.popup.*;
 
 import jo.codeeditor.lang.model.Diagnostic;
 import jo.codeeditor.lang.Language;

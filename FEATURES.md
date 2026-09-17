@@ -203,34 +203,36 @@ par responsabilité.
 
 ---
 
-## 14. Vue Android (`:cel-ui`, `view/`, `view/chrome/`, `blocks/`)
+## 14. Vue Android (`:cel-ui`, `view/` + sous-packages, `blocks/`)
 
 `EditorView` (Android View) orchestre le cycle de vie et délègue à ~60
 collaborateurs : `EditorRenderer` + 5 painters, `EditorInputHandler` + la
 famille input, `EditorPopupManager` + les popups, géométrie, caches,
-contrôleurs. Les barres d'habillage vivent dans `view/chrome/`.
+contrôleurs. Le rendu vit dans `view/render/`, les entrées dans
+`view/input/`, les popups dans `view/popup/`, l'aperçu dans `view/preview/`
+et les barres d'habillage dans `view/chrome/`.
 
 | Fonctionnalité | État | Fichier | Description |
 |----------------|------|---------|-------------|
 | EditorView (Canvas) | ✅ | `view/EditorView.java` | Orchestrateur : cycle de vie, listeners, relais |
-| Renderer en couches | ✅ | `view/EditorRenderer.java` + `EditorTextPainter`, `EditorHighlightPainter`, `EditorDiagnosticsPainter`, `EditorAssistPopupPainter`, `EditorChromePainter` | 16 couches de dessin |
-| Painter SPI (plugins de décorations) | ✅ | `view/EditorPainterHost.java`, `view/EditorDecorationPainter.java` | Un painter qui throw est retiré, pas de crash |
+| Renderer en couches | ✅ | `view/render/EditorRenderer.java` + `EditorTextPainter`, `EditorHighlightPainter`, `EditorDiagnosticsPainter`, `EditorAssistPopupPainter`, `EditorChromePainter` | 16 couches de dessin |
+| Painter SPI (plugins de décorations) | ✅ | `view/render/EditorPainterHost.java`, `view/render/EditorDecorationPainter.java` | Un painter qui throw est retiré, pas de crash |
 | Gutter (numéros + dots diagnostics) | ✅ | `view/chrome/GutterView.java` | Lignes + chevrons de pli + strip dédié |
-| Bande de ligne courante, caret animé, sélection | ✅ | `view/CaretAnimator.java`, painters | Clignotement, poignées + loupe |
-| Squiggles / chips / sheets de diagnostics | ✅ | `view/EditorDiagnosticsPainter.java` | Groupés par ligne, badge de compte |
-| Popups (complétion, signature, quick doc, code actions, go-to-symbol, go-to-line, rename, références, NavMenu) | ✅ | `view/EditorPopupManager.java` + classes `Editor*Popup` | Popups verre ancrés au caret |
-| Entrée tactile | ✅ | `view/EditorInputHandler.java` + `EditorTouchScroller`, `EditorSelectionGestures`, `EditorTapResolver`, `EditorPopupHitTester`, `EditorTouchHoverController`, `EditorContextMenuHandler` | Tap, multi-tap, drag-select, loupe, toolbar, hover |
-| Clavier + keymap rebindable + chords | ✅ | `view/EditorKeyHandler.java`, `view/EditorKeymap.java` | Bind simple et séquences à deux touches |
+| Bande de ligne courante, caret animé, sélection | ✅ | `view/render/CaretAnimator.java`, painters | Clignotement, poignées + loupe |
+| Squiggles / chips / sheets de diagnostics | ✅ | `view/render/EditorDiagnosticsPainter.java` | Groupés par ligne, badge de compte |
+| Popups (complétion, signature, quick doc, code actions, go-to-symbol, go-to-line, rename, références, NavMenu) | ✅ | `view/popup/EditorPopupManager.java` + classes `Editor*Popup` | Popups verre ancrés au caret |
+| Entrée tactile | ✅ | `view/input/EditorInputHandler.java` + `EditorTouchScroller`, `EditorSelectionGestures`, `EditorTapResolver`, `EditorTouchHoverController` + `view/popup/EditorPopupHitTester`, `EditorContextMenuHandler` | Tap, multi-tap, drag-select, loupe, toolbar, hover |
+| Clavier + keymap rebindable + chords | ✅ | `view/input/EditorKeyHandler.java`, `view/input/EditorKeymap.java` | Bind simple et séquences à deux touches |
 | Pont IME | ✅ | `view/EditorImeBridge.java` | Composing, SurroundingText (compat API 24) |
-| Scroll/fling/pinch-zoom | ✅ | `view/EditorScrollManager.java`, `view/EditorZoomController.java` | Suivi de vitesse, clamp de police |
-| Minimap | ✅ | `view/EditorChromePainter.java` | Bande latérale, bascule publique |
-| Aperçu XML | ✅ | `view/EditorPreviewController.java`, `view/EditorPreviewHost.java` | Split/full via hôte |
+| Scroll/fling/pinch-zoom | ✅ | `view/input/EditorScrollManager.java`, `view/input/EditorZoomController.java` | Suivi de vitesse, clamp de police |
+| Minimap | ✅ | `view/render/EditorChromePainter.java` | Bande latérale, bascule publique |
+| Aperçu XML | ✅ | `view/preview/EditorPreviewController.java`, `view/preview/EditorPreviewHost.java` | Split/full via hôte |
 | Breadcrumb | ✅ | `view/chrome/BreadcrumbBar.java` | Barre de fil d'Ariane |
 | Barre de symboles | ✅ | `view/chrome/SymbolBarView.java` | Symboles du document |
 | Retour à la ligne / ligatures / non-imprimables | ✅ | `view/EditorView.java` | Bascules publiques |
 | Thèmes | ✅ | `view/chrome/EditorTheme.java` | dark()/light() + 30+ couleurs custom |
-| Métriques et géométrie | ✅ | `view/EditorMetrics.java`, `view/EditorPaintContext.java`, `view/EditorWrapGeometry.java`, `view/EditorHitMapper.java`… | lineHeight, charWidth, mapping coords |
-| Cache de layouts (ligatures, contenu-adressé) | ✅ | `view/EditorShapedLayoutCache.java` | LRU 64, clé = texte de ligne |
+| Métriques et géométrie | ✅ | `view/EditorMetrics.java`, `view/render/EditorPaintContext.java`, `view/EditorWrapGeometry.java`, `view/EditorHitMapper.java`… | lineHeight, charWidth, mapping coords |
+| Cache de layouts (ligatures, contenu-adressé) | ✅ | `view/render/EditorShapedLayoutCache.java` | LRU 64, clé = texte de ligne |
 | Édition par blocs | ✅ | `blocks/BlockEditor.java` | BlockNode, BlockType, BlockParser, BlockRenderer, SlotCompletion (classes imbriquées) |
 
 ---
@@ -267,9 +269,9 @@ contrôleurs. Les barres d'habillage vivent dans `view/chrome/`.
 | Fonctionnalité | État | Fichier | Description |
 |----------------|------|---------|-------------|
 | Langages contribuables | ✅ | `languages/LanguageRegistry.java` | `register(LanguageProfile)` — coloration immédiate |
-| Keymap rebindable + chords | ✅ | `view/EditorKeymap.java` | `bind()` / `bindChord()` |
-| Plugins de décoration | ✅ | `view/EditorPainterHost.java` | `register(EditorDecorationPainter)`, chargement classpath |
-| Aperçu hôte | ✅ | `view/EditorPreviewHost.java` | Contrat canPreview/drawPreview/hitTest |
+| Keymap rebindable + chords | ✅ | `view/input/EditorKeymap.java` | `bind()` / `bindChord()` |
+| Plugins de décoration | ✅ | `view/render/EditorPainterHost.java` | `register(EditorDecorationPainter)`, chargement classpath |
+| Aperçu hôte | ✅ | `view/preview/EditorPreviewHost.java` | Contrat canPreview/drawPreview/hitTest |
 | Sweep des onglets ouverts | ✅ | `view/OpenTabDiagnosticsSweep.java` | Rafraîchissement différé des diagnostics |
 
 ---
@@ -333,7 +335,7 @@ parallèle.
 | Fichiers source | 205 (`:cel-core` 68 · `:cel-lsp-api` 38 · `:cel-lsp` 36 · `:cel-ui` 63) |
 | Fichiers de test | 67 |
 | Lignes de code (main) | ≈ 37 000 |
-| Tests unitaires | 922 (`:cel-core` 655 · `:cel-lsp-api` 22 · `:cel-lsp` 15 · `:cel-ui` 230) |
+| Tests unitaires | 934 (`:cel-core` 655 · `:cel-lsp-api` 22 · `:cel-lsp` 27 · `:cel-ui` 230) |
 | Langages colorés intégrés | 27 |
 | Tokéniseurs intégrés | 14 (+ utilitaires SpanUtils, KeywordTables) |
 | Interfaces de providers LSP | 17 |
