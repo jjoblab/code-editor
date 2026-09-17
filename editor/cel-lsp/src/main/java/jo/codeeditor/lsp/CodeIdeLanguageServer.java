@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * ★ v2.37 — Miroir CLIENT des extensions LSP de CodeIDE : la méthode
+ * Miroir CLIENT des extensions LSP de CodeIDE : la méthode
  * personnalisée {@code textDocument/superDefinition} (GO TO Super — aucune
  * méthode LSP standard n'existe).
  *
@@ -50,7 +50,6 @@ import java.util.concurrent.CompletableFuture;
  * vide, l'option Super n'apparaît pas).</p>
  *
  * @author jo@Dev
- * @since v2.37
  */
 public interface CodeIdeLanguageServer extends LanguageServer {
 
@@ -71,7 +70,7 @@ public interface CodeIdeLanguageServer extends LanguageServer {
             TextDocumentPositionParams params);
 
     /**
-     * ★ v2.40 — La source (attachée ou stub décompilé) d'un FQN binaire
+     * La source (attachée ou stub décompilé) d'un FQN binaire
      * (classpath, JDK). Câble de bout en bout la fonctionnalité
      * « GO TO Definition sur cible binaire » : le serveur
      * ({@code :lspjava}) renvoie une {@code Location} à URI synthétique

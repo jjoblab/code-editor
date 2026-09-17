@@ -1,11 +1,8 @@
 package jo.codeeditor.find;
 
 /**
- * A text match with start and end offsets.
- 
- *
- * @since v1.0.0
-*/
+ * Une correspondance de texte avec offsets de début et de fin.
+ */
 public final class Match {
     public final int start;
     public final int end;

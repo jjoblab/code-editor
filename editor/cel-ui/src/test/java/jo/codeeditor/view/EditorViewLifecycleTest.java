@@ -12,15 +12,15 @@ import jo.codeeditor.lang.EmptyLanguage;
 import jo.codeeditor.session.EditorSession;
 
 import static org.junit.Assert.*;
+import jo.codeeditor.view.chrome.EditorTheme;
 
 /**
- * Robolectric tests for {@link EditorView} lifecycle.
+ * Tests Robolectric du cycle de vie de {@link EditorView}.
  *
- * <p>Tests the core lifecycle: construction → setSession → setText →
+ * <p>Vérifie le cycle de vie de base : construction → setSession → setText →
  * setTheme → setLanguage → undo/redo → getLineCount → destroy.</p>
  *
  * @author jo@Dev
- * @since v3.33.7
  */
 @RunWith(RobolectricTestRunner.class)
 public class EditorViewLifecycleTest {
@@ -80,7 +80,7 @@ public class EditorViewLifecycleTest {
     @Test
     public void setSession_resetsScroll() {
         EditorView view = createEditor();
-        // Simulate scroll
+        // Simule un scroll
         view.vOffset = 100;
         view.hOffset = 50;
         EditorSession session = new EditorSession(EditorDocument.of("test"));
@@ -103,14 +103,14 @@ public class EditorViewLifecycleTest {
     public void setLanguage_emptyLanguage_doesNotCrash() {
         EditorView view = createEditor();
         view.setLanguage(new EmptyLanguage());
-        // No exception = pass
+        // Pas d'exception = réussi
     }
 
     @Test
     public void setLanguage_null_fallsBackToEmptyLanguage() {
         EditorView view = createEditor();
         view.setLanguage(null);
-        // Should not crash — setLanguage handles null by using EmptyLanguage
+        // Ne doit pas crasher — setLanguage gère null en utilisant EmptyLanguage
     }
 
     @Test
@@ -137,14 +137,14 @@ public class EditorViewLifecycleTest {
     @Test
     public void setFindHighlights_clearsOnEmptyList() {
         EditorView view = createEditor();
-        // Set some highlights
+        // Pose quelques highlights
         java.util.List<jo.codeeditor.find.Match> matches = new java.util.ArrayList<>();
         matches.add(new jo.codeeditor.find.Match(0, 5));
         view.setFindHighlights(matches, 0);
         assertEquals(1, view.findHighlights.size());
         assertEquals(0, view.findCurrentIndex);
 
-        // Clear
+        // Nettoie
         view.setFindHighlights(null, -1);
         assertTrue(view.findHighlights.isEmpty());
         assertEquals(-1, view.findCurrentIndex);
@@ -165,13 +165,13 @@ public class EditorViewLifecycleTest {
         EditorView.OnSelectionChangedListener listener = (line, col, isCursor) -> callCount[0]++;
 
         view.addOnSelectionChangedListener(listener);
-        // Trigger a selection change via setSelection on session
+        // Déclenche un changement de sélection via setSelection sur la session
         EditorSession session = view.getSession();
         session.setSelection(5);
 
         assertTrue("listener should have been called", callCount[0] > 0);
 
-        // Remove and verify it's not called anymore
+        // Retire et vérifie qu'il n'est plus appelé
         int countAfterRemove = callCount[0];
         view.removeOnSelectionChangedListener(listener);
         session.setSelection(10);

@@ -5,7 +5,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Tests for the undo/redo manager with coalescing.
+ * Tests du gestionnaire undo/redo avec coalescence.
  */
 class UndoManagerTest {
 
@@ -57,7 +57,7 @@ class UndoManagerTest {
         mgr.undo();
         assertTrue(mgr.canRedo());
 
-        // New edit should clear redo
+        // Une nouvelle édition doit vider le redo
         mgr.pushStep(UndoStep.single(new EditOp(0, "", "b"), 0, 1));
         assertFalse(mgr.canRedo());
     }

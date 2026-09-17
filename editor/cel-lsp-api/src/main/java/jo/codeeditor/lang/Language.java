@@ -1,158 +1,171 @@
 package jo.codeeditor.lang;
 
 
+import jo.codeeditor.lang.provider.CodeActionsProvider;
+import jo.codeeditor.lang.provider.CompletionProvider;
+import jo.codeeditor.lang.provider.DefinitionProvider;
+import jo.codeeditor.lang.provider.DiagnosticsProvider;
+import jo.codeeditor.lang.provider.DocumentHighlightProvider;
+import jo.codeeditor.lang.provider.Formatter;
+import jo.codeeditor.lang.provider.HoverProvider;
+import jo.codeeditor.lang.provider.ImplementationsProvider;
+import jo.codeeditor.lang.provider.InlayHintProvider;
+import jo.codeeditor.lang.provider.ReferencesProvider;
+import jo.codeeditor.lang.provider.RenameProvider;
+import jo.codeeditor.lang.provider.SignatureHelpProvider;
+import jo.codeeditor.lang.provider.SuperDefinitionProvider;
+import jo.codeeditor.lang.provider.SymbolProvider;
+import jo.codeeditor.lang.provider.TypeDefinitionProvider;
+import jo.codeeditor.lang.provider.ViewZoneProvider;
+
 /**
- * The top-level Language SPI (Service Provider Interface). A {@code Language}
- * instance is plugged into an {@link jo.codeeditor.view.EditorView} via
- * {@code setLanguage(Language)} and provides all the language-intelligence
- * features the editor needs: syntax highlighting, completion, hover,
- * signature help, diagnostics, code actions, etc.
+ * Point d'entrée du SPI de langage (Service Provider Interface). Une instance
+ * de {@code Language} est branchée sur un {@link jo.codeeditor.view.EditorView}
+ * via {@code setLanguage(Language)} et fournit à l'éditeur l'ensemble des
+ * fonctionnalités d'intelligence de langage : coloration syntaxique,
+ * complétion, hover, aide de signature, diagnostics, actions de code, etc.
  *
- * <p>Every provider method returns {@code null} by default — a language
- * plugin only implements the features it supports. The editor checks for
- * null before rendering the corresponding UI.
- *
- * <p><b>v2.0.0 breaking change</b>: this SPI replaces the v1.x per-feature
- * resolver interfaces ({@code CompletionProvider}, {@code SignatureHelpResolver},
- * etc.). The old resolvers are kept as deprecated wrappers that delegate
- * to a {@link Language} instance.
- *
- * @since v2.0.0
+ * <p>Contrat :</p>
+ * <ul>
+ *   <li>les accesseurs de providers sont interrogés sur le <b>thread UI</b>
+ *       (au branchement via {@code setLanguage}) — ils ne doivent donc rien
+ *       y faire de bloquant ;</li>
+ *   <li>chaque accesseur optionnel retourne {@code null} par défaut : un
+ *       plugin de langage n'implémente que les fonctionnalités qu'il
+ *       supporte, et l'éditeur vérifie la nullité avant de brancher l'UI
+ *       correspondante (la fonctionnalité reste sinon désactivée) ;</li>
+ *   <li>{@link #getAnalyzer()} est le seul provider obligatoire ;</li>
+ *   <li>{@link #destroy()} est appelé sur le thread UI lorsque le langage
+ *       est détaché de l'éditeur.</li>
+ * </ul>
  */
 public interface Language {
 
-    /** Strong interruption: {@code Thread.interrupt()} + throw. */
+    /** Interruption forte : {@code Thread.interrupt()} + exception. */
     int INTERRUPTION_LEVEL_STRONG = 0;
-    /** Slight interruption: throw only. */
+    /** Interruption légère : exception seule. */
     int INTERRUPTION_LEVEL_SLIGHT = 1;
-    /** No interruption: throw from ContentReference only. */
+    /** Aucune interruption : le travail en vol n'est jamais annulé. */
     int INTERRUPTION_LEVEL_NONE = 2;
 
     /**
-     * Returns the {@link Analyzer} that provides incremental syntax
-     * highlighting, code blocks, and bracket matching. Must never be null —
-     * a language without an analyzer is useless.
+     * Retourne l'{@link Analyzer} qui fournit la coloration syntaxique
+     * incrémentale, les blocs de code (folding) et l'appariement des
+     * crochets. Ne doit jamais retourner {@code null} — un langage sans
+     * analyzer est inutilisable.
      */
     Analyzer getAnalyzer();
 
     /**
-     * Returns the {@link CompletionProvider}, or {@code null} if this
-     * language doesn't support auto-completion.
+     * Retourne le {@link CompletionProvider}, ou {@code null} si ce langage
+     * ne supporte pas la complétion automatique.
      */
     default CompletionProvider getCompletionProvider() { return null; }
 
     /**
-     * Returns the {@link HoverProvider}, or {@code null} if hover/quick-doc
-     * is not supported.
+     * Retourne le {@link HoverProvider}, ou {@code null} si le
+     * hover/quick-doc n'est pas supporté.
      */
     default HoverProvider getHoverProvider() { return null; }
 
     /**
-     * Returns the {@link SignatureHelpProvider}, or {@code null} if
-     * signature help is not supported.
+     * Retourne le {@link SignatureHelpProvider}, ou {@code null} si l'aide
+     * de signature n'est pas supportée.
      */
     default SignatureHelpProvider getSignatureHelpProvider() { return null; }
 
     /**
-     * Returns the {@link DefinitionProvider}, or {@code null} if
-     * go-to-definition is not supported.
+     * Retourne le {@link DefinitionProvider}, ou {@code null} si le
+     * go-to-definition n'est pas supporté.
      */
     default DefinitionProvider getDefinitionProvider() { return null; }
 
     /**
-     * Returns the {@link TypeDefinitionProvider}, or {@code null} if
-     * go-to-type-declaration (the type of the symbol at the caret) is not
-     * supported.
-     *
-     * @since v2.36
+     * Retourne le {@link TypeDefinitionProvider}, ou {@code null} si le
+     * go-to-type-declaration (le type du symbole sous le caret) n'est pas
+     * supporté.
      */
     default TypeDefinitionProvider getTypeDefinitionProvider() { return null; }
 
     /**
-     * Returns the {@link ImplementationsProvider}, or {@code null} if
-     * go-to-implementations (the direct inheritors of the type at the
-     * caret) is not supported.
-     *
-     * @since v2.37
+     * Retourne l'{@link ImplementationsProvider}, ou {@code null} si le
+     * go-to-implementations (les héritiers directs du type sous le caret)
+     * n'est pas supporté.
      */
     default ImplementationsProvider getImplementationsProvider() { return null; }
 
     /**
-     * Returns the {@link SuperDefinitionProvider}, or {@code null} if
-     * go-to-super (the overridden member / the supertypes of the type in
-     * context) is not supported.
-     *
-     * @since v2.37
+     * Retourne le {@link SuperDefinitionProvider}, ou {@code null} si le
+     * go-to-super (le membre redéfini / les supertypes du type en contexte)
+     * n'est pas supporté.
      */
     default SuperDefinitionProvider getSuperDefinitionProvider() { return null; }
 
     /**
-     * Returns the {@link ReferencesProvider}, or {@code null} if
-     * find-references is not supported.
-     *
-     * @since v3.33.10
+     * Retourne le {@link ReferencesProvider}, ou {@code null} si la
+     * recherche de références (find-references) n'est pas supportée.
      */
     default ReferencesProvider getReferencesProvider() { return null; }
 
     /**
-     * Returns the {@link DiagnosticsProvider}, or {@code null} if
-     * diagnostics (errors/warnings) are not supported.
+     * Retourne le {@link DiagnosticsProvider}, ou {@code null} si les
+     * diagnostics (erreurs/avertissements) ne sont pas supportés.
      */
     default DiagnosticsProvider getDiagnosticsProvider() { return null; }
 
     /**
-     * Returns the {@link CodeActionsProvider}, or {@code null} if code
-     * actions (quick-fixes, refactors) are not supported.
+     * Retourne le {@link CodeActionsProvider}, ou {@code null} si les
+     * actions de code (quick-fixes, refactorings) ne sont pas supportées.
      */
     default CodeActionsProvider getCodeActionsProvider() { return null; }
 
     /**
-     * Returns the {@link DocumentHighlightProvider}, or {@code null} if
-     * document highlight (occurrences of the symbol under the caret) is
-     * not supported.
+     * Retourne le {@link DocumentHighlightProvider}, ou {@code null} si le
+     * surlignage d'occurrences (symbole sous le caret) n'est pas supporté.
      */
     default DocumentHighlightProvider getDocumentHighlightProvider() { return null; }
 
     /**
-     * Returns the {@link InlayHintProvider}, or {@code null} if inlay
-     * hints (phantom type annotations) are not supported.
+     * Retourne l'{@link InlayHintProvider}, ou {@code null} si les inlay
+     * hints (annotations de type fantômes) ne sont pas supportés.
      */
     default InlayHintProvider getInlayHintProvider() { return null; }
 
     /**
-     * Returns the {@link ViewZoneProvider}, or {@code null} if view zones
-     * (inline UI gaps for refactors, inline type hints) are not supported.
+     * Retourne le {@link ViewZoneProvider}, ou {@code null} si les zones de
+     * vue (espaces UI insérés entre les lignes) ne sont pas supportées.
      */
     default ViewZoneProvider getViewZoneProvider() { return null; }
 
     /**
-     * Returns the {@link Formatter}, or {@code null} if code formatting
-     * is not supported.
+     * Retourne le {@link Formatter}, ou {@code null} si le formatage de
+     * code n'est pas supporté.
      */
     default Formatter getFormatter() { return null; }
 
     /**
-     * Returns the {@link SymbolProvider}, or {@code null} if go-to-symbol
-     * (document symbol outline) is not supported.
+     * Retourne le {@link SymbolProvider}, ou {@code null} si le
+     * go-to-symbol (plan du document) n'est pas supporté.
      */
     default SymbolProvider getSymbolProvider() { return null; }
 
     /**
-     * Returns the {@link RenameProvider}, or {@code null} if rename is
-     * not supported.
+     * Retourne le {@link RenameProvider}, ou {@code null} si le renommage
+     * n'est pas supporté.
      */
     default RenameProvider getRenameProvider() { return null; }
 
     /**
-     * Returns how aggressively the editor may cancel in-flight completion
-     * requests. See {@link #INTERRUPTION_LEVEL_STRONG} etc.
+     * Indique avec quelle agressivité l'éditeur peut annuler les requêtes
+     * de complétion en vol. Voir les constantes
+     * {@link #INTERRUPTION_LEVEL_STRONG} et suivantes.
      */
     int getInterruptionLevel();
 
     /**
-     * Called when the language is detached from the editor (e.g. when
-     * {@code setLanguage} is called with a different language). Release
-     * any resources (parsers, threads, connections).
+     * Appelé lorsque le langage est détaché de l'éditeur (par exemple quand
+     * {@code setLanguage} est appelé avec un autre langage). Libère toutes
+     * les ressources (parseurs, threads, connexions).
      */
     void destroy();
 }

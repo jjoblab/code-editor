@@ -1,25 +1,25 @@
 package jo.codeeditor.lang;
 
 /**
- * Receives style updates from an {@link Analyzer}. The analyzer calls
- * {@link #onStylesUpdated} on a worker thread; the editor's implementation
- * posts the update to the UI thread and invalidates the affected lines.
- *
- * @since v2.0.0
+ * Reçoit les mises à jour de style poussées par un {@link Analyzer}.
+ * L'analyseur appelle {@link #onStylesUpdated} depuis un thread de travail ;
+ * l'implémentation de l'éditeur poste la mise à jour sur le thread UI et
+ * invalide les lignes affectées.
  */
 public interface StyleReceiver {
 
     /**
-     * Called by the analyzer when a range of lines has been re-tokenized.
+     * Appelée par l'analyseur lorsqu'une plage de lignes a été
+     * re-tokenisée.
      *
-     * @param startLine the first updated line (0-based, inclusive)
-     * @param endLine   the last updated line (0-based, inclusive)
+     * @param startLine la première ligne mise à jour (0-based, incluse)
+     * @param endLine   la dernière ligne mise à jour (0-based, incluse)
      */
     void onStylesUpdated(int startLine, int endLine);
 
     /**
-     * Called by the analyzer when the code blocks (folding regions) have
-     * been recomputed.
+     * Appelée par l'analyseur lorsque les blocs de code (régions de
+     * folding) ont été recalculés.
      */
     void onBlocksUpdated();
 }

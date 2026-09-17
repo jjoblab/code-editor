@@ -1,19 +1,20 @@
-# Build Instructions — code-editor-lib v1.0.3
+# Compiler le projet
 
-This project is a standard Android multi-module Gradle build.
+Projet Android multi-modules Gradle standard. Ce document décrit la
+toolchain, les commandes de build et la publication Maven.
 
-## Prerequisites
+## Prérequis
 
-- **JDK 17** (Temurin 17.0.13+11 was used for the v1.0.3 release).
-  AGP 8.2 requires JDK 17 minimum. JDK 21 also works.
-- **Android SDK** with:
+- **JDK 17 minimum** (JDK 21 validé) — requis par AGP 9.
+- **Android SDK** avec :
   - `cmdline-tools;latest`
   - `platform-tools`
   - `platforms;android-34`
-  - `build-tools;34.0.0`
-- **Gradle 8.5** (the wrapper is bundled, so an explicit install is optional).
+  - build-tools (téléchargés automatiquement par AGP si besoin)
+- **Gradle 9.5.1** — le wrapper est inclus (`./gradlew`), aucune installation
+  explicite n'est nécessaire.
 
-## One-time setup
+## Mise en place initiale
 
 ```bash
 export JAVA_HOME=/path/to/jdk-17
@@ -21,64 +22,151 @@ export ANDROID_HOME=/path/to/android-sdk
 export ANDROID_SDK_ROOT=$ANDROID_HOME
 ```
 
-Create `local.properties` at the project root with:
+Créez `local.properties` à la racine du projet (ignoré par Git) :
 
 ```
 sdk.dir=/path/to/android-sdk
 ```
 
-(AGP reads this to find `android.jar`. The repository ships a
-`local.properties` pointing at the build environment used for v1.0.3 —
-overwrite it with your own path.)
+(AGP lit ce fichier pour localiser `android.jar`.)
 
-## Build commands
+## Commandes de build
 
 ```bash
-# Library AAR (library/build/outputs/aar/library-debug.aar)
-./gradlew :library:assembleDebug
+# AARs debug des 4 modules (editor/<module>/build/outputs/aar/)
+./gradlew assembleDebug
 
-# Demo APK (app/build/outputs/apk/debug/app-debug.apk)
-./gradlew :app:assembleDebug
+# AARs release
+./gradlew assembleRelease
 
-# Unit tests (266 tests, JUnit 5, JVM host)
-./gradlew :library:testDebugUnitTest
+# Tests unitaires (JVM hôte) — AGP 9 : la variante debug porte les tests
+./gradlew test
 
-# Everything
-./gradlew assembleDebug testDebugUnitTest
+# Lint des 4 modules
+./gradlew lint
+
+# Le tout
+./gradlew assembleDebug test lint
 ```
 
-## Project layout
+## Structure du projet
 
 ```
-code-editor-lib/
-├── library/                # :com.android.library  → library-debug.aar
-│   ├── build.gradle.kts
-│   └── src/main/java/com/codeeditor/...
-├── app/                    # :com.android.application  → app-debug.apk
-│   ├── build.gradle.kts
-│   └── src/main/java/jo/codeeditor/demo/...
-├── build.gradle.kts        # plugins { id("com.android.*") version "8.2.0" apply false }
-└── settings.gradle.kts     # include(":library", ":app")
+code-editor/
+├── settings.gradle.kts        — inclut les 4 modules editor/
+├── build.gradle.kts           — AGP 9.0.0, group/version Maven (jo.codeeditor:3.37.0)
+├── gradle/wrapper/            — Gradle 9.5.1
+├── gradle.properties          — jvmargs, parallélisme, cache
+├── jitpack.yml                — JDK 17 pour les builds JitPack
+│
+├── editor/
+│   ├── cel-core/              — moteur pur Java (com.android.library)
+│   ├── cel-lsp-api/           — SPI langage (com.android.library)
+│   ├── cel-lsp/               — client LSP4J (com.android.library)
+│   └── cel-ui/                — vues Android (com.android.library)
+│
+└── .github/workflows/ci.yml   — CI GitHub Actions
 ```
 
-## Verified toolchain (v1.0.3 release)
+Chaque module `editor/<module>/` suit la disposition standard
+`src/main/java/jo/codeeditor/…` + `src/test/java/jo/codeeditor/…`.
 
-| Tool    | Version                                  |
-|---------|------------------------------------------|
-| JDK     | Temurin 17.0.13+11                       |
-| Gradle  | 8.5                                      |
-| AGP     | 8.2.0                                    |
-| Android | platform 34, build-tools 34.0.0          |
-| minSdk  | 24                                       |
-| targetSdk | 34                                     |
+## Toolchain
 
-## Release artifacts
+| Outil | Version |
+|-------|---------|
+| JDK | 17 minimum (21 validé) |
+| Gradle | 9.5.1 (wrapper inclus) |
+| AGP | 9.0.0 |
+| Android | `compileSdk 34`, `minSdk 24` |
+| Java source/cible | 17 |
+| Encodage | UTF-8 |
+| Tests | JUnit 5 (Jupiter), sauf `:cel-lsp` (JUnit 4 + Robolectric) |
 
-After `./gradlew :app:assembleDebug`:
+## Artefacts
 
-- `library/build/outputs/aar/library-debug.aar`  (~172 KB)
-- `app/build/outputs/apk/debug/app-debug.apk`    (~139 KB)
+Après `./gradlew assembleDebug` :
 
-The release ZIP bundles the **source tree** (without `.gradle/` and
-`build/` directories) **and** a copy of the freshly built `app-debug.apk`
-at the project root, so consumers can install the demo without rebuilding.
+- `editor/cel-core/build/outputs/aar/cel-core-debug.aar`
+- `editor/cel-lsp-api/build/outputs/aar/cel-lsp-api-debug.aar`
+- `editor/cel-lsp/build/outputs/aar/cel-lsp-debug.aar`
+- `editor/cel-ui/build/outputs/aar/cel-ui-debug.aar`
+
+## Publication Maven
+
+### Coordonnées
+
+Chaque module embarque `maven-publish` et publie la variante release avec
+un jar de sources :
+
+| Module | Coordonnées |
+|--------|-------------|
+| `:cel-core` | `jo.codeeditor:cel-core:3.37.0` |
+| `:cel-lsp-api` | `jo.codeeditor:cel-lsp-api:3.37.0` |
+| `:cel-lsp` | `jo.codeeditor:cel-lsp:3.37.0` |
+| `:cel-ui` | `jo.codeeditor:cel-ui:3.37.0` |
+
+### Publication locale (validation)
+
+```bash
+./gradlew publishToMavenLocal
+# → ~/.m2/repository/jo/codeeditor/<module>/3.37.0/ (AAR + sources + POM)
+```
+
+### Publication sur GitHub Packages (méthode principale)
+
+La publication est **manuelle** : aucun workflow GitHub Actions automatisé
+n'existe à ce jour (la CI ne fait que valider `publishToMavenLocal` sur les
+tags `v*`).
+
+1. Créez un jeton d'accès personnel GitHub avec le droit `write:packages`.
+2. Renseignez vos identifiants dans `~/.gradle/gradle.properties` :
+
+```properties
+gpr.user=<votre-utilisateur-github>
+gpr.key=<votre-jeton-d-acces>
+```
+
+3. Ajoutez le dépôt GitHub Packages au bloc `publishing` du module à
+   publier (par ex. `editor/cel-ui/build.gradle.kts`) :
+
+```kotlin
+publishing {
+    repositories {
+        maven {
+            name = "GitHubPackages"
+            url = uri("https://maven.pkg.github.com/jjoblab/code-editor")
+            credentials {
+                username = providers.gradleProperty("gpr.user").get()
+                password = providers.gradleProperty("gpr.key").get()
+            }
+        }
+    }
+    publications {
+        // … publications existantes (jo.codeeditor:<module>) …
+    }
+}
+```
+
+4. Publiez :
+
+```bash
+./gradlew publish
+```
+
+Les consommateurs ajoutent alors le dépôt `maven.pkg.github.com/jjoblab/code-editor`
+avec un jeton `read:packages` — voir la section Installation du
+[`README.md`](README.md).
+
+### JitPack (alternative de secours)
+
+JitPack construit la bibliothèque à la demande depuis un tag Git
+(`com.github.jjoblab:<module>:<tag>`) ; le fichier `jitpack.yml` épingle le
+JDK 17 côté JitPack. Poussez simplement un tag `v*` :
+
+```bash
+git tag v3.37.0 && git push origin v3.37.0
+```
+
+La CI valide sur ce tag `assembleRelease` + `publishToMavenLocal` avant que
+JitPack ne construise.

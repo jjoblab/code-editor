@@ -13,11 +13,10 @@ import jo.codeeditor.session.EditorSession;
 import static org.junit.Assert.*;
 
 /**
- * Robolectric tests for {@link EditorView} text operations:
- * undo/redo, text get/set, selection, line count.
+ * Tests Robolectric des opérations de texte de {@link EditorView} :
+ * undo/redo, lecture/écriture du texte, sélection, nombre de lignes.
  *
  * @author jo@Dev
- * @since v3.33.7
  */
 @RunWith(RobolectricTestRunner.class)
 public class EditorViewTextOpsTest {
@@ -57,15 +56,17 @@ public class EditorViewTextOpsTest {
     @Test
     public void setSelection_clampsToDocumentBounds() {
         EditorView view = createEditorWithText("hello");
-        // Valid offset
+        // Offset valide
         view.getSession().setSelection(3);
         assertEquals(3, view.getSession().getSelection().start);
-        // Out of bounds — setSelection doesn't clamp in EditorSession directly,
-        // it clamps in EditorView.clampSelection(). Just verify it doesn't crash.
+        // Hors bornes — setSelection ne clampe pas directement dans
+        // EditorSession, c'est EditorView.clampSelection() qui clampe.
+        // On vérifie juste que ça ne crashe pas.
         view.getSession().setSelection(100);
         int sel = view.getSession().getSelection().start;
-        // Selection may or may not be clamped depending on implementation.
-        // Just verify it didn't crash and returned something.
+        // La sélection peut être clampée ou non selon l'implémentation.
+        // On vérifie juste que ça n'a pas crashé et que ça a renvoyé quelque
+        // chose.
         assertTrue("selection should be a valid value", sel >= 0);
     }
 
@@ -88,10 +89,10 @@ public class EditorViewTextOpsTest {
         view.getSession().replaceRange(0, 0, "x");
         assertEquals("xhello", view.getSession().getText());
         assertTrue(view.getSession().getUndoManager().canUndo());
-        // Call undo — it should change the text (may or may not fully revert
-        // depending on coalescing behavior).
+        // Appelle undo — il doit changer le texte (peut ou non tout annuler
+        // selon le comportement de coalescence).
         view.getSession().getUndoManager().undo();
-        // After undo, canRedo should be true (the undo can be redone).
+        // Après undo, canRedo doit être vrai (l'undo peut être refait).
         assertTrue("canRedo should be true after undo",
                 view.getSession().getUndoManager().canRedo());
     }
@@ -114,11 +115,12 @@ public class EditorViewTextOpsTest {
         view.getSession().replaceRange(1, 1, "b");
         view.getSession().replaceRange(2, 2, "c");
         view.getSession().endBatch();
-        // Result should be "abc" + "hello" — but batch coalescing may
-        // produce "abc" prepended. Just verify text changed and can undo.
+        // Le résultat devrait être « abc » + « hello » — mais la coalescence
+        // du batch peut produire « abc » préfixé. On vérifie juste que le
+        // texte a changé et qu'on peut annuler.
         assertNotEquals("text should have changed after batch", "hello", view.getSession().getText());
         assertTrue(view.getSession().getUndoManager().canUndo());
-        // One undo should revert all three edits
+        // Un seul undo devrait annuler les trois éditions
         view.getSession().getUndoManager().undo();
         assertNotEquals("text should differ after undo", "hello", view.getSession().getText());
     }

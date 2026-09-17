@@ -1,17 +1,16 @@
 package jo.codeeditor.lang;
 
 /**
- * A bracket match result. Returned by {@link Analyzer#computeBracketMatch(int)}.
- *
- * @since v2.0.0
+ * Résultat d'un appariement de crochets. Retourné par
+ * {@link Analyzer#computeBracketMatch(int)}.
  */
 public final class BracketMatch {
 
-    /** The offset of the bracket under the caret (inclusive). */
+    /** L'offset du crochet sous le caret (inclus). */
     public final int bracketOffset;
-    /** The offset of the matching bracket (inclusive). */
+    /** L'offset du crochet apparié (inclus). */
     public final int matchOffset;
-    /** True if the bracket under the caret is an opening bracket. */
+    /** Vrai si le crochet sous le caret est un crochet ouvrant. */
     public final boolean isOpening;
 
     public BracketMatch(int bracketOffset, int matchOffset, boolean isOpening) {

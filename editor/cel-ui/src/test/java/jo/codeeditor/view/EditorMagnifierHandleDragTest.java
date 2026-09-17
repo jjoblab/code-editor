@@ -20,14 +20,12 @@ import java.lang.reflect.Field;
 import static org.junit.Assert.*;
 
 /**
- * ★ v2.35 — verrouille la RÉ-ACTIVATION du magnifier (code dormant v3.18.0,
- * « interferes with selection ») : la bulle ne vit QUE pendant le drag des
- * poignées de sélection — activée au premier MOVE (un simple tap sur la
- * poignée ne la fait pas flasher), désactivée sur UP/CANCEL, et JAMAIS
- * pendant un scroll/drag-select ordinaire.
+ * Verrouille le comportement du magnifier : la bulle ne vit QUE pendant
+ * le drag des poignées de sélection — activée au premier MOVE (un simple
+ * tap sur la poignée ne la fait pas flasher), désactivée sur UP/CANCEL,
+ * et JAMAIS pendant un scroll/drag-select ordinaire.
  *
  * @author jo@Dev
- * @since v2.35
  */
 @RunWith(RobolectricTestRunner.class)
 public class EditorMagnifierHandleDragTest {
@@ -151,7 +149,7 @@ public class EditorMagnifierHandleDragTest {
     public void plainScrollDrag_neverActivatesMagnifier() {
         EditorView view = newView();
         // Un drag-scroll classique (texte, au-delà du slop) : PAS de bulle —
-        // c'était le « interferes with selection » de v3.18.0.
+        // le magnifier ne doit pas interférer avec la sélection.
         float x = GUTTER_W + 200f;
         float y = PAD_TOP + LINE_H * 2f;
         long down = SystemClock.uptimeMillis();

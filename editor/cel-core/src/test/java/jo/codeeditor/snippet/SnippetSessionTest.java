@@ -45,8 +45,8 @@ class SnippetSessionTest {
         var session = SnippetSession.parse("$1 $2 $0", 0);
         assertNotNull(session);
         var prev = session.prev();
-        // At first stop, prev should return null or same
-        // Just verify no exception
+        // Au premier stop, prev devrait renvoyer null ou l'identique
+        // On vérifie juste l'absence d'exception
     }
 
     @Test

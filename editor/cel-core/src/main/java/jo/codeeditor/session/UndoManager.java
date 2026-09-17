@@ -4,21 +4,18 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Undo/redo stack with coalescing support.
+ * Piles undo/redo avec prise en charge de la coalescence.
  * <p>
- * Consecutive single-character typing edits at adjacent positions
- * are merged into a single undo step for better UX.
- 
- *
- * @since v1.0.0
-*/
+ * Les frappes consécutives d'un seul caractère à des positions adjacentes
+ * sont fusionnées en une seule étape d'annulation pour une meilleure UX.
+ */
 public final class UndoManager {
 
     private final List<UndoStep> undoStack = new ArrayList<>();
     private final List<UndoStep> redoStack = new ArrayList<>();
     private final int maxDepth;
 
-    /** Tracks whether we're in a coalescible sequence. */
+    /** Suit la séquence coalescible en cours. */
     private int lastEditEnd = -1;
     private long lastEditTime = 0;
     private static final long COALESCE_TIMEOUT_MS = 500;
@@ -32,9 +29,10 @@ public final class UndoManager {
     }
 
     /**
-     * Records an undo step. If it can be coalesced with the previous step, merges them.
+     * Enregistre une étape d'annulation ; le cas échéant, elle est fusionnée
+     * avec l'étape précédente.
      *
-     * @param step the undo step to push
+     * @param step l'étape d'annulation à empiler
      */
     public void pushStep(UndoStep step) {
         undoStack.add(step);
@@ -47,11 +45,12 @@ public final class UndoManager {
     }
 
     /**
-     * Attempts to coalesce a single-char typing edit with the last undo step.
+     * Tente de coalescer une frappe d'un seul caractère avec la dernière
+     * étape d'annulation.
      *
-     * @param edit the edit operation
-     * @param cursorAfter cursor position after the edit
-     * @return true if coalesced, false if a new step should be created
+     * @param edit l'opération d'édition
+     * @param cursorAfter position du curseur après l'édition
+     * @return vrai si coalescée, faux s'il faut créer une nouvelle étape
      */
     public boolean tryCoalesce(EditOp edit, int cursorAfter) {
         if (undoStack.isEmpty()) return false;
@@ -59,7 +58,7 @@ public final class UndoManager {
         UndoStep last = undoStack.get(undoStack.size() - 1);
         long now = System.currentTimeMillis();
 
-        // Only coalesce single-char insertions at the expected position
+        // Ne coalescer que les insertions d'un seul caractère à la position attendue
         boolean canCoalesce =
             edit.inserted.length() == 1
             && edit.removed.isEmpty()
@@ -67,7 +66,7 @@ public final class UndoManager {
             && (now - lastEditTime) < COALESCE_TIMEOUT_MS;
 
         if (canCoalesce) {
-            // Merge: extend the last step's edits
+            // Fusion : étendre les éditions de la dernière étape
             List<EditOp> merged = new ArrayList<>(last.edits);
             merged.add(edit);
             UndoStep newStep = new UndoStep(merged, last.selBefore, cursorAfter);
@@ -81,8 +80,8 @@ public final class UndoManager {
     }
 
     /**
-     * Pops the most recent undo step for undoing.
-     * Returns null if the undo stack is empty.
+     * Dépile la dernière étape d'annulation en vue de l'undo.
+     * Retourne null si la pile d'annulation est vide.
      */
     public UndoStep undo() {
         if (undoStack.isEmpty()) return null;
@@ -93,8 +92,8 @@ public final class UndoManager {
     }
 
     /**
-     * Pops the most recent redo step for redoing.
-     * Returns null if the redo stack is empty.
+     * Dépile la dernière étape de refaire en vue du redo.
+     * Retourne null si la pile de refaire est vide.
      */
     public UndoStep redo() {
         if (redoStack.isEmpty()) return null;
@@ -104,17 +103,17 @@ public final class UndoManager {
         return step;
     }
 
-    /** Returns true if there are undo steps available. */
+    /** Retourne vrai s'il existe des étapes annulables. */
     public boolean canUndo() {
         return !undoStack.isEmpty();
     }
 
-    /** Returns true if there are redo steps available. */
+    /** Retourne vrai s'il existe des étapes à refaire. */
     public boolean canRedo() {
         return !redoStack.isEmpty();
     }
 
-    /** Clears both stacks. */
+    /** Vide les deux piles. */
     public void clear() {
         undoStack.clear();
         redoStack.clear();

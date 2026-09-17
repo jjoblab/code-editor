@@ -1,11 +1,9 @@
 package jo.codeeditor.edit;
 
 /**
- * A replacement: remove [start, end) and insert text, with resulting caret.
- 
- *
- * @since v1.0.0
-*/
+ * Un remplacement : supprime [start, end) et insère un texte, avec le caret
+ * résultant.
+ */
 public final class RangeEdit {
     public final int start;
     public final int end;

@@ -5,41 +5,40 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * A single undoable step, potentially consisting of multiple EditOps
- * (when coalesced). Records the selection state before and after the edit.
+ * Étape annulable unitaire, pouvant regrouper plusieurs EditOps (en cas de
+ * coalescence). Mémorise l'état de la sélection avant et après l'édition.
  *
- * <p><b>Defensive copy:</b> the constructor copies the supplied edit list so
- * that subsequent mutations to the caller's list (e.g. clearing a batch
- * buffer in {@link EditorSession#endBatch()}) don't affect the recorded step.
- * Previously, {@code Collections.unmodifiableList(edits)} was used, which only
- * creates a read-only <em>view</em> of the caller's list — clearing the
- * caller's list afterwards wiped the recorded edits, breaking batch undo.
- 
- *
- * @since v1.0.0
-*/
+ * <p><b>Copie défensive :</b> le constructeur copie la liste d'éditions
+ * fournie afin que les mutations ultérieures de la liste de l'appelant
+ * (p. ex. le vidage du tampon de lot dans {@link EditorSession#endBatch()})
+ * n'affectent pas l'étape enregistrée. Une simple vue non modifiable
+ * ({@code Collections.unmodifiableList(edits)}) ne suffirait pas : elle
+ * resterait une <em>vue</em> en lecture seule de la liste de l'appelant —
+ * vider celle-ci après coup effacerait les éditions enregistrées et
+ * casserait l'annulation par lot.
+ */
 public final class UndoStep {
     public final List<EditOp> edits;
     public final int selBefore;
     public final int selAfter;
 
     public UndoStep(List<EditOp> edits, int selBefore, int selAfter) {
-        // Defensive copy — see class javadoc.
+        // Copie défensive — voir la javadoc de la classe.
         this.edits = Collections.unmodifiableList(new ArrayList<>(edits));
         this.selBefore = selBefore;
         this.selAfter = selAfter;
     }
 
-    /** Creates a single-edit step. */
+    /** Crée une étape à édition unique. */
     public static UndoStep single(EditOp edit, int selBefore, int selAfter) {
         return new UndoStep(Collections.singletonList(edit), selBefore, selAfter);
     }
 
     /**
-     * Returns the inverse step for redoing, with swapped selection.
+     * Retourne l'étape inverse pour refaire (redo), avec sélections échangées.
      */
     public UndoStep inverse() {
-        // Reverse the edits and apply them in reverse order
+        // Inverser les éditions et les appliquer en ordre inverse
         EditOp[] inv = new EditOp[edits.size()];
         for (int i = 0; i < edits.size(); i++) {
             inv[i] = edits.get(edits.size() - 1 - i).inverse();

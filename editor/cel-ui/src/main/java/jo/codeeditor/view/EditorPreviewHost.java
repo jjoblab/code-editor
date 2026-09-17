@@ -5,142 +5,140 @@ import android.graphics.Canvas;
 import android.view.View;
 
 /**
- * v3.31.0: Host-side contract for preview functionality.
+ * Contrat côté hôte pour la fonctionnalité d'aperçu.
  *
- * <p>The {@link EditorView} no longer depends on preview modules directly.
- * Instead, the host app implements this interface and registers it via
+ * <p>{@link EditorView} ne dépend plus directement des modules d'aperçu.
+ * L'application hôte implémente cette interface et l'enregistre via
  * {@link EditorView#setPreviewHost(EditorPreviewHost)}.
  *
- * <p>This decoupling allows the editor library to be used without any
- * preview modules, and allows the preview modules to evolve independently.
+ * <p>Ce découplage permet d'utiliser la bibliothèque d'éditeur sans aucun
+ * module d'aperçu, et laisse les modules d'aperçu évoluer indépendamment.
  *
- * <h3>Typical usage</h3>
+ * <h3>Usage typique</h3>
  * <pre>{@code
  * EditorView editor = findViewById(R.id.editor);
  * editor.setPreviewHost(new MyPreviewHost(this));
- * editor.setFileName("layout.xml");  // triggers canPreview() check
+ * editor.setFileName("layout.xml");  // déclenche le contrôle canPreview()
  * editor.setPreviewMode(EditorView.PreviewMode.SPLIT);
  * }</pre>
  *
- * <p>The host is responsible for:
+ * <p>L'hôte est responsable de :
  * <ul>
- *   <li>Detecting whether a file is previewable (XML layout, Markdown, HTML)</li>
- *   <li>Rendering the preview when the editor enters SPLIT/FULL mode</li>
- *   <li>Drawing the preview onto the Canvas (called from EditorRenderer)</li>
- *   <li>Updating the preview when the editor text changes (debounced)</li>
- *   <li>Hit-testing taps in the preview pane</li>
+ *   <li>Détecter si un fichier est prévisualisable (layout XML, Markdown, HTML)</li>
+ *   <li>Rendre l'aperçu quand l'éditeur entre en mode SPLIT/FULL</li>
+ *   <li>Dessiner l'aperçu sur le Canvas (appelé par EditorRenderer)</li>
+ *   <li>Mettre à jour l'aperçu quand le texte de l'éditeur change (débounce)</li>
+ *   <li>Tester les touches dans le panneau d'aperçu</li>
  * </ul>
- *
- * @since v3.31.0
  */
 public interface EditorPreviewHost {
 
     /**
-     * Returns true if the given file name can be previewed by this host.
+     * Renvoie vrai si le nom de fichier donné peut être prévisualisé par cet hôte.
      *
-     * <p>Called by {@link EditorView#setFileName(String)} to determine
-     * whether to draw the preview icons in the top-right corner.
+     * <p>Appelée par {@link EditorView#setFileName(String)} pour déterminer
+     * s'il faut dessiner les icônes d'aperçu dans le coin supérieur droit.
      *
-     * @param fileName the current file name (may be null)
-     * @return true if the file is previewable (.xml, .md, .html, etc.)
+     * @param fileName le nom de fichier courant (peut être null)
+     * @return vrai si le fichier est prévisualisable (.xml, .md, .html, etc.)
      */
     boolean canPreview(String fileName);
 
     /**
-     * Called when the editor enters or leaves preview mode.
+     * Appelée quand l'éditeur entre ou sort du mode aperçu.
      *
-     * <p>The host should show/hide its preview surface and start/stop
-     * rendering. For XML layouts, the host typically inflates the XML
-     * and draws the resulting View tree. For Markdown/HTML, the host
-     * typically shows a WebView overlay.
+     * <p>L'hôte doit afficher/masquer sa surface d'aperçu et démarrer/arrêter
+     * le rendu. Pour les layouts XML, l'hôte inflate généralement le XML
+     * et dessine l'arbre de Views résultant. Pour Markdown/HTML, l'hôte
+     * affiche généralement un overlay WebView.
      *
-     * @param mode      the new preview mode (NONE, SPLIT, or FULL)
-     * @param previewLeft the X coordinate where the preview pane starts
-     * @param previewWidth the width of the preview pane in pixels
+     * @param mode      le nouveau mode d'aperçu (NONE, SPLIT ou FULL)
+     * @param previewLeft la coordonnée X où commence le panneau d'aperçu
+     * @param previewWidth la largeur du panneau d'aperçu en pixels
      */
     void onPreviewModeChanged(EditorView.PreviewMode mode, int previewLeft, int previewWidth);
 
     /**
-     * Called when the editor text has changed (debounced ~200ms).
+     * Appelée quand le texte de l'éditeur a changé (débounce ~200 ms).
      *
-     * <p>The host should re-render its preview to reflect the new text.
-     * For XML layouts, this means re-inflating the XML.
+     * <p>L'hôte doit re-rendre son aperçu pour refléter le nouveau texte.
+     * Pour les layouts XML, cela signifie ré-inflater le XML.
      *
-     * @param text the current editor text
+     * @param text le texte courant de l'éditeur
      */
     void onPreviewContentChanged(CharSequence text);
 
     /**
-     * Draws the preview onto the given Canvas.
+     * Dessine l'aperçu sur le Canvas donné.
      *
-     * <p>Called every frame by {@link jo.codeeditor.view.EditorRenderer}
-     * when preview mode is active. The host should draw its preview
-     * content at the given offset.
+     * <p>Appelée à chaque frame par {@link jo.codeeditor.view.EditorRenderer}
+     * quand le mode aperçu est actif. L'hôte doit dessiner son contenu
+     * d'aperçu à l'offset donné.
      *
-     * <p>For XML layouts, this typically calls
+     * <p>Pour les layouts XML, cela appelle généralement
      * {@code NativeXmlPreviewRenderer.draw(canvas, offsetX, offsetY)}.
-     * For Markdown/HTML, this is usually a no-op (the WebView handles
-     * its own drawing).
+     * Pour Markdown/HTML, c'est généralement un no-op (la WebView gère
+     * son propre dessin).
      *
-     * @param canvas   the Canvas to draw on
-     * @param offsetX  horizontal offset (preview pane left edge)
-     * @param offsetY  vertical offset (usually 0)
+     * @param canvas   le Canvas sur lequel dessiner
+     * @param offsetX  offset horizontal (bord gauche du panneau d'aperçu)
+     * @param offsetY  offset vertical (généralement 0)
      */
     void drawPreview(Canvas canvas, float offsetX, float offsetY);
 
     /**
-     * Returns true if the preview has content ready to draw.
+     * Renvoie vrai si l'aperçu a un contenu prêt à être dessiné.
      *
-     * <p>Used by {@link EditorView#isXmlPreviewActive()} to determine
-     * whether to call {@link #drawPreview(Canvas, float, float)}.
+     * <p>Utilisé par {@link EditorView#isXmlPreviewActive()} pour déterminer
+     * s'il faut appeler {@link #drawPreview(Canvas, float, float)}.
      */
     boolean hasPreviewContent();
 
     /**
-     * Hit-tests a point in the preview pane.
+     * Teste si un point du panneau d'aperçu touche un élément.
      *
-     * <p>Called when the user taps inside the preview area. The host
-     * should select the corresponding view (for XML layouts) or
-     * ignore the tap (for WebView-based previews).
+     * <p>Appelée quand l'utilisateur tape dans la zone d'aperçu. L'hôte
+     * doit sélectionner la vue correspondante (pour les layouts XML) ou
+     * ignorer le tap (pour les aperçus basés WebView).
      *
-     * @param x the X coordinate relative to the preview pane
-     * @param y the Y coordinate relative to the preview pane
-     * @return true if a view was hit and selected
+     * @param x la coordonnée X relative au panneau d'aperçu
+     * @param y la coordonnée Y relative au panneau d'aperçu
+     * @return vrai si une vue a été touchée et sélectionnée
      */
     boolean hitTestPreview(float x, float y);
 
     /**
-     * v2.39: Optional hook for view-based preview (WebView for Markdown/HTML).
+     * Hook optionnel pour un aperçu basé View (WebView pour Markdown/HTML).
      *
-     * <p>When the user taps the split/fullscreen preview badge for a
-     * {@code .md}/{@code .html} file, the editor opens a popup sheet
-     * (see {@link EditorView#openPreview(boolean)}) and asks the host
-     * to provide an Android {@link View} that renders the preview
-     * content. The host typically returns a {@code WebView} configured
-     * for Markdown rendering, or a custom canvas View.
+     * <p>Quand l'utilisateur tape le badge d'aperçu scindé/plein écran pour
+     * un fichier {@code .md}/{@code .html}, l'éditeur ouvre une feuille
+     * popup (voir {@link EditorView#openPreview(boolean)}) et demande à
+     * l'hôte de fournir une {@link View} Android qui rend le contenu
+     * d'aperçu. L'hôte renvoie typiquement une {@code WebView} configurée
+     * pour le rendu Markdown, ou une View canvas personnalisée.
      *
-     * <p>The sheet itself (chrome, header, close button, drag-to-dismiss)
-     * is owned by the editor library — the host only owns the body View.
-     * The editor calls {@link #onPreviewContentChanged(CharSequence)}
-     * (debounced ~200 ms) so the host can re-render its body.
+     * <p>La feuille elle-même (chrome, en-tête, bouton fermer, glisser-pour-fermer)
+     * appartient à la bibliothèque d'éditeur — l'hôte ne possède que la View
+     * de corps. L'éditeur appelle {@link #onPreviewContentChanged(CharSequence)}
+     * (débounce ~200 ms) pour que l'hôte re-rende son corps.
      *
-     * <p>Returning {@code null} (the default) tells the editor to fall
-     * back to {@link #drawPreview(Canvas, float, float)} for canvas-only
-     * hosts (e.g. native XML layout preview). The sheet body then hosts
-     * a {@code View} whose {@code onDraw} delegates to {@code drawPreview}.
+     * <p>Renvoyer {@code null} (par défaut) indique à l'éditeur de retomber
+     * sur {@link #drawPreview(Canvas, float, float)} pour les hôtes canvas
+     * uniquement (ex. aperçu natif de layout XML). Le corps de la feuille
+     * héberge alors une {@code View} dont le {@code onDraw} délègue à
+     * {@code drawPreview}.
      *
-     * <p>Hosts that override this method should ensure the returned View
-     * is reusable across {@code onPreviewContentChanged} calls — i.e.
-     * update its content in-place rather than re-inflating.
+     * <p>Les hôtes qui surchargent cette méthode doivent garantir que la View
+     * renvoyée est réutilisable entre appels {@code onPreviewContentChanged} —
+     * c.-à-d. mettre à jour son contenu en place plutôt que ré-inflater.
      *
-     * @param ctx    the application context for inflating new views
-     * @param editor the editor view the sheet is anchored to
-     * @param mode   the requested preview mode (one of
-     *               {@link EditorView.PreviewMode#SHEET_SPLIT} or
+     * @param ctx    le contexte d'application pour inflater de nouvelles vues
+     * @param editor la vue éditeur à laquelle la feuille est ancrée
+     * @param mode   le mode d'aperçu demandé (un parmi
+     *               {@link EditorView.PreviewMode#SHEET_SPLIT} ou
      *               {@link EditorView.PreviewMode#SHEET_FULL})
-     * @return a fully-initialized preview View, or {@code null} to
-     *         fall back to canvas drawing via {@link #drawPreview}
-     * @since v2.39
+     * @return une View d'aperçu entièrement initialisée, ou {@code null}
+     *         pour retomber sur le dessin canvas via {@link #drawPreview}
      */
     default View onCreatePreviewView(Context ctx, EditorView editor,
                                      EditorView.PreviewMode mode) {

@@ -18,22 +18,24 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 /**
- * v3.35.0 (roadmap item 4 / hotspot P4) — tests of the memoized maxH():
- * the longest-line scan now runs once per (session, document revision,
- * inlay revision) instead of on EVERY call (maxH is called several times
- * per frame by scroll clamping / fling / caret-into-view).
+ * Tests du maxH() mémoïsé : le scan de la ligne la plus longue ne tourne
+ * qu'une fois par (session, révision de document, révision d'inlay) au
+ * lieu de CHAQUE appel (maxH est appelé plusieurs fois par frame par le
+ * clamp de scroll / le fling / le caret-into-view).
  *
- * <p>Pins:</p>
+ * <p>Verrouille :</p>
  * <ul>
- *   <li>same VALUES as the pre-v3.35.0 scan (longest line, inlay visual
- *       overflow, chip extent — the EditorWrapChipsTest suite already
- *       covers inlay/chip growth, these focus on the memo lifecycle);</li>
- *   <li>the memo rebuilds on edits (doc replaced), on setInlayHints
- *       (inlay rev bumped), and resets on session swap;</li>
- *   <li>font-scale changes do NOT need a rebuild (cached value is in
- *       columns — the pixel conversion stays out of the memo), but the
- *       returned maxH still scales with charWidth;</li>
- *   <li>repeated calls in the same state are cheap and stable.</li>
+ *   <li>les MÊMES VALEURS que le scan par appel (ligne la plus longue,
+ *       débordement visuel des inlays, étendue de chip — la suite
+ *       EditorWrapChipsTest couvre déjà la croissance inlay/chip, ces
+ *       tests ciblent le cycle de vie du memo) ;</li>
+ *   <li>le memo se reconstruit sur édition (doc remplacé), sur
+ *       setInlayHints (révision inlay incrémentée), et se réinitialise
+ *       sur swap de session ;</li>
+ *   <li>les changements de font-scale ne nécessitent PAS de reconstruction
+ *       (la valeur cachée est en colonnes — la conversion pixel reste hors
+ *       du memo), mais le maxH renvoyé suit toujours charWidth ;</li>
+ *   <li>les appels répétés dans le même état sont bon marché et stables.</li>
  * </ul>
  */
 @RunWith(RobolectricTestRunner.class)
@@ -44,7 +46,7 @@ public class MaxHIncrementalTest {
             + "this line is clearly the longest one in the doc\n"
             + "tiny\n";
 
-    /** Longest line of DOC — "this line is clearly the longest one in the doc" (47 chars). */
+    /** Ligne la plus longue de DOC — « this line is clearly the longest one in the doc » (47 chars). */
     private static final int LONGEST = 47;
 
     private EditorView newView(String doc) {
@@ -78,7 +80,7 @@ public class MaxHIncrementalTest {
         f.setFloat(target, value);
     }
 
-    /** Valeur attendue par l'ANCIENNE formule (scan par appel). */
+    /** Valeur attendue par la formule de référence (scan par appel). */
     private static float expectedMaxH(EditorView view, int maxCols) {
         float contentW = view.metrics.getPadLeft()
                 + (maxCols + 1) * view.metrics.getCharWidth();
@@ -88,7 +90,7 @@ public class MaxHIncrementalTest {
         return Math.max(0, contentW - textAreaW);
     }
 
-    // ── Values match the legacy scan ────────────────────────────────
+    // ── Valeurs conformes au scan de référence ────────────────────
 
     @Test
     public void maxH_matchesLegacyFormula() {
@@ -118,7 +120,7 @@ public class MaxHIncrementalTest {
         }
     }
 
-    // ── Memo invalidation ───────────────────────────────────────────
+    // ── Invalidation du memo ───────────────────────────────────────
 
     @Test
     public void editRebuildsMemo() {
@@ -190,7 +192,7 @@ public class MaxHIncrementalTest {
         assertEquals(expectedMaxH(view, 2), after, 0.001f);
     }
 
-    // ── Font scale interplay ────────────────────────────────────────
+    // ── Interaction avec le font scale ─────────────────────────────
 
     @Test
     public void fontScaleChangeScalesMaxHWithoutRebuildingColumns() {
@@ -207,7 +209,7 @@ public class MaxHIncrementalTest {
         assertTrue(at20px > at10px);
     }
 
-    // ── Word wrap guard ─────────────────────────────────────────────
+    // ── Garde-fou word wrap ────────────────────────────────────────
 
     @Test
     public void wordWrapReturnsZero() {

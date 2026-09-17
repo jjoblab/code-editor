@@ -7,11 +7,11 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Pure-JVM tests for {@link QuickDoc}'s static parsers.
+ * Tests JVM pur pour les parseurs statiques de {@link QuickDoc}.
  *
- * <p>v1.0.7 — Gap 4 (Quick doc hover popup). The popup itself is a View-layer
- * artifact (Canvas-drawn), but the underlying KDoc/Javadoc parsing is pure
- * Java and fully testable here.
+ * <p>Le popup lui-même est un artefact de la couche View (dessiné sur
+ * Canvas), mais l'analyse KDoc/Javadoc sous-jacente est du Java pur et
+ * pleinement testable ici.
  */
 class QuickDocTest {
 
@@ -124,7 +124,7 @@ class QuickDocTest {
         assertFalse(new QuickDoc.QuickDocContent("hello").isEmpty());
     }
 
-    // ── ★ v2.38 — fences de code markdown → en-tête signature ───────
+    // ── ★ Fences de code markdown → en-tête signature ───────
 
     @Test
     void parseQuickDoc_fenceExtractedToSignature_descriptionStripped() {

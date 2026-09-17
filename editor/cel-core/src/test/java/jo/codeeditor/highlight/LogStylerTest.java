@@ -9,7 +9,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * ★ v0.1.0.77-v2.61 — Tests du styleur « log » (console Gradle/JVM de
+ * ★ Tests du styleur « log » (console Gradle/JVM de
  * CodeIDE — {@code ConsoleLogView}).
  *
  * <p>Vérifie le mapping ligne → {@link TokenType} pour les lignes RÉELLEMENT
@@ -20,11 +20,10 @@ import org.junit.jupiter.api.Test;
  *
  * <p>Toutes les couleurs sont natives : le token produit est consommé par
  * {@code EditorTheme.colorForToken(TokenType)} — le styleur n'introduit
- * AUCUNE couleur custom (exigence utilisateur v2.61 : la console doit
- * utiliser les couleurs natives de l'EditorView).</p>
+ * AUCUNE couleur custom (la console doit utiliser les couleurs natives de
+ * l'EditorView).</p>
  *
  * @author jo@Dev
- * @since v0.1.0.77-v2.61
  */
 class LogStylerTest {
 
@@ -192,7 +191,7 @@ class LogStylerTest {
     void syncLineEndingWithPret_isSuccess() {
         // Règle d'évaluation documentée : SUCCESS est testé AVANT INFO pour
         // que les états « … prêt / … avec succès » des lignes bracketées
-        // soient verts (comportement historique v2.20, préservé).
+        // soient verts (comportement historique préservé).
         assertEquals(TokenType.SUCCESS, typeOf("[Sync] Modèle de projet prêt"));
     }
 

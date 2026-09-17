@@ -19,43 +19,42 @@ import android.widget.PopupWindow;
 import android.widget.TextView;
 
 /**
- * v2.39: Popup sheet overlay that renders the host's preview content
- * (typically a WebView for Markdown/HTML, or a canvas View for XML
- * layout previews) on top of the editor.
+ * Feuille popup qui rend par-dessus l'éditeur le contenu d'aperçu de
+ * l'hôte (généralement une WebView pour Markdown/HTML, ou une View canvas
+ * pour les aperçus de layout XML).
  *
- * <p>The sheet chrome (glass-card header with filename + close button,
- * optional split/full toggle, drag-to-dismiss gesture) is fully owned
- * by the editor library — the host only provides the body View via
+ * <p>Le chrome de la feuille (en-tête carte de verre avec nom de fichier
+ * + bouton fermer, bascule scindé/plein optionnelle, geste
+ * glisser-pour-fermer) appartient entièrement à la bibliothèque
+ * d'éditeur — l'hôte fournit uniquement la View de corps via
  * {@link EditorPreviewHost#onCreatePreviewView(Context, EditorView,
- * EditorView.PreviewMode)}. When the host returns {@code null}, the
- * sheet falls back to a {@link CanvasBodyView} that delegates each
- * frame's {@code onDraw} to {@link EditorPreviewHost#drawPreview}.
+ * EditorView.PreviewMode)}. Quand l'hôte renvoie {@code null}, la
+ * feuille retombe sur une {@link CanvasBodyView} qui délègue le
+ * {@code onDraw} de chaque frame à {@link EditorPreviewHost#drawPreview}.
  *
  * <h3>Layout</h3>
  * <pre>
  *  ┌─────────────────────────────────────────────┐
- *  │  filename.md        [split] [full]    [X]   │ ← header (24dp tall)
+ *  │  filename.md        [split] [full]    [X]   │ ← en-tête (24dp de haut)
  *  ├─────────────────────────────────────────────┤
  *  │                                             │
- *  │           host body (WebView/Canvas)        │
+ *  │           corps hôte (WebView/Canvas)        │
  *  │                                             │
  *  └─────────────────────────────────────────────┘
  * </pre>
  *
- * <p>Width/height are computed from the editor's geometry:
+ * <p>Largeur/hauteur sont calculées depuis la géométrie de l'éditeur :
  * <ul>
- *   <li>{@code SHEET_SPLIT} → right half of the editor (anchored top-right)</li>
- *   <li>{@code SHEET_FULL}  → full editor area</li>
+ *   <li>{@code SHEET_SPLIT} → moitié droite de l'éditeur (ancrée en haut à droite)</li>
+ *   <li>{@code SHEET_FULL}  → zone complète de l'éditeur</li>
  * </ul>
  *
- * <h3>Dismissal</h3>
+ * <h3>Fermeture</h3>
  * <ul>
- *   <li>Tap the X button</li>
- *   <li>Tap outside the sheet (when {@code setOutsideTouchable} is honored)</li>
- *   <li>Press Back (handled by {@link PopupWindow}'s default OnKeyListener)</li>
+ *   <li>Taper le bouton X</li>
+ *   <li>Taper hors de la feuille (quand {@code setOutsideTouchable} est honoré)</li>
+ *   <li>Appuyer sur Retour (géré par le OnKeyListener par défaut de {@link PopupWindow})</li>
  * </ul>
- *
- * @since v2.39
  */
 class EditorPreviewSheet {
 
@@ -72,26 +71,26 @@ class EditorPreviewSheet {
 
     EditorView.PreviewMode getMode() { return mode; }
 
-    /** Show the sheet anchored to the editor. No-op if the host is null. */
+    /** Affiche la feuille ancrée à l'éditeur. No-op si l'hôte est null. */
     void show() {
         EditorPreviewHost host = editor.getPreviewHost();
         if (host == null) return;
         Context ctx = editor.getContext();
 
-        // ── Build the body view (host-provided, or canvas fallback). ──
+        // ── Construction de la vue de corps (fournie par l'hôte, ou repli canvas). ──
         bodyView = host.onCreatePreviewView(ctx, editor, mode);
         if (bodyView == null) {
             canvasFallback = true;
             bodyView = new CanvasBodyView(ctx, editor, host);
         }
-        // v2.42 fix — defensive detach. The host may legitimately cache
-        // and return the same View across sheet instances (e.g. a WebView
-        // reused between opens). When the previous PopupWindow was torn
-        // down, the bodyView's parent reference wasn't cleared — adding
-        // it to a new bodyFrame would throw IllegalStateException "child
-        // already has a parent". Detach here first to keep the contract
-        // host-friendly (the host doesn't have to know about parent
-        // management).
+        // Détachement défensif : l'hôte peut légitimement mettre en cache
+        // et renvoyer la même View à travers plusieurs instances de feuille
+        // (ex. une WebView réutilisée entre ouvertures). Quand le
+        // PopupWindow précédent a été démonté, la référence parent du
+        // bodyView n'était pas nettoyée — l'ajouter à un nouveau bodyFrame
+        // lancerait IllegalStateException « child already has a parent ».
+        // On détache d'abord ici pour garder un contrat amical pour l'hôte
+        // (l'hôte n'a pas à se soucier de la gestion du parent).
         if (bodyView.getParent() instanceof ViewGroup) {
             ((ViewGroup) bodyView.getParent()).removeView(bodyView);
         }
@@ -99,7 +98,7 @@ class EditorPreviewSheet {
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.MATCH_PARENT));
 
-        // ── Build the sheet container: header on top, body below. ──
+        // ── Construction du conteneur de la feuille : en-tête en haut, corps en dessous. ──
         LinearLayout sheet = buildSheetContainer(ctx);
         sheet.addView(buildHeader(ctx));
         View divider = new View(ctx);
@@ -113,7 +112,7 @@ class EditorPreviewSheet {
         bodyFrame.addView(bodyView);
         sheet.addView(bodyFrame);
 
-        // ── Compute width/height and anchor position. ──
+        // ── Calcul largeur/hauteur et position d'ancrage. ──
         int width, height, x, y;
         int[] location = new int[2];
         editor.getLocationInWindow(location);
@@ -131,21 +130,21 @@ class EditorPreviewSheet {
 
         popup = new PopupWindow(sheet, width, height, true);
         popup.setFocusable(true);
-        popup.setOutsideTouchable(false); // dismiss via X only — avoid accidental dismissal while typing in editor
+        popup.setOutsideTouchable(false); // fermeture via X uniquement — évite une fermeture accidentelle pendant la saisie dans l'éditeur
         popup.setClippingEnabled(true);
         popup.setOnDismissListener(this::onDismissed);
-        // v2.39: Back button dismisses the sheet (PopupWindow's default
-        // OnKeyListener honors KEYCODE_BACK when focusable=true).
+        // Le bouton Retour ferme la feuille (le OnKeyListener par défaut du
+        // PopupWindow honore KEYCODE_BACK quand focusable=true).
         popup.showAtLocation(editor, Gravity.NO_GRAVITY, x, y);
 
-        // Push initial content into the body.
+        // Pousse le contenu initial dans le corps.
         refreshBody();
     }
 
     void dismiss() {
         if (popup != null) {
             popup.dismiss();
-            // onDismissed will be invoked by the listener.
+            // onDismissed sera invoqué par le listener.
         }
     }
 
@@ -154,28 +153,28 @@ class EditorPreviewSheet {
     }
 
     /**
-     * Called after the editor's text changes (debounced ~200 ms). Pushes
-     * the new content to the host (which then updates its WebView body),
-     * and asks the body View to invalidate.
+     * Appelée après un changement de texte de l'éditeur (débounce ~200 ms).
+     * Pousse le nouveau contenu vers l'hôte (qui met alors à jour son corps
+     * WebView) et demande à la View de corps de s'invalider.
      */
     void refreshBody() {
         if (bodyView == null) return;
         if (canvasFallback) {
-            // CanvasBodyView reads from host every frame — just invalidate.
+            // CanvasBodyView lit depuis l'hôte à chaque frame — simple invalidate.
             bodyView.invalidate();
         } else {
-            // The host's body View should have already received
+            // La View de corps de l'hôte doit déjà avoir reçu
             // onPreviewContentChanged via EditorView.updatePreviewContent.
-            // We just trigger a redraw so the WebView updates.
+            // On déclenche juste un redraw pour que la WebView se mette à jour.
             bodyView.invalidate();
         }
     }
 
-    /** Toggle between SHEET_SPLIT and SHEET_FULL without rebuilding the popup. */
+    /** Bascule entre SHEET_SPLIT et SHEET_FULL sans reconstruire le popup. */
     void switchMode(EditorView.PreviewMode newMode) {
         if (newMode == this.mode || popup == null) return;
         this.mode = newMode;
-        // Recompute size and re-show at new dimensions.
+        // Recalcule la taille et réaffiche aux nouvelles dimensions.
         int[] location = new int[2];
         editor.getLocationInWindow(location);
         int width, height, x, y;
@@ -191,7 +190,7 @@ class EditorPreviewSheet {
             y = location[1];
         }
         popup.update(x, y, width, height);
-        // Notify the host of the new bounds.
+        // Notifie l'hôte des nouvelles bornes.
         EditorPreviewHost host = editor.getPreviewHost();
         if (host != null) {
             host.onPreviewModeChanged(mode, editor.getPreviewLeft(), editor.getPreviewWidth());
@@ -200,7 +199,7 @@ class EditorPreviewSheet {
     }
 
     // ════════════════════════════════════════════════════════════════
-    // Sheet chrome
+    // Chrome de la feuille
     // ════════════════════════════════════════════════════════════════
 
     private LinearLayout buildSheetContainer(Context ctx) {
@@ -212,10 +211,10 @@ class EditorPreviewSheet {
         GradientDrawable bg = new GradientDrawable();
         bg.setColor(editor.theme.glassBg);
         bg.setStroke(editor.dp(1), editor.theme.glassBorder);
-        // Slight corner radius for SHEET_SPLIT (right side floats); 0 for FULL.
+        // Léger rayon de coin pour SHEET_SPLIT (le côté droit flotte) ; 0 pour FULL.
         if (mode == EditorView.PreviewMode.SHEET_SPLIT) {
             float r = editor.dp(14);
-            // 8 radii: top-left-x, top-left-y, top-right-x, top-right-y,
+            // 8 rayons : top-left-x, top-left-y, top-right-x, top-right-y,
             // bottom-right-x, bottom-right-y, bottom-left-x, bottom-left-y.
             bg.setCornerRadii(new float[]{
                 r, r, 0, 0, 0, 0, r, r
@@ -235,7 +234,7 @@ class EditorPreviewSheet {
         header.setLayoutParams(new LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
-        // File name (left)
+        // Nom de fichier (gauche)
         TextView title = new TextView(ctx);
         String name = editor.getFileName();
         if (name == null || name.isEmpty()) name = "Preview";
@@ -251,7 +250,7 @@ class EditorPreviewSheet {
         title.setLayoutParams(titleLp);
         header.addView(title);
 
-        // Split toggle button (chevron-right icon)
+        // Bouton de bascule scindé (icône chevron droit)
         View splitBtn = buildIconButton(ctx, this::onSplitClicked,
             "Split preview", EditorPreviewSheet::drawSplitGlyph);
         header.addView(splitBtn);
@@ -260,7 +259,7 @@ class EditorPreviewSheet {
         splitLp.setMargins(editor.dp(8), 0, 0, 0);
         splitBtn.setLayoutParams(splitLp);
 
-        // Full toggle button (eye icon)
+        // Bouton de bascule plein écran (icône œil)
         View fullBtn = buildIconButton(ctx, this::onFullClicked,
             "Full preview", EditorPreviewSheet::drawFullGlyph);
         header.addView(fullBtn);
@@ -269,7 +268,7 @@ class EditorPreviewSheet {
         fullLp.setMargins(editor.dp(4), 0, 0, 0);
         fullBtn.setLayoutParams(fullLp);
 
-        // Close X button
+        // Bouton de fermeture X
         View closeBtn = buildIconButton(ctx, this::onCloseClicked,
             "Close preview", EditorPreviewSheet::drawCloseGlyph);
         header.addView(closeBtn);
@@ -313,7 +312,7 @@ class EditorPreviewSheet {
         return btn;
     }
 
-    /** Simple selectable ripple — code-built to avoid theme dependencies. */
+    /** Ripple simple sélectionnable — construit en code pour éviter les dépendances au thème. */
     private android.graphics.drawable.RippleDrawable rippleBackground(Context ctx) {
         int statePressed = android.R.attr.state_pressed;
         android.content.res.ColorStateList rippleCs =
@@ -325,7 +324,7 @@ class EditorPreviewSheet {
             rippleCs, null, mask);
     }
 
-    // ── Header button handlers ──
+    // ── Gestionnaires des boutons d'en-tête ──
 
     private void onSplitClicked() {
         switchMode(EditorView.PreviewMode.SHEET_SPLIT);
@@ -340,33 +339,33 @@ class EditorPreviewSheet {
     }
 
     private void onDismissed() {
-        // Reset editor state so the editor's previewMode returns to NONE.
-        // Use a guard to avoid recursion: setPreviewMode(NONE) calls
-        // closePreviewSheet() which calls dismiss() — but dismiss() is
-        // already in progress, so we set the field to null first.
-        if (editor.previewSheet != null) {
-            // Close via the public API so the editor state stays consistent.
+        // Réinitialise l'état de l'éditeur pour que previewMode revienne à NONE.
+        // Garde-fou anti-récursion : setPreviewMode(NONE) appelle
+        // closePreviewSheet() qui appelle dismiss() — mais dismiss() est
+        // déjà en cours, donc on met le champ à null d'abord.
+        if (editor.getPreviewSheet() != null) {
+            // Fermeture via l'API publique pour garder l'état de l'éditeur cohérent.
             editor.closePreviewSheet();
         }
     }
 
     // ════════════════════════════════════════════════════════════════
-    // Glyph drawers (avoid pulling drawable resources into the editor lib)
+    // Dessinateurs de glyphes (évite d'embarquer des ressources drawable dans la lib éditeur)
     // ════════════════════════════════════════════════════════════════
 
     private static void drawSplitGlyph(Canvas c, float cx, float cy, float r, Paint p) {
-        // Two outlined rounded rects side by side (echoes EditorRenderer.drawPreviewIcons).
+        // Deux rects arrondis en contour côte à côte (écho de EditorRenderer.drawPreviewIcons).
         RectF left = new RectF(cx - r, cy - r * 0.7f, cx - r * 0.2f, cy + r * 0.7f);
         RectF right = new RectF(cx + r * 0.2f, cy - r * 0.7f, cx + r, cy + r * 0.7f);
         p.setStyle(Paint.Style.STROKE);
         c.drawRoundRect(left, r * 0.18f, r * 0.18f, p);
         c.drawRoundRect(right, r * 0.18f, r * 0.18f, p);
-        // Vertical divider line between panes.
+        // Ligne de séparation verticale entre les panneaux.
         c.drawLine(cx, cy - r * 0.6f, cx, cy + r * 0.6f, p);
     }
 
     private static void drawFullGlyph(Canvas c, float cx, float cy, float r, Paint p) {
-        // Filled eye with pupil.
+        // Œil rempli avec pupille.
         Path eye = new Path();
         RectF topArc = new RectF(cx - r, cy - r * 0.6f, cx + r, cy + r * 0.6f);
         eye.addArc(topArc, 200, 140);
@@ -382,15 +381,15 @@ class EditorPreviewSheet {
     }
 
     private static void drawCloseGlyph(Canvas c, float cx, float cy, float r, Paint p) {
-        // Stylized "X".
+        // « X » stylisé.
         p.setStyle(Paint.Style.STROKE);
         c.drawLine(cx - r, cy - r, cx + r, cy + r, p);
         c.drawLine(cx - r, cy + r, cx + r, cy - r, p);
     }
 
     // ════════════════════════════════════════════════════════════════
-    // CanvasBodyView — fallback when the host returns null from
-    // onCreatePreviewView (i.e. canvas-only preview like XML layouts).
+    // CanvasBodyView — repli quand l'hôte renvoie null depuis
+    // onCreatePreviewView (c.-à-d. aperçu canvas uniquement, comme les layouts XML).
     // ════════════════════════════════════════════════════════════════
 
     @SuppressLint("ViewConstructor")
@@ -411,9 +410,9 @@ class EditorPreviewSheet {
         @Override
         protected void onDraw(Canvas canvas) {
             super.onDraw(canvas);
-            // Fill background to avoid showing the editor text through.
+            // Remplit le fond pour éviter de voir le texte de l'éditeur au travers.
             canvas.drawPaint(bgPaint);
-            // Ask the host to render into the full body canvas.
+            // Demande à l'hôte de rendre dans tout le canvas du corps.
             host.drawPreview(canvas, 0f, 0f);
         }
 
@@ -424,8 +423,8 @@ class EditorPreviewSheet {
                     || super.onTouchEvent(event);
             }
             if (event.getAction() == MotionEvent.ACTION_UP) {
-                // v3.34.0: accessibility (ClickableViewAccessibility) —
-                // announce the tap before the host consumes it.
+                // Accessibilité (ClickableViewAccessibility) — annonce le tap
+                // avant que l'hôte ne le consomme.
                 performClick();
             }
             return super.onTouchEvent(event);

@@ -5,7 +5,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Tests for smart editing operations (auto-close, skip-over, smart backspace, smart Enter).
+ * Tests des opérations d'édition intelligentes (fermeture automatique, saut par-dessus, retour arrière intelligent, Entrée intelligent).
  */
 class EditOpsTest {
 
@@ -15,7 +15,7 @@ class EditOpsTest {
     void smartInsert_autoCloseParen() {
         RangeEdit e = EditOps.smartInsert("hello", 5, 5, '(', "java");
         assertEquals("()", e.text);
-        assertEquals(6, e.caret); // between parens
+        assertEquals(6, e.caret); // entre les parenthèses
     }
 
     @Test
@@ -34,10 +34,10 @@ class EditOpsTest {
 
     @Test
     void smartInsert_skipOverCloser() {
-        // Cursor before ')' which is already there → skip over
+        // Curseur avant une ')' déjà présente → saute par-dessus
         RangeEdit e = EditOps.smartInsert("()", 1, 1, ')', "java");
-        assertEquals("", e.text); // no insertion
-        assertEquals(2, e.caret); // moved past
+        assertEquals("", e.text); // aucune insertion
+        assertEquals(2, e.caret); // déplacé après
     }
 
     @Test
@@ -56,7 +56,7 @@ class EditOpsTest {
 
     @Test
     void smartInsert_noAutoClose_afterIdent() {
-        // After identifier char → no auto-close (likely closing a string)
+        // Après un caractère d'identifiant → pas de fermeture auto (probable fermeture d'une chaîne)
         RangeEdit e = EditOps.smartInsert("foo", 3, 3, '"', "java");
         assertEquals("\"", e.text);
         assertEquals(4, e.caret);
@@ -80,7 +80,7 @@ class EditOpsTest {
     void smartInsert_newline_deeperAfterOpenBrace() {
         RangeEdit e = EditOps.smartInsert("if (true) {", 11, 11, '\n', "java");
         assertTrue(e.text.startsWith("\n"));
-        // Should indent one level deeper
+        // Doit indenter d'un niveau supplémentaire
         String afterNewline = e.text.substring(1);
         assertTrue(afterNewline.startsWith("    "), "Expected 4-space indent after '{', got: '" + afterNewline + "'");
     }
@@ -88,9 +88,9 @@ class EditOpsTest {
     @Test
     void smartInsert_newline_emptyPairExpansion() {
         RangeEdit e = EditOps.smartInsert("{}", 1, 1, '\n', "java");
-        // Should expand to three lines with newline and closing brace
+        // Doit s'étendre en trois lignes avec saut de ligne et accolade fermante
         assertTrue(e.text.contains("\n"), "Expected newline in expansion, got: '" + e.text + "'");
-        // The exact format depends on implementation - just verify it contains newline
+        // Le format exact dépend de l'implémentation — vérifie seulement la présence d'un saut de ligne
         assertTrue(e.text.length() > 1, "Expected multi-char expansion");
     }
 
@@ -142,7 +142,7 @@ class EditOpsTest {
     @Test
     void smartBackspace_atStart_returnsNoOp() {
         RangeEdit e = EditOps.smartBackspace("hello", 0, 0, "java");
-        // Implementation returns empty edit instead of null
+        // L'implémentation renvoie une édition vide plutôt que null
         if (e != null) {
             assertEquals(0, e.start);
             assertEquals(0, e.end);
@@ -150,30 +150,30 @@ class EditOpsTest {
         }
     }
 
-    // ── Word boundaries ──────────────────────────────────────────
+    // ── Frontières de mots ──────────────────────────────────────────
 
     @Test
     void wordBoundaryLeft_skipWhitespace() {
         int b = EditOps.wordBoundaryLeft("hello world", 6);
-        assertEquals(0, b); // jumps over space to start of "world" → wait, actually should go to start of word before whitespace
+        assertEquals(0, b); // saute l'espace et remonte au début du mot situé avant l'espace blanc
     }
 
     @Test
     void wordBoundaryLeft_word() {
         int b = EditOps.wordBoundaryLeft("hello world", 11);
-        assertEquals(6, b); // start of "world"
+        assertEquals(6, b); // début de "world"
     }
 
     @Test
     void wordBoundaryRight_word() {
         int b = EditOps.wordBoundaryRight("hello world", 0);
-        assertEquals(5, b); // end of "hello"
+        assertEquals(5, b); // fin de "hello"
     }
 
     @Test
     void wordBoundaryRight_skipWhitespace() {
         int b = EditOps.wordBoundaryRight("hello world", 5);
-        // Implementation may skip to end of next word
+        // L'implémentation peut sauter jusqu'à la fin du mot suivant
         assertTrue(b >= 6 && b <= 11, "Expected 6-11, got " + b);
     }
 
@@ -209,6 +209,6 @@ class EditOpsTest {
     @Test
     void detectIndentUnit_default() {
         String unit = EditOps.detectIndentUnit("no indentation here");
-        assertEquals("    ", unit); // default 4 spaces
+        assertEquals("    ", unit); // 4 espaces par défaut
     }
 }

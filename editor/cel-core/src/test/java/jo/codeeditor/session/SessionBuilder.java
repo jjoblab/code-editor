@@ -3,7 +3,7 @@ package jo.codeeditor.session;
 import jo.codeeditor.document.EditorDocument;
 
 /**
- * Test helper to create an EditorSession with initial text.
+ * Utilitaire de test pour créer un EditorSession avec un texte initial.
  */
 class SessionBuilder {
     private final String initialText;

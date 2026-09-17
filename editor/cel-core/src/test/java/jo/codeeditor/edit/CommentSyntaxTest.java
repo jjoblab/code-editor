@@ -9,22 +9,23 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * v3.35.0 (roadmap item 1 / bug B11) — tests of the language-driven comment
- * syntax resolution:
+ * Tests de la résolution de la syntaxe de commentaire pilotée par le
+ * langage :
  * <ul>
- *   <li>every language family resolves to the expected prefixes (C-family,
- *       hash languages, XML-family block-only, JSON none, Lua, SQL);</li>
- *   <li>aliases (py, js, ts, rs, rb, sh, kt…) resolve like their long
- *       forms;</li>
- *   <li>unknown/null/blank ids fall back to the C-family default (preserves
- *       the pre-v3.35.0 Java-first behavior);</li>
- *   <li>normalization is Locale.ROOT-safe (Turkish İ does not break the
- *       lowercase of "PYTHON").</li>
+ *   <li>chaque famille de langages résout vers les préfixes attendus
+ *       (famille C, langages à dièse, bloc seul pour la famille XML, aucun
+ *       pour JSON, Lua, SQL) ;</li>
+ *   <li>les alias (py, js, ts, rs, rb, sh, kt…) résolvent comme leurs formes
+ *       longues ;</li>
+ *   <li>les identifiants inconnus/nuls/vides retombent sur le défaut
+ *       famille C (conserve le comportement historique Java-first) ;</li>
+ *   <li>la normalisation est sûre au sens Locale.ROOT (le İ turc ne casse
+ *       pas la mise en minuscules de "PYTHON").</li>
  * </ul>
  */
 class CommentSyntaxTest {
 
-    // ── Family resolution ────────────────────────────────────────────
+    // ── Résolution par famille ────────────────────────────────────
 
     @Test
     void javaResolvesToCStyle() {
@@ -112,7 +113,7 @@ class CommentSyntaxTest {
         assertEquals("*/", cs.blockEnd);
     }
 
-    // ── Fallbacks & normalization ───────────────────────────────────
+    // ── Replis & normalisation ───────────────────────────────────
 
     @Test
     void nullAndUnknownLanguagesFallBackToCStyle() {
@@ -124,9 +125,9 @@ class CommentSyntaxTest {
 
     @Test
     void languageIdsAreTrimmedAndLowercasedWithRootLocale() {
-        // Turkish locale pitfall: "PYTHON".toLowerCase(new Locale("tr"))
-        // would produce "pythOn" (dotless i issues) and miss the table —
-        // Locale.ROOT keeps the resolution deterministic.
+        // Piège du locale turc : "PYTHON".toLowerCase(new Locale("tr"))
+        // produirait "pythOn" (problème de i sans point) et raterait la
+        // table — Locale.ROOT garde la résolution déterministe.
         assertEquals(CommentSyntax.forLanguage("python"),
                 CommentSyntax.forLanguage("  PYTHON "));
         assertEquals(CommentSyntax.forLanguage("xml"),

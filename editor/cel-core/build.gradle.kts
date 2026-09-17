@@ -1,6 +1,6 @@
 plugins {
     id("com.android.library")
-    // v3.34.0: publish the AAR for JitPack / Maven consumers.
+    // Publication de l'AAR pour les consommateurs JitPack / Maven.
     id("maven-publish")
 }
 
@@ -17,8 +17,8 @@ android {
         debug { isMinifyEnabled = false }
     }
 
-    // v3.34.0: publish the release variant (required for maven-publish's
-    // components["release"] to exist) with a sources jar for IDE navigation.
+    // Publie la variante release (requis pour que components["release"] de
+    // maven-publish existe) avec un jar de sources pour la navigation IDE.
     publishing {
         singleVariant("release") {
             withSourcesJar()
@@ -52,9 +52,9 @@ tasks.withType<Test>().configureEach {
     }
 }
 
-// ── v3.34.0 — Maven publication (JitPack / local `publishToMavenLocal`) ──
-// JitPack overrides groupId (com.github.<user>) and version (git tag) at
-// build time; these values are the standalone/local-publish defaults.
+// ── Publication Maven (JitPack / `publishToMavenLocal` local) ──
+// JitPack surcharge le groupId (com.github.<user>) et la version (tag git)
+// au build ; ces valeurs sont les défauts standalone/publication locale.
 afterEvaluate {
     publishing {
         publications {

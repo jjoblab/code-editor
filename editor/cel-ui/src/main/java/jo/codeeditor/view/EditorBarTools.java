@@ -7,21 +7,22 @@ import android.util.AttributeSet;
 import android.view.MotionEvent;
 import android.view.View;
 import android.widget.LinearLayout;
+import jo.codeeditor.view.chrome.SymbolBarView;
 
 /**
- * v3.20.0: Editor toolbar bar — sits directly above the EditorView, containing
- * editor control icons: Undo, Redo, A+, A−, ¶ (non-printable), == (ligatures).
+ * Barre d'outils de l'éditeur — placée directement au-dessus de l'EditorView,
+ * contenant les icônes de contrôle : Annuler, Rétablir, A+, A−, ¶
+ * (non-imprimables), == (ligatures).
  *
- * <p>Unlike the Canvas-drawn toolbar icons from v3.18.0, this is a real
- * Android {@link View} that lives in the layout (like {@link SymbolBarView}).
- * It connects directly to its {@link EditorView} — the host only needs to
- * place it in the layout and optionally toggle its visibility.
+ * <p>Contrairement aux icônes d'outils dessinées sur Canvas, c'est une vraie
+ * {@link View} Android qui vit dans le layout (comme {@link SymbolBarView}).
+ * Elle se connecte directement à son {@link EditorView} — l'hôte doit
+ * seulement la placer dans le layout et éventuellement basculer sa
+ * visibilité.
  *
- * <p>The bar reads the editor's theme for colors and calls the editor's
- * public API on tap. Toggle icons (¶, ==) sync their visual state from
- * the editor's fields.
- *
- * @since v3.20.0
+ * <p>La barre lit le thème de l'éditeur pour les couleurs et appelle l'API
+ * publique de l'éditeur au toucher. Les icônes à bascule (¶, ==)
+ * synchronisent leur état visuel depuis les champs de l'éditeur.
  */
 public class EditorBarTools extends LinearLayout {
 
@@ -48,30 +49,51 @@ public class EditorBarTools extends LinearLayout {
     }
 
     /**
-     * Connects this bar to its EditorView. Must be called before the bar
-     * is interacted with. The bar reads the editor's state for toggle
-     * icons and calls the editor's API on tap.
+     * Connecte cette barre à son EditorView. Doit être appelée avant toute
+     * interaction avec la barre. Celle-ci lit l'état de l'éditeur pour les
+     * icônes à bascule et appelle l'API de l'éditeur au toucher.
      */
     public void setEditorView(EditorView editorView) {
         this.editorView = editorView;
     }
 
+    /**
+     * Invalide les boutons de chaque {@link EditorBarTools} trouvé parmi
+     * les enfants du parent donné, pour rafraîchir leurs états
+     * activé/désactivé (undo/redo) et à bascule (¶, ==). Appelé par
+     * EditorView.notifyTextChanged après chaque édition — corps déplacé
+     * à l'identique (la barre sait rafraîchir ses propres boutons).
+     */
+    static void invalidateButtonsIn(android.view.ViewParent p) {
+        if (p instanceof android.view.ViewGroup) {
+            android.view.ViewGroup parent = (android.view.ViewGroup) p;
+            for (int i = 0; i < parent.getChildCount(); i++) {
+                if (parent.getChildAt(i) instanceof EditorBarTools) {
+                    EditorBarTools bar = (EditorBarTools) parent.getChildAt(i);
+                    for (int j = 0; j < bar.getChildCount(); j++) {
+                        bar.getChildAt(j).invalidate();
+                    }
+                }
+            }
+        }
+    }
+
     private void buildButtons() {
-        // Undo
+        // Annuler
         addBarButton("↶", "undo");
-        // Redo
+        // Rétablir
         addBarButton("↷", "redo");
-        // Divider
+        // Séparateur
         addDivider();
-        // A+ (increase font size)
+        // A+ (augmente la taille de police)
         addBarButton("A+", "font_plus");
-        // A- (decrease font size)
+        // A- (réduit la taille de police)
         addBarButton("A−", "font_minus");
-        // Divider
+        // Séparateur
         addDivider();
-        // ¶ (non-printable toggle)
+        // ¶ (bascule non-imprimables)
         addBarButton("¶", "nonprintable");
-        // == (ligatures toggle)
+        // == (bascule ligatures)
         addBarButton("==", "ligatures");
     }
 
@@ -98,16 +120,16 @@ public class EditorBarTools extends LinearLayout {
 
     @Override
     protected void dispatchDraw(Canvas canvas) {
-        // Draw background.
+        // Dessine l'arrière-plan.
         bgPaint.setColor(editorView != null ? editorView.getTheme().gutterBg : 0xFF1E1E1E);
         canvas.drawRect(0, 0, getWidth(), getHeight(), bgPaint);
-        // Bottom border.
+        // Bordure inférieure.
         bgPaint.setColor(editorView != null ? editorView.getTheme().gutterBorder : 0xFF333333);
         canvas.drawRect(0, getHeight() - 1, getWidth(), getHeight(), bgPaint);
         super.dispatchDraw(canvas);
     }
 
-    /** A single button in the toolbar. */
+    /** Un bouton de la barre d'outils. */
     private class BarButton extends View {
         private final String label;
         private final String action;
@@ -127,13 +149,13 @@ public class EditorBarTools extends LinearLayout {
             int w = getWidth();
             int h = getHeight();
 
-            // Background on press.
+            // Arrière-plan à l'appui.
             if (pressed) {
                 bgPaint.setColor(0x33FFFFFF);
                 canvas.drawRect(0, 0, w, h, bgPaint);
             }
 
-            // Determine button state.
+            // Détermine l'état du bouton.
             boolean active = false;
             boolean disabled = false;
             if (editorView != null) {
@@ -148,7 +170,7 @@ public class EditorBarTools extends LinearLayout {
                 }
             }
 
-            // Text color.
+            // Couleur du texte.
             int accentColor = editorView != null ? editorView.getTheme().keyword : 0xFF6750A4;
             int normalColor = editorView != null
                 ? EditorView.applyAlphaToColor(editorView.getTheme().gutterText, 0.8f)
@@ -182,7 +204,7 @@ public class EditorBarTools extends LinearLayout {
                 case MotionEvent.ACTION_UP:
                     pressed = false;
                     invalidate();
-                    // v3.34.0: performClick for accessibility (talkback) + lint.
+                    // performClick pour l'accessibilité (talkback) + lint.
                     performClick();
                     handleAction();
                     return true;
@@ -224,7 +246,7 @@ public class EditorBarTools extends LinearLayout {
                     invalidate();
                     break;
             }
-            // v3.20.1: Invalidate all buttons so undo/redo states update.
+            // Invalide tous les boutons pour rafraîchir les états annuler/rétablir.
             EditorBarTools parent = (EditorBarTools) getParent();
             if (parent != null) {
                 for (int i = 0; i < parent.getChildCount(); i++) {

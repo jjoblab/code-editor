@@ -6,7 +6,7 @@ import org.junit.jupiter.api.RepeatedTest;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Tests for the immutable balanced rope data structure.
+ * Tests de la structure de données rope équilibrée et immuable.
  */
 class RopeTest {
 
@@ -180,7 +180,7 @@ class RopeTest {
         assertInstanceOf(Rope.Leaf.class, c);
     }
 
-    // ── Balance ───────────────────────────────────────────────────
+    // ── Équilibrage ─────────────────────────────────────────────
 
     @Test
     void balance_maintainsInvariant() {
@@ -195,15 +195,15 @@ class RopeTest {
 
     @Test
     void balance_invariant_afterRebalance() {
-        // Build deeply unbalanced rope
+        // Construire une rope profondément déséquilibrée
         Rope r = Rope.fromString("x");
         for (int i = 0; i < 200; i++) {
             r = Rope.concat(r, Rope.fromString("y"));
         }
-        // Rebalance
+        // Rééquilibrer
         Rope balanced = r.rebalance();
         assertEquals(r.toString(), balanced.toString());
-        // Balanced tree should have reasonable depth
+        // L'arbre équilibré doit avoir une profondeur raisonnable
         assertTrue(balanced.depth <= 20, "Depth should be reasonable after rebalance, got " + balanced.depth);
     }
 
@@ -217,7 +217,7 @@ class RopeTest {
         assertEquals(105, r.length());
     }
 
-    // ── Large text ────────────────────────────────────────────────
+    // ── Texte volumineux ────────────────────────────────────────
 
     @Test
     void largeText_operations() {
@@ -238,7 +238,7 @@ class RopeTest {
         assertEquals('X', edited.charAt(mid));
     }
 
-    // ── CharSequence contract ─────────────────────────────────────
+    // ── Contrat CharSequence ───────────────────────────────────
 
     @Test
     void implementsCharSequence() {
@@ -249,7 +249,7 @@ class RopeTest {
         assertEquals("llo", cs.subSequence(2, 5).toString());
     }
 
-    // ── Immutability ──────────────────────────────────────────────
+    // ── Immutabilité ────────────────────────────────────────────
 
     @Test
     void replace_doesNotMutateOriginal() {

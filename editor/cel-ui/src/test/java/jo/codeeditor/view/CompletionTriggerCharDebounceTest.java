@@ -15,9 +15,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import jo.codeeditor.lang.Analyzer;
 import jo.codeeditor.lang.BracketMatch;
-import jo.codeeditor.lang.CodeBlock;
-import jo.codeeditor.lang.CompletionPublisher;
-import jo.codeeditor.lang.CompletionProvider;
+import jo.codeeditor.lang.model.CodeBlock;
+import jo.codeeditor.lang.provider.CompletionPublisher;
+import jo.codeeditor.lang.provider.CompletionProvider;
 import jo.codeeditor.lang.Language;
 import jo.codeeditor.highlight.StyledLine;
 import jo.codeeditor.document.EditorDocument;
@@ -26,15 +26,14 @@ import jo.codeeditor.session.EditorSession;
 import static org.junit.Assert.*;
 
 /**
- * ★ v2.58 — Vérifie que la saisie d'un CARACTÈRE DÉCLENCHEUR (ex : ".")
- * déclenche la requête moteur IMMÉDIATEMENT (immediate=true dans
+ * Vérifie que la saisie d'un CARACTÈRE DÉCLENCHEUR (ex : ".") déclenche
+ * la requête moteur IMMÉDIATEMENT (immediate=true dans
  * {@link EditorPopupManager#scheduleAsyncFetch}), SANS attendre le
  * debounce de 80 ms.
  *
- * <p>Avant v2.58, le chemin « préfixe vide + char déclencheur » tombait
- * sur {@code scheduleAsyncFetch(tokenStart, false)} → 120 ms de debounce
- * AVANT la requête serveur. Combiné au {@code flushPendingChange()} SYNCHRONE
- * du fix v2.57, le retard perçu après chaque "." était sensible.</p>
+ * <p>Le chemin « préfixe vide + char déclencheur » ne doit surtout pas
+ * passer par le debounce : combiné au {@code flushPendingChange()} SYNCHRONE,
+ * chaque "." subirait sinon un retard perceptible.</p>
  *
  * <p>Stratégie de test : un faux {@link CompletionProvider} compte ses
  * appels via un {@link CountDownLatch}. On déclenche
@@ -42,16 +41,14 @@ import static org.junit.Assert.*;
  * dont le caret suit un "." (préfixe vide + char déclencheur).</p>
  *
  * <ol>
- *   <li>Test 1 (trigger char) : le latch est compté dans les 2 s SANS
+ *   <li>Test 1 (trigger char) : le latch tombe en moins de 50 ms SANS
  *       avancer le main looper — preuve que {@code immediate=true} a été
  *       pris.</li>
- *   <li>Test 2 (non-trigger char, base cache vide) : le latch N'est PAS
- *       compté en 300 ms SANS avancer le main looper — preuve que le
- *       debounce a été pris. Puis on avance le looper → le latch tombe.</li>
+ *   <li>Test 2 (non-trigger char, base cache vide) : le latch finit par
+ *       tomber via le chemin debouncé dans un délai raisonnable.</li>
  * </ol>
  *
  * @author jo@Dev
- * @since v2.58
  */
 @RunWith(RobolectricTestRunner.class)
 public class CompletionTriggerCharDebounceTest {
@@ -69,11 +66,12 @@ public class CompletionTriggerCharDebounceTest {
         EditorSession session = new EditorSession(EditorDocument.of(doc));
         session.setSelection(caretOffset);
         view.setSession(session);
-        // Set up a real Language whose SPI CompletionProvider has "."
-        // as trigger char. The setLanguage() call auto-installs the
-        // v1.x view.completionProvider adapter that delegates to the SPI
-        // provider — the existing completion pipeline (EditorPopupManager)
-        // consumes view.completionProvider transparently.
+        // Installe un vrai Language dont le CompletionProvider SPI a "."
+        // comme char déclencheur. L'appel à setLanguage() installe
+        // automatiquement l'adaptateur view.completionProvider qui délègue
+        // au provider SPI — le pipeline de complétion existant
+        // (EditorPopupManager) consomme view.completionProvider de façon
+        // transparente.
         view.setLanguage(new Language() {
             @Override
             public Analyzer getAnalyzer() {
@@ -95,10 +93,10 @@ public class CompletionTriggerCharDebounceTest {
                     @Override
                     public void complete(CharSequence text, int caret,
                                           CompletionPublisher publisher) {
-                        // No-op for the trigger-char test — the SPI adapter
-                        // will return an empty list. The real assertion is
-                        // made via the v1.x provider installed by the test
-                        // below (see installCountingProvider).
+                        // No-op pour le test du char déclencheur — l'adaptateur
+                        // SPI renverra une liste vide. La vraie assertion est
+                        // faite via le provider compteur installé par le test
+                        // ci-dessous (voir installCountingProvider).
                     }
                     @Override
                     public List<String> getTriggerCharacters() {
@@ -115,13 +113,14 @@ public class CompletionTriggerCharDebounceTest {
     }
 
     /**
-     * Installs a counting v1.x completion provider on the view. Returns
-     * the latch that will be counted down when {@code provide()} is called.
+     * Installe un provider de complétion compteur sur la vue. Renvoie le
+     * latch qui sera décompté à l'appel de {@code provide()}.
      *
-     * <p>We override the v1.x {@code view.completionProvider} (auto-installed
-     * by setLanguage) with our own counter — the EditorPopupManager's
-     * launchFetch goes through {@code view.completionProvider.provide(...)},
-     * not through the SPI adapter directly.</p>
+     * <p>On remplace {@code view.completionProvider} (installé
+     * automatiquement par setLanguage) par notre propre compteur — le
+     * launchFetch d'EditorPopupManager passe par
+     * {@code view.completionProvider.provide(...)}, pas directement par
+     * l'adaptateur SPI.</p>
      */
     private CountDownLatch installCountingProvider(EditorView view) {
         final CountDownLatch latch = new CountDownLatch(1);
@@ -137,15 +136,15 @@ public class CompletionTriggerCharDebounceTest {
     @Test
     public void triggerChar_firesImmediatelyWithoutDebounceAdvance() throws Exception {
         EditorView view = newViewWithLanguage(DOC_TRIGGER, DOC_TRIGGER.length());
-        // Use a timing-based latch to assert that provide() is called
-        // BEFORE the debounce window (80 ms) could plausibly fire.
-        // Robolectric 4.x auto-idles the main looper in LEGACY mode, so a
-        // strict "before any advance" assertion isn't reliable across
-        // versions — but the trigger-char path takes the immediate=true
-        // branch, which means launchFetch is invoked SYNCHRONOUSLY by
-        // scheduleAsyncFetch, and COMPLETION_EXECUTOR (a real bg thread)
-        // picks it up within microseconds. So provide() will be called
-        // in < 50 ms (well under the 80 ms debounce).
+        // Utilise un latch temporel pour vérifier que provide() est appelé
+        // AVANT que la fenêtre de debounce (80 ms) n'ait pu se déclencher.
+        // Robolectric auto-idle le main looper en mode LEGACY, donc une
+        // assertion stricte « avant tout advance » n'est pas fiable — mais
+        // le chemin du char déclencheur prend la branche immediate=true :
+        // launchFetch est invoqué SYNCHRONEMENT par scheduleAsyncFetch, et
+        // COMPLETION_EXECUTOR (un vrai thread d'arrière-plan) le prend en
+        // charge en quelques microsecondes. provide() sera donc appelé
+        // en < 50 ms (bien sous le debounce de 80 ms).
         CountDownLatch latch = installCountingProvider(view);
 
         // ── ACT : refreshCompletion() avec préfixe VIDE + prev char "." ──
@@ -163,19 +162,20 @@ public class CompletionTriggerCharDebounceTest {
 
     @Test
     public void nonTriggerChar_eventuallyFiresViaDebounce() throws Exception {
-        // Robolectric auto-idles the main looper, so we can't strictly
-        // assert "not called before debounce advances". Instead we verify
-        // the positive case: a non-trigger char's provide() IS eventually
-        // called (via the debounce path), within a reasonable timeout.
-        // The trigger-char test above proves immediate=true is taken; this
-        // test just confirms the non-trigger path also reaches provide().
+        // Robolectric auto-idle le main looper, donc on ne peut pas
+        // affirmer strictement « pas appelé avant l'avance du debounce ».
+        // On vérifie donc le cas positif : le provide() d'un char non
+        // déclencheur finit par être appelé (via le chemin debouncé) dans
+        // un délai raisonnable. Le test du char déclencheur ci-dessus
+        // prouve que immediate=true est pris ; celui-ci confirme simplement
+        // que le chemin non-déclencheur atteint aussi provide().
         EditorView view = newViewWithLanguage(DOC_NON_TRIGGER, DOC_NON_TRIGGER.length());
         CountDownLatch latch = installCountingProvider(view);
 
         view.refreshCompletion();
 
-        // 2 s covers the 80 ms debounce + COMPLETION_EXECUTOR thread
-        // dispatch + provide() runtime.
+        // Les 2 s couvrent le debounce de 80 ms + la répartition vers le
+        // thread COMPLETION_EXECUTOR + l'exécution de provide().
         boolean countedDown = latch.await(2, TimeUnit.SECONDS);
         assertTrue(
             "Le préfixe non-vide 'a' (sans char déclencheur précédent) doit "

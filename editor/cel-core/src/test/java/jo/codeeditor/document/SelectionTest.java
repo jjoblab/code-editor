@@ -5,7 +5,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Tests for text selection representation.
+ * Tests de la représentation de la sélection de texte.
  */
 class SelectionTest {
 
@@ -51,7 +51,7 @@ class SelectionTest {
     @Test
     void adjustForEdit_beforeSelection() {
         Selection s = Selection.range(10, 15);
-        // Edit at offset 2, removed 3 chars, inserted 1 char (delta = -2)
+        // Édition à l'offset 2 : 3 caractères supprimés, 1 caractère inséré (delta = -2)
         Selection adj = s.adjustForEdit(2, 3, 1);
         assertEquals(8, adj.start);
         assertEquals(13, adj.end);
@@ -60,7 +60,7 @@ class SelectionTest {
     @Test
     void adjustForEdit_afterSelection() {
         Selection s = Selection.range(2, 5);
-        // Edit at offset 10 (after selection)
+        // Édition à l'offset 10 (après la sélection)
         Selection adj = s.adjustForEdit(10, 3, 1);
         assertEquals(2, adj.start);
         assertEquals(5, adj.end);
@@ -69,7 +69,7 @@ class SelectionTest {
     @Test
     void adjustForEdit_insideRemovedRange() {
         Selection s = Selection.range(5, 8);
-        // Edit removes chars 3-10
+        // L'édition supprime les caractères 3-10
         Selection adj = s.adjustForEdit(3, 7, 0);
         assertEquals(3, adj.start);
         assertEquals(3, adj.end);

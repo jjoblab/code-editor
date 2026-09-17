@@ -1,10 +1,8 @@
 package jo.codeeditor.lsp;
 
 /**
- * Enumeration of LSP features that can be enabled or disabled per server.
- * Used by {@link LanguageServerDefinition#getDisabledFeatures()}.
- *
- * @since v2.2.0
+ * Fonctionnalités LSP pouvant être activées ou désactivées par serveur.
+ * Utilisée par {@link LanguageServerDefinition#getDisabledFeatures()}.
  */
 public enum LspFeature {
     COMPLETION,

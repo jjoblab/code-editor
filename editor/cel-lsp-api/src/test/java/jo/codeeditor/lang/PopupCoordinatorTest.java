@@ -9,9 +9,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Tests for {@link PopupCoordinator}.
- *
- * @since v2.0.0
+ * Tests de {@link PopupCoordinator}.
  */
 class PopupCoordinatorTest {
 
@@ -37,9 +35,9 @@ class PopupCoordinatorTest {
         PopupCoordinator pc = new PopupCoordinator();
         List<Integer> dismissed = new ArrayList<>();
         pc.setDismissListener(dismissed::add);
-        // Show completion (priority 10).
+        // Ouvre la complétion (priorité 10).
         pc.onPopupShown(PopupCoordinator.PRIORITY_COMPLETION, PopupCoordinator.PRIORITY_COMPLETION);
-        // Show hover (priority 30) — should dismiss completion.
+        // Ouvre le hover (priorité 30) — doit refermer la complétion.
         pc.onPopupShown(PopupCoordinator.PRIORITY_HOVER, PopupCoordinator.PRIORITY_HOVER);
         assertFalse(pc.isPopupActive(PopupCoordinator.PRIORITY_COMPLETION));
         assertTrue(pc.isPopupActive(PopupCoordinator.PRIORITY_HOVER));
@@ -52,9 +50,9 @@ class PopupCoordinatorTest {
         PopupCoordinator pc = new PopupCoordinator();
         List<Integer> dismissed = new ArrayList<>();
         pc.setDismissListener(dismissed::add);
-        // Show hover (priority 30).
+        // Ouvre le hover (priorité 30).
         pc.onPopupShown(PopupCoordinator.PRIORITY_HOVER, PopupCoordinator.PRIORITY_HOVER);
-        // Show completion (priority 10) — should NOT dismiss hover.
+        // Ouvre la complétion (priorité 10) — ne doit PAS refermer le hover.
         pc.onPopupShown(PopupCoordinator.PRIORITY_COMPLETION, PopupCoordinator.PRIORITY_COMPLETION);
         assertTrue(pc.isPopupActive(PopupCoordinator.PRIORITY_HOVER));
         assertTrue(pc.isPopupActive(PopupCoordinator.PRIORITY_COMPLETION));
@@ -66,7 +64,7 @@ class PopupCoordinatorTest {
         PopupCoordinator pc = new PopupCoordinator();
         pc.onPopupShown(PopupCoordinator.PRIORITY_COMPLETION, PopupCoordinator.PRIORITY_COMPLETION);
         pc.onPopupShown(PopupCoordinator.PRIORITY_COMPLETION, PopupCoordinator.PRIORITY_COMPLETION);
-        // Only one entry, not two.
+        // Une seule entrée, pas deux.
         assertEquals(1, pc.hasActivePopups() ? 1 : 0);
     }
 
@@ -84,11 +82,11 @@ class PopupCoordinatorTest {
 
     @Test
     void fullPriorityOrder() {
-        // Verify the priority chain: completion < signature < hover < codeActions < goToSymbol < goToLine < rename
+        // Vérifie la chaîne de priorités : completion < signature < hover < codeActions < goToSymbol < goToLine < rename
         PopupCoordinator pc = new PopupCoordinator();
         List<Integer> dismissed = new ArrayList<>();
         pc.setDismissListener(dismissed::add);
-        // Show them in ascending priority order — each should dismiss all previous.
+        // Les ouvre par priorité croissante — chacune doit refermer toutes les précédentes.
         pc.onPopupShown(PopupCoordinator.PRIORITY_COMPLETION, PopupCoordinator.PRIORITY_COMPLETION);
         pc.onPopupShown(PopupCoordinator.PRIORITY_SIGNATURE_HELP, PopupCoordinator.PRIORITY_SIGNATURE_HELP);
         pc.onPopupShown(PopupCoordinator.PRIORITY_HOVER, PopupCoordinator.PRIORITY_HOVER);
@@ -96,11 +94,11 @@ class PopupCoordinatorTest {
         pc.onPopupShown(PopupCoordinator.PRIORITY_GO_TO_SYMBOL, PopupCoordinator.PRIORITY_GO_TO_SYMBOL);
         pc.onPopupShown(PopupCoordinator.PRIORITY_GO_TO_LINE, PopupCoordinator.PRIORITY_GO_TO_LINE);
         pc.onPopupShown(PopupCoordinator.PRIORITY_RENAME, PopupCoordinator.PRIORITY_RENAME);
-        // Only rename should be active.
+        // Seul le rename doit rester actif.
         assertTrue(pc.isPopupActive(PopupCoordinator.PRIORITY_RENAME));
         assertFalse(pc.isPopupActive(PopupCoordinator.PRIORITY_COMPLETION));
         assertFalse(pc.isPopupActive(PopupCoordinator.PRIORITY_HOVER));
-        // 6 popups dismissed (all except the last).
+        // 6 popups refermés (tous sauf le dernier).
         assertEquals(6, dismissed.size());
     }
 }

@@ -1,19 +1,20 @@
-# Contributing to code-editor-lib
+# Contribuer à code-editor
 
-Thanks for your interest in contributing! This guide covers the dev setup,
-code conventions, and the pull-request process.
+Merci de votre intérêt ! Ce guide couvre la mise en place de
+l'environnement de développement, les conventions de code et le processus
+de pull request.
 
-## Dev setup
+## Mise en place de l'environnement
 
-### Prerequisites
+### Prérequis
 
-- **JDK 17** (Temurin recommended — AGP 8.2 requires JDK 17 minimum).
-- **Android SDK** with `platform-tools`, `platforms;android-34`, and
-  `build-tools;34.0.0`.
-- **Gradle 8.5** (the wrapper `./gradlew` will download it automatically on
-  first run, or install it manually to avoid the per-build download).
+- **JDK 17 minimum** (JDK 21 validé) — requis par AGP 9.
+- **Android SDK** avec `platform-tools`, `platforms;android-34` et les
+  build-tools (téléchargés automatiquement par AGP).
+- **Gradle 9.5.1** — le wrapper `./gradlew` le télécharge automatiquement au
+  premier lancement.
 
-### Install the toolchain (Linux x86_64)
+### Installation de la toolchain (Linux x86_64)
 
 ```bash
 mkdir -p $TOOLS_DIR
@@ -36,98 +37,110 @@ export ANDROID_SDK_ROOT=$TOOLS_DIR/android-sdk
 export PATH="$JAVA_HOME/bin:$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
 
 yes | sdkmanager --licenses
-sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+sdkmanager "platform-tools" "platforms;android-34"
 
-# Gradle 8.5 (optional — the wrapper will download it if you skip this)
-wget -q "https://services.gradle.org/distributions/gradle-8.5-bin.zip" -O gradle-8.5.zip
-unzip -q gradle-8.5.zip
+# Gradle 9.5.1 (optionnel — le wrapper le télécharge si vous sautez cette étape)
+wget -q "https://services.gradle.org/distributions/gradle-9.5.1-bin.zip" -O gradle-9.5.1.zip
+unzip -q gradle-9.5.1.zip
 ```
 
-### Create `local.properties`
+### Créer `local.properties`
 
-At the project root:
+À la racine du projet (fichier ignoré par Git) :
 
 ```
 sdk.dir=/path/to/your/android-sdk
 ```
 
-### Build & test
+### Compiler et tester
 
 ```bash
-# Run the full test suite (464 tests in v1.0.8).
-./gradlew :library:testDebugUnitTest
+# Suite de tests complète (922 tests).
+./gradlew test
 
-# Build the demo APK + library AAR.
-./gradlew :library:assembleDebug :app:assembleDebug
+# AARs des 4 modules.
+./gradlew assembleDebug
 
-# Clean build + tests + APK (the canonical "does everything pass" check).
-./gradlew clean :library:assembleDebug :app:assembleDebug :library:testDebugUnitTest
+# Le contrôle canonique « tout passe » :
+./gradlew clean assembleDebug test lint
 ```
 
-## Code conventions
+## Conventions de code
 
-- **Java 11 source/target** (`sourceCompatibility = JavaVersion.VERSION_11`).
-- **4-space indentation**, no tabs.
-- **Imports**: `java.*` first, then `javax.*`, then `jo.codeeditor.*`, then
-  `android.*`. No wildcard imports.
-- **No `new Paint()` in the draw path** — reuse `Paint` fields to avoid
-  GC pressure during `onDraw`. See `EditorView`'s `bgPaint`, `textPaint`,
-  `selPaint`, etc.
-- **All offsets clamped** to `[0, doc.length()]` in the draw path — a
-  one-frame stale offset must never crash the view. Use the `clamp(int, lo, hi)`
-  helper.
-- **JUnit 5** for tests. Pure-JVM tests only — no instrumented `androidTest`.
-  If a behavior can't be tested without Android, add a manual test note in
-  `FIX_NOTES.md`.
-- **No emojis in source code** (except in user-facing strings if already
-  present).
+- **Java 17** source/cible (`sourceCompatibility = VERSION_17`), encodage
+  **UTF-8**.
+- **Indentation 4 espaces**, pas de tabulation.
+- **Commentaires et javadoc en français** — c'est la langue du dépôt.
+- **Imports** : `java.*` d'abord, puis `javax.*`, puis `jo.codeeditor.*`,
+  puis `android.*`. Pas d'import wildcard.
+- **Pas de `new Paint()` dans le chemin de dessin** — réutilisez des champs
+  `Paint` pour éviter la pression GC pendant `onDraw` (voir les painters
+  de `EditorRenderer`).
+- **Tous les offsets clampés** à `[0, doc.length()]` dans le chemin de
+  rendu — un offset périmé d'une frame ne doit jamais crasher la vue.
+  Utilisez le helper `clamp(int, lo, hi)`.
+- **Tests** : JUnit 5 (Jupiter) sur la JVM hôte, sans `androidTest`
+  instrumenté (Robolectric couvre les besoins Android). Exception
+  préexistante : `:cel-lsp` tourne en JUnit 4 (Robolectric). Si un
+  comportage n'est pas testable sans Android, documentez-le dans la PR.
+- **Pas d'emoji dans le code source** (sauf chaînes affichées à
+  l'utilisateur si déjà présentes).
 
-## Adding a new feature
+## Ajouter une fonctionnalité
 
-1. **Write the test first** (or alongside). Every new behavior must have a
-   test in `library/src/test/java/com/codeeditor/...`. If it's a bug fix,
-   add a regression test in `V108RegressionTest.java` (or a new
-   `V109RegressionTest.java` for the next version).
-2. **Follow the layered architecture**:
-   - Pure-Java engine logic → `session/`, `document/`, `rope/`, `edit/`,
-     `find/`, `shift/`, `highlight/`, `fold/`, `wrap/`, `snippet/`,
-     `cache/`, `completion/`, `doc/`, `actions/`, `navigation/`, `blocks/`.
-   - Android View rendering → `view/`.
-   - The engine must NOT depend on `android.*` — only the View layer does.
-3. **Add a `@since v1.0.x` Javadoc tag** on any new public class or method.
-4. **Update `FIX_NOTES.md`** with a section describing the change, the
-   rationale, and any bug it fixes.
-5. **Update `CHANGELOG.md`** under the `[Unreleased]` section.
-6. **Run the full test suite** — `./gradlew clean :library:testDebugUnitTest`
-   must pass with 0 failures.
+1. **Écrivez le test d'abord** (ou en même temps). Tout nouveau
+   comportement doit avoir un test dans
+   `editor/<module>/src/test/java/jo/codeeditor/…`. Pour un correctif de
+   bug, ajoutez un test de régression dédié.
+2. **Respectez l'architecture en couches** :
+   - Logique moteur pure → `:cel-core` (`session/`, `document/`, `rope/`,
+     `edit/`, `find/`, `shift/`, `highlight/`, `fold/`, `wrap/`,
+     `snippet/`, `cache/`, `completion/`, `doc/`, `navigation/`,
+     `languages/`).
+   - Contrats de langage → `:cel-lsp-api` (`lang/`, `lang/model/`,
+     `lang/provider/`).
+   - Intégration LSP → `:cel-lsp` (`lsp/`, `lsp/connection/`).
+   - Rendu Android → `:cel-ui` (`view/`, `view/chrome/`, `blocks/`).
+   - Le moteur ne doit PAS dépendre de `android.*` — seule la couche View
+     le peut.
+3. **Une classe = une responsabilité.** Les classes pivots
+   (`EditorView`, `EditorSession`, `EditorRenderer`…) sont des
+   orchestrateurs : la nouvelle logique va dans un collaborateur dédié du
+   package adapté, pas dans l'orchestrateur.
+4. **Ajoutez une javadoc en français** sur toute nouvelle classe ou méthode
+   publique.
+5. **Mettez à jour `CHANGELOG.md`** sous la section `[Unreleased]`.
+6. **Lancez la suite complète** — `./gradlew clean assembleDebug test lint`
+   doit passer sans échec.
 
-## Pull-request process
+## Processus de pull request
 
-1. Fork the repo and create a feature branch:
-   `git checkout -b feature/my-feature`.
-2. Commit your changes with a clear message:
-   `feat(completion): add fuzzy matching` or
-   `fix(ime): clear composing region on completion accept`.
-3. Push and open a PR. In the description:
-   - Link to any issue the PR addresses.
-   - List the tests you added.
-   - Note any breaking changes (none should sneak in without a major
-     version bump).
-4. CI will run `./gradlew clean :library:testDebugUnitTest :app:assembleDebug`.
-   All tests must pass.
-5. A maintainer will review within a few days.
+1. Forkez le dépôt et créez une branche :
+   `git checkout -b feature/ma-fonctionnalite`.
+2. Commitez avec un message clair :
+   `feat(completion): filtrage flou` ou
+   `fix(ime): nettoie la région composing à l'acceptation`.
+3. Poussez et ouvrez la PR. Dans la description :
+   - Lien vers l'éventuel issue adressé.
+   - Liste des tests ajoutés.
+   - Breaking changes éventuels signalés (aucun ne doit passer sans bump
+     de version majeure).
+4. La CI exécute `./gradlew assembleDebug testDebugUnitTest lint` — tous
+   les tests doivent passer.
+5. Un mainteneur relit la PR sous quelques jours.
 
-## Reporting bugs
+## Signaler un bug
 
-Open an issue with:
+Ouvrez un issue avec :
 
-- **code-editor-lib version** (from `app/build.gradle.kts` `versionName`).
-- **Android version + device** (or "host JVM" for pure-Java bugs).
-- **Steps to reproduce** — the smallest code snippet that triggers the bug.
-- **Expected vs. actual behavior**.
-- **Logcat output** if the bug is a crash.
+- **Version de la bibliothèque** (coordonnées Maven `jo.codeeditor:*`).
+- **Version Android + appareil** (ou « JVM hôte » pour les bugs Java pur).
+- **Étapes de reproduction** — le plus petit extrait de code qui déclenche
+  le bug.
+- **Comportement attendu vs observé**.
+- **Sortie logcat** si le bug est un crash.
 
-## License
+## Licence
 
-By contributing, you agree that your contributions are licensed under the
-MIT license (see `LICENSE`).
+En contribuant, vous acceptez que vos contributions soient licenciées sous
+licence MIT (voir `LICENSE`).

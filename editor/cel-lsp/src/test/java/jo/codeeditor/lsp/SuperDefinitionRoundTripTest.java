@@ -1,5 +1,8 @@
 package jo.codeeditor.lsp;
 
+import jo.codeeditor.lsp.connection.InProcessStreamConnectionProvider;
+import jo.codeeditor.lsp.connection.StreamConnectionProvider;
+
 import org.eclipse.lsp4j.InitializeParams;
 import org.eclipse.lsp4j.InitializeResult;
 import org.eclipse.lsp4j.ServerCapabilities;
@@ -25,7 +28,7 @@ import java.util.concurrent.Executors;
 import static org.junit.Assert.*;
 
 /**
- * ★ v2.37 — Round-trip JSON-RPC de la méthode LSP PERSONNALISÉE
+ * Round-trip JSON-RPC de la méthode LSP PERSONNALISÉE
  * {@code textDocument/superDefinition} (GO TO Super du menu contextuel
  * unifié — le serveur :lspjava l'expose via
  * {@code jo.lspjava.lsp.NavTextDocumentService}).
@@ -56,7 +59,6 @@ import static org.junit.Assert.*;
  * </ol>
  *
  * @author jo@Dev
- * @since v2.37
  */
 public class SuperDefinitionRoundTripTest {
 

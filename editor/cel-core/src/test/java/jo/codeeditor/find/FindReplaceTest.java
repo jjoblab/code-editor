@@ -7,7 +7,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Tests for find/replace matching.
+ * Tests de la correspondance rechercher/remplacer.
  */
 class FindReplaceTest {
 
@@ -34,7 +34,7 @@ class FindReplaceTest {
         assertEquals(2, m.size());
         assertEquals(0, m.get(0).start);
         assertEquals(5, m.get(0).end);
-        // "hello helloworld hello" - second "hello" starts at 17
+        // "hello helloworld hello" — le second "hello" commence à 17
         assertEquals(17, m.get(1).start);
     }
 
@@ -70,7 +70,7 @@ class FindReplaceTest {
     void findMatches_multipleOverlapping() {
         List<Match> m = FindReplace.findMatches("aaaaa", "aaa",
             new FindOptions(true, false, false));
-        // Implementation may find overlapping matches
+        // L'implémentation peut trouver des correspondances qui se chevauchent
         assertTrue(m.size() >= 2, "Expected at least 2 matches, got " + m.size());
     }
 
@@ -79,7 +79,7 @@ class FindReplaceTest {
         List<Match> m = FindReplace.findMatches("a b a b", "a",
             new FindOptions(true, false, false));
         assertEquals(2, m.size());
-        // From caret after last match → wraps to 0
+        // Depuis un caret après la dernière correspondance → boucle sur 0
         int idx = FindReplace.matchIndexFrom(m, 10);
         assertEquals(0, idx);
     }
@@ -96,9 +96,9 @@ class FindReplaceTest {
     void matchIndexFrom_between() {
         List<Match> m = FindReplace.findMatches("a b a b", "a",
             new FindOptions(true, false, false));
-        // Caret at 2 (between first 'a' at 0 and second 'a' at 4)
+        // Caret à 2 (entre le premier 'a' à 0 et le second 'a' à 4)
         int idx = FindReplace.matchIndexFrom(m, 2);
-        assertEquals(1, idx); // second match
+        assertEquals(1, idx); // seconde correspondance
     }
 
     @Test

@@ -10,19 +10,21 @@ import java.nio.charset.StandardCharsets;
 import static org.junit.Assert.*;
 
 /**
- * v3.34.0 regression tests — API-24-safe file IO.
+ * Tests de régression — IO fichiers compatible API 24.
  *
- * <p>The previous implementation used {@code java.nio.file.Files.readAllBytes},
- * {@code File.toPath} (API 26+) and {@code Path.of} (API 34+) with
- * {@code minSdk 24}: every LSP rename / apply-edits-to-disk call crashed
- * with {@code NoSuchMethodError} on Android 7.x. {@link IoCompat} replaces
- * them with plain {@code java.io} streams; these tests pin the observable
- * behavior (round-trip, file:// stripping, null on unreadable, parent-dir
- * creation, overwrite semantics).</p>
+ * <p>Les API {@code java.nio.file.Files.readAllBytes}, {@code File.toPath}
+ * (API 26+) et {@code Path.of} (API 34+) sont inutilisables avec
+ * {@code minSdk 24} : chaque appel LSP de renommage / d'application
+ * d'éditions sur disque plantait avec {@code NoSuchMethodError} sur
+ * Android 7.x. {@link IoCompat} les remplace par des flux {@code java.io}
+ * simples ; ces tests épinglent le comportement observable (aller-retour,
+ * retrait de file://, null si illisible, création des répertoires parents,
+ * sémantique d'écrasement).</p>
  *
- * <p>JUnit 4 (Robolectric module convention) with the default mockable
- * android.jar ({@code isReturnDefaultValues = true}) — {@code android.util.Log}
- * calls in IoCompat's failure paths return 0 and never throw.</p>
+ * <p>JUnit 4 (convention du module Robolectric) avec le android.jar
+ * simulable par défaut ({@code isReturnDefaultValues = true}) — les appels
+ * à {@code android.util.Log} dans les chemins d'échec d'IoCompat
+ * retournent 0 et ne lèvent jamais.</p>
  */
 public class IoCompatTest {
 
@@ -41,7 +43,7 @@ public class IoCompatTest {
     public void readUtf8_stripsFileScheme() throws IOException {
         File f = tmp.newFile("b.txt");
         assertTrue(IoCompat.writeUtf8(f, "hello"));
-        // A file:// URI resolves to the same file.
+        // Une URI file:// désigne le même fichier.
         assertEquals("hello", IoCompat.readUtf8("file://" + f.getAbsolutePath()));
         assertEquals("hello", IoCompat.readUtf8(f.getAbsolutePath()));
     }
@@ -82,7 +84,7 @@ public class IoCompatTest {
 
     @Test
     public void largeRoundTrip_isByteExact() throws IOException {
-        // ~1 MB — exercises the buffered loop across many 8 KB chunks.
+        // ~1 Mo — exerce la boucle bufferisée sur de nombreux blocs de 8 Ko.
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < 40_000; i++) {
             sb.append("ligne numéro ").append(i).append(" — content non-ASCII àü\n");

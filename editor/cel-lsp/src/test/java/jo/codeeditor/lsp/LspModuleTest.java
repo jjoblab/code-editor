@@ -1,5 +1,9 @@
 package jo.codeeditor.lsp;
 
+import jo.codeeditor.lsp.connection.ProcessBuilderConnectionProvider;
+import jo.codeeditor.lsp.connection.SocketConnectionProvider;
+import jo.codeeditor.lsp.connection.StreamConnectionProvider;
+
 import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
@@ -8,10 +12,8 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Tests for the {@code cel-lsp} module's core classes that don't require
- * an actual LSP server connection.
- *
- * @since v2.2.0
+ * Tests des classes centrales du module {@code cel-lsp} qui ne nécessitent
+ * pas de connexion réelle à un serveur LSP.
  */
 class LspModuleTest {
 
@@ -82,7 +84,7 @@ class LspModuleTest {
 
     @Test
     void lspFeature_enum() {
-        // Just verify the enum values exist
+        // Vérifie simplement que les valeurs de l'enum existent
         assertNotNull(LspFeature.COMPLETION);
         assertNotNull(LspFeature.HOVER);
         assertNotNull(LspFeature.SIGNATURE_HELP);
@@ -101,11 +103,11 @@ class LspModuleTest {
     @Test
     void defaultLanguageClient_noOpImplementations() {
         DefaultLanguageClient client = new DefaultLanguageClient();
-        // Verify it doesn't crash on no-op calls
+        // Vérifie que les appels no-op ne plantent pas
         client.telemetryEvent("test");
         client.logMessage(new org.eclipse.lsp4j.MessageParams());
         client.showMessage(new org.eclipse.lsp4j.MessageParams());
-        // showMessageRequest returns a future — just verify it completes
+        // showMessageRequest retourne un futur — vérifie juste qu'il complète
         org.eclipse.lsp4j.ShowMessageRequestParams params = new org.eclipse.lsp4j.ShowMessageRequestParams();
         params.setActions(Arrays.asList(new org.eclipse.lsp4j.MessageActionItem("OK")));
         client.showMessageRequest(params).thenAccept(action -> {
@@ -123,7 +125,7 @@ class LspModuleTest {
         assertNotNull(pair.output);
     }
 
-    // ★ v2.52 Subset F — Tests multi-extension (.kt + .kts)
+    // Tests multi-extension (.kt + .kts)
 
     @Test
     void languageServerDefinition_defaultSingleExtension() {
