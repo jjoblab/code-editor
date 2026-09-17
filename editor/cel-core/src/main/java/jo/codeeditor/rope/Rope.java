@@ -2,25 +2,24 @@ package jo.codeeditor.rope;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 
 /**
- * Immutable balanced binary tree rope for efficient large-text editing.
+ * Rope : arbre binaire équilibré immuable pour l'édition efficace de grands
+ * textes.
  * <p>
- * Based on the CodeAssist editor architecture. Uses a leaf/branch tree
- * with Fibonacci-balance invariant and spine-merge on concat.
+ * Inspiré de l'architecture de l'éditeur CodeAssist. Utilise un arbre
+ * feuilles/branches avec invariant d'équilibre de Fibonacci et fusion
+ * d'épines (spine-merge) à la concaténation.
  * <p>
- * All operations return new Rope instances; the original is never mutated.
- 
- *
- * @since v1.0.0
-*/
+ * Toutes les opérations retournent de nouvelles instances de Rope ;
+ * l'instance d'origine n'est jamais mutée.
+ */
 public abstract class Rope implements CharSequence {
 
-    /** Maximum characters per leaf node. */
+    /** Nombre maximum de caractères par nœud feuille. */
     public static final int MAX_LEAF = 512;
 
-    // Fibonacci numbers for balance checking (precomputed up to depth ~40)
+    // Nombres de Fibonacci pour la vérification d'équilibre (précalculés jusqu'à une profondeur ~40)
     private static final long[] FIB = buildFibTable(50);
 
     private static long[] buildFibTable(int n) {
@@ -33,9 +32,9 @@ public abstract class Rope implements CharSequence {
         return f;
     }
 
-    /** Cached length for O(1) access. */
+    /** Longueur mise en cache pour un accès O(1). */
     protected final int length;
-    /** Cached depth for balance checks. */
+    /** Profondeur mise en cache pour les vérifications d'équilibre. */
     protected final int depth;
 
     protected Rope(int length, int depth) {
@@ -65,15 +64,15 @@ public abstract class Rope implements CharSequence {
         return sub(start, end);
     }
 
-    // ── Core operations ───────────────────────────────────────────
+    // ── Opérations de base ───────────────────────────────────────
 
     /**
-     * Returns the substring as a new Rope.
+     * Retourne la sous-chaîne comme nouveau Rope.
      */
     public abstract Rope sub(int start, int end);
 
     /**
-     * Materializes the rope content as a String.
+     * Matérialise le contenu du rope en String.
      */
     public String toString() {
         char[] buf = new char[length];
@@ -81,11 +80,11 @@ public abstract class Rope implements CharSequence {
         return new String(buf);
     }
 
-    /** Write this rope's content into buf at the given offset. */
+    /** Écrit le contenu de ce rope dans buf à l'offset donné. */
     public abstract void writeTo(char[] buf, int offset);
 
     /**
-     * Replaces the range [start, end) with the given insertion text.
+     * Remplace la plage [start, end) par le texte d'insertion donné.
      */
     public Rope replace(int start, int end, String insertion) {
         if (start < 0 || end > length || start > end) {
@@ -102,14 +101,15 @@ public abstract class Rope implements CharSequence {
     }
 
     /**
-     * Concatenates two ropes with spine-merge optimization.
+     * Concatène deux ropes avec l'optimisation spine-merge.
      */
     public static Rope concat(Rope left, Rope right) {
         if (left == EMPTY) return right;
         if (right == EMPTY) return left;
 
-        // Spine merge: if the right tree's left spine is a small leaf,
-        // fold it into the left tree's rightmost leaf when possible.
+        // Fusion d'épine : si l'épine gauche de l'arbre droit est une petite
+        // feuille, la replier dans la feuille la plus à droite de l'arbre
+        // gauche quand c'est possible.
         if (right instanceof Leaf) {
             Leaf rLeaf = (Leaf) right;
             if (left instanceof Leaf) {
@@ -118,7 +118,7 @@ public abstract class Rope implements CharSequence {
                     return new Leaf(lLeaf.data + rLeaf.data);
                 }
             } else if (left instanceof Branch) {
-                // Try to fold into the right edge of left
+                // Tenter de replier dans le bord droit de left
                 Branch lBranch = (Branch) left;
                 Rope merged = tryMergeRight(lBranch.right, rLeaf);
                 if (merged != null) {
@@ -129,7 +129,7 @@ public abstract class Rope implements CharSequence {
         if (left instanceof Leaf && right instanceof Branch) {
             Leaf lLeaf = (Leaf) left;
             Branch rBranch = (Branch) right;
-            // Try to fold left leaf into the leftmost leaf of right
+            // Tenter de replier la feuille gauche dans la feuille la plus à gauche de right
             Rope merged = tryMergeLeft(lLeaf, rBranch.left);
             if (merged != null) {
                 return new Branch(merged, rBranch.right);
@@ -160,8 +160,9 @@ public abstract class Rope implements CharSequence {
     }
 
     /**
-     * Rebuilds the rope into a balanced tree.
-     * Collects all leaves, coalesces small neighbors, then rebuilds.
+     * Reconstruit le rope en un arbre équilibré.
+     * Collecte toutes les feuilles, coalescence des petites voisines, puis
+     * reconstruction.
      */
     public Rope rebalance() {
         if (isBalanced()) return this;
@@ -199,7 +200,7 @@ public abstract class Rope implements CharSequence {
     }
 
     /**
-     * Coalesces adjacent small leaves to improve balance.
+     * Coalescence des petites feuilles adjacentes pour améliorer l'équilibre.
      */
     private static void coalesceLeaves(List<Leaf> leaves) {
         int i = 0;
@@ -225,19 +226,19 @@ public abstract class Rope implements CharSequence {
         return new Branch(left, right);
     }
 
-    // ── Factory ───────────────────────────────────────────────────
+    // ── Fabrique ───────────────────────────────────────────────
 
-    /** The empty rope singleton. */
+    /** Singleton du rope vide. */
     public static final Rope EMPTY = new Leaf("");
 
     /**
-     * Creates a Rope from a String, splitting into MAX_LEAF-sized leaves.
+     * Crée un Rope depuis une String, en découpant en feuilles de taille MAX_LEAF.
      */
     public static Rope fromString(String text) {
         if (text == null || text.isEmpty()) return EMPTY;
         if (text.length() <= MAX_LEAF) return new Leaf(text);
 
-        // Split into leaves
+        // Découper en feuilles
         List<Leaf> leaves = new ArrayList<>();
         for (int i = 0; i < text.length(); i += MAX_LEAF) {
             int end = Math.min(i + MAX_LEAF, text.length());
@@ -272,7 +273,6 @@ public abstract class Rope implements CharSequence {
         public void writeTo(char[] buf, int offset) {
             data.getChars(0, length, buf, offset);
         }
-        // v3.33.5: equals/hashCode supprimés (code mort).
     }
 
     // ── Branch ────────────────────────────────────────────────────
@@ -316,6 +316,5 @@ public abstract class Rope implements CharSequence {
             left.writeTo(buf, offset);
             right.writeTo(buf, offset + left.length);
         }
-        // v3.33.5: equals/hashCode supprimés (code mort — materialise les deux ropes pour comparer).
     }
 }

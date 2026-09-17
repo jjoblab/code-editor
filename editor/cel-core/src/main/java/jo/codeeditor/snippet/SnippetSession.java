@@ -5,25 +5,24 @@ import jo.codeeditor.shift.EditSpan;
 import java.util.*;
 
 /**
- * Tab-stop based snippet session.
- * Manages linked/mirrored placeholder ranges for code snippet insertion.
- * Ported from CodeAssist SnippetSession.kt.
- 
- *
- * @since v1.0.0
-*/
+ * Session de snippet basée sur les tab-stops.
+ * Gère les plages de placeholders liés/miroirs pour l'insertion de
+ * snippets de code. Reprend le design du {@code SnippetSession.kt} de
+ * CodeAssist.
+ */
 public class SnippetSession {
 
     /**
-     * A tab stop with start, end, and linked indices.
-     * Tab stops are ordered by their stop index (0 = final position).
+     * Un tab stop avec début, fin et indices liés.
+     * Les tab stops sont ordonnés par leur index d'arrêt (0 = position
+     * finale).
      */
     public static final class TabStop {
         public int start;
         public int end;
         public final int index;
         public final String placeholder;
-        /** Indices of other tab stops whose text mirrors this one. */
+        /** Indices des autres tab stops dont le texte reflète celui-ci. */
         public final List<Integer> linked;
 
         public TabStop(int start, int end, int index, String placeholder, List<Integer> linked) {
@@ -46,23 +45,24 @@ public class SnippetSession {
     private int currentIndex;
 
     /**
-     * Creates a snippet session from a list of tab stops.
-     * Stops must be sorted by index (descending), with $0 as the final stop.
+     * Crée une session de snippet à partir d'une liste de tab stops.
+     * Les arrêts doivent être triés par index (décroissant), avec $0
+     * comme arrêt final.
      */
     public SnippetSession(List<TabStop> stops) {
         this.stops = new ArrayList<>(stops);
-        // Sort by index descending so we visit highest-numbered stops first
+        // Tri par index décroissant pour visiter d'abord les arrêts au numéro le plus élevé
         this.stops.sort((a, b) -> Integer.compare(b.index, a.index));
         this.currentIndex = this.stops.isEmpty() ? 0 : this.stops.get(0).index;
     }
 
     /**
-     * Parse a simple snippet string and create a session.
-     * Supports $1, $2, ... and ${1:placeholder} syntax.
+     * Analyse une chaîne de snippet simple et crée une session.
+     * Gère la syntaxe $1, $2, ... et ${1:placeholder}.
      *
-     * @param snippet the snippet text
-     * @param baseOffset the offset where the snippet is inserted
-     * @return a SnippetSession, or null if no tab stops
+     * @param snippet le texte du snippet
+     * @param baseOffset l'offset où le snippet est inséré
+     * @return une SnippetSession, ou null si aucun tab stop
      */
     public static SnippetSession parse(String snippet, int baseOffset) {
         List<TabStop> stops = new ArrayList<>();
@@ -70,7 +70,7 @@ public class SnippetSession {
         int pos = 0;
         Map<Integer, List<Integer>> linkedMap = new HashMap<>();
 
-        // First pass: collect all tab stops
+        // Première passe : collecte tous les tab stops
         List<int[]> rawStops = new ArrayList<>(); // [index, startPos, endPos, placeholderStart, placeholderEnd]
         while (pos < snippet.length()) {
             if (snippet.charAt(pos) == '$') {
@@ -120,20 +120,20 @@ public class SnippetSession {
             }
         }
 
-        // Group by index for linking
+        // Groupe par index pour la liaison
         Map<Integer, List<int[]>> grouped = new HashMap<>();
         for (int[] rs : rawStops) {
             grouped.computeIfAbsent(rs[0], k -> new ArrayList<>()).add(rs);
         }
 
-        // Build stops: first occurrence is primary, rest are linked
+        // Construit les arrêts : la première occurrence est primaire, le reste est lié
         for (var entry : grouped.entrySet()) {
             int index = entry.getKey();
             List<int[]> group = entry.getValue();
             int[] primary = group.get(0);
             List<Integer> linked = new ArrayList<>();
             for (int i = 1; i < group.size(); i++) {
-                // Create linked stops
+                // Crée les arrêts liés
                 int[] lnk = group.get(i);
                 stops.add(new TabStop(lnk[1], lnk[2], index, "", Collections.emptyList()));
             }
@@ -145,7 +145,7 @@ public class SnippetSession {
     }
 
     /**
-     * Returns the current tab stop, or null if finished.
+     * Renvoie le tab stop courant, ou null si terminé.
      */
     public TabStop current() {
         for (TabStop s : stops) {
@@ -155,10 +155,11 @@ public class SnippetSession {
     }
 
     /**
-     * Move to the next tab stop. Returns the new current stop, or null if done.
+     * Passe au tab stop suivant. Renvoie le nouvel arrêt courant, ou
+     * null si terminé.
      */
     public TabStop next() {
-        // Find the highest index less than current
+        // Trouve l'index le plus élevé inférieur au courant
         int nextIndex = Integer.MAX_VALUE;
         for (TabStop s : stops) {
             if (s.index < currentIndex && s.index < nextIndex) {
@@ -171,7 +172,7 @@ public class SnippetSession {
     }
 
     /**
-     * Move to the previous tab stop.
+     * Passe au tab stop précédent.
      */
     public TabStop prev() {
         int prevIndex = -1;
@@ -186,7 +187,7 @@ public class SnippetSession {
     }
 
     /**
-     * Notify the session of an edit so it can re-anchor ranges.
+     * Notifie la session d'une édition pour ré-ancrer les plages.
      */
     public void onEdit(EditSpan span) {
         for (TabStop s : stops) {
@@ -198,7 +199,7 @@ public class SnippetSession {
     }
 
     /**
-     * Returns all field ranges (start, end) for highlighting.
+     * Renvoie toutes les plages de champs (début, fin) pour la coloration.
      */
     public List<int[]> fieldRanges() {
         List<int[]> ranges = new ArrayList<>();
@@ -209,10 +210,11 @@ public class SnippetSession {
     }
 
     /**
-     * Sync linked placeholders with the current stop's text.
-     * If the current stop has linked stops, their ranges are updated to match.
+     * Synchronise les placeholders liés avec le texte de l'arrêt courant.
+     * Si l'arrêt courant a des arrêts liés, leurs plages sont mises à
+     * jour pour correspondre.
      *
-     * @param text the current document text
+     * @param text le texte courant du document
      */
     public void mirrorCurrent(String text) {
         TabStop cur = current();
@@ -220,7 +222,7 @@ public class SnippetSession {
         String curText = text.substring(cur.start, cur.end);
         for (TabStop s : stops) {
             if (s.index == cur.index && s != cur) {
-                // This is a mirror of the current stop
+                // Ceci est un miroir de l'arrêt courant
                 int newLen = curText.length();
                 s.end = s.start + newLen;
             }
@@ -228,13 +230,14 @@ public class SnippetSession {
     }
 
     /**
-     * Finish the snippet session and return the final caret position ($0).
+     * Termine la session de snippet et renvoie la position finale du
+     * caret ($0).
      */
     public int finish() {
         for (TabStop s : stops) {
             if (s.index == 0) return s.start;
         }
-        // If no $0, return end of last stop
+        // Sans $0, renvoie la fin du dernier arrêt
         int maxEnd = 0;
         for (TabStop s : stops) {
             maxEnd = Math.max(maxEnd, s.end);
@@ -243,20 +246,20 @@ public class SnippetSession {
     }
 
     /**
-     * Returns the list of all tab stops.
+     * Renvoie la liste de tous les tab stops.
      */
     public List<TabStop> getStops() {
         return Collections.unmodifiableList(stops);
     }
 
     /**
-     * Returns the current tab stop index.
+     * Renvoie l'index du tab stop courant.
      */
     public int getCurrentIndex() {
         return currentIndex;
     }
 
-    // Mapping helpers
+    // Aides de mapping
     private static int mapStart(int offset, EditSpan span) {
         if (offset <= span.start) return offset;
         if (offset <= span.start + span.removed) return span.start + span.added;

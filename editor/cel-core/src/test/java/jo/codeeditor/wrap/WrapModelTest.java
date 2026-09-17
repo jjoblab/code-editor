@@ -29,7 +29,7 @@ class WrapModelTest {
     @Test
     void topRow_withWrap() {
         WrapModel m = new WrapModel(3);
-        m.setRows(0, 3); // line 0 wraps to 3 rows
+        m.setRows(0, 3); // la ligne 0 passe sur 3 rangées
         assertEquals(0, m.topRow(0));
         assertEquals(3, m.topRow(1));
         assertEquals(4, m.topRow(2));
@@ -46,7 +46,7 @@ class WrapModelTest {
     @Test
     void docLineForRow_withWrap() {
         WrapModel m = new WrapModel(3);
-        m.setRows(0, 2); // line 0 takes 2 rows
+        m.setRows(0, 2); // la ligne 0 prend 2 rangées
         assertEquals(0, m.docLineForRow(0));
         assertEquals(0, m.docLineForRow(1));
         assertEquals(1, m.docLineForRow(2));
@@ -65,7 +65,7 @@ class WrapModelTest {
     void resize_shrink() {
         WrapModel m = new WrapModel(5);
         m.resize(3);
-        // Lines 0-2 should still have 1 row each
+        // Les lignes 0-2 doivent toujours avoir 1 rangée chacune
         assertEquals(1, m.rowsOf(0));
         assertEquals(1, m.rowsOf(2));
     }
@@ -73,15 +73,15 @@ class WrapModelTest {
     @Test
     void setRows_clampsToOne() {
         WrapModel m = new WrapModel(3);
-        m.setRows(0, 0); // should clamp to 1
+        m.setRows(0, 0); // doit être borné à 1
         assertEquals(1, m.rowsOf(0));
     }
 
     @Test
     void setRows_outOfRange() {
         WrapModel m = new WrapModel(3);
-        m.setRows(-1, 5); // no exception
-        m.setRows(10, 5); // no exception
+        m.setRows(-1, 5); // pas d'exception
+        m.setRows(10, 5); // pas d'exception
     }
 
     @Test
@@ -89,7 +89,7 @@ class WrapModelTest {
         WrapModel m = new WrapModel(3);
         m.setRows(0, 2);
         m.setRows(1, 3);
-        // total = 2 + 3 + 1 = 6
+        // total = 2 + 3 + 1 = 6 rangées
         assertEquals(6, m.totalRows());
     }
 

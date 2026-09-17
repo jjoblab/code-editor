@@ -10,23 +10,24 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * v3.35.0 (roadmap item 1 / bug B11) — behavior of
- * {@link EditorSession#toggleLineComment()} / {@link EditorSession#toggleBlockComment()}
- * across languages. Before v3.35.0 both methods hardcoded C-style tokens:
- * Python files received {@code // def foo():}, XML files received
- * {@code // <node>}, and JSON files received comments they can't have.
+ * Comportement de {@link EditorSession#toggleLineComment()} /
+ * {@link EditorSession#toggleBlockComment()} selon le langage. Les deux
+ * méthodes ne doivent PAS coder en dur des tokens C : les fichiers Python
+ * ne doivent pas recevoir {@code // def foo():}, les fichiers XML ne
+ * doivent pas recevoir {@code // <node>}, et les fichiers JSON ne doivent
+ * pas recevoir de commentaires qu'ils ne peuvent pas avoir.
  *
- * <p>Also pins the OVERRIDE API ({@link EditorSession#setCommentSyntax})
- * and the byte-for-byte preservation of the legacy Java behavior (the
- * pre-existing RegressionFixTest suite keeps covering the edge cases).</p>
+ * <p>Épingle aussi l'API d'override ({@link EditorSession#setCommentSyntax})
+ * et la préservation à l'octet près du comportement Java historique (la
+ * suite RegressionFixTest continue de couvrir les cas limites).</p>
  */
 class LanguageCommentToggleTest {
 
     private static EditorSession session(String language, String text) {
         EditorSession s = new EditorSession(EditorDocument.of(text));
         s.setLanguage(language);
-        // setLanguage triggers an async restyle — not needed for these
-        // tests, and we don't want the executor to outlive the test.
+        // setLanguage déclenche un restyle asynchrone — inutile pour ces
+        // tests, et on ne veut pas que l'exécuteur survive au test.
         s.dispose();
         return s;
     }
@@ -35,7 +36,7 @@ class LanguageCommentToggleTest {
         s.setSelection(Selection.range(0, s.getText().length()));
     }
 
-    // ── Legacy Java behavior is preserved ────────────────────────────
+    // ── Le comportement Java historique est préservé ───────────────
 
     @Test
     void java_toggleLineComment_addsSlashPrefixWithSpace() {
@@ -68,12 +69,12 @@ class LanguageCommentToggleTest {
         s.setSelection(Selection.range(0, 5));
         s.toggleBlockComment();
         assertEquals("/* hello */", s.getText());
-        // And unwraps on the second toggle (single undo step each).
+        // Et déroule au second toggle (une seule étape d'undo à chaque fois).
         s.toggleBlockComment();
         assertEquals("hello", s.getText());
     }
 
-    // ── Python: '#' line comments, block is a no-op ──────────────────
+    // ── Python : commentaires de ligne '#', bloc = no-op ──────────
 
     @Test
     void python_toggleLineComment_usesHash() {
@@ -109,7 +110,7 @@ class LanguageCommentToggleTest {
         assertEquals("def foo():", s.getText());
     }
 
-    // ── XML: line toggle falls back to the block pair (VS Code) ──────
+    // ── XML : le toggle de ligne retombe sur la paire de bloc (VS Code) ──
 
     @Test
     void xml_toggleLineComment_wrapsLinesInBlockPair() {
@@ -142,7 +143,8 @@ class LanguageCommentToggleTest {
         EditorSession s = session("xml", "<a>\n\n<b>");
         selectAll(s);
         s.toggleLineComment();
-        // Blank line keeps a minimal pair (no inner spaces to strip on undo).
+        // La ligne vide garde une paire minimale (pas d'espaces internes
+        // à retirer à l'undo).
         assertEquals("<!-- <a> -->\n<!---->\n<!-- <b> -->", s.getText());
         s.toggleLineComment();
         assertEquals("<a>\n\n<b>", s.getText());
@@ -158,7 +160,7 @@ class LanguageCommentToggleTest {
         assertEquals("<node>", s.getText());
     }
 
-    // ── Markdown: same XML-family block pair ─────────────────────────
+    // ── Markdown : même paire de bloc que la famille XML ──────────
 
     @Test
     void markdown_toggleLineComment_wrapsInHtmlPair() {
@@ -170,7 +172,7 @@ class LanguageCommentToggleTest {
         assertEquals("# Title", s.getText());
     }
 
-    // ── JSON: both toggles are no-ops ────────────────────────────────
+    // ── JSON : les deux toggles sont des no-ops ───────────────────
 
     @Test
     void json_toggleLineComment_isNoOp() {
@@ -228,7 +230,7 @@ class LanguageCommentToggleTest {
         assertEquals("/* SELECT 1 */", s.getText());
     }
 
-    // ── Shell ────────────────────────────────────────────────────────
+    // ── Shell ────────────────────────────────────────────────────
 
     @Test
     void shell_toggleLineComment_usesHash() {
@@ -253,7 +255,7 @@ class LanguageCommentToggleTest {
     @Test
     void setCommentSyntax_overridesLanguageResolution() {
         EditorSession s = session("java", "hello");
-        // A custom language the table doesn't know — e.g. Vimscript.
+        // Un langage personnalisé inconnu de la table — ex. Vimscript.
         s.setCommentSyntax(new CommentSyntax("\"", null, null));
         selectAll(s);
         s.toggleLineComment();
@@ -271,7 +273,7 @@ class LanguageCommentToggleTest {
         assertEquals(CommentSyntax.forLanguage("python"), s.getCommentSyntax());
     }
 
-    // ── Undo integration ─────────────────────────────────────────────
+    // ── Intégration undo ─────────────────────────────────────────
 
     @Test
     void python_toggleLineComment_isUndoableInOneStep() {

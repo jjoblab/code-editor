@@ -1,65 +1,66 @@
 package jo.codeeditor.highlight;
 
 /**
- * Optional TextMate-based tokenizer interface (v2.43).
+ * Interface optionnelle de tokénisation basée sur TextMate.
  *
- * <p>v2.46 — Module isolation: the reference implementation has moved to
- * the {@code :tm4e} module ({@code jo.codeeditor.tm4e.TextMateTokenizerImpl}).
- * The {@code :tm4e} module is now an <em>optional</em> library module that
- * depends only on {@code :core}. Consumers of code-editor can choose:
+ * <p>Isolation modulaire : l'implémentation de référence se trouve dans le
+ * module {@code :tm4e} ({@code jo.codeeditor.tm4e.TextMateTokenizerImpl}).
+ * Le module {@code :tm4e} est un module de bibliothèque <em>optionnel</em>
+ * qui ne dépend que de {@code :core}. Les consommateurs de code-editor
+ * peuvent choisir :
  * <ul>
- *   <li><b>With TextMate</b> — depend on {@code :tm4e} (transitively pulls
- *       in the vendored tm4e source + grammar/theme assets). The 17 grammar
- *       files (Java, Kotlin, XML, HTML, CSS, JS, TS, Python, etc.) are
- *       loaded lazily from {@code assets/textmate/} on first
- *       {@link #isAvailable(String)} call.</li>
- *   <li><b>Without TextMate</b> — omit {@code :tm4e} entirely. The built-in
- *       tokenizer in {@link SyntaxHighlighter} ({@code :core}) handles all
- *       common languages (Java, Kotlin, XML, HTML, CSS, JS, TS, Python, Go,
- *       Rust, C, C++, Shell, YAML, etc.) with a per-language switch-case
- *       state machine. Quality is slightly lower than TextMate (no scope
- *       inheritance, no injections) but still useful for code editing.</li>
+ *   <li><b>Avec TextMate</b> — dépendre de {@code :tm4e} (récupère par
+ *       transition les sources tm4e embarquées + les grammaires/thèmes).
+ *       Les 17 fichiers de grammaire (Java, Kotlin, XML, HTML, CSS, JS, TS,
+ *       Python, etc.) sont chargés paresseusement depuis
+ *       {@code assets/textmate/} au premier appel de
+ *       {@link #isAvailable(String)}.</li>
+ *   <li><b>Sans TextMate</b> — omettre entièrement {@code :tm4e}. Le
+ *       tokéniseur intégré de {@link SyntaxHighlighter} ({@code :core})
+ *       gère tous les langages courants (Java, Kotlin, XML, HTML, CSS, JS,
+ *       TS, Python, Go, Rust, C, C++, Shell, YAML, etc.) via une machine à
+ *       états par langage (switch-case). La qualité est légèrement inférieure
+ *       à TextMate (pas d'héritage de portées, pas d'injections) mais reste
+ *       suffisante pour l'édition de code.</li>
  * </ul>
  *
- * <p>If no implementation is registered (e.g., in pure-JVM tests, or before
- * app initialization), {@link SyntaxHighlighter#styleLine} falls back to
- * its built-in per-language switch-case tokenizer — the TextMate path is
- * strictly opt-in per language key.
+ * <p>Si aucune implémentation n'est enregistrée (ex. tests JVM purs, ou avant
+ * l'initialisation de l'application), {@link SyntaxHighlighter#styleLine}
+ * bascule sur son tokéniseur intégré par langage (switch-case) — le recours
+ * à TextMate est strictement opt-in par clé de langage.
  *
- * <h2>State model</h2>
+ * <h2>Modèle d'état</h2>
  * <ul>
- *   <li>{@code entryState == 0} → start of file (fresh state, no previous line)</li>
- *   <li>{@code entryState > 0} → opaque index previously returned as
- *       {@code exitState} by the same tokenizer. The implementation maintains
- *       an internal {@code Map<Integer, IStateStack>} per language to look up
- *       the corresponding tm4e opaque state.</li>
- *   <li>The returned {@code exitState} must be <em>stable</em>: re-tokenizing
- *       the same line with the same {@code entryState} must yield the same
- *       {@code exitState}, so that the editor stops re-tokenizing downstream
- *       once it stabilizes.</li>
+ *   <li>{@code entryState == 0} → début de fichier (état vierge, pas de ligne précédente)</li>
+ *   <li>{@code entryState > 0} → index opaque précédemment renvoyé comme
+ *       {@code exitState} par le même tokéniseur. L'implémentation maintient
+ *       une {@code Map<Integer, IStateStack>} interne par langage pour
+ *       retrouver l'état opaque tm4e correspondant.</li>
+ *   <li>Le {@code exitState} renvoyé doit être <em>stable</em> : re-tokéniser
+ *       la même ligne avec le même {@code entryState} doit produire le même
+ *       {@code exitState}, afin que l'éditeur cesse de re-tokéniser l'aval
+ *       une fois l'état stabilisé.</li>
  * </ul>
- *
- * @since v2.43
  */
 public interface TextMateTokenizer {
 
     /**
-     * Returns {@code true} if a TextMate grammar is registered for the
-     * given language key (e.g., {@code "java"}, {@code "kotlin"}).
+     * Renvoie {@code true} si une grammaire TextMate est enregistrée pour la
+     * clé de langage donnée (ex. {@code "java"}, {@code "kotlin"}).
      *
-     * <p>If {@code true}, {@link SyntaxHighlighter#styleLine} delegates to
-     * {@link #tokenize(String, int, String)} for this language. If
-     * {@code false}, the built-in switch-case tokenizer is used instead.
+     * <p>Si {@code true}, {@link SyntaxHighlighter#styleLine} délègue à
+     * {@link #tokenize(String, int, String)} pour ce langage. Si
+     * {@code false}, le tokéniseur intégré (switch-case) est utilisé à la place.
      */
     boolean isAvailable(String language);
 
     /**
-     * Tokenize a single line.
+     * Tokénise une ligne unique.
      *
-     * @param line       the line text (without trailing newline)
-     * @param entryState opaque lexer state entering this line (0 = fresh)
-     * @param language   language key (e.g., {@code "java"}, {@code "kotlin"})
-     * @return a {@link StyledLine} with spans and a stable exit state
+     * @param line       le texte de la ligne (sans le saut de ligne final)
+     * @param entryState état opaque du lexer en entrée de ligne (0 = vierge)
+     * @param language   clé de langage (ex. {@code "java"}, {@code "kotlin"})
+     * @return un {@link StyledLine} avec les portions et un état de sortie stable
      */
     StyledLine tokenize(String line, int entryState, String language);
 }

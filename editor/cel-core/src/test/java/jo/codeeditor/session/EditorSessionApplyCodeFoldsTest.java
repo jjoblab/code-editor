@@ -11,13 +11,11 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Tests du portage {@code applyCodeFolds} de CodeAssist
- * ({@link EditorSession#applyCodeFolds}) : préservation de l'état replié
- * utilisateur, application UNIQUE des collapsedByDefault (imports), reset
- * par document.
+ * Tests de {@link EditorSession#applyCodeFolds} : préservation de l'état
+ * replié utilisateur, application UNIQUE des collapsedByDefault (imports),
+ * reset par document.
  *
  * @author jo@Dev
- * @since v2.33
  */
 class EditorSessionApplyCodeFoldsTest {
 
@@ -66,9 +64,9 @@ class EditorSessionApplyCodeFoldsTest {
     void newRegionFollowsFreshDefault() {
         EditorSession s = new EditorSession(EditorDocument.of("a\nb\n"));
         s.applyCodeFolds(List.of(region(0, 1, "block", false, false)));
-        // foldDefaultsApplied est désormais true — une NOUVELLE région
-        // collapsedByDefault (créée par une édition) ne se plie PAS
-        // automatiquement (parité CodeAssist : defaultFoldsApplied).
+        // foldDefaultsApplied est true après le premier tir — une NOUVELLE
+        // région collapsedByDefault (créée par une édition) ne se plie PAS
+        // automatiquement.
         s.applyCodeFolds(List.of(
                 region(0, 1, "block", false, false),
                 region(2, 5, "imports", false, true)));
@@ -92,7 +90,7 @@ class EditorSessionApplyCodeFoldsTest {
 
     @Test
     void collapsedDefaultFieldSurvivesLegacyConstructor() {
-        // L'ancien constructeur 5-args (v2.31 et avant) default à false.
+        // L'ancien constructeur 5-args positionne collapsedByDefault à false.
         DiagnosticShift.FoldRegion legacy =
                 new DiagnosticShift.FoldRegion(0, 5, "…", "block", true);
         assertTrue(legacy.collapsed);

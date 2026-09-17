@@ -8,40 +8,39 @@ import java.util.ServiceLoader;
 import java.util.Set;
 
 /**
- * v3.36.0 — Registry + per-frame collector for plugin painters (roadmap
- * item 9, port of CodeAssist v3.20's {@code EditorPainterHost}).
+ * Registre + collecteur par frame des painters de plugins (port de
+ * l'{@code EditorPainterHost} de CodeAssist).
  *
- * <p>The host owns the registered {@link EditorDecorationPainter}s and,
- * once per render pass, calls each of them with a fresh
- * {@link EditorPaintContext} to collect that frame's decorations
- * (text decorations, gutter marks, plugin inlays). The editor's renderer
- * then draws them on top of its own layers.</p>
+ * <p>L'hôte possède les {@link EditorDecorationPainter} enregistrés et,
+ * une fois par passe de rendu, appelle chacun avec un
+ * {@link EditorPaintContext} neuf pour collecter les décorations de la
+ * frame (décorations de texte, marques de gutter, inlays de plugins). Le
+ * renderer de l'éditeur les dessine ensuite par-dessus ses propres
+ * couches.</p>
  *
- * <p><b>Fail-safe:</b> a painter that throws anything ({@link Throwable},
- * not just RuntimeException) is REMOVED from the registry and reported to
- * the {@link Listener}s — the editor itself keeps rendering. This is the
- * single most important CodeAssist policy of the painter host: a broken
- * plugin degrades to "no decorations", never to a crashed editor.</p>
+ * <p><b>Fiabilité :</b> un painter qui lève quoi que ce soit ({@link Throwable},
+ * pas seulement RuntimeException) est RETIRÉ du registre et signalé aux
+ * {@link Listener} — l'éditeur continue de se dessiner. C'est la politique
+ * la plus importante du painter host héritée de CodeAssist : un plugin
+ * défaillant dégrade en « aucune décoration », jamais en éditeur planté.</p>
  *
  * <pre>{@code
  * EditorPainterHost host = view.getPainterHost();
  * host.register(new TodoPainter());
- * host.loadFromClasspath();   // META-INF/services/... SPI plugins
+ * host.loadFromClasspath();   // plugins SPI META-INF/services/...
  * }</pre>
  *
- * <p>Not thread-safe — register/unregister on the UI thread (the render
- * pass iterates the painter list on the UI thread too).</p>
- *
- * @since v3.36.0
+ * <p>Non thread-safe — enregistrer/désenregistrer sur le thread UI (la
+ * passe de rendu itère aussi la liste des painters sur le thread UI).</p>
  */
 public final class EditorPainterHost {
 
-    /** Notified when a painter is removed because it threw. */
+    /** Notifié quand un painter est retiré pour avoir levé une exception. */
     public interface Listener {
         void onPainterRemoved(EditorDecorationPainter painter, Throwable error);
     }
 
-    /** One frame's collected decorations (consumed by the renderer). */
+    /** Décorations collectées d'une frame (consommées par le renderer). */
     static final class Frame {
         final List<EditorDecorations.TextDecoration> textDecorations;
         final List<EditorDecorations.GutterMark> gutterMarks;
@@ -66,16 +65,16 @@ public final class EditorPainterHost {
     private final List<Listener> listeners = new ArrayList<>(0);
     private final Set<String> knownIds = new HashSet<>(0);
 
-    /** Registers a painter (deduplicated by {@link EditorDecorationPainter#id()}). */
+    /** Enregistre un painter (dédupliqué par {@link EditorDecorationPainter#id()}). */
     public void register(EditorDecorationPainter painter) {
         if (painter == null) return;
         synchronized (painters) {
-            if (!knownIds.add(painter.id())) return; // already registered
+            if (!knownIds.add(painter.id())) return; // déjà enregistré
             painters.add(painter);
         }
     }
 
-    /** Unregisters a painter (identity match). Returns true when removed. */
+    /** Désenregistre un painter (par identité). Renvoie true si retiré. */
     public boolean unregister(EditorDecorationPainter painter) {
         if (painter == null) return false;
         synchronized (painters) {
@@ -85,7 +84,7 @@ public final class EditorPainterHost {
         }
     }
 
-    /** The registered painters (unmodifiable snapshot). */
+    /** Les painters enregistrés (instantané non modifiable). */
     public List<EditorDecorationPainter> painters() {
         synchronized (painters) {
             return Collections.unmodifiableList(new ArrayList<>(painters));
@@ -101,11 +100,11 @@ public final class EditorPainterHost {
     }
 
     /**
-     * Loads painters from the classpath's
+     * Charge les painters depuis les inscriptions
      * {@code META-INF/services/jo.codeeditor.view.EditorDecorationPainter}
-     * registrations (Java SPI / {@link ServiceLoader}). Providers that fail
-     * to instantiate are skipped. Ids already registered are not
-     * duplicated.
+     * du classpath (Java SPI / {@link ServiceLoader}). Les providers qui
+     * échouent à s'instancier sont ignorés. Les identifiants déjà
+     * enregistrés ne sont pas dupliqués.
      */
     public void loadFromClasspath() {
         try {
@@ -115,19 +114,19 @@ public final class EditorPainterHost {
                 try {
                     register(p);
                 } catch (RuntimeException ignored) {
-                    // a bad provider factory must not break the others
+                    // une factory de provider défaillante ne doit pas casser les autres
                 }
             }
         } catch (Throwable t) {
-            // ServiceLoader itself can throw (broken classpath) — degrade
-            // to "no classpath painters".
+            // ServiceLoader lui-même peut lever (classpath cassé) — dégrade
+            // en « aucun painter de classpath ».
         }
     }
 
     /**
-     * Runs every painter and collects this frame's decorations. A painter
-     * that throws is removed and reported; the frame keeps whatever the
-     * other painters produced.
+     * Exécute chaque painter et collecte les décorations de la frame. Un
+     * painter qui lève est retiré et signalé ; la frame conserve ce que les
+     * autres painters ont produit.
      */
     Frame apply(EditorView view, int firstVisibleLine, int lastVisibleLine) {
         List<EditorDecorationPainter> snapshot;
@@ -143,9 +142,9 @@ public final class EditorPainterHost {
             try {
                 painter.paint(ctx);
             } catch (Throwable t) {
-                // ★ CodeAssist EditorPainterHost policy: a painter that
-                // throws is removed from the registry — never crash the
-                // editor for a plugin's bug.
+                // ★ Politique du painter host de CodeAssist : un painter qui
+                // lève est retiré du registre — ne jamais planter l'éditeur
+                // pour le bug d'un plugin.
                 synchronized (painters) {
                     painters.removeIf(p -> p == painter);
                     knownIds.remove(painter.id());
@@ -158,7 +157,7 @@ public final class EditorPainterHost {
                     try {
                         l.onPainterRemoved(painter, t);
                     } catch (RuntimeException ignored) {
-                        // a throwing listener must not break the removal
+                        // un listener qui lève ne doit pas casser le retrait
                     }
                 }
             }

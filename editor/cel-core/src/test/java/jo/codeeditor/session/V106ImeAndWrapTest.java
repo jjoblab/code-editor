@@ -13,20 +13,20 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Tests for the v1.0.6 features:
+ * Tests des fonctionnalités IME (auto-espace SwiftKey) et replis :
  *
  * <ul>
- *   <li>SwiftKey auto-space handling: bundled ("p ") and split ("p" then " ")
- *       shapes both strip the trailing space.</li>
- *   <li>Punctuation swap detection is byte-identical to a user backspace tap —
- *       imeDeleteSurrounding stays literal (no smart-backspace rules).</li>
- *   <li>Composing region stays put when a non-composing edit happens before
- *       it (already tested in v1.0.5 but re-verified here for the new
- *       imeCommitText code path).</li>
- *   <li>Fold region collapsed-state survives shiftFoldRegions (the v1.0.5 fix
- *       preserved kind+collapsed, but we re-verify here).</li>
- *   <li>EditorSession.imeCommitText with empty string clears composing
- *       without touching text.</li>
+ *   <li>Gestion de l'auto-espace SwiftKey : les formes groupée ("p ") et
+ *       séparée ("p" puis " ") suppriment toutes deux l'espace finale.</li>
+ *   <li>La détection de l'échange de ponctuation est identique octet par
+ *       octet à un backspace utilisateur — imeDeleteSurrounding reste
+ *       littéral (pas de règles de backspace intelligent).</li>
+ *   <li>La région de composition ne bouge pas quand une édition hors
+ *       composition a lieu avant elle (re-vérifié ici pour le code path
+ *       imeCommitText).</li>
+ *   <li>L'état replié d'une région survit à shiftFoldRegions.</li>
+ *   <li>EditorSession.imeCommitText avec une chaîne vide efface la
+ *       composition sans toucher au texte.</li>
  * </ul>
  */
 class V106ImeAndWrapTest {
@@ -43,7 +43,7 @@ class V106ImeAndWrapTest {
         @Override public boolean isSyncingExtractedText() { return syncingExtracted; }
     }
 
-    // ── SwiftKey auto-space (bundled shape) ───────────────────────
+    // ── Auto-espace SwiftKey (forme groupée) ────────────────────
 
     @Test
     void imeCommitText_bundledAutoSpaceAfterParen_stripsTrailingSpace() {
@@ -51,19 +51,18 @@ class V106ImeAndWrapTest {
         s.setSelection(3);
         RecordingImeListener l = new RecordingImeListener();
         s.setImeListener(l);
-        // IME commits "p " (the "p" is the user's typed char, the trailing
-        // space is the keyboard's auto-space after the previous ")").
-        // Actually we test with "(" — wait, "(" is an opener, not auto-spaced.
-        // Use ")" which IS auto-spaced.
+        // L'IME committe "p " : le "p" est le caractère tapé par
+        // l'utilisateur, l'espace finale est l'auto-espace du clavier.
+        // "(" étant un ouvrant non auto-espacé, on teste avec ")".
         s.imeCommitText(")");
-        // Now commit "p " — but our heuristic only triggers when the LAST
-        // char of the commit is " " and the second-to-last is an auto-spaced
-        // symbol. So "p " wouldn't trigger (p isn't a symbol). Let's commit
-        // ") " directly — a bare closer + space.
+        // L'heuristique ne se déclenche que si le DERNIER caractère du commit
+        // est " " et l'avant-dernier un symbole auto-espacé. On committe donc
+        // directement ") " — un fermant nu + espace.
         s.imeCommitText(") ");
-        // The trailing space must have been stripped.
+        // L'espace finale doit avoir été supprimée.
         assertEquals("foo))", s.getText());
-        // restartInput must have been called (the IME's model has the phantom space).
+        // restartInput doit avoir été appelé (le modèle de l'IME contient
+        // l'espace fantôme).
         assertTrue(l.restartInputCount > 0, "Expected onRestartInput for bundled auto-space");
     }
 
@@ -78,7 +77,7 @@ class V106ImeAndWrapTest {
         assertTrue(l.restartInputCount > 0);
     }
 
-    // ── SwiftKey auto-space (split shape) ─────────────────────────
+    // ── Auto-espace SwiftKey (forme séparée) ────────────────────
 
     @Test
     void imeCommitText_splitAutoSpaceAfterSymbol_swallowsBareSpace() {
@@ -86,13 +85,13 @@ class V106ImeAndWrapTest {
         s.setSelection(3);
         RecordingImeListener l = new RecordingImeListener();
         s.setImeListener(l);
-        // First commit: ")" — this arms the split-auto-space detector.
+        // Premier commit : ")" — cela arme le détecteur d'auto-espace séparé.
         s.imeCommitText(")");
         assertEquals("foo)", s.getText());
-        // Second commit: " " — this should be swallowed.
+        // Second commit : " " — doit être avalée.
         s.imeCommitText(" ");
         assertEquals("foo)", s.getText());
-        // restartInput must have been called for the swallowed space.
+        // restartInput doit avoir été appelé pour l'espace avalée.
         assertTrue(l.restartInputCount > 0, "Expected onRestartInput for split auto-space");
     }
 
@@ -100,10 +99,11 @@ class V106ImeAndWrapTest {
     void imeCommitText_userTypedSpaceIsNotSwallowed() {
         EditorSession s = new EditorSession(EditorDocument.of("foo"));
         s.setSelection(3);
-        // User types a real space (not after a symbol commit).
+        // L'utilisateur tape une vraie espace (pas après un commit de symbole).
         s.imeCommitText(" ");
         assertEquals("foo ", s.getText());
-        // Now type another space — also not swallowed (no preceding symbol commit).
+        // Puis une autre espace — non avalée non plus (pas de commit de
+        // symbole précédent).
         s.setSelection(4);
         s.imeCommitText(" ");
         assertEquals("foo  ", s.getText());
@@ -113,14 +113,14 @@ class V106ImeAndWrapTest {
     void imeCommitText_spaceAfterLetterIsNotSwallowed() {
         EditorSession s = new EditorSession(EditorDocument.of("foo"));
         s.setSelection(3);
-        // Type "bar" then " " — the space should NOT be swallowed because
-        // the previous commit was a letter, not a symbol.
+        // Taper "bar" puis " " — l'espace ne doit PAS être avalée car le
+        // commit précédent est une lettre, pas un symbole.
         s.imeCommitText("bar");
         s.imeCommitText(" ");
         assertEquals("foobar ", s.getText());
     }
 
-    // ── Empty commit clears composing ─────────────────────────────
+    // ── Le commit vide efface la composition ────────────────────
 
     @Test
     void imeCommitText_emptyStringClearsComposingWithoutTouchingText() {
@@ -129,31 +129,31 @@ class V106ImeAndWrapTest {
         s.imeSetComposingText("hello", 1);
         assertTrue(s.isComposing());
         assertEquals("hello", s.getText());
-        // IME confirms the composing region with an empty commit.
+        // L'IME confirme la région de composition par un commit vide.
         s.imeCommitText("");
-        // Text is NOT touched (the composing text is already in the buffer).
+        // Le texte n'est PAS touché (le texte composé est déjà dans le buffer).
         assertEquals("hello", s.getText());
-        // Composing flag cleared.
+        // Drapeau de composition effacé.
         assertFalse(s.isComposing());
     }
 
-    // ── Fold region collapsed-state survives shift ────────────────
+    // ── L'état replié survit au décalage ────────────────────────
 
     @Test
     void shiftFoldRegions_preservesCollapsedState() {
-        // Place a collapsed fold at [0, 10).
+        // Placer un repli collapsed à [0, 10).
         List<DiagnosticShift.FoldRegion> folds = new ArrayList<>();
         folds.add(new DiagnosticShift.FoldRegion(0, 10, "...", "block", true));
-        // Edit at offset 5: replace 1 char with 3 chars.
+        // Édition à l'offset 5 : remplacer 1 caractère par 3.
         EditSpan span = new EditSpan(5, 1, 3);
         List<DiagnosticShift.FoldRegion> shifted = DiagnosticShift.shiftFoldRegions(folds, span);
         assertEquals(1, shifted.size());
         DiagnosticShift.FoldRegion r = shifted.get(0);
-        // Start should be unchanged (before the edit).
+        // Le start doit être inchangé (avant l'édition).
         assertEquals(0, r.start);
-        // End should shift by +2 (3 inserted - 1 removed).
+        // Le end doit se décaler de +2 (3 insérés - 1 supprimé).
         assertEquals(12, r.end);
-        // Collapsed state preserved.
+        // État collapsed préservé.
         assertTrue(r.collapsed);
         assertEquals("block", r.kind);
         assertEquals("...", r.placeholder);
@@ -163,67 +163,68 @@ class V106ImeAndWrapTest {
     void shiftFoldRegions_dropsFoldsConsumedByDelete() {
         List<DiagnosticShift.FoldRegion> folds = new ArrayList<>();
         folds.add(new DiagnosticShift.FoldRegion(5, 10, "...", "block", true));
-        // Delete the entire fold range: [0, 20) → "".
+        // Supprimer toute la plage du repli : [0, 20) → "".
         EditSpan span = new EditSpan(0, 20, 0);
         List<DiagnosticShift.FoldRegion> shifted = DiagnosticShift.shiftFoldRegions(folds, span);
-        // The fold's end maps to 0 (it was inside the deleted range), so
-        // newEnd <= newStart and the fold is dropped.
+        // La fin du repli mappe sur 0 (elle était dans la plage supprimée),
+        // donc newEnd <= newStart et le repli est abandonné.
         assertTrue(shifted.isEmpty());
     }
 
-    // ── Composing region stays put on non-composing edit ──────────
+    // ── La région de composition ne bouge pas lors d'une édition hors composition ──
 
     @Test
     void replaceRange_outsideComposingRegion_keepsComposingIntact() {
         EditorSession s = new EditorSession(EditorDocument.of("hello world"));
-        // Select "world" (offsets 6..11) so the composing text replaces it.
+        // Sélectionner "world" (offsets 6..11) pour que le texte composé le
+        // remplace.
         s.setSelection(Selection.range(6, 11));
         s.imeSetComposingText("WORLD", 1);
-        // Composing region is now [6, 11) in "hello WORLD".
+        // La région de composition est maintenant [6, 11) dans "hello WORLD".
         assertEquals("hello WORLD", s.getText());
         int[] comp = s.getComposingRegion();
         assertEquals(6, comp[0]);
         assertEquals(11, comp[1]);
-        // Edit AFTER the composing region — should not move it.
+        // Édition APRÈS la région de composition — ne doit pas la déplacer.
         s.setSelection(12);
         s.commitText("!");
-        // "hello WORLD!" — composing region [6, 11) unchanged.
+        // "hello WORLD!" — région de composition [6, 11) inchangée.
         assertEquals("hello WORLD!", s.getText());
         comp = s.getComposingRegion();
         assertEquals(6, comp[0]);
         assertEquals(11, comp[1]);
     }
 
-    // ── typeChar literal typing does not arm symbol-commit detector ──
+    // ── La saisie littérale typeChar n'arme pas le détecteur de commit de symbole ──
 
     @Test
     void typeChar_letterDoesNotArmSymbolCommitDetector() {
         EditorSession s = new EditorSession(EditorDocument.of(""));
         s.setSelection(0);
-        // Type ")" — arms the detector.
+        // Taper ")" — arme le détecteur.
         s.typeChar(')');
         assertEquals(")", s.getText());
-        // Type "a" (a letter, not a space) — should NOT be swallowed.
+        // Taper "a" (une lettre, pas une espace) — ne doit PAS être avalé.
         s.typeChar('a');
         assertEquals(")a", s.getText());
     }
 
-    // ── Multiple symbol commits in a row ──────────────────────────
+    // ── Plusieurs commits de symboles à la suite ────────────────
 
     @Test
     void imeCommitText_multipleSymbolsInARow_splitAutoSpaceSwallowed() {
         EditorSession s = new EditorSession(EditorDocument.of(""));
         s.setSelection(0);
-        // Type ")" (bare symbol — arms the split detector).
+        // Taper ")" (symbole nu — arme le détecteur séparé).
         s.imeCommitText(")");
         assertEquals(")", s.getText());
-        // Type " " — split auto-space, swallowed.
+        // Taper " " — auto-espace séparée, avalée.
         s.imeCommitText(" ");
         assertEquals(")", s.getText());
-        // Type ";" (bare symbol — re-arms the detector).
+        // Taper ";" (symbole nu — ré-arme le détecteur).
         s.imeCommitText(";");
         assertEquals(");", s.getText());
-        // Type " " — split auto-space, swallowed.
+        // Taper " " — auto-espace séparée, avalée.
         s.imeCommitText(" ");
         assertEquals(");", s.getText());
     }

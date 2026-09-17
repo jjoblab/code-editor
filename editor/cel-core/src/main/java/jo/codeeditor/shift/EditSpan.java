@@ -1,12 +1,10 @@
 package jo.codeeditor.shift;
 
 /**
- * Represents an edit span for diagnostic/token shifting.
- * Describes a text edit: removed [start, start+removed) and inserted added chars.
- 
- *
- * @since v1.0.0
-*/
+ * Représente une plage d'édition pour le décalage diagnostics/jetons.
+ * Décrit une édition de texte : suppression de [start, start+removed)
+ * et insertion de added caractères.
+ */
 public final class EditSpan {
     public final int start;
     public final int removed;
@@ -18,12 +16,12 @@ public final class EditSpan {
         this.added = added;
     }
 
-    /** Net change in document length. */
+    /** Variation nette de la longueur du document. */
     public int delta() {
         return added - removed;
     }
 
-    /** End of the removed range. */
+    /** Fin de la plage supprimée. */
     public int end() {
         return start + removed;
     }

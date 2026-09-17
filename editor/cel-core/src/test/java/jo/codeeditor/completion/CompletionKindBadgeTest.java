@@ -5,18 +5,16 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * ★ v2.30 — Tests du badge de type du popup de complétion
+ * ★ Tests du badge de type du popup de complétion
  * ({@link CompletionKindBadge}, portage du KindBadge de CodeAssist).
  *
  * <p>Chaque kind LSP moderne doit produire le BON glyphe — « K » pour un
- * mot-clé (le cas signalé par l'utilisateur : le popup n'affichait pas le
- * type des suggestions), « C » classe, « I » interface, « E » enum,
- * « M » méthode, « F » champ, « v » variable, « p » package, « {} »
- * snippet, « T » paramètre de type, « # » constante d'enum, « @ »
- * annotation (via le tag data), « R » record.</p>
+ * mot-clé (le badge rend visible le type des suggestions), « C » classe,
+ * « I » interface, « E » enum, « M » méthode, « F » champ, « v » variable,
+ * « p » package, « {} » snippet, « T » paramètre de type, « # » constante
+ * d'enum, « @ » annotation (via le tag data), « R » record.</p>
  *
  * @author jo@Dev
- * @since v2.30
  */
 class CompletionKindBadgeTest {
 
@@ -79,7 +77,7 @@ class CompletionKindBadgeTest {
 
     @Test
     void legacyIconFallbackWhenKindUnknown() {
-        // Providers v1.x sans kindCode : le badge dérive de l'icône string.
+        // Providers sans kindCode : le badge dérive de l'icône string.
         assertEquals("K", CompletionKindBadge.meta(0, null, "k", true, ACCENT).glyph);
         assertEquals("M", CompletionKindBadge.meta(0, null, "m", true, ACCENT).glyph);
         assertEquals("F", CompletionKindBadge.meta(0, null, "f", true, ACCENT).glyph);

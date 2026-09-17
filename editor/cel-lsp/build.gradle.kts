@@ -1,6 +1,6 @@
 plugins {
     id("com.android.library")
-    // v3.34.0: publish the AAR for JitPack / Maven consumers.
+    // Publication de l'AAR pour les consommateurs JitPack / Maven.
     id("maven-publish")
 }
 
@@ -21,8 +21,8 @@ android {
         }
     }
 
-    // v3.34.0: publish the release variant (required for maven-publish's
-    // components["release"] to exist) with a sources jar for IDE navigation.
+    // Publie la variante release (requis pour que components["release"] de
+    // maven-publish existe) avec un jar de sources pour la navigation IDE.
     publishing {
         singleVariant("release") {
             withSourcesJar()
@@ -34,7 +34,7 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    // v3.5.0: Default values for android.* stubs in unit tests. Without
+    // Valeurs par défaut des stubs android.* en tests unitaires. Sans
     // this, android.util.Log.i/w/e throw RuntimeException ("not mocked")
     // whenever DefaultLanguageClient logs a server message — which broke
     // the LspModuleTest.defaultLanguageClient_noOpImplementations test.
@@ -69,7 +69,7 @@ dependencies {
     // EPL-2.0 license (compatible with MIT for combined works).
     implementation("org.eclipse.lsp4j:org.eclipse.lsp4j:0.22.0")
     implementation("org.eclipse.lsp4j:org.eclipse.lsp4j.jsonrpc:0.22.0")
-    // v2.37 : Gson (déjà transitif de LSP4J, déclaré EXPLICITEMENT) —
+    // Gson (déjà transitif de LSP4J, déclaré EXPLICITEMENT) —
     // désérialisation des réponses des requêtes LSP personnalisées
     // (textDocument/superDefinition) envoyées via RemoteEndpoint.
     implementation("com.google.code.gson:gson:2.10.1")
@@ -80,7 +80,7 @@ dependencies {
     testImplementation(project(":cel-lsp-api"))
     testImplementation(project(":cel-core"))
     testImplementation(project(":cel-ui"))
-    // v3.33.7: Robolectric for InProcessStreamConnectionProvider tests.
+    // Robolectric pour les tests d'InProcessStreamConnectionProvider.
     testImplementation("org.robolectric:robolectric:4.13")
     testImplementation("androidx.test:core:1.6.1")
     testImplementation("androidx.test.ext:junit:1.2.1")
@@ -90,7 +90,7 @@ tasks.withType<JavaCompile>().configureEach {
     options.encoding = "UTF-8"
 }
 
-// v3.33.7: Use JUnit 4 for Robolectric tests in :cel-lsp.
+// JUnit 4 pour les tests Robolectric de :cel-lsp.
 tasks.withType<Test>().configureEach {
     useJUnit()
     testLogging {
@@ -98,9 +98,9 @@ tasks.withType<Test>().configureEach {
     }
 }
 
-// ── v3.34.0 — Maven publication (JitPack / local `publishToMavenLocal`) ──
-// JitPack overrides groupId (com.github.<user>) and version (git tag) at
-// build time; these values are the standalone/local-publish defaults.
+// ── Publication Maven (JitPack / `publishToMavenLocal` local) ──
+// JitPack surcharge le groupId (com.github.<user>) et la version (tag git)
+// au build ; ces valeurs sont les défauts standalone/publication locale.
 afterEvaluate {
     publishing {
         publications {

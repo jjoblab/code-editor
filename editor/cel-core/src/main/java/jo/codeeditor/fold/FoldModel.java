@@ -3,21 +3,19 @@ package jo.codeeditor.fold;
 import java.util.*;
 
 /**
- * Fold model: maps between document lines and visual (folded) lines.
- * Ported from CodeAssist FoldModel.kt.
- 
- *
- * @since v1.0.0
-*/
+ * Modèle de pliage : correspondance entre lignes du document et lignes
+ * visuelles (pliées).
+ * Reprend le design du {@code FoldModel.kt} de CodeAssist.
+ */
 public class FoldModel {
 
     /**
-     * Per-visual-line info about folds.
-     * visualLine[i] tells which doc line(s) it represents.
+     * Infos de pliage par ligne visuelle.
+     * visualLine[i] indique quelle(s) ligne(s) du document elle représente.
      */
     public static final class VisualLine {
         public final int docLine;
-        public final FoldedLineInfo foldInfo; // null if not folded
+        public final FoldedLineInfo foldInfo; // null si non pliée
 
         public VisualLine(int docLine, FoldedLineInfo foldInfo) {
             this.docLine = docLine;
@@ -34,53 +32,54 @@ public class FoldModel {
     }
 
     /**
-     * Build a fold model from a document's line count and fold regions.
-     * Regions are merged and sorted, then hidden lines are computed.
+     * Construit un modèle de pliage à partir du nombre de lignes d'un
+     * document et de ses régions pliables. Les régions sont fusionnées
+     * et triées, puis les lignes masquées sont calculées.
      *
-     * @param lineCount total number of document lines
-     * @param regions   fold regions (collapsed ones)
-     * @param docText   document text (for computing prefix/suffix)
-     * @return a FoldModel
+     * @param lineCount nombre total de lignes du document
+     * @param regions   régions pliables (celles réduites)
+     * @param docText   texte du document (pour calculer préfixe/suffixe)
+     * @return un FoldModel
      */
     public static FoldModel build(int lineCount, List<FoldRegion> regions, List<String> lineTexts) {
-        // Filter to collapsed regions only
+        // Ne garde que les régions réduites
         List<FoldRegion> collapsed = new ArrayList<>();
         for (FoldRegion r : regions) {
             if (r.collapsed) collapsed.add(r);
         }
 
-        // Sort by start
+        // Tri par début
         collapsed.sort(Comparator.comparingInt(r -> r.start));
 
-        // Merge overlapping regions
+        // Fusionne les régions qui se chevauchent
         List<FoldRegion> merged = mergeRegions(collapsed);
 
-        // Compute hidden line ranges
-        // For each region, figure out which lines are hidden
+        // Calcule les plages de lignes masquées
+        // Pour chaque région, détermine quelles lignes sont masquées
         Set<Integer> hiddenLines = new LinkedHashSet<>();
         Map<Integer, FoldedLineInfo> foldInfoMap = new HashMap<>();
 
         for (FoldRegion r : merged) {
-            // Determine start/end lines
+            // Détermine les lignes de début/fin
             int startLine = 0;
             int endLine = 0;
             if (lineTexts != null) {
-                // Compute line from offset
+                // Calcule la ligne à partir de l'offset
                 int offset = 0;
                 for (int i = 0; i < lineTexts.size(); i++) {
                     int lineEnd = offset + lineTexts.get(i).length();
                     if (offset <= r.start && r.start <= lineEnd) startLine = i;
                     if (offset <= r.end && r.end <= lineEnd) { endLine = i; break; }
-                    offset = lineEnd + 1; // +1 for newline
+                    offset = lineEnd + 1; // +1 pour le retour à la ligne
                 }
             }
 
-            // Hide lines between startLine+1 and endLine
+            // Masque les lignes entre startLine+1 et endLine
             String prefixText = "";
             String suffixText = "";
             if (lineTexts != null && startLine < lineTexts.size()) {
                 String firstLine = lineTexts.get(startLine);
-                // Find the column of the fold start in the first line
+                // Trouve la colonne du début du pli dans la première ligne
                 int foldStartCol = 0;
                 int offset = 0;
                 for (int i = 0; i < startLine; i++) {
@@ -112,7 +111,7 @@ public class FoldModel {
             }
         }
 
-        // Build visual lines
+        // Construit les lignes visuelles
         List<VisualLine> vlines = new ArrayList<>();
         for (int i = 0; i < lineCount; i++) {
             if (!hiddenLines.contains(i)) {
@@ -131,7 +130,7 @@ public class FoldModel {
         for (int i = 1; i < sorted.size(); i++) {
             FoldRegion next = sorted.get(i);
             if (next.start <= current.end) {
-                // Overlapping: merge
+                // Chevauchement : fusion
                 int end = Math.max(current.end, next.end);
                 current = new FoldRegion(current.start, end, current.placeholder, current.kind, true);
             } else {
@@ -144,7 +143,7 @@ public class FoldModel {
     }
 
     /**
-     * Returns true if the given document line is hidden by a fold.
+     * Renvoie true si la ligne de document donnée est masquée par un pli.
      */
     public boolean isHidden(int docLine) {
         for (VisualLine vl : visualLines) {
@@ -156,7 +155,7 @@ public class FoldModel {
     }
 
     /**
-     * Returns the fold starting at the given document line, or null.
+     * Renvoie le pli commençant à la ligne de document donnée, ou null.
      */
     public FoldedLineInfo foldStartingAt(int docLine) {
         for (VisualLine vl : visualLines) {
@@ -168,7 +167,7 @@ public class FoldModel {
     }
 
     /**
-     * Maps a visual row to the document line.
+     * Fait correspondre une rangée visuelle à la ligne de document.
      */
     public int docLineForVisual(int visualRow) {
         if (visualRow < 0) return 0;
@@ -177,12 +176,12 @@ public class FoldModel {
     }
 
     /**
-     * Maps a document line to the visual row.
+     * Fait correspondre une ligne de document à la rangée visuelle.
      */
     public int visualForDocLine(int docLine) {
         for (int i = 0; i < visualLines.size(); i++) {
             if (visualLines.get(i).docLine == docLine) return i;
-            // If docLine is hidden, return the fold's visual line
+            // Si docLine est masquée, renvoie la ligne visuelle du pli
             if (visualLines.get(i).foldInfo != null
                 && docLine > visualLines.get(i).docLine
                 && docLine <= visualLines.get(i).foldInfo.endLine) {
@@ -193,13 +192,14 @@ public class FoldModel {
     }
 
     /**
-     * Returns the composite text for a visual line (prefix + placeholder + suffix).
+     * Renvoie le texte composite d'une ligne visuelle
+     * (préfixe + placeholder + suffixe).
      */
     public String compositeText(int visualRow, List<String> lineTexts) {
         if (visualRow < 0 || visualRow >= visualLines.size()) return "";
         VisualLine vl = visualLines.get(visualRow);
         if (vl.foldInfo == null) {
-            // Not folded: return the line text directly
+            // Non pliée : renvoie directement le texte de la ligne
             if (vl.docLine < lineTexts.size()) return lineTexts.get(vl.docLine);
             return "";
         }
@@ -209,8 +209,9 @@ public class FoldModel {
         String suffix = "";
         if (fi.endLine < lineTexts.size()) {
             String lastLine = lineTexts.get(fi.endLine);
-            // Suffix starts at suffixStart offset from the beginning of the last line's fold area
-            // For simplicity, use suffixStart as a column in the last line
+            // Le suffixe commence à l'offset suffixStart depuis le début de la
+            // zone de pli de la dernière ligne
+            // Par simplicité, utilise suffixStart comme colonne dans la dernière ligne
             int col = fi.suffixStart - fi.prefixEnd - fi.placeholder.length();
             suffix = lastLine.substring(Math.max(0, Math.min(col, lastLine.length())));
         }
@@ -218,21 +219,21 @@ public class FoldModel {
     }
 
     /**
-     * Returns the number of visual lines.
+     * Renvoie le nombre de lignes visuelles.
      */
     public int visualLineCount() {
         return visualLines.size();
     }
 
     /**
-     * Returns the total number of document lines.
+     * Renvoie le nombre total de lignes du document.
      */
     public int totalDocLines() {
         return totalDocLines;
     }
 
     /**
-     * Returns the visual lines list.
+     * Renvoie la liste des lignes visuelles.
      */
     public List<VisualLine> getVisualLines() {
         return Collections.unmodifiableList(visualLines);

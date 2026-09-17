@@ -13,16 +13,16 @@ import jo.codeeditor.session.EditorSession;
 import static org.junit.Assert.*;
 
 /**
- * Robolectric tests for {@link CaretAnimator}.
+ * Tests Robolectric pour {@link CaretAnimator}.
  *
- * <p>v3.33.10: Locks in the regression fix where the snap branch in
- * {@code EditorRenderer.drawCaret} overwrote the just-updated alias fields
- * with stale animator state. The fix consolidates ALL caret state into
- * {@link CaretAnimator} — these tests verify the state machine stays
- * consistent across snap / glide / edit / reset transitions.</p>
+ * <p>Verrouille la cohérence du curseur : la branche snap de
+ * {@code EditorRenderer.drawCaret} ne doit pas écraser les champs d'alias
+ * fraîchement mis à jour avec un état périmé de l'animator. Tout l'état du
+ * curseur est consolidé dans {@link CaretAnimator} — ces tests vérifient
+ * que la machine à états reste cohérente à travers les transitions
+ * snap / glide / édition / reset.</p>
  *
  * @author jo@Dev
- * @since v3.33.10
  */
 @RunWith(RobolectricTestRunner.class)
 public class CaretAnimatorTest {
@@ -48,9 +48,10 @@ public class CaretAnimatorTest {
 
     @Test
     public void snapTo_updatesAllState_atomically() {
-        // Regression test: previously the snap branch updated alias fields
-        // on EditorView, then overwrote them with stale animator.animX/Y.
-        // Now snapTo() must update animX/Y, targetX/Y, ready, rev in one go.
+        // Test de régression : auparavant la branche snap mettait à jour les
+        // champs d'alias sur EditorView puis les écrasait avec un
+        // animator.animX/Y périmé. Désormais snapTo() doit mettre à jour
+        // animX/Y, targetX/Y, ready et rev en une seule fois.
         EditorView view = createEditor();
         CaretAnimator ca = view.caretAnim;
 
@@ -66,26 +67,28 @@ public class CaretAnimatorTest {
 
     @Test
     public void snapTo_afterGlide_extinguishesStaleAnimatorState() {
-        // Reproduces the original bug: start a glide, cancel it (so the
-        // animator has a stale animX from the glide update listener), then
-        // snap. The post-snap animX MUST equal the snap target — not the
-        // stale glide value.
+        // Reproduit le bug d'origine : démarrer un glide puis l'annuler
+        // (l'animator garde alors un animX périmé du listener de mise à jour
+        // du glide), puis snapper. L'animX après snap DOIT valoir la cible du
+        // snap — pas la valeur périmée du glide.
         EditorView view = createEditor();
         CaretAnimator ca = view.caretAnim;
 
-        // Glide from (0,0) to (1000, 500)
+        // Glide de (0,0) vers (1000, 500)
         ca.glideTo(1000f, 500f, 1);
-        // The animator's update listener may or may not have fired by now
-        // (Robolectric doesn't pulse ValueAnimator by default), but animX
-        // should still be 0f at this point because the listener hasn't run.
-        // Cancel the glide mid-flight (simulates an edit interrupting it).
+        // Le listener de mise à jour de l'animator a pu être déclenché ou
+        // non à ce stade (Robolectric ne pulse pas les ValueAnimator par
+        // défaut), mais animX doit encore valoir 0f ici car le listener
+        // n'a pas tourné.
+        // Annule le glide en plein vol (simule une édition qui l'interrompt).
         ca.cancelGlide();
-        // At this point, animator.animX is whatever the listener last set it to.
+        // À ce stade, animator.animX vaut ce que le listener y a déposé
+        // en dernier.
 
-        // Now snap to a completely different target.
+        // Snappe maintenant vers une cible complètement différente.
         ca.snapTo(50f, 75f, 2);
 
-        // animX MUST be the snap target — not the stale glide value.
+        // animX DOIT valoir la cible du snap — pas la valeur périmée du glide.
         assertEquals(50f, ca.animX, 0.001f);
         assertEquals(75f, ca.animY, 0.001f);
         assertEquals(50f, ca.targetX, 0.001f);
@@ -115,16 +118,16 @@ public class CaretAnimatorTest {
         CaretAnimator ca = view.caretAnim;
 
         ca.glideTo(1000f, 500f, 1);
-        // Glide is now in-flight (or scheduled).
+        // Le glide est maintenant en vol (ou planifié).
         ca.onEditOrMove();
 
-        // After edit/move, no glide should be running.
-        // We can't directly assert on animator.isRunning() because
-        // ValueAnimator.cancel() may leave it in a cancelled state, but
-        // the next draw will snapTo() because rev != currentRev.
-        // So just verify the animator reference is cleared.
-        // Actually, cancelGlide sets animator = null.
-        // (Checking that the next snapTo works cleanly is the real test.)
+        // Après édition/déplacement, aucun glide ne doit tourner.
+        // On ne peut pas affirmer directement sur animator.isRunning() car
+        // ValueAnimator.cancel() peut le laisser dans un état annulé, mais
+        // le prochain draw fera snapTo() car rev != currentRev.
+        // On vérifie donc simplement que la référence à l'animator est
+        // bien libérée : cancelGlide met animator à null.
+        // (Le vrai test est que le snapTo suivant fonctionne proprement.)
         ca.snapTo(42f, 42f, 99);
         assertEquals(42f, ca.animX, 0.001f);
         assertEquals(42f, ca.animY, 0.001f);
@@ -152,7 +155,7 @@ public class CaretAnimatorTest {
 
     @Test
     public void updateBlink_returnsTrueDuringSolidPhase() {
-        // Right after onEditOrMove, the caret should be solid (visible).
+        // Juste après onEditOrMove, le curseur doit être plein (visible).
         EditorView view = createEditor();
         CaretAnimator ca = view.caretAnim;
 
@@ -166,17 +169,17 @@ public class CaretAnimatorTest {
         EditorView view = createEditor();
         CaretAnimator ca = view.caretAnim;
 
-        // Set up an initial position via snap.
+        // Pose une position initiale via snap.
         ca.snapTo(0f, 0f, 1);
-        // Now glide to a new position.
+        // Glisse ensuite vers une nouvelle position.
         ca.glideTo(100f, 200f, 2);
 
         assertEquals(100f, ca.targetX, 0.001f);
         assertEquals(200f, ca.targetY, 0.001f);
         assertEquals(2, ca.rev);
-        // startX/startY in the animator is animX/animY at glide-start time,
-        // which is (0, 0) — the snap value. The listener will interpolate
-        // from (0,0) to (100,200) over GLIDE_MS.
+        // startX/startY dans l'animator valent animX/animY au moment du
+        // démarrage du glide, soit (0, 0) — la valeur du snap. Le listener
+        // interpolera de (0,0) à (100,200) sur la durée GLIDE_MS.
         assertEquals(0f, ca.animX, 0.001f);
         assertEquals(0f, ca.animY, 0.001f);
     }

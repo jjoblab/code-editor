@@ -1,12 +1,9 @@
 package jo.codeeditor.session;
 
 /**
- * A single reversible edit operation.
- * Records the range that was replaced and what it was replaced with.
- 
- *
- * @since v1.0.0
-*/
+ * Opération d'édition réversible unitaire.
+ * Mémorise la plage qui a été remplacée et le texte qui l'a remplacée.
+ */
 public final class EditOp {
     public final int start;
     public final String removed;
@@ -18,12 +15,12 @@ public final class EditOp {
         this.inserted = inserted != null ? inserted : "";
     }
 
-    /** Returns the end offset of the removed range. */
+    /** Retourne l'offset de fin de la plage supprimée. */
     public int removedEnd() {
         return start + removed.length();
     }
 
-    /** Returns the inverse operation (swap removed ↔ inserted). */
+    /** Retourne l'opération inverse (échange removed ↔ inserted). */
     public EditOp inverse() {
         return new EditOp(start, inserted, removed);
     }

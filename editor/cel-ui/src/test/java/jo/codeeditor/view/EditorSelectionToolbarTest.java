@@ -23,25 +23,24 @@ import java.util.List;
 import static org.junit.Assert.*;
 
 /**
- * ★ v2.34 — verrouille le câblage du popup de sélection (portage
- * {@code SelectionToolbar}/{@code SelectionToolbarLayer} de CodeAssist) :
+ * Verrouille le câblage du popup de sélection :
  *
  * <ul>
  *   <li><b>Animation d'entrée vivante</b> — {@code showSelectionToolbar()}
- *       horodate le show ({@code selectionToolbarShownAt}) ; avant v2.34 le
- *       champ n'était JAMAIS assigné et l'animation ne jouait pas ;</li>
+ *       horodate le show ({@code selectionToolbarShownAt}) ; le champ doit
+ *       être assigné, sinon l'animation d'entrée ne joue pas ;</li>
  *   <li><b>Métriques partagées</b> — mode COLLAPSED (re-tap : Paste/Select
  *       all sans Copy/Cut), boutons Docs ℹ / Actions ⋯ conditionnels + divider,
  *       {@code actionAt} résout les 6 actions (les gaps/dividers → -1) ;</li>
  *   <li><b>Actions</b> — Copy/Cut/Paste referment la pill + masquent les
- *       poignées, Select all la LAISSE ouverte (parité CodeAssist), Docs →
+ *       poignées, Select all la LAISSE ouverte, Docs →
  *       quick-doc, Actions → popup quick-fixes de la ligne ;</li>
  *   <li><b>Re-tap collapsed</b> — un second tap au même endroit que le caret
  *       BASCULE la pill Paste/Select all (le toggle
- *       {@code handlesVisible = reTap && !handlesVisible} de CodeAssist) ;
+ *       {@code handlesVisible = reTap && !handlesVisible}) ;
  *       un tap ailleurs la referme ;</li>
- *   <li><b>Tap dans la sélection</b> — re-affiche la pill (parité
- *       CodeAssist : la toolbar suit handlesVisible).</li>
+ *   <li><b>Tap dans la sélection</b> — re-affiche la pill (la toolbar suit
+ *       handlesVisible).</li>
  * </ul>
  *
  * <p>NOTE Robolectric : fontes legacy → FontMetrics nuls ; métriques
@@ -49,7 +48,6 @@ import static org.junit.Assert.*;
  * {@code EditorBracketSheetTapTest}).</p>
  *
  * @author jo@Dev
- * @since v2.34
  */
 @RunWith(RobolectricTestRunner.class)
 public class EditorSelectionToolbarTest {
@@ -97,7 +95,7 @@ public class EditorSelectionToolbarTest {
         f.setFloat(target, value);
     }
 
-    /** Simulates a full tap (DOWN + UP) at the same spot. */
+    /** Simule un tap complet (DOWN + UP) au même endroit. */
     private static void tap(EditorView view, float x, float y) {
         long down = SystemClock.uptimeMillis();
         MotionEvent downEvent = MotionEvent.obtain(down, down, MotionEvent.ACTION_DOWN, x, y, 0);
@@ -108,7 +106,7 @@ public class EditorSelectionToolbarTest {
         upEvent.recycle();
     }
 
-    /** Screen position (center) of the given document offset. */
+    /** Position écran (centre) de l'offset de document donné. */
     private static float[] screenPosFor(int offset) {
         int line = 0, col = 0;
         for (int i = 0; i < offset; i++) {
@@ -119,7 +117,7 @@ public class EditorSelectionToolbarTest {
             PAD_TOP + line * LINE_H + LINE_H * 0.5f};
     }
 
-    /** Selects the word « greet » (line 2), shows the toolbar, returns the metrics. */
+    /** Sélectionne le mot « greet » (ligne 2), affiche la toolbar, renvoie les métriques. */
     private static EditorPopupAnchors.SelectionToolbarMetrics viewWithWordSelected(EditorView view) {
         int greet = DOC.indexOf("greet");
         view.getSession().selectWordAt(greet);
@@ -141,7 +139,7 @@ public class EditorSelectionToolbarTest {
         return -1;
     }
 
-    // ── Animation d'entrée (avant v2.34 : shownAt JAMAIS assigné) ──
+    // ── Animation d'entrée (horodatage du show) ────────────────────
 
     @Test
     public void showSelectionToolbar_stampsAnimationTime() {
@@ -151,7 +149,7 @@ public class EditorSelectionToolbarTest {
         view.showSelectionToolbar();
         assertTrue("shownAt must be stamped on show (was always 0 before v2.34)",
                 view.selectionToolbarShownAt > 0);
-        // And resets the press feedback.
+        // Et réinitialise le retour de pression.
         assertEquals(-1, view.selectionToolbarPressedIdx);
     }
 
@@ -161,7 +159,7 @@ public class EditorSelectionToolbarTest {
         viewWithWordSelected(view);
         Bitmap bmp = Bitmap.createBitmap(1080, 1920, Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(bmp);
-        view.draw(canvas); // animation in flight (tOverall ~ 0) — must not crash
+        view.draw(canvas); // animation en vol (tOverall ~ 0) — ne doit pas crasher
         assertTrue(view.selectionToolbarVisible);
     }
 
@@ -170,13 +168,13 @@ public class EditorSelectionToolbarTest {
     @Test
     public void metrics_collapsedSelection_pasteSelectAllAndIcons() {
         EditorView view = newView();
-        // Cursor selection at 'greet' start — the collapsed (re-tap) mode.
+        // Sélection curseur au début de 'greet' — le mode collapsed (re-tap).
         view.getSession().setSelection(DOC.indexOf("greet"));
         view.showSelectionToolbar();
         EditorPopupAnchors.SelectionToolbarMetrics m = view.selectionToolbarMetrics();
         assertNotNull(m);
-        // ★ v2.36 : parité CodeAssist EXACTE — onDocs/onMenu TOUJOURS fournis :
-        // le mode collapsed montre Paste + Select all | ℹ Docs | ⋯ Actions.
+        // onDocs/onMenu TOUJOURS fournis : le mode collapsed montre
+        // Paste + Select all | ℹ Docs | ⋯ Actions.
         assertEquals("collapsed mode: no Copy/Cut, Paste + Select all + both icons",
                 4, m.count);
         assertEquals(EditorView.SEL_ACT_PASTE, m.action[0]);
@@ -190,9 +188,8 @@ public class EditorSelectionToolbarTest {
     public void metrics_withSelection_sixActionsAlways() {
         EditorView view = newView();
         EditorPopupAnchors.SelectionToolbarMetrics m = viewWithWordSelected(view);
-        // ★ v2.36 : Copy/Cut/Paste/Select all + ℹ + ⋯ TOUJOURS — CodeAssist
-        // fournit onDocs/onMenu en permanence (CodeEditor.kt l.1057-1063) ;
-        // avant, sans quick-fixes sur la ligne, l'utilisateur perdait l'accès
+        // Copy/Cut/Paste/Select all + ℹ + ⋯ TOUJOURS fournis — sans cela,
+        // sans quick-fixes sur la ligne, l'utilisateur perdrait l'accès
         // à Docs et au menu GO TO.
         assertEquals(6, m.count);
         assertEquals(EditorView.SEL_ACT_COPY, m.action[0]);
@@ -225,9 +222,9 @@ public class EditorSelectionToolbarTest {
                 m.dividerX != Float.MIN_VALUE
                         && m.dividerX > m.itemX[docsIdx] - m.itemW[docsIdx]
                         && m.dividerX < m.itemX[docsIdx]);
-        // ★ v2.36 : SANS quick-fixes sur la ligne, les icônes RESTENT — le
+        // SANS quick-fixes sur la ligne, les icônes RESTENT — le
         // bouton Actions ouvre le menu unifié qui montre GO TO ou
-        // « Nothing found in source. » (CodeAssist : onMenu toujours fourni).
+        // « Nothing found in source. » (onMenu toujours fourni).
         view.codeActionsByLine.remove(greetLine);
         EditorPopupAnchors.SelectionToolbarMetrics m2 = view.selectionToolbarMetrics();
         assertEquals("icons stay without quick-fixes (v2.36)", 6, m2.count);
@@ -244,24 +241,24 @@ public class EditorSelectionToolbarTest {
         EditorPopupAnchors.SelectionToolbarMetrics m = viewWithWordSelected(view);
         float cy = m.y + m.h * 0.5f;
 
-        // Every actionable item resolves to ITS action at its center.
+        // Chaque item actionnable se résout en SON action en son centre.
         for (int i = 0; i < m.count; i++) {
             float cx = m.itemX[i] + m.itemW[i] * 0.5f;
             assertEquals("button " + i + " center must resolve to its action",
                     m.action[i], m.actionAt(cx, cy));
         }
-        // A point in the gap between two items is NOT actionable
-        // (CodeAssist: only the items have onClick).
+        // Un point dans l'espace entre deux items n'est PAS actionnable
+        // (seuls les items ont un onClick).
         int pasteIdx = indexOfAction(m, EditorView.SEL_ACT_PASTE);
         float gapX = m.itemX[pasteIdx] + m.itemW[pasteIdx] + m.btnGap * 0.5f;
         assertEquals("gap between items is not actionable", -1, m.actionAt(gapX, cy));
-        // Outside the pill → -1.
+        // Hors de la pill → -1.
         assertEquals(-1, m.actionAt(m.x - 5, cy));
         assertEquals(-1, m.actionAt(m.x + m.w + 5, cy));
         assertEquals(-1, m.actionAt(m.x + 5, m.y - 5));
     }
 
-    // ── Actions : comportements CodeAssist ─────────────────────────
+    // ── Actions : comportements ────────────────────────────────────
 
     @Test
     public void tapCopy_copiesToClipboard_andDismissesChrome() {
@@ -311,7 +308,8 @@ public class EditorSelectionToolbarTest {
         assertTrue("Select all KEEPS the pill open (CodeAssist parity — "
                 + "Copy/Cut become available on the full selection)",
                 view.selectionToolbarVisible);
-        // And the refreshed metrics now include Copy/Cut on the full selection.
+        // Et les métriques rafraîchies incluent désormais Copy/Cut sur la
+        // sélection complète.
         EditorPopupAnchors.SelectionToolbarMetrics m2 = view.selectionToolbarMetrics();
         assertEquals(6, m2.count);
         assertEquals(EditorView.SEL_ACT_COPY, m2.action[0]);
@@ -320,7 +318,7 @@ public class EditorSelectionToolbarTest {
     @Test
     public void collapsedToolbar_tapPaste_pastesAtCaret() {
         EditorView view = newView();
-        // Collapsed (re-tap) mode: cursor at 'greet' start.
+        // Mode collapsed (re-tap) : curseur au début de 'greet'.
         int greet = DOC.indexOf("greet");
         view.getSession().setSelection(greet);
         view.showSelectionToolbar();
@@ -345,14 +343,14 @@ public class EditorSelectionToolbarTest {
         actions.add(new EditorView.CodeAction("Create method greet()", "quickfix", () -> { }));
         view.codeActionsByLine.put(2, actions);
 
-        // Docs button → chrome hidden.
+        // Bouton Docs → chrome masqué.
         EditorPopupAnchors.SelectionToolbarMetrics m = viewWithWordSelected(view);
         int docsIdx = indexOfAction(m, EditorView.SEL_ACT_DOCS);
         tap(view, m.itemX[docsIdx] + m.itemW[docsIdx] * 0.5f, m.y + m.h * 0.5f);
         assertFalse("Docs closes the pill", view.selectionToolbarVisible);
 
-        // ★ v2.36 : le bouton Actions ouvre le MENU CONTEXTUEL UNIFIÉ
-        // (NavMenu de CodeAssist) — plus la popup plate de quick-fixes.
+        // Le bouton Actions ouvre le MENU CONTEXTUEL UNIFIÉ — plus la
+        // popup plate de quick-fixes.
         viewWithWordSelected(view);
         EditorPopupAnchors.SelectionToolbarMetrics m2 = view.selectionToolbarMetrics();
         int actsIdx = indexOfAction(m2, EditorView.SEL_ACT_ACTIONS);
@@ -383,31 +381,31 @@ public class EditorSelectionToolbarTest {
         return view.navMenuVisible;
     }
 
-    // ── Re-tap collapsed (toggle CodeAssist) ───────────────────────
+    // ── Re-tap collapsed (toggle) ──────────────────────────────────
 
     @Test
     public void retapOnCaret_togglesCollapsedToolbar() throws Exception {
         EditorView view = newView();
         float[] pos = screenPosFor(DOC.indexOf("greet"));
 
-        // 1st tap: places the caret, toolbar hidden.
+        // 1er tap : place le caret, toolbar masquée.
         tap(view, pos[0], pos[1]);
         assertTrue(view.getSession().getSelection().isCursor());
         assertFalse("first tap: no toolbar", view.selectionToolbarVisible);
 
-        // 2nd tap at the SAME spot (> multi-tap window): toggles the
-        // collapsed Paste/Select-all pill (CodeAssist re-tap).
+        // 2e tap au MÊME endroit (> fenêtre multi-tap) : bascule la pill
+        // collapsed Paste/Select-all (re-tap).
         Thread.sleep(320);
         tap(view, pos[0], pos[1]);
         assertTrue("re-tap on the caret must show the collapsed toolbar",
                 view.selectionToolbarVisible);
         assertTrue(view.selectionToolbarShownAt > 0);
-        // Collapsed: Paste/Select all + the two icons (v2.36).
+        // Collapsed : Paste/Select all + les deux icônes.
         EditorPopupAnchors.SelectionToolbarMetrics m = view.selectionToolbarMetrics();
         assertEquals(4, m.count);
         assertEquals(EditorView.SEL_ACT_PASTE, m.action[0]);
 
-        // 3rd tap at the same spot: toggles OFF.
+        // 3e tap au même endroit : bascule OFF.
         Thread.sleep(320);
         tap(view, pos[0], pos[1]);
         assertFalse("third re-tap toggles the toolbar off",
@@ -423,11 +421,11 @@ public class EditorSelectionToolbarTest {
         tap(view, pos[0], pos[1]);
         assertTrue(view.selectionToolbarVisible);
 
-        // A tap at a DIFFERENT spot hides it (CodeAssist: « tapping a new
-        // spot hides it ») and moves the caret. NOTE: the collapsed pill
-        // floats ABOVE the caret line, so « elsewhere » must be outside its
-        // bounds — line 0 col 0 is well clear of it.
-        float[] other = screenPosFor(0); // « public » on line 0
+        // Un tap à un endroit DIFFÉRENT la masque et déplace le caret.
+        // NOTE : la pill collapsed flotte AU-DESSUS de la ligne du caret,
+        // donc « ailleurs » doit être hors de ses bornes — la ligne 0 col 0
+        // en est bien dégagée.
+        float[] other = screenPosFor(0); // « public » sur la ligne 0
         Thread.sleep(320);
         tap(view, other[0], other[1]);
         assertFalse("tap elsewhere must hide the toolbar",
@@ -441,12 +439,13 @@ public class EditorSelectionToolbarTest {
     public void tapInsideSelection_reshowsToolbar() {
         EditorView view = newView();
         viewWithWordSelected(view);
-        // Simulate a programmatic dismissal (e.g. after a Copy the selection
-        // is still live in this scenario — the pill must be recallable).
+        // Simule une fermeture programmatique (ex. après un Copy la
+        // sélection est encore vivante dans ce scénario — la pill doit être
+        // rappelable).
         view.dismissSelectionToolbar();
         assertFalse(view.selectionToolbarVisible);
 
-        // Tap INSIDE the selection → keeps it + re-shows the pill + handles.
+        // Tape DANS la sélection → la garde + ré-affiche la pill + les poignées.
         float[] pos = screenPosFor(DOC.indexOf("greet") + 2);
         tap(view, pos[0], pos[1]);
         assertTrue("tap inside the selection re-shows the pill (CodeAssist parity)",
@@ -461,8 +460,8 @@ public class EditorSelectionToolbarTest {
         EditorPopupAnchors.SelectionToolbarMetrics m = viewWithWordSelected(view);
         int caretBefore = view.getSession().getSelection().start;
         int pasteIdx = indexOfAction(m, EditorView.SEL_ACT_PASTE);
-        // A gap between items: swallowed (CodeAssist Popup parity — the
-        // window consumes the touch, nothing happens).
+        // Un espace entre items : avalé (la fenêtre consomme le touch,
+        // rien ne se passe).
         float gapX = m.itemX[pasteIdx] + m.itemW[pasteIdx] + m.btnGap * 0.5f;
         tap(view, gapX, m.y + m.h * 0.5f);
         assertTrue("gap tap keeps the pill", view.selectionToolbarVisible);

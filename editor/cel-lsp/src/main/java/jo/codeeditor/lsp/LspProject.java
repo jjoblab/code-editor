@@ -15,11 +15,12 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * The LSP workspace. Manages language server definitions, running server
- * instances ({@link LanguageServerWrapper}), and per-file editors
+ * L'espace de travail LSP. Gère les définitions de serveurs de langage,
+ * les instances de serveurs en cours d'exécution
+ * ({@link LanguageServerWrapper}) et les éditeurs par fichier
  * ({@link LspEditor}).
  *
- * <p>Usage:
+ * <p>Utilisation :
  * <pre>{@code
  * LspProject project = new LspProject("/path/to/workspace");
  * project.addServerDefinition(myJdtlsDefinition);
@@ -28,11 +29,9 @@ import java.util.concurrent.Executors;
  * editor.connect();
  * }</pre>
  *
- * <p>One project can have multiple server definitions (e.g. Java + Kotlin
- * in the same workspace). Each editor is routed to the server matching its
- * file extension.
- *
- * @since v2.2.0
+ * <p>Un projet peut avoir plusieurs définitions de serveurs (ex. Java +
+ * Kotlin dans le même espace de travail). Chaque éditeur est routé vers le
+ * serveur correspondant à l'extension de son fichier.
  */
 public class LspProject {
 
@@ -45,30 +44,30 @@ public class LspProject {
         t.setDaemon(true);
         return t;
     });
-    /** v3.3.3: Optional log sink so the demo app can show LSP activity. */
+    /** Récepteur de journal optionnel pour que l'application de démonstration puisse afficher l'activité LSP. */
     private volatile LspLogSink logSink;
 
     /**
-     * @param workspacePath the absolute path to the workspace root
+     * @param workspacePath le chemin absolu de la racine de l'espace de travail
      */
     public LspProject(String workspacePath) {
         this.workspacePath = workspacePath;
     }
 
-    /** Returns the workspace path. */
+    /** Retourne le chemin de l'espace de travail. */
     public String getWorkspacePath() { return workspacePath; }
 
-    /** v3.3.3: Sets the log sink that receives LSP activity for diagnostics. */
+    /** Définit le récepteur de journal qui reçoit l'activité LSP à des fins de diagnostic. */
     public void setLogSink(LspLogSink sink) { this.logSink = sink; }
 
-    /** v3.3.3: Returns the log sink, or null. */
+    /** Retourne le récepteur de journal, ou null. */
     public LspLogSink getLogSink() { return logSink; }
 
     /**
-     * Registers a language server definition. The server is started lazily
-     * when the first editor for its extension connects.
+     * Enregistre une définition de serveur de langage. Le serveur démarre
+     * paresseusement quand le premier éditeur de son extension se connecte.
      *
-     * <p>★ v2.52 Subset F — Si la définition gère plusieurs extensions
+     * <p>Si la définition gère plusieurs extensions
      * (via {@link LanguageServerDefinition#getAdditionalExtensions()}),
      * elle est enregistrée sous TOUTES les extensions et l'instance unique
      * du serveur est partagée entre ces extensions (pas de duplication).</p>
@@ -76,7 +75,7 @@ public class LspProject {
     public void addServerDefinition(LanguageServerDefinition def) {
         // Enregistre sous l'extension principale
         definitions.put(def.getExt(), def);
-        // ★ v2.52 Subset F — enregistre aussi sous les extensions supplémentaires
+        // Enregistre aussi sous les extensions supplémentaires
         for (String ext : def.getAdditionalExtensions()) {
             if (ext != null && !ext.isEmpty() && !ext.equals(def.getExt())) {
                 definitions.put(ext, def);
@@ -85,17 +84,18 @@ public class LspProject {
     }
 
     /**
-     * Returns the definition for the given extension, or null.
+     * Retourne la définition pour l'extension donnée, ou null.
      */
     public LanguageServerDefinition getDefinition(String ext) {
         return definitions.get(ext);
     }
 
     /**
-     * Creates a new {@link LspEditor} for the given file URI. The editor
-     * is routed to the server matching the file's extension.
+     * Crée un nouveau {@link LspEditor} pour l'URI de fichier donné.
+     * L'éditeur est routé vers le serveur correspondant à l'extension
+     * du fichier.
      *
-     * @param fileUri the file URI (e.g. "file:///path/to/Foo.java")
+     * @param fileUri l'URI du fichier (ex. "file:///path/to/Foo.java")
      */
     public LspEditor createEditor(String fileUri) {
         LspEditor editor = new LspEditor(this, fileUri);
@@ -104,10 +104,10 @@ public class LspProject {
     }
 
     /**
-     * Returns the {@link LanguageServerWrapper} for the given extension,
-     * starting the server if necessary.
+     * Retourne le {@link LanguageServerWrapper} pour l'extension donnée,
+     * en démarrant le serveur si nécessaire.
      *
-     * <p>★ v2.52 Subset F — Si la définition gère plusieurs extensions
+     * <p>Si la définition gère plusieurs extensions
      * (ex. {@code .kt} + {@code .kts}), on partage le MÊME wrapper pour
      * toutes les extensions de cette def — pas de duplication de server.
      * On cherche d'abord le wrapper sous l'ext passé ; si absent, on cherche
@@ -119,12 +119,13 @@ public class LspProject {
         // Fast-path : wrapper déjà connu pour cette extension
         LanguageServerWrapper existing = wrappers.get(ext);
         if (existing != null) return existing;
-        // v3.34.0: synchronized — the check-then-act sequence below raced
-        // when two editors for different extensions of the SAME definition
-        // connected concurrently (e.g. .kt + .kts tabs opening together):
-        // both threads missed the fast path, both created a wrapper, and
-        // the losers' servers leaked — running processes nothing ever
-        // shut down. Serializing creation keeps one server per definition.
+        // synchronized — la séquence vérifier-puis-agir ci-dessous entrait
+        // en concurrence quand deux éditeurs d'extensions différentes de la
+        // MÊME définition se connectaient simultanément (ex. onglets .kt +
+        // .kts ouverts ensemble) : les deux threads rataient le chemin
+        // rapide, créaient chacun un wrapper, et les serveurs des perdants
+        // fuyaient — des processus en exécution que rien n'arrêtait jamais.
+        // Sérialiser la création garantit un seul serveur par définition.
         synchronized (wrapperCreationLock) {
         LanguageServerWrapper existing2 = wrappers.get(ext);
         if (existing2 != null) return existing2;
@@ -132,8 +133,8 @@ public class LspProject {
         if (def == null) {
             throw new IllegalArgumentException("No server definition for extension: " + ext);
         }
-        // ★ v2.52 Subset F — Cherche un wrapper existant sous une autre
-        // extension de la même def (ex. "kt" déjà connecté, on demande "kts")
+        // Cherche un wrapper existant sous une autre
+        // extension de la même def (ex. « kt » déjà connecté, on demande « kts »)
         for (String otherExt : def.getAllExtensions()) {
             LanguageServerWrapper shared = wrappers.get(otherExt);
             if (shared != null) {
@@ -155,11 +156,11 @@ public class LspProject {
         }
     }
 
-    /** v3.34.0: monitor for the getWrapper check-then-act sequence. */
+    /** Moniteur de la séquence vérifier-puis-agir de getWrapper. */
     private final Object wrapperCreationLock = new Object();
 
     /**
-     * ★ v2.40 — La source (attachée ou stub décompilé) d'un FQN binaire.
+     * La source (attachée ou stub décompilé) d'un FQN binaire.
      *
      * <p>Façade publique pour la méthode LSP PERSONNALISÉE
      * {@code textDocument/decompiledSource} exposée par le serveur Java
@@ -180,7 +181,6 @@ public class LspProject {
      * @param fqcn le fully-qualified name (ex. {@code java.util.HashMap})
      * @return la source (attachée ou stub), ou {@code null} si le serveur
      *         n'est pas démarré, le FQCN est introuvable, ou l'appel timeout
-     * @since v2.40
      */
     @java.lang.SuppressWarnings("unused")
     public String decompiledSource(String ext, String fqcn) {
@@ -199,16 +199,16 @@ public class LspProject {
         }
     }
 
-    /** Shuts down all servers and releases resources. */
+    /** Arrête tous les serveurs et libère les ressources. */
     public void shutdown() {
         for (LspEditor editor : editors.values()) {
             editor.disconnect();
         }
         editors.clear();
-        // v3.34.0: dedupe — a wrapper registered under several extensions
-        // (v2.52 Subset F: .kt + .kts share one server) was previously shut
-        // down once PER KEY. The wrapper tolerated it (null checks) but each
-        // duplicate call re-ran the 2-second-bounded shutdown handshake.
+        // Déduplication — un wrapper enregistré sous plusieurs extensions
+        // (.kt + .kts partagent un serveur) serait sinon arrêté une fois PAR
+        // CLÉ. Le wrapper le tolère (contrôles de nullité) mais chaque appel
+        // en double rejouerait la poignée de main d'arrêt bornée à 2 s.
         java.util.Set<LanguageServerWrapper> seen = new java.util.HashSet<>();
         for (LanguageServerWrapper wrapper : wrappers.values()) {
             if (seen.add(wrapper)) {

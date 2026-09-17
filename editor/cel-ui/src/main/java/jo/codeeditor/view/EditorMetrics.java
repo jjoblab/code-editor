@@ -4,12 +4,10 @@ import android.graphics.Paint;
 import android.graphics.Typeface;
 
 /**
- * Text metrics for the editor: line height, character width, padding.
- * Uses a monospace font for predictable character sizing.
- 
- *
- * @since v1.0.0
-*/
+ * Métriques de texte de l'éditeur : hauteur de ligne, largeur de caractère,
+ * marges internes. Police monospace pour des dimensions de caractères
+ * prévisibles.
+ */
 public class EditorMetrics {
 
     private float lineHeight;
@@ -23,10 +21,11 @@ public class EditorMetrics {
     private float textSize;
 
     /**
-     * v3.35.0 (roadmap item 2) — bumped on EVERY typeface / text-size
-     * change. The view's content-addressed shaped-layout cache
-     * invalidates on this revision: font properties are baked into each
-     * memoized StaticLayout's TextPaint at build time.
+     * Génération de police : incrémentée à CHAQUE changement de police ou de
+     * taille de texte. Le cache de mises en page façonnées adressé par
+     * contenu de la vue s'invalide sur cette révision : les propriétés de
+     * police sont figées dans le TextPaint de chaque StaticLayout mémoïsé
+     * au moment de sa construction.
      */
     private int fontRev;
 
@@ -42,40 +41,43 @@ public class EditorMetrics {
     }
 
     /**
-     * Recalculates all metrics based on the given text size (in pixels).
+     * Recalcule toutes les métriques à partir de la taille de texte donnée
+     * (en pixels).
      * <p>
-     * {@code lineHeight} is derived from {@link Paint#getFontMetrics} so it
-     * matches the actual advance between two wrapped rows of the same
-     * paragraph — using {@code textSize * 1.3} was off by ~1px and the drift
-     * accumulated into visible overlap/gap when word wrap landed.
+     * {@code lineHeight} est dérivé de {@link Paint#getFontMetrics} afin de
+     * correspondre à l'avance réelle entre deux rangées repliées d'un même
+     * paragraphe — un calcul {@code textSize * 1.3} dérivait d'environ 1px et
+     * l'écart s'accumulait en chevauchements/espacements visibles dès que le
+     * retour à la ligne automatique intervenait.
      * <p>
-     * v1.0.8 bugfix (Bug 6): the gutter width now INCLUDES the fold strip
-     * (line-number area + fold strip), so fold chevrons no longer overlap
-     * line numbers. Previously the fold strip was drawn inside the
-     * line-number area, causing the chevron to sit on top of the last digit.
+     * La largeur du gutter INCLUT la bande de repli (zone des numéros de
+     * ligne + bande de repli), de sorte que les chevrons de repli ne
+     * chevauchent plus les numéros de ligne ; à l'origine la bande de repli
+     * était dessinée dans la zone des numéros, le chevron recouvrait alors
+     * le dernier chiffre.
      */
     public void setTextSize(float sizePx) {
         this.textSize = sizePx;
-        fontRev++;   // v3.35.0: font generation changed — shaped layouts stale.
+        fontRev++;   // génération de police changée — mises en page façonnées périmées.
         textPaint.setTextSize(sizePx);
         gutterPaint.setTextSize(sizePx * 0.85f);
 
-        // Real font metrics — pixel-exact inter-row advance.
+        // Métriques réelles de la police — avance inter-rangées exacte au pixel.
         Paint.FontMetrics fm = textPaint.getFontMetrics();
         lineHeight = (float) Math.ceil(fm.bottom - fm.top + fm.leading);
-        // Monospace: all chars same width. measureText returns the advance.
+        // Monospace : tous les caractères ont la même largeur. measureText renvoie l'avance.
         charWidth = textPaint.measureText("M");
         padTop = lineHeight * 0.5f;
         padLeft = charWidth * 0.5f;
         padRight = charWidth * 0.5f;
-        // Generous bottom padding so the last line can scroll well above the IME.
+        // Marge basse généreuse pour que la dernière ligne puisse défiler bien au-dessus de l'IME.
         padBottom = lineHeight * 6f;
-        // Fold strip is a dedicated column to the RIGHT of the line numbers.
-        // ~2 chars wide so the chevron has breathing room.
+        // La bande de repli est une colonne dédiée À DROITE des numéros de ligne.
+        // Large d'environ 2 caractères pour laisser respirer le chevron.
         foldStripWidth = charWidth * 2f;
-        // Gutter = line-number area (5 chars for ~4 digits + 1 padding) +
-        // fold strip. The line numbers are right-aligned within the
-        // line-number area (i.e. ending at gutterWidth - foldStripWidth).
+        // Gutter = zone des numéros de ligne (5 caractères : ~4 chiffres + 1
+        // d'espacement) + bande de repli. Les numéros sont alignés à droite
+        // dans la zone des numéros (c.-à-d. terminent à gutterWidth - foldStripWidth).
         gutterWidth = charWidth * 5 + foldStripWidth;
     }
 
@@ -89,21 +91,19 @@ public class EditorMetrics {
     public float getFoldStripWidth() { return foldStripWidth; }
     public float getTextSize() { return textSize; }
 
-    // Legacy aliases
+    // Alias historiques
     public float getPaddingTop() { return padTop; }
     public float getPaddingLeft() { return padLeft; }
 
     public Paint getTextPaint() { return textPaint; }
     public Paint getGutterPaint() { return gutterPaint; }
     public Typeface getTypeface() { return textPaint.getTypeface(); }
-    /** v3.35.0 — font generation (bumped on typeface/text-size change). */
+    /** Génération de police (incrémentée à chaque changement de police/taille de texte). */
     public int getFontRevision() { return fontRev; }
     public void setTypeface(Typeface tf) {
-        fontRev++;   // v3.35.0: font generation changed — shaped layouts stale.
+        fontRev++;   // génération de police changée — mises en page façonnées périmées.
         textPaint.setTypeface(tf);
         gutterPaint.setTypeface(tf);
     }
 
-    // v3.33.5: lineToY, yToLine, colToX, xToCol, computeWidth supprimés (code mort —
-    // EditorView reimplements the same math inline).
 }

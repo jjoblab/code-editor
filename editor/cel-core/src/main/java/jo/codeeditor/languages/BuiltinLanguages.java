@@ -8,33 +8,29 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * v3.36.0 — The built-in language table (roadmap item 7).
+ * Table des langages intégrés.
  *
- * <p>Every keyword set below is moved <b>verbatim</b> from
- * {@code SyntaxHighlighter} (v3.35.0) so the highlighting behavior of
- * every known id is preserved byte for byte. What changed is the
- * <i>routing</i>: ids, aliases, extensions, families and comment syntaxes
- * now live in one declarative table consumed by {@link LanguageRegistry},
- * instead of being scattered across the highlighter's string chains and
- * {@code CommentSyntax.forLanguage}'s switch.</p>
+ * <p>Chaque ensemble de mots-clés ci-dessous est repris <b>verbatim</b>
+ * de {@code SyntaxHighlighter} afin de préserver au byte près le
+ * comportement de coloration de chaque id connu. Ce qui change ici est
+ * le <i>routage</i> : ids, alias, extensions, familles et syntaxes de
+ * commentaire vivent dans une table déclarative unique consommée par
+ * {@link LanguageRegistry}, au lieu d'être dispersés dans les chaînes
+ * de caractères du highlighter et le switch de
+ * {@code CommentSyntax.forLanguage}.</p>
  *
- * <p>Alias routing fixes that come with the table (previously the short
- * ids fell through the string chains to the generic C tokenizer with the
- * Java keyword set): {@code py} → Python tokenizer, {@code md} → Markdown
- * tokenizer, {@code htm}/{@code svg} → XML tokenizer, {@code ini} →
- * properties tokenizer, {@code kt} → Kotlin keywords, {@code rs} → Rust
- * keywords (the last two already had aliases in {@code CommentSyntax} but
- * not in the highlighter).</p>
- *
- * @since v3.36.0
+ * <p>Routage des alias garanti par la table : {@code py} → tokenizer
+ * Python, {@code md} → tokenizer Markdown, {@code htm}/{@code svg} →
+ * tokenizer XML, {@code ini} → tokenizer properties, {@code kt} →
+ * mots-clés Kotlin, {@code rs} → mots-clés Rust.</p>
  */
 final class BuiltinLanguages {
 
     private BuiltinLanguages() {}
 
-    // ═══════════════════════════════════════════════════════════════════
-    // Keyword sets — moved verbatim from SyntaxHighlighter (v3.35.0).
-    // ═══════════════════════════════════════════════════════════════════
+    // ═════════════════════════════════════════════════════════════
+    // Ensembles de mots-clés — repris verbatim de SyntaxHighlighter.
+    // ═════════════════════════════════════════════════════════════
 
     static final Set<String> JAVA_KEYWORDS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
         "abstract", "assert", "boolean", "break", "byte", "case", "catch", "char",
@@ -215,7 +211,7 @@ final class BuiltinLanguages {
         "TABLE", "TEMP", "TEMPORARY", "THEN", "TO", "TRANSACTION", "TRIGGER",
         "UNION", "UNIQUE", "UPDATE", "USING", "VACUUM", "VALUES", "VIEW",
         "VIRTUAL", "WHEN", "WHERE", "WITH", "WITHOUT",
-        // Lowercase variants (some queries mix)
+        // Variantes minuscules (certaines requêtes mélangent)
         "abort", "action", "add", "after", "all", "alter", "analyze", "and",
         "as", "asc", "attach", "autoincrement", "before", "begin", "between",
         "by", "cascade", "case", "cast", "check", "collate", "commit",
@@ -267,10 +263,10 @@ final class BuiltinLanguages {
         "true", "false"
     )));
 
-    // ═══════════════════════════════════════════════════════════════════
-    // Comment syntax shortcuts (same instances CommentSyntax used in
-    // v3.35.0's forLanguage switch).
-    // ═══════════════════════════════════════════════════════════════════
+    // ═════════════════════════════════════════════════════════════
+    // Raccourcis de syntaxes de commentaire (mêmes instances que le
+    // switch forLanguage de CommentSyntax).
+    // ═════════════════════════════════════════════════════════════
 
     private static final CommentSyntax HASH =
             new CommentSyntax("#", null, null);
@@ -281,12 +277,12 @@ final class BuiltinLanguages {
     private static final CommentSyntax SQL_STYLE =
             new CommentSyntax("--", "/*", "*/");
 
-    // ═══════════════════════════════════════════════════════════════════
-    // Profile table.
-    // ═══════════════════════════════════════════════════════════════════
+    // ═════════════════════════════════════════════════════════════
+    // Table des profils.
+    // ═════════════════════════════════════════════════════════════
 
     static void install() {
-        // ── Specialized tokenizers ────────────────────────────────
+        // ── Tokenizers spécialisés ────────────────────────────
         LanguageRegistry.put(LanguageProfile.builder("python")
                 .family(SyntaxFamily.PYTHON).alias("py")
                 .extension("py").keywordSet(PYTHON_KEYWORDS)
@@ -342,7 +338,7 @@ final class BuiltinLanguages {
                 .family(SyntaxFamily.LOG).extension("log")
                 .commentSyntax(CommentSyntax.C_STYLE).build());
 
-        // ── C-like family ─────────────────────────────────────────
+        // ── Famille C-like ─────────────────────────────────────
         LanguageRegistry.put(LanguageProfile.builder("java")
                 .family(SyntaxFamily.C_LIKE).extension("java")
                 .keywordSet(JAVA_KEYWORDS)
@@ -396,8 +392,8 @@ final class BuiltinLanguages {
                 .family(SyntaxFamily.C_LIKE).alias("gradle")
                 .extension("groovy", "gradle").keywordSet(GROOVY_KEYWORDS)
                 .commentSyntax(CommentSyntax.C_STYLE).build());
-        // Scala keeps the v3.35.0 behavior: it fell through the keyword
-        // switch to the Java set, so the profile reuses JAVA_KEYWORDS.
+        // Scala : retombe sur l’ensemble de mots-clés Java, le profil
+        // réutilise donc JAVA_KEYWORDS.
         LanguageRegistry.put(LanguageProfile.builder("scala")
                 .family(SyntaxFamily.C_LIKE).extension("scala")
                 .keywordSet(JAVA_KEYWORDS)

@@ -1,43 +1,42 @@
 package jo.codeeditor.view;
 
 /**
- * v3.36.0 — Command ids for the data-driven keymap (roadmap item 6, port
- * of CodeAssist v3.20's {@code EditorCommands}).
+ * Identifiants de commandes du keymap piloté par les données (port de
+ * l'{@code EditorCommands} de CodeAssist).
  *
- * <p>Every hardware-key action the editor supports is a named command.
- * {@link EditorKeymap} maps key events to these ids, and
- * {@code EditorKeyHandler} executes them — replacing the v1.x cascade of
- * {@code if}/{@code switch} blocks. Hosts rebind any command:</p>
+ * <p>Chaque action au clavier matériel prise en charge par l'éditeur est
+ * une commande nommée. {@link EditorKeymap} associe les événements de
+ * touches à ces identifiants et {@code EditorKeyHandler} les exécute —
+ * remplaçant l'ancienne cascade de blocs {@code if}/{@code switch}. Les
+ * hôtes peuvent relier n'importe quelle commande :</p>
  *
  * <pre>{@code
  * EditorKeymap km = EditorKeymap.defaults()
  *         .unbind(EditorCommands.GO_TO_DEFINITION)
  *         .bind(EditorCommands.REDO, KeyEvent.KEYCODE_Z, true, true);
- * view.setKeymap(km);   // Ctrl+Shift+Z = redo (IntelliJ convention)
+ * view.setKeymap(km);   // Ctrl+Shift+Z = rétablir (convention IntelliJ)
  * }</pre>
- *
- * @since v3.36.0
  */
 public final class EditorCommands {
 
     private EditorCommands() {}
 
-    // ── History ───────────────────────────────────────────────────
+    // ── Historique ────────────────────────────────────────────────
     public static final String UNDO = "editor.undo";
     public static final String REDO = "editor.redo";
 
-    // ── Selection ─────────────────────────────────────────────────
+    // ── Sélection ─────────────────────────────────────────────────
     public static final String SELECT_ALL = "editor.select_all";
     public static final String COPY = "editor.copy";
     public static final String CUT = "editor.cut";
     public static final String PASTE = "editor.paste";
     public static final String DUPLICATE = "editor.duplicate";
 
-    // ── File / host actions ───────────────────────────────────────
+    // ── Fichier / actions hôte ────────────────────────────────────
     public static final String FIND = "editor.find";
     public static final String SAVE = "editor.save";
 
-    // ── Language intelligence ─────────────────────────────────────
+    // ── Intelligence du langage ───────────────────────────────────
     public static final String TRIGGER_COMPLETION = "editor.completion";
     public static final String TRIGGER_SIGNATURE_HELP = "editor.signature_help";
     public static final String CODE_ACTIONS = "editor.code_actions";
@@ -57,7 +56,7 @@ public final class EditorCommands {
     public static final String ZOOM_OUT = "editor.zoom_out";
     public static final String ZOOM_RESET = "editor.zoom_reset";
 
-    // ── Editing ───────────────────────────────────────────────────
+    // ── Édition ───────────────────────────────────────────────────
     public static final String BACKSPACE = "editor.backspace";
     public static final String DELETE_FORWARD = "editor.delete_forward";
     public static final String NEW_LINE = "editor.new_line";
@@ -65,12 +64,12 @@ public final class EditorCommands {
     public static final String DEDENT = "editor.dedent";
     public static final String INSERT_SPACE = "editor.insert_space";
 
-    // ── Comment toggles (v3.37.0 — natural chord companions, e.g.
-    // IntelliJ-style Ctrl+K Ctrl+C / Ctrl+K Ctrl+U) ────────────────
+    // ── Bascules de commentaire (compagnes d'accords naturels, ex.
+    // Ctrl+K Ctrl+C / Ctrl+K Ctrl+U à la IntelliJ) ────────────────
     public static final String TOGGLE_LINE_COMMENT = "editor.toggle_line_comment";
     public static final String TOGGLE_BLOCK_COMMENT = "editor.toggle_block_comment";
 
-    // ── Caret movement (EXTEND_* = the same move with a selection) ──
+    // ── Déplacement du caret (EXTEND_* = même déplacement avec sélection) ──
     public static final String MOVE_LEFT = "editor.move_left";
     public static final String EXTEND_LEFT = "editor.extend_left";
     public static final String MOVE_RIGHT = "editor.move_right";

@@ -3,53 +3,55 @@ package jo.codeeditor.edit;
 import java.util.Locale;
 
 /**
- * v3.35.0 — Language-driven comment syntax (roadmap item 1, bug B11).
+ * Syntaxe de commentaire pilotée par le langage.
  *
- * <p>Before v3.35.0, {@code EditorSession.toggleLineComment()} hardcoded
- * {@code "//"} and {@code toggleBlockComment()} hardcoded the C-style pair,
- * which produced WRONG comment prefixes for XML, Python, Markdown, Lua, SQL,
- * shell… (e.g. {@code // def foo():} in a Python file). This class is the
- * port of CodeAssist v3.20's {@code EditorLanguageProfile} comment fields:
- * a small immutable profile resolved from the session's language id.</p>
+ * <p>Profil immuable minimal, résolu depuis l'identifiant de langage de la
+ * session. {@code EditorSession.toggleLineComment()} et
+ * {@code EditorSession.toggleBlockComment()} s'appuient sur ce profil :
+ * coder en dur {@code "//"} et la paire style C produirait des préfixes
+ * erronés pour XML, Python, Markdown, Lua, SQL, shell… (p. ex.
+ * {@code // def foo():} dans un fichier Python).</p>
  *
- * <p>Resolution rules (aligned with {@code SyntaxHighlighter}'s language
- * table, including short aliases like {@code "py"}, {@code "js"}, {@code "ts"},
- * {@code "rs"}, {@code "rb"}, {@code "sh"}):</p>
+ * <p>Règles de résolution (alignées sur la table de langages de
+ * {@code SyntaxHighlighter}, alias courts inclus comme {@code "py"},
+ * {@code "js"}, {@code "ts"}, {@code "rs"}, {@code "rb"}, {@code "sh"}) :</p>
  * <ul>
- *   <li>C-family languages → {@code //} + {@code /* *&#47;} (unchanged default);</li>
- *   <li>hash languages (Python, Ruby, shell, TOML, properties, smali, YAML)
- *       → {@code #} and (usually) no block comment;</li>
- *   <li>XML/HTML/Markdown → no line comment, block {@code <!-- -->} —
- *       {@code toggleLineComment} then falls back to wrapping each line in
- *       the block pair (VS Code behavior for XML);</li>
- *   <li>Lua → {@code --} + {@code --[[ ]]}; SQL → {@code --} + {@code /* *&#47;};</li>
- *   <li>JSON → no comment syntax at all: both toggles are safe no-ops.</li>
+ *   <li>langages de la famille C → {@code //} + {@code /* *&#47;} (défaut inchangé) ;</li>
+ *   <li>langages à dièse (Python, Ruby, shell, TOML, properties, smali, YAML)
+ *       → {@code #} et (généralement) pas de commentaire de bloc ;</li>
+ *   <li>XML/HTML/Markdown → pas de commentaire de ligne, bloc
+ *       {@code <!-- -->} — {@code toggleLineComment} retombe alors sur
+ *       l'encadrement de chaque ligne par la paire de bloc (comportement
+ *       VS Code pour XML) ;</li>
+ *   <li>Lua → {@code --} + {@code --[[ ]]}; SQL → {@code --} +
+ *       {@code /* *&#47;} ;</li>
+ *   <li>JSON → aucune syntaxe de commentaire : les deux bascules sont des
+ *       no-ops sûrs.</li>
  * </ul>
  *
- * <p>Unknown or {@code null} language ids resolve to the C-family default
- * so existing callers (Java-first) keep the pre-v3.35.0 behavior byte for
- * byte.</p>
+ * <p>Les identifiants de langage inconnus ou {@code null} se résolvent vers
+ * le défaut famille C, si bien que les appelants existants (Java d'abord)
+ * conservent exactement le même comportement octet par octet.</p>
  *
- * <p>Hosts with exotic languages can bypass language resolution entirely via
+ * <p>Les hôtes disposant de langages exotiques peuvent court-circuiter la
+ * résolution par langage via
  * {@code EditorSession.setCommentSyntax(CommentSyntax)}.</p>
- *
- * @since v3.35.0
  */
 public final class CommentSyntax {
 
-    /** C-family default: {@code //} + {@code /* *&#47;}. */
+    /** Défaut famille C : {@code //} + {@code /* *&#47;}. */
     public static final CommentSyntax C_STYLE =
             new CommentSyntax("//", "/*", "*/");
 
-    /** JSON (and any format with no comment syntax): all toggles are no-ops. */
+    /** JSON (et tout format sans syntaxe de commentaire) : toutes les bascules sont des no-ops. */
     public static final CommentSyntax NONE =
             new CommentSyntax(null, null, null);
 
-    /** Line comment prefix, or null when the language has none. */
+    /** Préfixe de commentaire de ligne, ou null quand le langage n'en a pas. */
     public final String lineComment;
-    /** Block comment opener, or null when the language has none. */
+    /** Ouvreur de commentaire de bloc, ou null quand le langage n'en a pas. */
     public final String blockStart;
-    /** Block comment closer, or null when the language has none. */
+    /** Fermeur de commentaire de bloc, ou null quand le langage n'en a pas. */
     public final String blockEnd;
 
     public CommentSyntax(String lineComment, String blockStart, String blockEnd) {
@@ -58,27 +60,26 @@ public final class CommentSyntax {
         this.blockEnd = blockEnd;
     }
 
-    /** True when {@link #toggleLineComment} can insert something. */
+    /** Vrai quand {@link #toggleLineComment} peut insérer quelque chose. */
     public boolean hasLine() {
         return lineComment != null;
     }
 
-    /** True when a block comment pair exists. */
+    /** Vrai quand une paire de commentaire de bloc existe. */
     public boolean hasBlock() {
         return blockStart != null && blockEnd != null;
     }
 
     /**
-     * Resolves the comment syntax for the given language id.
+     * Résout la syntaxe de commentaire pour l'identifiant de langage donné.
      *
-     * <p>v3.36.0 — the resolution is registry-driven (roadmap item 7): the
-     * id is normalized (trimmed, lowercased with {@code Locale.ROOT}) and
-     * looked up in {@link jo.codeeditor.languages.LanguageRegistry}. The
-     * built-in profiles carry exactly the syntaxes the old switch returned
-     * in v3.35.0, and a custom language registered by the host with a
-     * {@code commentSyntax(...)} is honored here automatically. Unknown ids
-     * fall back to {@link #C_STYLE} so the Java-first history of this
-     * editor is preserved.</p>
+     * <p>La résolution passe par le registre : l'identifiant est normalisé
+     * (trimmé, passé en minuscules via {@code Locale.ROOT}) puis cherché
+     * dans {@link jo.codeeditor.languages.LanguageRegistry}. Un langage
+     * personnalisé enregistré par l'hôte avec un
+     * {@code commentSyntax(...)} est honoré ici automatiquement. Les
+     * identifiants inconnus retombent sur {@link #C_STYLE} afin de préserver
+     * le comportement Java-first de cet éditeur.</p>
      */
     public static CommentSyntax forLanguage(String language) {
         if (language == null) return C_STYLE;

@@ -1,17 +1,17 @@
 package jo.codeeditor.lsp;
 
 /**
- * v3.3.3: Sink for LSP activity logs. The demo app implements this to
- * surface LSP request/response/timeout/error events in its log panel,
- * so the user can see exactly what's happening when a server connection
- * appears "stuck" or features don't fire.
- *
- * @since v3.3.3
+ * Récepteur des journaux d'activité LSP. L'application de démonstration
+ * l'implémente pour exposer les événements requête/réponse/expiration/
+ * erreur LSP dans son panneau de journal, afin que l'utilisateur voie
+ * précisément ce qui se passe quand une connexion serveur semble « bloquée »
+ * ou que des fonctionnalités ne se déclenchent pas.
  */
 public interface LspLogSink {
     /**
-     * Logs a single message. Implementations should be thread-safe —
-     * LSP callbacks fire on the LSP4J executor thread, not the UI thread.
+     * Journalise un message unique. Les implémentations doivent être
+     * thread-safe — les rappels LSP arrivent sur le thread exécuteur LSP4J,
+     * pas sur le thread UI.
      */
     void log(String message);
 }

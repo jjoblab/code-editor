@@ -6,20 +6,19 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * v3.36.0 — The context handed to every {@link EditorDecorationPainter}
- * once per render pass (roadmap item 9).
+ * Contexte transmis à chaque {@link EditorDecorationPainter} une fois par
+ * passe de rendu.
  *
- * <p>A painter reads the viewport/window it is asked to decorate and
- * pushes decorations via the {@code add*} methods. Decorations outside the
- * visible line range are harmless (they are simply not drawn) but wasteful
- * — good painters only decorate the visible window.</p>
+ * <p>Un painter lit la fenêtre qu'on lui demande de décorer puis pousse ses
+ * décorations via les méthodes {@code add*}. Les décorations hors de la plage
+ * de lignes visibles sont inoffensives (elles ne sont simplement pas
+ * dessinées) mais coûteuses — un bon painter ne décore que la fenêtre
+ * visible.</p>
  *
- * <p><b>Threading:</b> {@code paint} runs on the UI thread inside the
- * render pass — keep it fast and allocation-light. A painter that throws
- * is REMOVED from the host instead of crashing the editor (CodeAssist
- * {@code EditorPainterHost} policy).</p>
- *
- * @since v3.36.0
+ * <p><b>Threads :</b> {@code paint} s'exécute sur le thread UI pendant la
+ * passe de rendu — le garder rapide et économe en allocations. Un painter qui
+ * lève une exception est RETIRÉ de son hôte plutôt que de faire planter
+ * l'éditeur (politique du {@code EditorPainterHost}).</p>
  */
 public final class EditorPaintContext {
 
@@ -42,37 +41,37 @@ public final class EditorPaintContext {
         this.density = density;
     }
 
-    /** The document being rendered (read-only use). */
+    /** Document en cours de rendu (utilisation en lecture seule). */
     public EditorDocument getDocument() {
         return doc;
     }
 
-    /** First document line of the (fold/wrap-aware) visible window. */
+    /** Première ligne du document de la fenêtre visible (prise en compte des plis/retours à la ligne). */
     public int getFirstVisibleLine() {
         return firstVisibleLine;
     }
 
-    /** Last document line of the (fold/wrap-aware) visible window. */
+    /** Dernière ligne du document de la fenêtre visible (prise en compte des plis/retours à la ligne). */
     public int getLastVisibleLine() {
         return lastVisibleLine;
     }
 
-    /** Screen density (px per dp). */
+    /** Densité de l'écran (px par dp). */
     public float getDensity() {
         return density;
     }
 
-    /** Rendered line height in px (from the editor metrics). */
+    /** Hauteur de ligne rendue en px (issue des métriques de l'éditeur). */
     public float getLineHeight() {
         return view.metrics.getLineHeight();
     }
 
-    /** Monospace char width in px (from the editor metrics). */
+    /** Largeur d'un caractère monospace en px (issue des métriques de l'éditeur). */
     public float getCharWidth() {
         return view.metrics.getCharWidth();
     }
 
-    /** Adds a colored range decoration (underline/box/strike) in the text area. */
+    /** Ajoute une décoration colorée sur une plage (soulignement/encadré/barré) dans la zone de texte. */
     public void addTextDecoration(int start, int end, int color, int style) {
         if (end <= start) return;
         if (doc != null) {
@@ -83,13 +82,13 @@ public final class EditorPaintContext {
         textDecorations.add(new EditorDecorations.TextDecoration(start, end, color, style));
     }
 
-    /** Adds a colored bar on the gutter for {@code line}. */
+    /** Ajoute une barre colorée sur la gouttière de la ligne {@code line}. */
     public void addGutterMark(int line, int color) {
         if (line < 0) return;
         gutterMarks.add(new EditorDecorations.GutterMark(line, color));
     }
 
-    /** Adds phantom text after the line containing {@code offset}. */
+    /** Ajoute du texte fantôme après la ligne contenant {@code offset}. */
     public void addPluginInlay(int offset, String text, int color) {
         if (offset < 0 || text == null || text.isEmpty()) return;
         pluginInlays.add(new EditorDecorations.PluginInlay(offset, text, color));

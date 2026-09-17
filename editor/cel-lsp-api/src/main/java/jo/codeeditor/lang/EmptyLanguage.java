@@ -1,16 +1,32 @@
 package jo.codeeditor.lang;
 
+import jo.codeeditor.lang.provider.CodeActionsProvider;
+import jo.codeeditor.lang.provider.CompletionProvider;
+import jo.codeeditor.lang.provider.DefinitionProvider;
+import jo.codeeditor.lang.provider.DiagnosticsProvider;
+import jo.codeeditor.lang.provider.DocumentHighlightProvider;
+import jo.codeeditor.lang.provider.Formatter;
+import jo.codeeditor.lang.provider.HoverProvider;
+import jo.codeeditor.lang.provider.ImplementationsProvider;
+import jo.codeeditor.lang.provider.InlayHintProvider;
+import jo.codeeditor.lang.provider.ReferencesProvider;
+import jo.codeeditor.lang.provider.RenameProvider;
+import jo.codeeditor.lang.provider.SignatureHelpProvider;
+import jo.codeeditor.lang.provider.SuperDefinitionProvider;
+import jo.codeeditor.lang.provider.SymbolProvider;
+import jo.codeeditor.lang.provider.TypeDefinitionProvider;
+import jo.codeeditor.lang.provider.ViewZoneProvider;
+import jo.codeeditor.lang.model.CodeBlock;
+
 /**
- * A no-op {@link Language} used as the default when no real language is
- * set. All providers return null — the editor shows plain syntax
- * highlighting (from the lexical tokenizer) but no completion, hover,
- * signature help, diagnostics, etc.
+ * {@link Language} sans effet, utilisée par défaut quand aucun vrai langage
+ * n'est installé. Tous les providers retournent {@code null} — l'éditeur
+ * affiche la coloration lexicale de son propre tokenizer, mais aucune
+ * complétion, hover, aide de signature, diagnostic, etc.
  *
- * <p>This is the equivalent of Sora Editor's {@code EmptyLanguage} —
- * it ensures that switching from Java to XML doesn't leave stale Java
- * resolvers active on XML code.
- *
- * @since v3.2.0
+ * <p>Garantit qu'un changement de langage ne laisse pas actifs des
+ * resolveurs obsolètes du langage précédent (ex. passer de Java à XML
+ * sans que les resolveurs Java restent branchés sur le XML).</p>
  */
 public class EmptyLanguage implements Language {
 
@@ -21,7 +37,7 @@ public class EmptyLanguage implements Language {
         return ANALYZER;
     }
 
-    // All providers return null — no language intelligence.
+    // Tous les providers retournent null — aucune intelligence de langage.
     @Override public CompletionProvider getCompletionProvider() { return null; }
     @Override public HoverProvider getHoverProvider() { return null; }
     @Override public SignatureHelpProvider getSignatureHelpProvider() { return null; }
@@ -44,7 +60,7 @@ public class EmptyLanguage implements Language {
     @Override
     public void destroy() {}
 
-    /** A no-op analyzer — returns null for styledLine (editor uses its own). */
+    /** Analyseur sans effet — styledLine retourne null (l'éditeur utilise son propre tokenizer). */
     private static class EmptyAnalyzer implements Analyzer {
         @Override public void setReceiver(StyleReceiver receiver) {}
         @Override public void onReplace(CharSequence text, int s, int e, CharSequence i) {}

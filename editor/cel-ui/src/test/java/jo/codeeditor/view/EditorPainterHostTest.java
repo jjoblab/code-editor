@@ -17,16 +17,13 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.Assert.*;
 
 /**
- * v3.36.0 — Tests du host de painters plugins (roadmap item 9, portage
- * {@code EditorPainterHost} de CodeAssist v3.20).
+ * Tests du host de painters plugins.
  *
  * <p>Vérifie : la collecte par frame (text decorations + gutter marks +
  * plugin inlays), la politique fail-safe (un painter qui throw est RETIRÉ
  * du registre au lieu de crasher l'éditeur, les autres painters et le
  * rendu survivent), le listener de retrait, register/unregister avec
  * déduplication par id, et le smoke render avec painters actifs.</p>
- *
- * @since v3.36.0
  */
 @RunWith(RobolectricTestRunner.class)
 public class EditorPainterHostTest {
@@ -47,7 +44,7 @@ public class EditorPainterHostTest {
         return view;
     }
 
-    /** A painter that decorates the TODO line. */
+    /** Un painter qui décore la ligne TODO. */
     private static class TodoPainter implements EditorDecorationPainter {
         int painted = 0;
 
@@ -70,7 +67,7 @@ public class EditorPainterHostTest {
         }
     }
 
-    /** A painter that always throws. */
+    /** Un painter qui throw toujours. */
     private static class BrokenPainter implements EditorDecorationPainter {
         @Override
         public String id() {
@@ -98,7 +95,7 @@ public class EditorPainterHostTest {
         assertTrue(frame.pluginInlays.get(0).text.contains("todo"));
         assertFalse(frame.isEmpty());
         assertEquals(1, painter.painted);
-        // Empty host → shared empty frame.
+        // Host vide → frame vide partagée.
         assertTrue(new EditorPainterHost().apply(view, 0, 4).isEmpty());
     }
 
@@ -116,15 +113,16 @@ public class EditorPainterHostTest {
         view.getPainterHost().register(broken);
         view.getPainterHost().register(good);
 
-        // First frame: broken painter throws → removed; good painter's
-        // decorations still collected.
+        // Première frame : le painter défaillant throw → retiré ; les
+        // décorations du bon painter sont toujours collectées.
         EditorPainterHost.Frame frame = view.painterHost.apply(view, 0, 4);
         assertEquals(1, frame.textDecorations.size());
         assertSame(broken, removed.get());
         assertTrue(error.get() instanceof IllegalStateException);
         assertEquals(1, view.getPainterHost().painters().size());
 
-        // Second frame: only the good painter runs, no listener fires again.
+        // Seconde frame : seul le bon painter tourne, aucun listener ne se
+        // déclenche à nouveau.
         removed.set(null);
         frame = view.painterHost.apply(view, 0, 4);
         assertEquals(1, frame.textDecorations.size());
@@ -139,11 +137,11 @@ public class EditorPainterHostTest {
         TodoPainter a = new TodoPainter();
         TodoPainter b = new TodoPainter();
         host.register(a);
-        host.register(b); // same id (class name) → ignored
+        host.register(b); // même id (nom de classe) → ignoré
         assertEquals(1, host.painters().size());
         assertTrue(host.unregister(a));
         assertEquals(0, host.painters().size());
-        assertFalse(host.unregister(a)); // already gone
+        assertFalse(host.unregister(a)); // déjà retiré
         host.register(null); // no-op
         assertEquals(0, host.painters().size());
     }
@@ -154,20 +152,20 @@ public class EditorPainterHostTest {
         EditorPaintContext ctx = new EditorPaintContext(
                 view, view.getSession().getDocument(), 0, 4, 2f);
         int len = DOC.length();
-        // Inverted / out-of-range ranges are dropped or clamped.
-        ctx.addTextDecoration(10, 5, 0xFF000000, 0);      // inverted → dropped
+        // Les plages inversées / hors bornes sont ignorées ou bornées.
+        ctx.addTextDecoration(10, 5, 0xFF000000, 0);      // inversée → ignorée
         assertEquals(0, ctx.textDecorations.size());
-        ctx.addTextDecoration(-5, 3, 0xFF000000, 0);      // negative start → dropped
+        ctx.addTextDecoration(-5, 3, 0xFF000000, 0);      // départ négatif → ignoré
         assertEquals(0, ctx.textDecorations.size());
-        ctx.addTextDecoration(0, len + 1000, 0xFF000000, 0); // end clamped
+        ctx.addTextDecoration(0, len + 1000, 0xFF000000, 0); // fin bornée
         assertEquals(len, ctx.textDecorations.get(0).end);
-        ctx.addGutterMark(-1, 0xFF000000);                // negative line → dropped
+        ctx.addGutterMark(-1, 0xFF000000);                // ligne négative → ignorée
         assertEquals(0, ctx.gutterMarks.size());
-        ctx.addPluginInlay(-1, "x", 0xFF000000);          // negative offset → dropped
-        ctx.addPluginInlay(0, null, 0xFF000000);          // null text → dropped
-        ctx.addPluginInlay(0, "", 0xFF000000);            // empty text → dropped
+        ctx.addPluginInlay(-1, "x", 0xFF000000);          // offset négatif → ignoré
+        ctx.addPluginInlay(0, null, 0xFF000000);          // texte null → ignoré
+        ctx.addPluginInlay(0, "", 0xFF000000);            // texte vide → ignoré
         assertEquals(0, ctx.pluginInlays.size());
-        // Viewport accessors.
+        // Accesseurs du viewport.
         assertEquals(0, ctx.getFirstVisibleLine());
         assertEquals(4, ctx.getLastVisibleLine());
         assertEquals(2f, ctx.getDensity(), 0f);
@@ -182,8 +180,8 @@ public class EditorPainterHostTest {
         view.getPainterHost().register(new BrokenPainter());
         Bitmap bmp = Bitmap.createBitmap(1080, 1920, Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(bmp);
-        // First draw removes the broken painter (throw during apply),
-        // second draw runs with only the good painter.
+        // Le premier draw retire le painter défaillant (throw pendant
+        // apply), le second tourne avec le seul bon painter.
         view.draw(canvas);
         view.draw(canvas);
         assertEquals(1, view.getPainterHost().painters().size());

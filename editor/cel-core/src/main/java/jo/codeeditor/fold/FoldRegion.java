@@ -3,11 +3,8 @@ package jo.codeeditor.fold;
 import java.util.*;
 
 /**
- * A fold region in the document.
- 
- *
- * @since v1.0.0
-*/
+ * Une région pliable du document.
+ */
 public final class FoldRegion {
     public final int start;
     public final int end;

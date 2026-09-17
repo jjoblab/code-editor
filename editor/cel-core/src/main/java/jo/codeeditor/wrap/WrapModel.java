@@ -3,25 +3,23 @@ package jo.codeeditor.wrap;
 import java.util.*;
 
 /**
- * Word-wrap model: tracks per-document-line wrap-row counts.
- * Uses a prefix sum of visual rows for O(1) line-to-row mapping.
- * Fold-aware: can overlay fold model's visual lines.
- * Ported from CodeAssist WrapModel.kt.
- 
- *
- * @since v1.0.0
-*/
+ * Modèle de retour à la ligne automatique : suit le nombre de rangées de
+ * wrap par ligne du document. Utilise une somme préfixe de rangées
+ * visuelles pour un mapping ligne→rangée en O(1). Conscient des plis :
+ * peut superposer les lignes visuelles du modèle de pliage. Reprend le
+ * design du {@code WrapModel.kt} de CodeAssist.
+ */
 public class WrapModel {
 
-    /** Per-document-line wrap row count. */
+    /** Nombre de rangées de wrap par ligne du document. */
     private int[] rowsPerLine;
-    /** Prefix sum: prefixSum[i] = total visual rows for lines 0..i-1. */
+    /** Somme préfixe : prefixSum[i] = total des rangées visuelles des lignes 0..i-1. */
     private long[] prefixSum;
-    /** Number of document lines. */
+    /** Nombre de lignes du document. */
     private int lineCount;
 
     /**
-     * Creates a WrapModel with default 1 row per line.
+     * Crée un WrapModel avec 1 rangée par ligne par défaut.
      */
     public WrapModel(int lineCount) {
         this.lineCount = lineCount;
@@ -31,7 +29,7 @@ public class WrapModel {
     }
 
     /**
-     * Resize the model when document line count changes.
+     * Redimensionne le modèle quand le nombre de lignes du document change.
      */
     public void resize(int newLineCount) {
         if (newLineCount == lineCount) return;
@@ -47,7 +45,7 @@ public class WrapModel {
     }
 
     /**
-     * Set the wrap row count for a specific document line.
+     * Définit le nombre de rangées de wrap pour une ligne précise du document.
      */
     public void setRows(int line, int count) {
         if (line < 0 || line >= lineCount) return;
@@ -56,7 +54,7 @@ public class WrapModel {
     }
 
     /**
-     * Returns the top visual row for a document line.
+     * Renvoie la rangée visuelle de tête d'une ligne du document.
      */
     public long topRow(int line) {
         if (line <= 0) return 0;
@@ -65,7 +63,7 @@ public class WrapModel {
     }
 
     /**
-     * Returns the number of visual rows for a document line.
+     * Renvoie le nombre de rangées visuelles d'une ligne du document.
      */
     public int rowsOf(int line) {
         if (line < 0 || line >= lineCount) return 1;
@@ -73,12 +71,13 @@ public class WrapModel {
     }
 
     /**
-     * Maps a visual row to the document line it belongs to.
-     * Uses binary search on the prefix sum.
+     * Fait correspondre une rangée visuelle à la ligne du document à
+     * laquelle elle appartient. Utilise une recherche binaire sur la
+     * somme préfixe.
      */
     public int docLineForRow(long row) {
         if (row < 0) return 0;
-        // Binary search
+        // Recherche binaire
         int lo = 0, hi = lineCount;
         while (lo < hi) {
             int mid = (lo + hi) >>> 1;
@@ -92,14 +91,14 @@ public class WrapModel {
     }
 
     /**
-     * Returns the total number of visual rows.
+     * Renvoie le nombre total de rangées visuelles.
      */
     public long totalRows() {
         return prefixSum[lineCount];
     }
 
     /**
-     * Returns the number of document lines.
+     * Renvoie le nombre de lignes du document.
      */
     public int getLineCount() {
         return lineCount;

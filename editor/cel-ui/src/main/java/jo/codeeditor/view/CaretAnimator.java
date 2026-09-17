@@ -4,31 +4,32 @@ import android.animation.ValueAnimator;
 import android.view.animation.LinearInterpolator;
 
 /**
- * Manages caret blink + glide animation for {@link EditorView}.
+ * Gère le clignotement et l'animation de glisse (glide) du curseur pour
+ * {@link EditorView}.
  *
- * <p>Extracted from EditorView (v3.33.6) to reduce its size. The caret has
- * two animation modes:</p>
+ * <p>Le curseur a deux modes d'animation :</p>
  * <ul>
- *   <li><b>Blink</b> — toggles visibility every {@link #BLINK_MS} ms when
- *       idle. Goes solid on every edit / caret move and resumes blinking
- *       after {@link #SOLID_AFTER_EDIT_MS} ms of inactivity.</li>
- *   <li><b>Glide</b> — smooth interpolation between two screen positions
- *       when the caret moves within the viewport (100ms, no overshoot).
- *       Snaps (no glide) for out-of-viewport jumps / edits / wrap moves.</li>
+ *   <li><b>Clignotement</b> — bascule la visibilité toutes les
+ *       {@link #BLINK_MS} ms au repos. Passe en plein (solide) à chaque
+ *       édition / déplacement du curseur puis reprend le clignotement après
+ *       {@link #SOLID_AFTER_EDIT_MS} ms d'inactivité.</li>
+ *   <li><b>Glide</b> — interpolation fluide entre deux positions écran quand
+ *       le curseur se déplace dans le viewport (100 ms, sans dépassement).
+ *       Placement immédiat (snap, pas de glide) pour les sauts hors viewport
+ *       / éditions / déplacements dus au retour à la ligne.</li>
  * </ul>
  *
- * <p><b>Single source of truth</b> (v3.33.10 fix): all caret state lives
- * here. {@link EditorView} and {@link EditorRenderer} MUST read/write through
- * the methods on this class — they MUST NOT keep duplicate alias fields. The
- * previous design (alias fields on EditorView + state on CaretAnimator)
- * caused the snap branch in {@code drawCaret} to overwrite the just-updated
- * alias with a stale {@code animX} value from a cancelled glide, producing
- * a one-frame visual lag on every keystroke.</p>
+ * <p><b>Source unique de vérité :</b> tout l'état du curseur vit ici.
+ * {@link EditorView} et {@link EditorRenderer} DOIVENT lire/écrire via les
+ * méthodes de cette classe — ils ne doivent PAS conserver de champs alias
+ * dupliqués. Sinon, la branche snap de {@code drawCaret} écraserait l'alias
+ * fraîchement mis à jour avec une valeur {@code animX} périmée d'un glide
+ * annulé, produisant un retard visuel d'une frame à chaque frappe.</p>
  *
- * <p>The class is not thread-safe — all access must be on the UI thread.</p>
+ * <p>La classe n'est pas thread-safe — tout accès doit se faire sur le
+ * thread UI.</p>
  *
  * @author jo@Dev
- * @since v3.33.6
  */
 final class CaretAnimator {
 
@@ -36,24 +37,25 @@ final class CaretAnimator {
     static final long SOLID_AFTER_EDIT_MS = 530;
     private static final long GLIDE_MS = 100;
 
-    // ── Blink state ───────────────────────────────────────────────
-    /** True while the caret should be drawn (solid or blink-on phase). */
+    // ── État du clignotement ─────────────────────────────────────
+    /** Vrai tant que le curseur doit être dessiné (solide ou phase allumée du clignotement). */
     boolean visible = true;
-    /** Last blink toggle timestamp (set to lastEditTime on edit/move). */
+    /** Horodatage de la dernière bascule de clignotement (aligné sur lastEditTime à l'édition/déplacement). */
     long lastToggle = 0;
 
-    // ── Glide state ───────────────────────────────────────────────
-    /** Current animated position — what the renderer should draw. */
+    // ── État du glide ─────────────────────────────────────────────
+    /** Position animée courante — celle que le renderer doit dessiner. */
     float animX = 0f;
     float animY = 0f;
-    /** Target position the glide is interpolating toward. */
+    /** Position cible vers laquelle le glide interpole. */
     float targetX = 0f;
     float targetY = 0f;
-    /** False until the first snap places the caret — first draw must snap. */
+    /** Faux tant que le premier snap n'a pas placé le curseur — le premier dessin doit snapper. */
     boolean ready = false;
     /**
-     * Document revision captured at the last snap/glide. If the next draw
-     * sees a different revision, the document was edited — snap (no glide).
+     * Révision du document capturée au dernier snap/glide. Si le prochain
+     * dessin voit une révision différente, le document a été édité — snap
+     * (pas de glide).
      */
     int rev = 0;
 
@@ -65,13 +67,15 @@ final class CaretAnimator {
     }
 
     /**
-     * Called on every edit / caret move. Makes the caret solid (visible),
-     * cancels any in-flight glide, and resets the blink toggle timer so
-     * blinking resumes {@link #SOLID_AFTER_EDIT_MS} ms after the last edit.
+     * Appelé à chaque édition / déplacement du curseur. Rend le curseur
+     * plein (visible), annule tout glide en cours et réinitialise le
+     * minuteur de bascule afin que le clignotement reprenne
+     * {@link #SOLID_AFTER_EDIT_MS} ms après la dernière édition.
      *
-     * <p>This is the SINGLE entry point for "user touched the editor".
-     * EditorView.onTextChanged, EditorImeBridge, EditorInputHandler all
-     * delegate here — they MUST NOT mutate the blink state directly.</p>
+     * <p>Point d'entrée UNIQUE pour « l'utilisateur a touché l'éditeur ».
+     * EditorView.onTextChanged, EditorImeBridge et EditorInputHandler
+     * délèguent tous ici — ils ne doivent PAS muter l'état du clignotement
+     * directement.</p>
      */
     void onEditOrMove() {
         long now = System.currentTimeMillis();
@@ -82,14 +86,15 @@ final class CaretAnimator {
     }
 
     /**
-     * Snaps the caret directly to {@code (targetX, targetY)} — no glide.
-     * Used for: first placement, document edits, out-of-viewport jumps,
-     * word-wrap moves. Updates ALL state (animX/Y, targetX/Y, ready, rev)
-     * so subsequent frames see a consistent snapshot.
+     * Place le curseur directement en {@code (targetX, targetY)} — sans
+     * glide. Cas d'usage : premier placement, éditions du document, sauts
+     * hors viewport, déplacements dus au retour à la ligne. Met à jour TOUT
+     * l'état (animX/Y, targetX/Y, ready, rev) afin que les frames suivantes
+     * voient un instantané cohérent.
      *
-     * @param targetX the new caret X (screen coords)
-     * @param targetY the new caret Y (screen coords)
-     * @param docRev  the current document revision
+     * @param targetX nouveau X du curseur (coordonnées écran)
+     * @param targetY nouveau Y du curseur (coordonnées écran)
+     * @param docRev  révision courante du document
      */
     void snapTo(float targetX, float targetY, int docRev) {
         cancelGlide();
@@ -102,16 +107,16 @@ final class CaretAnimator {
     }
 
     /**
-     * Starts a glide from the current animated position to
-     * {@code (targetX, targetY)}. Uses a linear interpolator (NO overshoot)
-     * with a short 100ms duration — fast and smooth, like IntelliJ.
+     * Démarre un glide depuis la position animée courante vers
+     * {@code (targetX, targetY)}. Interpolateur linéaire (AUCUN dépassement)
+     * et durée courte de 100 ms — rapide et fluide, à la IntelliJ.
      *
-     * <p>Updates {@code targetX/Y} and {@code rev} so the next frame's
-     * snap-vs-glide decision sees consistent state.</p>
+     * <p>Met à jour {@code targetX/Y} et {@code rev} afin que la décision
+     * snap-vs-glide de la frame suivante voie un état cohérent.</p>
      *
-     * @param targetX the new caret X (screen coords)
-     * @param targetY the new caret Y (screen coords)
-     * @param docRev  the current document revision
+     * @param targetX nouveau X du curseur (coordonnées écran)
+     * @param targetY nouveau Y du curseur (coordonnées écran)
+     * @param docRev  révision courante du document
      */
     void glideTo(float targetX, float targetY, int docRev) {
         cancelGlide();
@@ -133,7 +138,7 @@ final class CaretAnimator {
         view.postInvalidateOnAnimation();
     }
 
-    /** Cancels any in-flight glide. Does NOT touch animX/Y/target/rev. */
+    /** Annule tout glide en cours. Ne touche PAS à animX/Y/target/rev. */
     void cancelGlide() {
         if (animator != null && animator.isRunning()) {
             animator.cancel();
@@ -142,19 +147,20 @@ final class CaretAnimator {
     }
 
     /**
-     * Called from the draw path. Toggles blink if enough time has elapsed.
+     * Appelé depuis le chemin de dessin. Bascule le clignotement si
+     * suffisamment de temps s'est écoulé.
      *
-     * @return true if the caret should be drawn (visible), false if not.
+     * @return vrai si le curseur doit être dessiné (visible), faux sinon.
      */
     boolean updateBlink() {
         long now = System.currentTimeMillis();
         long lastEdit = view.lastEditTime;
-        // Solid after edit — don't blink for SOLID_AFTER_EDIT_MS ms.
+        // Plein après édition — pas de clignotement pendant SOLID_AFTER_EDIT_MS ms.
         if (now - lastEdit < SOLID_AFTER_EDIT_MS) {
             visible = true;
             return true;
         }
-        // Blink period.
+        // Période de clignotement.
         if (now - lastToggle >= BLINK_MS) {
             visible = !visible;
             lastToggle = now;
@@ -162,7 +168,7 @@ final class CaretAnimator {
         return visible;
     }
 
-    /** Resets ALL state — call when switching sessions. */
+    /** Réinitialise TOUT l'état — à appeler lors d'un changement de session. */
     void reset() {
         ready = false;
         rev = 0;

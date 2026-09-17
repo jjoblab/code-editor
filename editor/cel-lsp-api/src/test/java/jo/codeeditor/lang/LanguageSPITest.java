@@ -1,5 +1,18 @@
 package jo.codeeditor.lang;
 
+import jo.codeeditor.lang.model.CodeAction;
+import jo.codeeditor.lang.model.CodeBlock;
+import jo.codeeditor.lang.model.CompletionItem;
+import jo.codeeditor.lang.model.DefinitionLocation;
+import jo.codeeditor.lang.model.Diagnostic;
+import jo.codeeditor.lang.model.DocumentHighlight;
+import jo.codeeditor.lang.model.HoverContent;
+import jo.codeeditor.lang.model.Signature;
+import jo.codeeditor.lang.model.SignatureHelp;
+import jo.codeeditor.lang.model.Symbol;
+import jo.codeeditor.lang.model.TextEdit;
+import jo.codeeditor.lang.model.ViewZone;
+
 import org.junit.jupiter.api.Test;
 
 import java.util.Collections;
@@ -8,13 +21,11 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Tests for the {@link Language} SPI default methods.
+ * Tests des méthodes par défaut du SPI {@link Language}.
  *
- * <p>Verifies that a minimal {@link Language} implementation (only the
- * required methods) returns {@code null} for all optional providers —
- * the contract that the editor relies on.
- *
- * @since v2.0.0
+ * <p>Vérifie qu'une implémentation minimale de {@link Language} (seules
+ * les méthodes requises sont fournies) retourne {@code null} pour tous
+ * les providers optionnels — le contrat sur lequel l'éditeur s'appuie.</p>
  */
 class LanguageSPITest {
 
@@ -41,18 +52,17 @@ class LanguageSPITest {
 
     @Test
     void referencesProvider_isNewSpiSlot_addedIn_v3_33_10() {
-        // Regression: previously the Java LSP server declared references
-        // capability and implemented the handler, but the SPI had no slot.
-        // Now getReferencesProvider() exists and defaults to null.
+        // Le slot references doit exposer null par défaut : une
+        // implémentation minimale ne le fournit pas.
         Language lang = new MinimalLanguage();
         assertNull(lang.getReferencesProvider());
     }
 
     @Test
     void navigationSpiSlots_typeDefinition_implementations_super_defaultNull() {
-        // v2.36/v2.37 — the GO TO menu relies on three optional SPI slots;
-        // a minimal Language must expose them as null (retro-compatible
-        // default methods — no existing implementation breaks).
+        // Le menu GO TO s'appuie sur trois slots SPI optionnels ; une
+        // implémentation minimale doit les exposer à null (méthodes par
+        // défaut rétro-compatibles).
         Language lang = new MinimalLanguage();
         assertNull(lang.getTypeDefinitionProvider(),
                 "typeDefinition slot (v2.36)");
@@ -163,7 +173,7 @@ class LanguageSPITest {
         assertEquals(1, z.id);
     }
 
-    /** A minimal Language impl that only provides an Analyzer. */
+    /** Implémentation minimale de Language qui ne fournit qu'un Analyzer. */
     private static class MinimalLanguage implements Language {
         @Override
         public Analyzer getAnalyzer() {

@@ -1,12 +1,9 @@
 package jo.codeeditor.highlight;
 
 /**
- * A colored span within a line of text.
- * Represents a token from startCol to endCol with a given TokenType.
- 
- *
- * @since v1.0.0
-*/
+ * Portion colorée au sein d'une ligne de texte.
+ * Représente un jeton de startCol à endCol avec un TokenType donné.
+ */
 public final class LineSpan {
     public final int startCol;
     public final int endCol;

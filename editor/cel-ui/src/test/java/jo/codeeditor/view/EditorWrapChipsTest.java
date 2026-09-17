@@ -17,14 +17,14 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 /**
- * Tests v2.33 de la géométrie word-wrap CONTINUATION-AWARE et du placement
+ * Tests de la géométrie word-wrap CONTINUATION-AWARE et du placement
  * des chips diagnostics multi-rangées :
  * <ul>
  *   <li>{@link EditorView.WrapRows} — comptage des rangées avec indent de
  *       continuation (la queue de la ligne n'est plus perdue), inversions
  *       rowForCol / rowStartCol ;</li>
- *   <li>chip placée après la FIN de la DERNIÈRE rangée (pattern CodeAssist
- *       {@code lastSub}), pas à la longueur non repliée ;</li>
+ *   <li>chip placée après la FIN de la DERNIÈRE rangée, pas à la
+ *       longueur non repliée ;</li>
  *   <li>caret : la rangée vient de wrapRowsFor (source unique) ;</li>
  *   <li>maxH : étendue inlay-aware + chipExtent (un débordement → scroll
  *       horizontal atteignable).</li>
@@ -98,10 +98,11 @@ public class EditorWrapChipsTest {
     @Test
     public void wrapRows_indentedTailNoLongerLost() {
         // Ligne indentée de 8 + 191 chars = 199 chars.
-        //   AVANT : rows = ceil(199/99) = 3 mais la rangée 2 était découpée
-        //           à [99+91, 99+2*91)=190 → les 9 derniers chars PERDUS.
-        //   MAINTENANT : rows = 1 + ceil((199-99)/91) = 3 et la rangée 2
-        //           couvre [190, 199) — la queue est dessinée.
+        //   Sans indent de continuation : rows = ceil(199/99) = 3 mais la
+        //   rangée 2 serait découpée à [99+91, 99+2*91)=190 → les 9 derniers
+        //   chars PERDUS.
+        //   Avec : rows = 1 + ceil((199-99)/91) = 3 et la rangée 2 couvre
+        //   [190, 199) — la queue est dessinée.
         EditorView view = newView(1080);
         injectMetrics(view, 40f, 10f);
         view.setSession(new EditorSession(EditorDocument.of(
@@ -182,8 +183,7 @@ public class EditorWrapChipsTest {
         EditorView.WrapRows wr = view.wrapRowsFor(0, 199);
         assertEquals(3, wr.rows);
         float[] m = view.diagnosticChipMetrics(d, 0);
-        // Y : pill centrée dans la DERNIÈRE rangée (2), PAS la première —
-        // l'ancienne approximation centrait la chip sur la première.
+        // Y : pill centrée dans la DERNIÈRE rangée (2), PAS la première.
         float pillH = view.metrics.getTextSize() * 1.25f;
         assertEquals("chip Y sur la DERNIÈRE rangée",
                 view.docLineToY(0) + 2 * view.metrics.getLineHeight()

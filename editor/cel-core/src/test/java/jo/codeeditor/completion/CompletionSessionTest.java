@@ -54,8 +54,8 @@ class CompletionSessionTest {
         );
         CompletionSession session = new CompletionSession(0, items, true, false);
         List<CompletionSession.Item> filtered = session.filtered("cl");
-        // "class" matches as keyword, "getClass" matches as camel-hump
-        // Semantic should rank above keyword
+        // "class" correspond comme mot-clé, "getClass" comme camel-hump
+        // Le sémantique doit être classé au-dessus du mot-clé
         assertFalse(filtered.isEmpty());
     }
 
@@ -64,8 +64,8 @@ class CompletionSessionTest {
         CompletionSession session = new CompletionSession(5,
             List.of(item("hello", 1, false), item("help", 1, false)),
             true, false);
-        assertTrue(session.coversCaret("say hello", 7, 0)); // "he" typed
-        assertTrue(session.coversCaret("say hello", 5, 0)); // nothing typed
+        assertTrue(session.coversCaret("say hello", 7, 0)); // « he » saisi
+        assertTrue(session.coversCaret("say hello", 5, 0)); // rien de saisi
     }
 
     @Test

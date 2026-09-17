@@ -12,7 +12,7 @@ import android.os.SystemClock;
 import android.view.MotionEvent;
 
 import jo.codeeditor.document.EditorDocument;
-import jo.codeeditor.lang.DefinitionLocation;
+import jo.codeeditor.lang.model.DefinitionLocation;
 import jo.codeeditor.navigation.NavigationMenu;
 import jo.codeeditor.session.EditorSession;
 
@@ -23,8 +23,7 @@ import java.util.List;
 import static org.junit.Assert.*;
 
 /**
- * ★ v2.36 — verrouille le menu contextuel unifié (portage du
- * {@code NavMenu}/{@code NavMenuLayer} de CodeAssist), ouvert par le bouton
+ * Verrouille le menu contextuel unifié, ouvert par le bouton
  * « Actions ⋯ » de la toolbar de sélection :
  *
  * <ul>
@@ -40,20 +39,19 @@ import static org.junit.Assert.*;
  *       drag = scroll du contenu.</li>
  * </ul>
  *
- * <p>★ v2.37 — verrouille en plus les DEUX nouvelles options GO TO :
- * Implementations (implementationsResolver — héritiers DIRECTS, icône
- * layers) et Super (superResolver — membre outrepassé / supertypes
- * DIRECTS, icône pin), leur ordre NavKind CodeAssist (Declaration →
- * Implementations → Type declaration → Super), les libellés transportés
- * par les providers LSP (« Simple  ·  pkg » / « name  ·  Super ») et le
- * fallback nom-court-de-fichier.</p>
+ * <p>Verrouille aussi les DEUX options GO TO : Implementations
+ * (implementationsResolver — héritiers DIRECTS, icône layers) et Super
+ * (superResolver — membre outrepassé / supertypes DIRECTS, icône pin),
+ * leur ordre NavKind (Declaration → Implementations → Type declaration →
+ * Super), les libellés transportés par les providers LSP
+ * (« Simple  ·  pkg » / « name  ·  Super ») et le fallback
+ * nom-court-de-fichier.</p>
  *
  * <p>NOTE Robolectric : fontes legacy → FontMetrics nuls ; métriques
  * déterministes injectées par réflexion (pattern
  * {@code EditorBracketSheetTapTest}).</p>
  *
  * @author jo@Dev
- * @since v2.36
  */
 @RunWith(RobolectricTestRunner.class)
 public class EditorNavMenuTest {
@@ -101,7 +99,7 @@ public class EditorNavMenuTest {
         f.setFloat(target, value);
     }
 
-    /** Simulates a full tap (DOWN + UP) at the same spot. */
+    /** Simule un tap complet (DOWN + UP) au même endroit. */
     private static void tap(EditorView view, float x, float y) {
         long down = SystemClock.uptimeMillis();
         MotionEvent downEvent = MotionEvent.obtain(down, down, MotionEvent.ACTION_DOWN, x, y, 0);
@@ -112,7 +110,7 @@ public class EditorNavMenuTest {
         upEvent.recycle();
     }
 
-    /** Simulates a drag (DOWN + MOVEs + UP). */
+    /** Simule un drag (DOWN + MOVEs + UP). */
     private static void drag(EditorView view, float x, float y1, float y2) {
         long down = SystemClock.uptimeMillis();
         MotionEvent d = MotionEvent.obtain(down, down, MotionEvent.ACTION_DOWN, x, y1, 0);
@@ -167,7 +165,7 @@ public class EditorNavMenuTest {
         return -1;
     }
 
-    // ── Sections (NavigationMenu.kt parity) ────────────────────────
+    // ── Sections ───────────────────────────────────────────────────
 
     @Test
     public void rows_allEmpty_showsNothingFound() throws Exception {
@@ -195,7 +193,8 @@ public class EditorNavMenuTest {
         openMenu(view);
 
         List<EditorView.NavMenuRow> rows = view.navMenuRows();
-        // GO TO header + 2 options + QUICK FIXES header + 1 + INTENTIONS header + 1.
+        // Header GO TO + 2 options + header QUICK FIXES + 1 + header
+        // INTENTIONS + 1.
         assertEquals(7, rows.size());
         assertEquals(EditorView.NavMenuRow.TYPE_HEADER, rows.get(0).type);
         assertEquals("GO TO", rows.get(0).ref);
@@ -429,7 +428,7 @@ public class EditorNavMenuTest {
         assertFalse("une édition referme le menu", view.navMenuVisible);
     }
 
-    // ── v2.37 : GO TO Implementations / Super ────────────────────
+    // ── GO TO Implementations / Super ─────────────────────────────
 
     @Test
     public void rows_gotoOptions_inNavKindOrder() throws Exception {
@@ -445,7 +444,7 @@ public class EditorNavMenuTest {
         openMenu(view);
 
         List<EditorView.NavMenuRow> rows = view.navMenuRows();
-        // GO TO header + 4 options dans l'ordre des NavKind CodeAssist.
+        // Header GO TO + 4 options dans l'ordre des NavKind.
         assertEquals(5, rows.size());
         assertEquals("GO TO", rows.get(0).ref);
         assertEquals("Declaration",
@@ -465,8 +464,8 @@ public class EditorNavMenuTest {
     @Test
     public void rows_implementationsAndSuper_empty_areOmitted() throws Exception {
         EditorView view = newView();
-        // Resolvers présents mais SANS cibles → options omises (parité
-        // navigationOptions : une option n'apparaît que si ≥ 1 cible).
+        // Resolvers présents mais SANS cibles → options omises (une
+        // option n'apparaît que si ≥ 1 cible).
         view.setImplementationsResolver((text, offset) -> List.of());
         view.setSuperResolver((text, offset) -> List.of());
         view.setDefinitionResolver((text, offset) -> List.of(

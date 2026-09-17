@@ -7,9 +7,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Tests for {@link FoldDetector}.
- *
- * @since v3.3.0
+ * Tests de {@link FoldDetector}.
  */
 class FoldDetectorTest {
 
@@ -22,7 +20,7 @@ class FoldDetectorTest {
             "}\n";
         List<jo.codeeditor.shift.DiagnosticShift.FoldRegion> folds =
             FoldDetector.detect(text, "java");
-        // Should detect the class block and the method block.
+        // Doit détecter le bloc de la classe et celui de la méthode.
         assertTrue(folds.size() >= 2, "expected >= 2 folds, got " + folds.size());
     }
 
@@ -35,7 +33,7 @@ class FoldDetectorTest {
             "}\n";
         List<jo.codeeditor.shift.DiagnosticShift.FoldRegion> folds =
             FoldDetector.detect(text, "java");
-        // Should only detect the class block, not the string braces.
+        // Doit détecter uniquement le bloc de la classe, pas les accolades de la chaîne.
         assertEquals(1, folds.size(), "expected 1 fold, got " + folds.size());
     }
 

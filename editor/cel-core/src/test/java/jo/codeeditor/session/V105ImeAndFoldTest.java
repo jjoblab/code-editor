@@ -13,31 +13,31 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Tests for the v1.0.5 features:
+ * Tests des fonctionnalités IME et des replis :
  *
  * <ul>
- *   <li>Composing region replace-not-append (typing "hello" then backspace
- *       must NOT produce "hellohell").</li>
- *   <li>{@code imeSetComposingText} honors the {@code newCursorPosition}
- *       contract (positive = relative to end, negative = relative to start).</li>
- *   <li>{@code imeSetSelection} / {@code imeSetComposingRegion} clamp to
- *       the document bounds.</li>
- *   <li>{@code imeDeleteSurrounding} deletes a literal char range (no smart
- *       backspace rules — SwiftKey's punctuation swap is byte-identical to
- *       a user backspace tap).</li>
- *   <li>{@code imeReplaceText} (API 34) routes through replaceRangeWithCaret.</li>
- *   <li>{@code imeTextBeforeCursor} / {@code imeTextAfterCursor} return the
- *       right slice and are windowed to MAX_IPC_TEXT.</li>
+ *   <li>Remplacement (et non ajout) de la région de composition (taper "hello" puis
+ *       backspace ne doit PAS produire "hellohell").</li>
+ *   <li>{@code imeSetComposingText} respecte le contrat {@code newCursorPosition}
+ *       (positif = relatif à la fin, négatif = relatif au début).</li>
+ *   <li>{@code imeSetSelection} / {@code imeSetComposingRegion} sont bornés aux
+ *       limites du document.</li>
+ *   <li>{@code imeDeleteSurrounding} supprime une plage littérale de caractères (pas de
+ *       règles de backspace intelligent — l'échange de ponctuation de SwiftKey est
+ *       identique octet par octet à un backspace utilisateur).</li>
+ *   <li>{@code imeReplaceText} (API 34) passe par replaceRangeWithCaret.</li>
+ *   <li>{@code imeTextBeforeCursor} / {@code imeTextAfterCursor} renvoient la
+ *       bonne tranche et sont fenêtrés à MAX_IPC_TEXT.</li>
  *   <li>{@code toggleFoldAtLine} / {@code isLineFolded} / {@code expandFoldAt}
- *       behave as expected.</li>
- *   <li>{@code EditorSession.ImeListener} receives {@code onTextChanged},
- *       {@code onSelectionChanged}, {@code onRestartInput} on the right
- *       events.</li>
+ *       se comportent comme attendu.</li>
+ *   <li>{@code EditorSession.ImeListener} reçoit {@code onTextChanged},
+ *       {@code onSelectionChanged}, {@code onRestartInput} sur les bons
+ *       événements.</li>
  * </ul>
  */
 class V105ImeAndFoldTest {
 
-    // ── ImeListener test double ───────────────────────────────────
+    // ── Double de test ImeListener ──────────────────────────────
 
     private static final class RecordingImeListener implements EditorSession.ImeListener {
         int textChangedCount = 0;
@@ -67,21 +67,22 @@ class V105ImeAndFoldTest {
         }
     }
 
-    // ── Composing region: replace-not-append ──────────────────────
+    // ── Région de composition : remplacer, pas ajouter ──────────
 
     @Test
     void imeSetComposingText_replacesExistingComposingRegion() {
         EditorSession s = new EditorSession(EditorDocument.of(""));
         s.setSelection(0);
-        // First call: insert "hell" as composing at caret.
+        // Premier appel : insérer "hell" en composition au caret.
         s.imeSetComposingText("hell", 1);
         assertEquals("hell", s.getText());
         assertEquals(4, s.getSelection().start);
-        // Second call: replace the composing region with "hello".
+        // Second appel : remplacer la région de composition par "hello".
         s.imeSetComposingText("hello", 1);
         assertEquals("hello", s.getText());
         assertEquals(5, s.getSelection().start);
-        // Third call: replace "hello" with "help" — the "lo" must be GONE.
+        // Troisième appel : remplacer "hello" par "help" — le "lo" doit
+        // avoir DISPARU.
         s.imeSetComposingText("help", 1);
         assertEquals("help", s.getText());
         assertEquals(4, s.getSelection().start);
@@ -91,17 +92,19 @@ class V105ImeAndFoldTest {
     void imeSetComposingText_backspaceDoesNotProduce_hellohell() {
         EditorSession s = new EditorSession(EditorDocument.of(""));
         s.setSelection(0);
-        // Type "hello" via composing.
+        // Taper "hello" en composition.
         s.imeSetComposingText("hello", 1);
         assertEquals("hello", s.getText());
-        // IME sends setComposingText("") or finishComposingText + deleteSurrounding.
-        // The common case: setComposingText("hell", 1) → must replace "hello" with "hell".
+        // L'IME envoie setComposingText("") ou finishComposingText +
+        // deleteSurrounding. Cas courant : setComposingText("hell", 1) →
+        // doit remplacer "hello" par "hell".
         s.imeSetComposingText("hell", 1);
         assertEquals("hell", s.getText());
-        // Backspace again → "hel"
+        // Backspace à nouveau → "hel"
         s.imeSetComposingText("hel", 1);
         assertEquals("hel", s.getText());
-        // The historical bug: composing was APPENDED, producing "hellohell".
+        // Le bug historique : la composition était AJOUTÉE, produisant
+        // "hellohell".
         assertNotEquals("hellohell", s.getText());
         assertNotEquals("hellohellhell", s.getText());
     }
@@ -109,34 +112,36 @@ class V105ImeAndFoldTest {
     @Test
     void imeSetComposingText_firstCallOnSelectionReplacesSelection() {
         EditorSession s = new EditorSession(EditorDocument.of("hello world"));
-        // Select "hello".
+        // Sélectionner "hello".
         s.setSelection(Selection.range(0, 5));
-        // IME starts composing — the composing word must REPLACE the selection.
+        // L'IME démarre la composition — le mot composé doit REMPLACER la
+        // sélection.
         s.imeSetComposingText("HELLO", 1);
         assertEquals("HELLO world", s.getText());
         assertEquals(5, s.getSelection().start);
     }
 
-    // ── newCursorPosition contract ────────────────────────────────
+    // ── Contrat newCursorPosition ───────────────────────────────
 
     @Test
     void imeSetComposingText_newCursorPositionPositive_isRelativeToEnd() {
         EditorSession s = new EditorSession(EditorDocument.of(""));
         s.setSelection(0);
-        // newCaretPos = 1 → caret immediately after the inserted text.
+        // newCaretPos = 1 → caret juste après le texte inséré.
         s.imeSetComposingText("abc", 1);
         assertEquals(3, s.getSelection().start);
-        // newCaretPos = 2 → caret one char past the composing end. Clamped
-        // to doc.length() when the composition is the entire document.
+        // newCaretPos = 2 → caret un caractère après la fin de la
+        // composition. Borné à doc.length() quand la composition est tout
+        // le document.
         s.imeSetComposingText("abcde", 2);
-        assertEquals(5, s.getSelection().start); // doc.length() = 5, clamped
+        assertEquals(5, s.getSelection().start); // doc.length() = 5, borné
     }
 
     @Test
     void imeSetComposingText_newCursorPositionNegative_isRelativeToStart() {
         EditorSession s = new EditorSession(EditorDocument.of(""));
         s.setSelection(0);
-        // newCaretPos = 0 → caret at the start of the composing region.
+        // newCaretPos = 0 → caret au début de la région de composition.
         s.imeSetComposingText("abc", 0);
         assertEquals(0, s.getSelection().start);
     }
@@ -145,12 +150,13 @@ class V105ImeAndFoldTest {
     void imeSetComposingText_newCursorPositionNegativeClampedToZero() {
         EditorSession s = new EditorSession(EditorDocument.of(""));
         s.setSelection(0);
-        // A bugged IME sends a large negative newCaretPos — must not crash.
+        // Un IME bogué envoie un newCaretPos très négatif — ne doit pas
+        // crasher.
         s.imeSetComposingText("abc", -1000);
         assertEquals(0, s.getSelection().start);
     }
 
-    // ── imeSetSelection / imeSetComposingRegion clamping ─────────
+    // ── Bornage de imeSetSelection / imeSetComposingRegion ─────
 
     @Test
     void imeSetSelection_clampsToDocumentBounds() {
@@ -165,7 +171,7 @@ class V105ImeAndFoldTest {
         EditorSession s = new EditorSession(EditorDocument.of("hello"));
         s.imeSetComposingRegion(1, 4);
         assertTrue(s.isComposing());
-        // Empty region clears.
+        // Une région vide efface la composition.
         s.imeSetComposingRegion(2, 2);
         assertFalse(s.isComposing());
     }
@@ -177,7 +183,8 @@ class V105ImeAndFoldTest {
         s.imeSetComposingText("hello", 1);
         assertTrue(s.isComposing());
         assertEquals("hello", s.getText());
-        // Finish composing — text stays, composing flag clears.
+        // Finir la composition — le texte reste, le drapeau de composition
+        // s'efface.
         s.imeFinishComposing();
         assertEquals("hello", s.getText());
         assertFalse(s.isComposing());
@@ -188,18 +195,19 @@ class V105ImeAndFoldTest {
     @Test
     void imeDeleteSurrounding_deletesLiteralRange() {
         EditorSession s = new EditorSession(EditorDocument.of("abcdef"));
-        s.setSelection(3); // between 'c' and 'd'
-        s.imeDeleteSurrounding(2, 1); // delete 2 before + 1 after → "abc" -1 + "ef" → wait
-        // abc|def → delete 2 before (bc) and 1 after (d) → a|ef
+        s.setSelection(3); // entre 'c' et 'd'
+        s.imeDeleteSurrounding(2, 1); // supprimer 2 avant + 1 après
+        // abc|def → supprimer 2 avant (bc) et 1 après (d) → a|ef
         assertEquals("aef", s.getText());
     }
 
     @Test
     void imeDeleteSurrounding_doesNotApplySmartBackspaceRules() {
-        // The smart-backspace rule on `()` empty pair would delete both chars.
-        // imeDeleteSurrounding(1, 0) on "()" must delete ONE char only.
+        // La règle de backspace intelligent sur la paire vide `()`
+        // supprimerait les deux caractères. imeDeleteSurrounding(1, 0) sur
+        // "()" ne doit supprimer qu'UN caractère.
         EditorSession s = new EditorSession(EditorDocument.of("()"));
-        s.setSelection(1); // between '(' and ')'
+        s.setSelection(1); // entre '(' et ')'
         s.imeDeleteSurrounding(1, 0);
         assertEquals(")", s.getText());
     }
@@ -211,7 +219,7 @@ class V105ImeAndFoldTest {
         EditorSession s = new EditorSession(EditorDocument.of("hello world"));
         s.imeReplaceText(0, 5, "HELLO", 1);
         assertEquals("HELLO world", s.getText());
-        // Caret immediately after the inserted text (newCaretPos=1 → end+0).
+        // Caret juste après le texte inséré (newCaretPos=1 → fin+0).
         assertEquals(5, s.getSelection().start);
     }
 
@@ -220,21 +228,21 @@ class V105ImeAndFoldTest {
     @Test
     void imeTextBeforeCursor_returnsUpToNCharsBeforeCaret() {
         EditorSession s = new EditorSession(EditorDocument.of("hello world"));
-        s.setSelection(7); // at second 'o' in "world" (offset 7 → after "hello w")
+        s.setSelection(7); // au second 'o' de "world" (offset 7 → après "hello w")
         assertEquals("hello w", s.imeTextBeforeCursor(7));
-        // Larger n returns the whole text up to the caret.
+        // Un n plus grand renvoie tout le texte jusqu'au caret.
         assertEquals("hello w", s.imeTextBeforeCursor(100));
     }
 
     @Test
     void imeTextAfterCursor_returnsUpToNCharsAfterCaret() {
         EditorSession s = new EditorSession(EditorDocument.of("hello world"));
-        s.setSelection(6); // at 'w'
+        s.setSelection(6); // sur 'w'
         assertEquals("world", s.imeTextAfterCursor(5));
         assertEquals("world", s.imeTextAfterCursor(100));
     }
 
-    // ── ImeListener wiring ───────────────────────────────────────
+    // ── Câblage ImeListener ────────────────────────────────────
 
     @Test
     void setSelection_notifiesImeListener() {
@@ -245,7 +253,7 @@ class V105ImeAndFoldTest {
         assertEquals(1, l.selectionChangedCount);
         assertEquals(3, l.lastSelStart);
         assertEquals(3, l.lastSelEnd);
-        assertEquals(-1, l.lastCompStart); // composingStart is -1 when not composing
+        assertEquals(-1, l.lastCompStart); // composingStart vaut -1 hors composition
     }
 
     @Test
@@ -267,11 +275,13 @@ class V105ImeAndFoldTest {
         EditorSession s = new EditorSession(EditorDocument.of(""));
         RecordingImeListener l = new RecordingImeListener();
         s.setImeListener(l);
-        // Type '(': smart-insert should auto-close to '()' with caret between.
+        // Taper '(' : l'insertion intelligente doit auto-fermer en '()'
+        // avec le caret au milieu.
         s.typeChar('(');
         assertEquals("()", s.getText());
         assertEquals(1, s.getSelection().start);
-        // The smart-edit diverged from "literal type this char" → restartInput.
+        // L'édition intelligente a divergé de « taper littéralement ce
+        // caractère » → restartInput.
         assertTrue(l.restartInputCount > 0, "Expected onRestartInput to be called for divergent smart-edit");
     }
 
@@ -280,31 +290,33 @@ class V105ImeAndFoldTest {
         EditorSession s = new EditorSession(EditorDocument.of("hello"));
         RecordingImeListener l = new RecordingImeListener();
         s.setImeListener(l);
-        s.setSelection(5); // at end of "hello"
-        // Type 'a' — should be a literal insert, no smart-edit divergence.
+        s.setSelection(5); // à la fin de "hello"
+        // Taper 'a' — doit être une insertion littérale, pas de divergence
+        // d'édition intelligente.
         s.typeChar('a');
         assertEquals("helloa", s.getText());
         assertEquals(0, l.restartInputCount);
     }
 
-    // ── Fold management ──────────────────────────────────────────
+    // ── Gestion des replis ─────────────────────────────────────
 
     @Test
     void toggleFoldAtLine_togglesCollapsedState() {
         EditorSession s = new EditorSession(EditorDocument.of("public class A {\n    int x;\n    int y;\n}\n"));
-        // Place a fold region starting at line 0 (offset 0).
+        // Placer une région de repli commençant à la ligne 0 (offset 0).
         int classEnd = s.getText().indexOf('}');
         List<DiagnosticShift.FoldRegion> folds = new ArrayList<>();
         folds.add(new DiagnosticShift.FoldRegion(0, classEnd + 1, "{...}", "block", false));
         s.setFoldRegions(folds);
-        // Line 0 is NOT folded (region starts AT line 0 but isn't collapsed).
+        // La ligne 0 n'est PAS repliée (la région commence À la ligne 0
+        // mais n'est pas collapsed).
         assertFalse(s.isLineFolded(1));
-        // Toggle the fold at line 0 → collapses.
+        // Basculer le repli à la ligne 0 → se replie.
         assertTrue(s.toggleFoldAtLine(0));
         assertTrue(s.isLineFolded(1));
         assertTrue(s.isLineFolded(2));
-        assertFalse(s.isLineFolded(0)); // start line itself is visible (composite)
-        // Toggle again → expands.
+        assertFalse(s.isLineFolded(0)); // la ligne de départ reste visible (composite)
+        // Basculer à nouveau → se déplie.
         assertTrue(s.toggleFoldAtLine(0));
         assertFalse(s.isLineFolded(1));
     }
@@ -323,7 +335,7 @@ class V105ImeAndFoldTest {
         folds.add(new DiagnosticShift.FoldRegion(0, classEnd + 1, "{...}", "block", true));
         s.setFoldRegions(folds);
         assertTrue(s.isLineFolded(1));
-        // Caret lands at offset 25 (inside the fold).
+        // Le caret atterrit à l'offset 25 (dans le repli).
         s.expandFoldAt(25);
         assertFalse(s.isLineFolded(1));
     }
@@ -338,23 +350,26 @@ class V105ImeAndFoldTest {
         assertEquals(1, s.getCollapsedFolds().size());
     }
 
-    // ── Composing region shifts on edit ──────────────────────────
+    // ── Décalage de la région de composition à l'édition ──────
 
     @Test
     void replaceRange_shiftsComposingRegion() {
         EditorSession s = new EditorSession(EditorDocument.of("hello world"));
         s.setSelection(2);
         s.imeSetComposingText("XYZ", 1);
-        // Buffer is now "heXYZllo world", composing region [2,5].
+        // Le buffer est maintenant "heXYZllo world", région de composition
+        // [2,5].
         assertEquals("heXYZllo world", s.getText());
         int[] comp = s.getComposingRegion();
         assertNotNull(comp);
         assertEquals(2, comp[0]);
         assertEquals(5, comp[1]);
-        // Insert a single char BEFORE the composing region — the region must shift.
+        // Insérer un caractère AVANT la région de composition — la région
+        // doit se décaler.
         s.setSelection(0);
-        s.commitText("A"); // smart-insert just inserts the char.
-        // Buffer is now "AheXYZllo world", composing region must be [3,6].
+        s.commitText("A"); // l'insertion intelligente insère juste le caractère
+        // Le buffer est maintenant "AheXYZllo world", la région de
+        // composition doit être [3,6].
         comp = s.getComposingRegion();
         assertNotNull(comp);
         assertEquals(3, comp[0]);

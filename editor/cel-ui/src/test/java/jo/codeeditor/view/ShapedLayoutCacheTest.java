@@ -20,23 +20,24 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
+import jo.codeeditor.view.chrome.EditorTheme;
 
 /**
- * v3.35.0 (roadmap item 2) — tests of the content-addressed shaped-layout
- * LRU ({@code EditorView.shapedLayoutFor}), the port of CodeAssist 3.20's
- * {@code rememberTextMeasurer(cacheSize = 64)}:
+ * Tests du LRU de shaped-layouts adressé par contenu
+ * ({@code EditorView.shapedLayoutFor}) :
  * <ul>
- *   <li>identical lines (same text + same span signature + same base paint
- *       color + same font generation + same theme) share ONE
- *       StaticLayout — no re-shaping per frame;</li>
- *   <li>a different span signature on the SAME text rebuilds (stale spans
- *       must never be served);</li>
- *   <li>a different base paint color rebuilds (the magnifier path mutates
- *       the paint color at draw time);</li>
- *   <li>theme swap and font-size/typeface change (EditorMetrics font
- *       revision) invalidate EVERYTHING;</li>
- *   <li>the cache is BOUNDED at 64 entries (LRU eviction) and content
- *       addressing works across sessions (same text = same entry).</li>
+ *   <li>les lignes identiques (même texte + même signature de spans + même
+ *       couleur de base du paint + même génération de police + même thème)
+ *       partagent UN SEUL StaticLayout — pas de re-shaping par frame ;</li>
+ *   <li>une signature de spans différente sur le MÊME texte reconstruit
+ *       (des spans périmées ne doivent jamais être servies) ;</li>
+ *   <li>une couleur de base du paint différente reconstruit (le chemin du
+ *       magnifier mute la couleur du paint au draw) ;</li>
+ *   <li>le swap de thème et le changement de taille/typeface (révision de
+ *       police d'EditorMetrics) invalident TOUT ;</li>
+ *   <li>le cache est BORNE à 64 entrées (éviction LRU) et l'adressage par
+ *       contenu fonctionne à travers les sessions (même texte = même
+ *       entrée).</li>
  * </ul>
  */
 @RunWith(RobolectricTestRunner.class)
@@ -57,7 +58,7 @@ public class ShapedLayoutCacheTest {
         return new StyledLine(Arrays.asList(spans), 0, 0);
     }
 
-    // ── Content addressing ──────────────────────────────────────────
+    // ── Adressage par contenu ─────────────────────────────────────
 
     @Test
     public void identicalLinesShareOneLayout() {
@@ -119,7 +120,7 @@ public class ShapedLayoutCacheTest {
         view.textPaint.setColor(saved);
     }
 
-    // ── Global invalidation ─────────────────────────────────────────
+    // ── Invalidation globale ──────────────────────────────────────
 
     @Test
     public void themeSwapInvalidatesEverything() {
@@ -151,7 +152,7 @@ public class ShapedLayoutCacheTest {
         assertNotSame(before, after);
     }
 
-    // ── Bound / LRU ─────────────────────────────────────────────────
+    // ── Bornage / LRU ─────────────────────────────────────────────
 
     @Test
     public void cacheIsBoundedAt64Entries() {
@@ -160,7 +161,7 @@ public class ShapedLayoutCacheTest {
         for (int i = 0; i < 100; i++) {
             view.shapedLayoutFor("line-" + i, plainLine(), view.textPaint);
         }
-        assertEquals(EditorView.SHAPED_CACHE_CAPACITY, view.shapedLayoutCacheSize());
+        assertEquals(EditorShapedLayoutCache.SHAPED_CACHE_CAPACITY, view.shapedLayoutCacheSize());
     }
 
     @Test
@@ -168,18 +169,18 @@ public class ShapedLayoutCacheTest {
         EditorView view = newView();
         view.shapedLayoutFor("victim", plainLine(), view.textPaint);
         // Accède à 64 autres lignes → "victim" est la plus ancienne.
-        for (int i = 0; i < EditorView.SHAPED_CACHE_CAPACITY; i++) {
+        for (int i = 0; i < EditorShapedLayoutCache.SHAPED_CACHE_CAPACITY; i++) {
             view.shapedLayoutFor("line-" + i, plainLine(), view.textPaint);
         }
-        assertEquals(EditorView.SHAPED_CACHE_CAPACITY, view.shapedLayoutCacheSize());
+        assertEquals(EditorShapedLayoutCache.SHAPED_CACHE_CAPACITY, view.shapedLayoutCacheSize());
         StaticLayout rebuilt = view.shapedLayoutFor("victim", plainLine(), view.textPaint);
         // La victime a été évincée puis reconstruite : le cache est plein
         // et une autre entrée a dû céder sa place (la nouvelle LRU).
-        assertEquals(EditorView.SHAPED_CACHE_CAPACITY, view.shapedLayoutCacheSize());
+        assertEquals(EditorShapedLayoutCache.SHAPED_CACHE_CAPACITY, view.shapedLayoutCacheSize());
         assertNotNull(rebuilt);
     }
 
-    // ── Cross-session content addressing ────────────────────────────
+    // ── Adressage par contenu inter-sessions ──────────────────────
 
     @Test
     public void contentAddressingWorksAcrossSessions() {

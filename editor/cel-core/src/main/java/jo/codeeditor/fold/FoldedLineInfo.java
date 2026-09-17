@@ -1,23 +1,20 @@
 package jo.codeeditor.fold;
 
 /**
- * Information about a folded line's visual rendering.
- * When a fold is collapsed, multiple document lines are rendered as one visual line:
- * prefix + placeholder + suffix.
- 
- *
- * @since v1.0.0
-*/
+ * Informations sur le rendu visuel d'une ligne pliée.
+ * Quand un pli est réduit, plusieurs lignes du document sont rendues comme
+ * une seule ligne visuelle : préfixe + placeholder + suffixe.
+ */
 public final class FoldedLineInfo {
-    /** The visual line start in the document. */
+    /** Début de la ligne visuelle dans le document. */
     public final int startLine;
-    /** The last document line that is part of this fold. */
+    /** Dernière ligne du document faisant partie de ce pli. */
     public final int endLine;
-    /** Column where the placeholder begins (prefix ends here). */
+    /** Colonne où commence le placeholder (le préfixe s'arrête ici). */
     public final int prefixEnd;
-    /** Column where the suffix begins (placeholder ends here). */
+    /** Colonne où commence le suffixe (le placeholder s'arrête ici). */
     public final int suffixStart;
-    /** The placeholder text shown for the collapsed fold. */
+    /** Texte du placeholder affiché pour le pli réduit. */
     public final String placeholder;
 
     public FoldedLineInfo(int startLine, int endLine, int prefixEnd, int suffixStart, String placeholder) {

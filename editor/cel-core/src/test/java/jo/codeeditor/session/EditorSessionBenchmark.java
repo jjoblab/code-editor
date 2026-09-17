@@ -6,13 +6,12 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Performance benchmarks for {@link EditorSession} — measures the cost of
- * the hot paths: commitText, undo/redo, style splice, line lookups.
+ * Benchmarks de performance pour {@link EditorSession} — mesure le coût des
+ * hot paths : commitText, undo/redo, splice de styles, lookups de lignes.
  *
- * <p>Not a full JMH suite — lightweight timing assertions that print to
- * stdout and verify the engine stays responsive on typical document sizes.
- *
- * <p>v1.0.8 — stability focus.
+ * <p>Pas une suite JMH complète — des assertions de timing légères qui
+ * affichent sur stdout et vérifient que le moteur reste réactif sur des
+ * tailles de documents typiques.
  */
 class EditorSessionBenchmark {
 
@@ -23,15 +22,15 @@ class EditorSessionBenchmark {
     @Test
     void benchmark_commitText_singleChar_mediumDoc() {
         EditorSession s = buildSession(MEDIUM_DOC_LINES);
-        // Place caret in the middle.
+        // Placer le caret au milieu.
         int midOffset = s.getDocument().length() / 2;
         s.setSelection(midOffset);
-        // Warm up.
+        // Échauffement.
         for (int i = 0; i < 100; i++) {
             s.typeChar('x');
             s.backspace();
         }
-        // Benchmark: 1000 single-char inserts.
+        // Benchmark : 1000 insertions d'un caractère.
         long start = System.nanoTime();
         for (int i = 0; i < 1000; i++) {
             s.typeChar('x');
@@ -40,7 +39,8 @@ class EditorSessionBenchmark {
         double avgNs = elapsedNs / 1000.0;
         System.out.printf("[benchmark] typeChar (1000-line doc): %.1f ns/op (%.2f ms total)%n",
             avgNs, elapsedNs / 1e6);
-        // A single-char insert on a 1000-line doc should be under 1ms.
+        // Une insertion d'un caractère sur un doc de 1000 lignes doit
+        // rester sous 1 ms.
         assertTrue(avgNs < 1_000_000,
             "typeChar too slow: " + avgNs + " ns/op (expected < 1000000 ns/op)");
     }
@@ -48,7 +48,7 @@ class EditorSessionBenchmark {
     @Test
     void benchmark_undoRedo_largeDoc() {
         EditorSession s = buildSession(LARGE_DOC_LINES);
-        // Apply 100 edits at different positions.
+        // Appliquer 100 éditions à des positions différentes.
         for (int i = 0; i < 100; i++) {
             int offset = (i * 100) % s.getDocument().length();
             s.setSelection(offset);
@@ -68,7 +68,8 @@ class EditorSessionBenchmark {
         long redoNs = System.nanoTime() - start;
         System.out.printf("[benchmark] undo (5000-line doc): %.1f ns/op, redo: %.1f ns/op%n",
             undoNs / 100.0, redoNs / 100.0);
-        // Undo/redo on a 5000-line doc does a full restyleAll — should be under 2s each (CI headroom).
+        // Undo/redo sur un doc de 5000 lignes fait un restyleAll complet —
+        // doit rester sous 2 s chacun (marge CI).
         assertTrue(undoNs < 2_000_000_000L,
             "undo too slow: " + (undoNs / 1e6) + " ms/op (expected < 2000 ms)");
         assertTrue(redoNs < 2_000_000_000L,
@@ -78,7 +79,7 @@ class EditorSessionBenchmark {
     @Test
     void benchmark_lineForOffset_largeDoc() {
         EditorDocument doc = buildDocument(LARGE_DOC_LINES);
-        // Warm up.
+        // Échauffement.
         for (int i = 0; i < 1000; i++) {
             doc.lineForOffset(i * 10);
         }
@@ -92,7 +93,7 @@ class EditorSessionBenchmark {
         double avgNs = elapsedNs / 10_000.0;
         System.out.printf("[benchmark] lineForOffset (5000-line doc): %.1f ns/op (dummy=%d)%n",
             avgNs, dummy);
-        // Binary search on lineStarts — should be O(log L), sub-100µs.
+        // Recherche binaire sur lineStarts — doit être O(log L), sous 100 µs.
         assertTrue(avgNs < 100_000,
             "lineForOffset too slow: " + avgNs + " ns/op (expected < 100000 ns/op)");
     }
@@ -100,7 +101,7 @@ class EditorSessionBenchmark {
     @Test
     void benchmark_lineStart_lineEnd_largeDoc() {
         EditorDocument doc = buildDocument(LARGE_DOC_LINES);
-        // Warm up.
+        // Échauffement.
         for (int i = 0; i < 1000; i++) {
             doc.lineStart(i % doc.lineCount());
             doc.lineEnd(i % doc.lineCount());
@@ -116,7 +117,7 @@ class EditorSessionBenchmark {
         double avgNs = elapsedNs / 10_000.0;
         System.out.printf("[benchmark] lineStart+lineEnd (5000-line doc): %.1f ns/op (dummy=%d)%n",
             avgNs, dummy);
-        // Array index access — should be sub-10µs.
+        // Accès par index de tableau — doit rester sous 10 µs.
         assertTrue(avgNs < 10_000,
             "lineStart+lineEnd too slow: " + avgNs + " ns/op (expected < 10000 ns/op)");
     }
@@ -124,7 +125,7 @@ class EditorSessionBenchmark {
     @Test
     void benchmark_restyleAll_largeDoc() {
         EditorSession s = buildSession(LARGE_DOC_LINES);
-        // Warm up.
+        // Échauffement.
         s.setLanguage("java");
         // Benchmark.
         long start = System.nanoTime();
@@ -133,7 +134,8 @@ class EditorSessionBenchmark {
         long elapsedNs = System.nanoTime() - start;
         System.out.printf("[benchmark] restyleAll (5000-line doc, 2 calls): %.2f ms%n",
             elapsedNs / 1e6);
-        // restyleAll is O(lines) — 5000 lines should complete in under 2s (CI headroom).
+        // restyleAll est O(lignes) — 5000 lignes doivent se faire en
+        // moins de 2 s (marge CI).
         assertTrue(elapsedNs < 2_000_000_000L,
             "restyleAll too slow: " + (elapsedNs / 1e6) + " ms (expected < 2000 ms)");
     }
@@ -141,7 +143,7 @@ class EditorSessionBenchmark {
     @Test
     void benchmark_styledLinesAccess_largeDoc() {
         EditorSession s = buildSession(LARGE_DOC_LINES);
-        // Warm up.
+        // Échauffement.
         for (int i = 0; i < 100; i++) {
             s.getStyledLines().size();
         }
@@ -155,15 +157,17 @@ class EditorSessionBenchmark {
         double avgNs = elapsedNs / 10_000.0;
         System.out.printf("[benchmark] getStyledLines (5000-line doc): %.1f ns/op (dummy=%d)%n",
             avgNs, dummy);
-        // getStyledLines returns an unmodifiableList wrapper — should be sub-10µs.
+        // getStyledLines renvoie un wrapper unmodifiableList — doit rester
+        // sous 10 µs.
         assertTrue(avgNs < 10_000,
             "getStyledLines too slow: " + avgNs + " ns/op (expected < 10000 ns/op)");
     }
 
     @Test
     void benchmark_insertNewline_splitsStylesCorrectly() {
-        // Insert 100 newlines in the middle of a 1000-line doc and verify
-        // the styledLines count stays consistent with lineCount.
+        // Insérer 100 sauts de ligne au milieu d'un doc de 1000 lignes et
+        // vérifier que le nombre de styledLines reste cohérent avec
+        // lineCount.
         EditorSession s = buildSession(MEDIUM_DOC_LINES);
         int initialLines = s.getDocument().lineCount();
         for (int i = 0; i < 100; i++) {
@@ -177,7 +181,7 @@ class EditorSessionBenchmark {
         }
     }
 
-    /** Builds a session with the given number of lines, each ~40 chars. */
+    /** Construit une session avec le nombre de lignes donné, chacune ~40 caractères. */
     private static EditorSession buildSession(int lineCount) {
         StringBuilder sb = new StringBuilder(lineCount * 50);
         for (int i = 0; i < lineCount; i++) {
@@ -187,7 +191,7 @@ class EditorSessionBenchmark {
         return new EditorSession(EditorDocument.of(sb.toString()));
     }
 
-    /** Builds a document with the given number of lines. */
+    /** Construit un document avec le nombre de lignes donné. */
     private static EditorDocument buildDocument(int lineCount) {
         return buildSession(lineCount).getDocument();
     }

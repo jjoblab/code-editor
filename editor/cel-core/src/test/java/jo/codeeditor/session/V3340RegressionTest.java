@@ -11,25 +11,26 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * v3.34.0 regression tests — lifecycle disposal, per-line buckets and the
- * async-restyle re-schedule fix.
+ * Tests de régression — cycle de vie/disposal, buckets par ligne et
+ * re-planification du restyle asynchrone.
  *
- * <p>Each test pins one of the fixes shipped in v3.34.0 so a future change
- * can't silently bring the bug back.</p>
+ * <p>Chaque test épingle un correctif pour qu'un changement futur ne
+ * puisse pas faire revenir le bug silencieusement.</p>
  */
 class V3340RegressionTest {
 
-    // ── dispose(): releases the restyle executor ───────────────────
+    // ── dispose() : libère l'exécuteur de restyle ───────────────
 
     @Test
     void dispose_isDisposed_flagAndPendingCancel() throws Exception {
         EditorSession s = new EditorSession(EditorDocument.of("line1\nline2\nline3"));
         assertFalse(s.isDisposed(), "fresh session must not be disposed");
-        // Trigger an async restyle so there IS something pending to cancel.
+        // Déclencher un restyle asynchrone pour qu'il y ait bien du pending
+        // à annuler.
         s.setLanguage("kotlin");
         s.dispose();
         assertTrue(s.isDisposed(), "dispose() must set the flag");
-        // No pending restyle survives the dispose.
+        // Aucun restyle pending ne survit au dispose.
         assertFalse(s.isAsyncRestylePending(), "dispose() must cancel pending restyles");
     }
 
@@ -37,12 +38,13 @@ class V3340RegressionTest {
     void dispose_fallsBackToSyncRestyle() {
         EditorSession s = new EditorSession(EditorDocument.of("public class A {}"));
         s.dispose();
-        // setLanguage after dispose must NOT throw RejectedExecutionException —
-        // it falls back to the synchronous restyle path.
+        // setLanguage après dispose ne doit PAS lever
+        // RejectedExecutionException — il retombe sur le chemin de restyle
+        // synchrone.
         assertDoesNotThrow(() -> s.setLanguage("xml"));
         assertEquals(1, s.getStyledLines().size(), "one-line document → one styled line");
-        // And the doc is still fully editable afterwards ("public class A {}"
-        // is 17 chars — appending X at the end gives 18).
+        // Et le doc reste entièrement éditable ensuite ("public class A {}"
+        // fait 17 caractères — ajouter X à la fin donne 18).
         s.setSelection(17);
         s.commitText("X");
         assertEquals(18, s.getText().length());
@@ -62,30 +64,31 @@ class V3340RegressionTest {
     void inlayHintsForLine_bucketsByOffset() {
         EditorSession s = new EditorSession(EditorDocument.of("aa\nbbbb\ncc\ndd"));
         List<DiagnosticShift.InlayHint> hints = new ArrayList<>();
-        hints.add(hint(0, "h0"));    // line 0, col 0
-        hints.add(hint(3, "h3"));    // line 1, col 0
-        hints.add(hint(6, "h6"));    // line 1, col 3
-        hints.add(hint(11, "h11"));  // line 3, col 0 (doc len 12, line 3 = [11,12))
+        hints.add(hint(0, "h0"));    // ligne 0, col 0
+        hints.add(hint(3, "h3"));    // ligne 1, col 0
+        hints.add(hint(6, "h6"));    // ligne 1, col 3
+        hints.add(hint(11, "h11"));  // ligne 3, col 0 (doc de 12, ligne 3 = [11,12))
         s.setInlayHints(hints);
         assertEquals(1, s.getInlayHintsForLine(0).size());
         assertEquals(2, s.getInlayHintsForLine(1).size());
         assertEquals(0, s.getInlayHintsForLine(2).size(), "line 2 has no hints");
         assertEquals(1, s.getInlayHintsForLine(3).size());
-        // Line far beyond any hint → empty, not null, not an exception.
+        // Ligne bien au-delà de tout hint → vide, pas null, pas d'exception.
         assertTrue(s.getInlayHintsForLine(999).isEmpty());
     }
 
     @Test
     void inlayHintsForLine_indexRebuiltAfterEdit() {
         EditorSession s = new EditorSession(EditorDocument.of("aaaa\nbbbb"));
-        s.setInlayHints(new ArrayList<>(List.of(hint(5, "x")))); // line 1
+        s.setInlayHints(new ArrayList<>(List.of(hint(5, "x")))); // ligne 1
         assertEquals(1, s.getInlayHintsForLine(1).size());
-        // Insert a newline at offset 2 — the hint at old-offset 5 shifts to
-        // offset 6 and now lives on line 2.
+        // Insérer un saut de ligne à l'offset 2 — le hint à l'ancien
+        // offset 5 passe à l'offset 6 et vit désormais sur la ligne 2.
         s.setSelection(2);
         s.commitText("\n");
-        // The shift moved the hint; the bucket index must be rebuilt from the
-        // NEW list (different reference) and reflect the NEW offsets.
+        // Le décalage a déplacé le hint ; l'index de buckets doit être
+        // reconstruit à partir de la NOUVELLE liste (référence différente)
+        // et refléter les NOUVEAUX offsets.
         List<DiagnosticShift.InlayHint> shifted = s.getInlayHints();
         assertEquals(6, shifted.get(0).offset, "DiagnosticShift must move the hint past the edit");
         assertEquals(1, s.getInlayHintsForLine(2).size(), "hint now on line 2");
@@ -94,9 +97,9 @@ class V3340RegressionTest {
 
     @Test
     void semanticTokensForLine_multiLineTokenAppearsInEveryBucket() {
-        // Doc layout: line0=[0,4] line1=[5,9] line2=[10,14] line3=[15,18].
-        // Token [0,14) spans lines 0..2 — must be visible in every one of
-        // those buckets, and nowhere else.
+        // Layout du doc : line0=[0,4] line1=[5,9] line2=[10,14] line3=[15,18].
+        // Le token [0,14) couvre les lignes 0..2 — il doit être visible dans
+        // chacun de ces buckets, et nulle part ailleurs.
         EditorSession s = new EditorSession(EditorDocument.of("aaaa\nbbbb\ncccc\ndddd"));
         s.setSemanticTokens(new ArrayList<>(List.of(token(0, 14, 1))));
         for (int line = 0; line <= 2; line++) {
@@ -109,57 +112,62 @@ class V3340RegressionTest {
     @Test
     void semanticTokensForLine_clampedToDocument() {
         EditorSession s = new EditorSession(EditorDocument.of("ab\ncd"));
-        // Pathological token past the end — buckets must not throw.
+        // Token pathologique au-delà de la fin — les buckets ne doivent pas
+        // lever d'exception.
         s.setSemanticTokens(new ArrayList<>(List.of(token(5, 100, 1))));
         assertDoesNotThrow(() -> s.getSemanticTokensForLine(0));
         assertDoesNotThrow(() -> s.getSemanticTokensForLine(1));
     }
 
-    // ── Getters: no-copy views stay consistent with the live state ──
+    // ── Getters : les vues sans copie restent cohérentes avec l'état vivant ──
 
     @Test
     void diagnosticsGetter_returnsLiveSnapshotView() {
         EditorSession s = new EditorSession(EditorDocument.of("x"));
         List<DiagnosticShift.Diagnostic> d1 = s.getDiagnostics();
         List<DiagnosticShift.Diagnostic> d2 = s.getDiagnostics();
-        // Same underlying (immutable-after-publish) list — no defensive copy.
-        // Both views are equal and read-only.
+        // Même liste sous-jacente (immuable après publication) — pas de
+        // copie défensive. Les deux vues sont égales et en lecture seule.
         assertEquals(d1, d2);
         assertThrows(UnsupportedOperationException.class, () -> d1.add(null));
     }
 
-    // ── Async restyle: an edit during the gap must NOT leave stale tokens ──
+    // ── Restyle asynchrone : une édition pendant le gap ne doit PAS laisser de tokens périmés ──
 
     @Test
     void editDuringAsyncRestyleGap_eventuallyRestylesWholeDocument() throws Exception {
-        // Regression for the v3.34.0 fix: before it, an edit landing inside
-        // the async restyle gap was detected (doc != docAtStart) but the
-        // result was dropped WITHOUT re-scheduling — the document kept the
-        // OLD language's tokens for every line except the edited one.
+        // Régression : une édition atterrissant dans le gap du restyle
+        // asynchrone était détectée (doc != docAtStart) mais le résultat
+        // était jeté SANS re-planification — le document gardait les
+        // tokens de l'ANCIEN langage pour chaque ligne sauf celle éditée.
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < 200; i++) {
             sb.append("int x").append(i).append(" = 0;\n");
         }
         EditorSession s = new EditorSession(EditorDocument.of(sb.toString()));
-        // Switch language (triggers async restyle) and IMMEDIATELY edit —
-        // the edit lands inside the async gap with near-certainty.
+        // Changer de langage (déclenche le restyle asynchrone) et éditer
+        // IMMÉDIATEMENT — l'édition atterrit dans le gap async quasi
+        // certainement.
         s.setLanguage("xml");
         int end = s.getText().length();
         s.setSelection(end - 1);
         s.commitText("y");
-        // Wait for all pending (and re-scheduled) restyles to drain.
+        // Attendre que tous les restyles pending (et re-planifiés) se soient
+        // vidés.
         long deadline = System.currentTimeMillis() + 10_000;
         while (s.isAsyncRestylePending() && System.currentTimeMillis() < deadline) {
             Thread.sleep(10);
         }
         s.awaitPendingRestyle();
-        // The final styledLines must be tokenized in the NEW language for
-        // EVERY line — spot-check a few lines' entry state consistency.
+        // Les styledLines finaux doivent être tokenisés dans le NOUVEAU
+        // langage pour CHAQUE ligne — contrôle par sondage de la cohérence
+        // des entry states.
         List<StyledLine> styled = s.getStyledLines();
         assertEquals(s.getDocument().lineCount(), styled.size(),
                 "styledLines must cover the whole document after the gap edit");
-        // Each line's entryState must equal the previous line's exitState —
-        // a mixed-language state would break this chain somewhere.
+        // L'entryState de chaque ligne doit égaliser l'exitState de la ligne
+        // précédente — un état mixte de langages casserait cette chaîne
+        // quelque part.
         for (int i = 1; i < styled.size(); i++) {
             assertEquals(styled.get(i - 1).exitState, styled.get(i).entryState,
                     "tokenization chain broken at line " + i + " — mixed-language state");

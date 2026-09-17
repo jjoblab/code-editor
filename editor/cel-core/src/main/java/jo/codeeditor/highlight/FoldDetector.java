@@ -7,34 +7,32 @@ import java.util.ArrayDeque;
 import java.util.List;
 
 /**
- * Multi-language fold region detector. Pure Java, testable on host JVM.
+ * Détecteur de régions pliables multi-langages. Java pur, testable sur JVM hôte.
  *
- * <p>Detects foldable code blocks for:
+ * <p>Détecte les blocs de code pliables pour :
  * <ul>
- *   <li>Brace-based languages (Java, Kotlin, JS, C, etc.) — {@code { ... }}</li>
+ *   <li>Langages à accolades (Java, Kotlin, JS, C, etc.) — {@code { ... }}</li>
  *   <li>Lua — {@code function...end}, {@code do...end}, {@code if...then...end}</li>
- *   <li>Python — indent-based ({@code def}, {@code class}, {@code if}, etc.)</li>
- *   <li>XML — element blocks ({@code <tag> ... </tag>})</li>
+ *   <li>Python — basé sur l'indentation ({@code def}, {@code class}, {@code if}, etc.)</li>
+ *   <li>XML — blocs d'éléments ({@code <tag> ... </tag>})</li>
  * </ul>
  *
- * <p>Usage:
+ * <p>Utilisation :
  * <pre>{@code
  * List<DiagnosticShift.FoldRegion> folds = FoldDetector.detect(text, "java");
  * session.setFoldRegions(folds);
  * }</pre>
- *
- * @since v3.3.0
  */
 public final class FoldDetector {
 
     private FoldDetector() {}
 
     /**
-     * Detects fold regions for the given text and language.
+     * Détecte les régions pliables pour le texte et le langage donnés.
      *
-     * @param text     the full document text
-     * @param language the language id ("java", "kotlin", "lua", "python", "xml", etc.)
-     * @return a list of fold regions (may be empty)
+     * @param text     le texte complet du document
+     * @param language l'identifiant du langage ("java", "kotlin", "lua", "python", "xml", etc.)
+     * @return une liste de régions pliables (peut être vide)
      */
     public static List<DiagnosticShift.FoldRegion> detect(String text, String language) {
         if (text == null || text.isEmpty()) return new ArrayList<>();
@@ -48,14 +46,14 @@ public final class FoldDetector {
         }
     }
 
-    // ── Brace-based: Java, Kotlin, JS, C, etc. ──────────────────
+    // ── Langages à accolades : Java, Kotlin, JS, C, etc. ──────────────────
 
     /**
-     * Detects { ... } blocks. Skips braces inside strings and comments.
+     * Détecte les blocs { ... }. Ignore les accolades dans les chaînes et les commentaires.
      */
     public static List<DiagnosticShift.FoldRegion> detectBraceFolds(String text) {
         List<DiagnosticShift.FoldRegion> folds = new ArrayList<>();
-        ArrayDeque<int[]> stack = new ArrayDeque<>(); // [offset, lineIdx]
+        ArrayDeque<int[]> stack = new ArrayDeque<>(); // [offset, index de ligne]
         String[] lines = text.split("\n", -1);
         boolean inString = false;
         boolean inLineComment = false;
@@ -80,10 +78,10 @@ public final class FoldDetector {
                     if (c == stringChar) inString = false;
                     continue;
                 }
-                // Comment detection.
+                // Détection des commentaires.
                 if (c == '/' && next == '/') { inLineComment = true; break; }
                 if (c == '/' && next == '*') { inBlockComment = true; ci++; continue; }
-                // String detection.
+                // Détection des chaînes.
                 if (c == '"' || c == '\'') { inString = true; stringChar = c; continue; }
 
                 if (c == '{') {
@@ -101,23 +99,23 @@ public final class FoldDetector {
         return folds;
     }
 
-    // ── Lua: function...end, do...end, if...then...end ───────────
+    // ── Lua : function...end, do...end, if...then...end ───────────
 
     /**
-     * Detects Lua blocks. Tracks function/do/for/while openers and end closers.
+     * Détecte les blocs Lua. Suit les ouvrants function/do/for/while et les fermants end.
      */
     public static List<DiagnosticShift.FoldRegion> detectLuaFolds(String text) {
         List<DiagnosticShift.FoldRegion> folds = new ArrayList<>();
-        ArrayDeque<int[]> stack = new ArrayDeque<>(); // [startOffset, startLine]
+        ArrayDeque<int[]> stack = new ArrayDeque<>(); // [offsetDébut, ligneDébut]
         String[] lines = text.split("\n", -1);
         int offset = 0;
 
         for (int li = 0; li < lines.length; li++) {
             String trimmed = lines[li].trim();
-            // Skip comments and strings.
+            // Ignore les commentaires et les chaînes.
             if (trimmed.startsWith("--")) { offset += lines[li].length() + 1; continue; }
 
-            // Detect block openers.
+            // Détection des ouvrants de bloc.
             boolean opens = trimmed.startsWith("function ")
                 || trimmed.startsWith("local function ")
                 || (trimmed.startsWith("if ") && trimmed.contains(" then"))
@@ -128,7 +126,7 @@ public final class FoldDetector {
             if (opens) {
                 stack.push(new int[]{offset, li});
             }
-            // Detect block closers.
+            // Détection des fermants de bloc.
             if (trimmed.equals("end") || trimmed.startsWith("end ") || trimmed.startsWith("end)")
                 || trimmed.startsWith("end}") || trimmed.startsWith("until ")) {
                 if (!stack.isEmpty()) {
@@ -144,17 +142,17 @@ public final class FoldDetector {
         return folds;
     }
 
-    // ── Python: indent-based ─────────────────────────────────────
+    // ── Python : basé sur l'indentation ─────────────────────────────────────
 
     /**
-     * Detects Python blocks via indentation. A block starts when a line
-     * ending with ':' is followed by a more-indented line, and ends when
-     * the indentation returns to the block opener's level.
+     * Détecte les blocs Python via l'indentation. Un bloc commence quand une
+     * ligne se terminant par ':' est suivie d'une ligne plus indentée, et se
+     * termine quand l'indentation revient au niveau de l'ouvrant du bloc.
      */
     public static List<DiagnosticShift.FoldRegion> detectPythonFolds(String text) {
         List<DiagnosticShift.FoldRegion> folds = new ArrayList<>();
         String[] lines = text.split("\n", -1);
-        ArrayDeque<int[]> stack = new ArrayDeque<>(); // [lineIdx, indent, offset]
+        ArrayDeque<int[]> stack = new ArrayDeque<>(); // [index de ligne, indentation, offset]
         int offset = 0;
 
         for (int li = 0; li < lines.length; li++) {
@@ -162,7 +160,7 @@ public final class FoldDetector {
             String trimmed = line.trim();
             int indent = line.length() - line.stripLeading().length();
 
-            // Pop blocks whose indent >= current indent (dedent closes them).
+            // Dépile les blocs dont l'indentation >= l'indentation courante (une désindentation les ferme).
             while (!stack.isEmpty() && stack.peek()[1] >= indent && !trimmed.isEmpty()) {
                 int[] open = stack.pop();
                 if (li - open[0] >= 2) {
@@ -171,7 +169,7 @@ public final class FoldDetector {
                 }
             }
 
-            // Push block openers (lines ending with ':').
+            // Empile les ouvrants de bloc (lignes terminées par ':').
             if (trimmed.endsWith(":") && (
                 trimmed.startsWith("def ") || trimmed.startsWith("class ")
                 || trimmed.startsWith("if ") || trimmed.startsWith("elif ")
@@ -183,7 +181,7 @@ public final class FoldDetector {
             }
             offset += lines[li].length() + 1;
         }
-        // Close remaining open blocks at EOF.
+        // Ferme les blocs encore ouverts à la fin du fichier.
         while (!stack.isEmpty()) {
             int[] open = stack.pop();
             if (lines.length - open[0] >= 3) {
@@ -194,41 +192,41 @@ public final class FoldDetector {
         return folds;
     }
 
-    // ── XML: element blocks ──────────────────────────────────────
+    // ── XML : blocs d'éléments ──────────────────────────────────────
 
     /**
-     * Detects XML element blocks: <tag ...> ... </tag>.
+     * Détecte les blocs d'éléments XML : <tag ...> ... </tag>.
      */
     public static List<DiagnosticShift.FoldRegion> detectXmlFolds(String text) {
         List<DiagnosticShift.FoldRegion> folds = new ArrayList<>();
-        // Simple regex-free scan: find <tag> and matching </tag>.
+        // Analyse simple sans regex : trouve <tag> et le </tag> correspondant.
         int pos = 0;
         while (pos < text.length()) {
             int openIdx = text.indexOf('<', pos);
             if (openIdx < 0) break;
-            // Skip <?xml, <!--, <![CDATA[
+            // Ignore <?xml, <!--, <![CDATA[
             if (openIdx + 1 < text.length() && (text.charAt(openIdx + 1) == '?'
                 || text.charAt(openIdx + 1) == '!' || text.charAt(openIdx + 1) == '/')) {
                 pos = openIdx + 1;
                 continue;
             }
-            // Extract tag name.
+            // Extrait le nom de la balise.
             int tagEnd = text.indexOf('>', openIdx);
             if (tagEnd < 0) break;
             String tagContent = text.substring(openIdx + 1, tagEnd).trim();
-            // Skip self-closing tags (<tag/>).
+            // Ignore les balises auto-fermantes (<tag/>).
             if (tagContent.endsWith("/")) { pos = tagEnd + 1; continue; }
-            // Skip tags with attributes — extract the name.
+            // Balise avec attributs — n'extrait que le nom.
             int spaceIdx = tagContent.indexOf(' ');
             String tagName = spaceIdx >= 0 ? tagContent.substring(0, spaceIdx) : tagContent;
             if (tagName.isEmpty()) { pos = tagEnd + 1; continue; }
 
-            // Find matching </tagName>.
+            // Recherche le </tagName> correspondant.
             String closeTag = "</" + tagName + ">";
             int closeIdx = text.indexOf(closeTag, tagEnd + 1);
             if (closeIdx < 0) { pos = tagEnd + 1; continue; }
 
-            // Only fold if it spans multiple lines.
+            // Replie uniquement si la zone s'étend sur plusieurs lignes.
             int newlines = 0;
             for (int k = tagEnd; k < closeIdx; k++) if (text.charAt(k) == '\n') newlines++;
             if (newlines >= 2) {
@@ -240,11 +238,11 @@ public final class FoldDetector {
         return folds;
     }
 
-    // ── Markdown: headings ───────────────────────────────────────
+    // ── Markdown : titres ───────────────────────────────────────
 
     /**
-     * Detects Markdown foldable sections: each heading starts a section
-     * that extends to the next heading of the same or higher level.
+     * Détecte les sections pliables Markdown : chaque titre ouvre une section
+     * qui s'étend jusqu'au prochain titre de niveau égal ou supérieur.
      */
     public static List<DiagnosticShift.FoldRegion> detectMarkdownFolds(String text) {
         List<DiagnosticShift.FoldRegion> folds = new ArrayList<>();
@@ -259,7 +257,7 @@ public final class FoldDetector {
             if (line.startsWith("#")) {
                 int level = 0;
                 while (level < line.length() && line.charAt(level) == '#') level++;
-                // Close previous heading if this one is same or higher level.
+                // Ferme le titre précédent si celui-ci est de niveau égal ou supérieur.
                 if (lastHeadingOffset >= 0 && level <= lastHeadingLevel
                     && li - lastHeadingLine >= 2) {
                     folds.add(new DiagnosticShift.FoldRegion(
@@ -271,7 +269,7 @@ public final class FoldDetector {
             }
             offset += lines[li].length() + 1;
         }
-        // Close last heading at EOF.
+        // Ferme le dernier titre à la fin du fichier.
         if (lastHeadingOffset >= 0 && lines.length - lastHeadingLine >= 3) {
             folds.add(new DiagnosticShift.FoldRegion(
                 lastHeadingOffset, offset, "#\u2026", "heading", false));

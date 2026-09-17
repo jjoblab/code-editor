@@ -3,18 +3,16 @@ package jo.codeeditor.navigation;
 import java.util.*;
 
 /**
- * Go-to navigation: declaration, implementation, type declaration, super.
- * Resolves navigation targets and handles single/multiple results.
- * Ported from CodeAssist navigation module.
- 
- *
- * @since v1.0.7
-*/
+ * Navigation go-to : déclaration, implémentation, déclaration de type,
+ * super.
+ * Résout les cibles de navigation et gère les résultats simples/multiples.
+ * Reprend le design du module navigation de CodeAssist.
+ */
 public class NavigationMenu {
 
-    // ── Enums & Data types ────────────────────────────────────────
+    // ── Enums & Types de données ─────────────────────────────────
 
-    /** Type of navigation target. */
+    /** Type de cible de navigation. */
     public enum NavKind {
         DECLARATION,
         IMPLEMENTATION,
@@ -22,7 +20,7 @@ public class NavigationMenu {
         SUPER
     }
 
-    /** A single navigation target location. */
+    /** Un emplacement cible de navigation. */
     public static final class NavTarget {
         public final String path;
         public final int offset;
@@ -57,7 +55,7 @@ public class NavigationMenu {
         }
     }
 
-    /** A navigation option with a label and its targets. */
+    /** Une option de navigation avec un libellé et ses cibles. */
     public static final class NavOption {
         public final String label;
         public final List<NavTarget> targets;
@@ -74,9 +72,10 @@ public class NavigationMenu {
     }
 
     /**
-     * A document symbol for go-to-symbol navigation (v1.0.7 — Gap 6).
-     * Mirrors LSP's DocumentSymbol: a name, an offset, a kind (class /
-     * method / field / etc.) and the container (declaring class or file).
+     * Un symbole de document pour la navigation go-to-symbol.
+     * Reflète le DocumentSymbol LSP : un nom, un offset, un kind
+     * (class / method / field / etc.) et le conteneur (classe déclarante
+     * ou fichier).
      */
     public static final class Symbol {
         public final String name;
@@ -99,16 +98,17 @@ public class NavigationMenu {
     }
 
     /**
-     * Filters a list of symbols by prefix using case-insensitive prefix
-     * match OR camel-hump subsequence (e.g. "gS" matches "getString").
-     * Returns a new list, preserving the input order for stable ranking.
+     * Filtre une liste de symboles par préfixe, par correspondance de
+     * préfixe insensible à la casse OU sous-séquence camel-hump
+     * (ex. "gS" correspond à "getString"). Renvoie une nouvelle liste,
+     * en préservant l'ordre d'entrée pour un classement stable.
      *
-     * <p>Pure-Java and unit-testable. The view's go-to-symbol popup calls
-     * this on every keystroke in the filter field.
+     * <p>Java pur et testable unitairement. Le popup go-to-symbol de la
+     * vue appelle ceci à chaque frappe dans le champ de filtre.
      *
-     * @param symbols the full symbol list
-     * @param prefix  the typed filter prefix (may be empty → returns all)
-     * @return a new list of matching symbols
+     * @param symbols la liste complète des symboles
+     * @param prefix  le préfixe de filtre tapé (peut être vide → renvoie tout)
+     * @return une nouvelle liste des symboles correspondants
      */
     public static List<Symbol> filter(List<Symbol> symbols, String prefix) {
         if (symbols == null) return Collections.emptyList();
@@ -127,15 +127,17 @@ public class NavigationMenu {
     }
 
     /**
-     * Returns true if every char in {@code prefix} matches a char in
-     * {@code label}, in order, where each match is either:
+     * Renvoie true si chaque caractère de {@code prefix} correspond à un
+     * caractère de {@code label}, dans l'ordre, chaque correspondance étant :
      * <ul>
-     *   <li>The first char of the prefix (any position in the label),</li>
-     *   <li>A word-boundary position (uppercase or after _ / . / whitespace),</li>
-     *   <li>Or immediately follows the previous matched char (contiguous run).</li>
+     *   <li>Le premier caractère du préfixe (à toute position du libellé),</li>
+     *   <li>Une position de début de mot (majuscule ou après _ / . / espace),</li>
+     *   <li>Ou immédiatement après le caractère correspondant précédent
+     *       (run contigu).</li>
      * </ul>
-     * This means both "gS" (camel-hump) and "get" (contiguous prefix) match
-     * "getString". Algorithm matches {@link jo.codeeditor.completion.CompletionSession#isCamelHumpSubsequence}.
+     * Ainsi "gS" (camel-hump) et "get" (préfixe contigu) correspondent tous
+     * deux à "getString". L'algorithme est identique à
+     * {@link jo.codeeditor.completion.CompletionSession#isCamelHumpSubsequence}.
      */
     public static boolean isCamelHumpSubsequence(String label, String prefix) {
         if (prefix == null || prefix.isEmpty()) return true;
@@ -162,44 +164,45 @@ public class NavigationMenu {
         return pi == prefix.length();
     }
 
-    // ── State ─────────────────────────────────────────────────────
+    // ── État ───────────────────────────────────────────────────────
 
-    /** Current navigation options. */
+    /** Options de navigation courantes. */
     private List<NavOption> options = new ArrayList<>();
 
-    /** Navigation resolver. */
+    /** Résolveur de navigation. */
     private NavigationResolver resolver;
 
-    /** Navigation result listener. */
+    /** Listener de résultats de navigation. */
     private NavigationListener listener;
 
-    /** Current selected option (for picker). */
+    /** Option courante sélectionnée (pour le picker). */
     private int selectedOption = 0;
 
-    /** Whether the picker is open. */
+    /** Indique si le picker est ouvert. */
     private boolean pickerOpen = false;
 
     /**
-     * Interface for resolving navigation targets from the language server.
+     * Interface de résolution des cibles de navigation depuis le serveur
+     * de langage.
      */
     public interface NavigationResolver {
         /**
-         * Resolve navigation targets for the given kind at the caret.
+         * Résout les cibles de navigation du kind donné au caret.
          */
         List<NavTarget> resolve(NavKind kind, String filePath, int offset);
     }
 
     /**
-     * Interface for navigation result events.
+     * Interface des événements de résultat de navigation.
      */
     public interface NavigationListener {
-        /** Called when a single target should be navigated to. */
+        /** Appelé quand une cible unique doit recevoir la navigation. */
         void onNavigate(NavTarget target);
-        /** Called when multiple targets need a picker. */
+        /** Appelé quand plusieurs cibles nécessitent un picker. */
         void onShowPicker(List<NavTarget> targets);
     }
 
-    // ── Constructors ──────────────────────────────────────────────
+    // ── Constructeurs ─────────────────────────────────────────────
 
     public NavigationMenu() {
         this(null, null);
@@ -210,7 +213,7 @@ public class NavigationMenu {
         this.listener = listener;
     }
 
-    // ── Accessors ─────────────────────────────────────────────────
+    // ── Accesseurs ────────────────────────────────────────────────
 
     public List<NavOption> getOptions() { return Collections.unmodifiableList(options); }
     public boolean isPickerOpen() { return pickerOpen; }
@@ -222,13 +225,13 @@ public class NavigationMenu {
     // ── Navigation ────────────────────────────────────────────────
 
     /**
-     * Run navigation of the given kind at the current position.
-     * If a single target is found, navigates directly.
-     * If multiple targets, opens a picker.
+     * Lance la navigation du kind donné à la position courante.
+     * Si une seule cible est trouvée, navigue directement.
+     * Si plusieurs cibles, ouvre un picker.
      *
-     * @param kind     navigation kind
-     * @param filePath current file path
-     * @param offset   current caret offset
+     * @param kind     kind de navigation
+     * @param filePath chemin du fichier courant
+     * @param offset   offset courant du caret
      */
     public void runNav(NavKind kind, String filePath, int offset) {
         if (resolver == null) return;
@@ -237,12 +240,12 @@ public class NavigationMenu {
         if (targets == null || targets.isEmpty()) return;
 
         if (targets.size() == 1) {
-            // Single target: navigate directly
+            // Cible unique : navigation directe
             if (listener != null) {
                 listener.onNavigate(targets.get(0));
             }
         } else {
-            // Multiple targets: show picker
+            // Cibles multiples : affiche un picker
             if (listener != null) {
                 listener.onShowPicker(targets);
             }
@@ -251,7 +254,7 @@ public class NavigationMenu {
     }
 
     /**
-     * Open the navigation picker with the given targets.
+     * Ouvre le picker de navigation avec les cibles données.
      */
     private void openPicker(List<NavTarget> targets) {
         options = new ArrayList<>();
@@ -266,7 +269,7 @@ public class NavigationMenu {
     }
 
     /**
-     * Close the picker.
+     * Ferme le picker.
      */
     public void closePicker() {
         pickerOpen = false;
@@ -274,7 +277,7 @@ public class NavigationMenu {
     }
 
     /**
-     * Move picker selection.
+     * Déplace la sélection du picker.
      */
     public void movePickerSelection(int dir) {
         if (!pickerOpen || options.isEmpty()) return;
@@ -282,7 +285,7 @@ public class NavigationMenu {
     }
 
     /**
-     * Select the current picker option and navigate.
+     * Sélectionne l'option courante du picker et navigue.
      */
     public void selectPickerOption() {
         if (!pickerOpen || selectedOption < 0 || selectedOption >= options.size()) return;
@@ -294,7 +297,7 @@ public class NavigationMenu {
     }
 
     /**
-     * Navigate to a specific option by index.
+     * Navigue vers une option précise par index.
      */
     public void navigateToOption(int index) {
         if (index < 0 || index >= options.size()) return;
@@ -305,7 +308,7 @@ public class NavigationMenu {
         }
     }
 
-    // ── Reset ─────────────────────────────────────────────────────
+    // ── Réinitialisation ──────────────────────────────────────────
 
     public void reset() {
         options = new ArrayList<>();

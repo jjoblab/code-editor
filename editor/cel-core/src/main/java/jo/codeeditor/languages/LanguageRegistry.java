@@ -9,18 +9,19 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
- * v3.36.0 — Central registry of languages (roadmap item 7, port of
- * CodeAssist v3.20's {@code EditorLanguageRegistry}).
+ * Registre central des langages (portage du
+ * {@code EditorLanguageRegistry} de CodeAssist).
  *
- * <p>Replaces the per-class string dispatch that lived in
- * {@code SyntaxHighlighter} (tokenizer routing + keyword lookup) and
- * {@code CommentSyntax.forLanguage} (comment syntax): both now resolve
- * the language id through this registry and read the resulting
- * {@link LanguageProfile}.</p>
+ * <p>Centralise la distribution par chaînes qui vivait dans
+ * {@code SyntaxHighlighter} (routage des tokenizers + recherche de
+ * mots-clés) et {@code CommentSyntax.forLanguage} (syntaxe de
+ * commentaire) : les deux résolvent désormais l'id de langage via ce
+ * registre et lisent le {@link LanguageProfile} résultant.</p>
  *
- * <p><b>Contributable.</b> Hosts register their own languages — including
- * ones the editor has never heard of — and the built-in highlighter +
- * comment toggles pick them up immediately:</p>
+ * <p><b>Contribuable.</b> Les hôtes enregistrent leurs propres langages —
+ * y compris des langages inconnus de l'éditeur — et le highlighter
+ * intégré + les bascules de commentaire les prennent en compte
+ * immédiatement :</p>
  *
  * <pre>{@code
  * LanguageRegistry.register(LanguageProfile.builder("mylang")
@@ -30,30 +31,31 @@ import java.util.concurrent.CopyOnWriteArrayList;
  *     .build());
  * }</pre>
  *
- * <p><b>Observable.</b> Listeners are notified after every
- * {@link #register}/{@link #unregister} — a host can invalidate its
- * language pickers or caches when the set of languages changes.</p>
+ * <p><b>Observable.</b> Les listeners sont notifiés après chaque
+ * {@link #register}/{@link #unregister} — un hôte peut invalider ses
+ * sélecteurs de langage ou caches quand l'ensemble des langages
+ * change.</p>
  *
- * <p><b>Override semantics.</b> Registering a profile whose name or alias
- * collides with an existing id replaces the mapping for that id. This lets
- * a host refine a built-in (e.g. give {@code "sql"} a richer keyword set)
- * without touching the library.</p>
+ * <p><b>Sémantique de surcharge.</b> Enregistrer un profil dont le nom ou
+ * un alias entre en collision avec un id existant remplace la
+ * correspondance pour cet id. Un hôte peut ainsi affiner un langage
+ * intégré (ex. donner à {@code "sql"} un ensemble de mots-clés plus
+ * riche) sans toucher à la lib.</p>
  *
- * <p>Ids and extensions are normalized (trimmed, lowercased with
- * {@code Locale.ROOT}) before lookup. Lookups never return a profile for
- * an unknown id — callers keep their own fallback (the highlighter falls
- * back to the C-like tokenizer with the Java keyword set,
- * {@code CommentSyntax} falls back to the C-style pair).</p>
- *
- * @since v3.36.0
+ * <p>Les ids et extensions sont normalisés (trim, minuscules via
+ * {@code Locale.ROOT}) avant recherche. Une recherche ne renvoie jamais
+ * de profil pour un id inconnu — les appelants gardent leur propre
+ * secours (le highlighter retombe sur le tokenizer C-like avec
+ * l'ensemble de mots-clés Java, {@code CommentSyntax} retombe sur la
+ * paire C-style).</p>
  */
 public final class LanguageRegistry {
 
-    /** Notified after a profile is registered or unregistered. */
+    /** Notifié après l'enregistrement ou le retrait d'un profil. */
     public interface Listener {
         /**
-         * @param profile the profile that was added or removed
-         * @param removed true for an unregister, false for a register
+         * @param profile le profil qui a été ajouté ou retiré
+         * @param removed true pour un retrait, false pour un enregistrement
          */
         void onLanguagesChanged(LanguageProfile profile, boolean removed);
     }
@@ -76,7 +78,7 @@ public final class LanguageRegistry {
         }
     }
 
-    /** Package-private table insert used by {@link BuiltinLanguages}. */
+    /** Insertion dans la table (visibilité package) utilisée par {@link BuiltinLanguages}. */
     static void put(LanguageProfile p) {
         BY_ID.put(p.name, p);
         for (String a : p.aliases) BY_ID.put(a, p);
@@ -84,8 +86,8 @@ public final class LanguageRegistry {
     }
 
     /**
-     * Resolves a language id (canonical name or alias, case-insensitive),
-     * or null when unknown.
+     * Résout un id de langage (nom canonique ou alias, insensible à la
+     * casse), ou null si inconnu.
      */
     public static LanguageProfile forName(String id) {
         ensureBuiltins();
@@ -94,8 +96,8 @@ public final class LanguageRegistry {
     }
 
     /**
-     * Resolves a file extension (with or without the leading dot,
-     * case-insensitive), or null when unknown.
+     * Résout une extension de fichier (avec ou sans le point initial,
+     * insensible à la casse), ou null si inconnue.
      */
     public static LanguageProfile forExtension(String ext) {
         ensureBuiltins();
@@ -108,9 +110,9 @@ public final class LanguageRegistry {
     }
 
     /**
-     * Registers (or replaces) a profile. Aliases and extensions of the
-     * profile become resolvable immediately. Listeners fire after the
-     * table update.
+     * Enregistre (ou remplace) un profil. Les alias et extensions du
+     * profil deviennent immédiatement résolvables. Les listeners se
+     * déclenchent après la mise à jour de la table.
      */
     public static LanguageProfile register(LanguageProfile profile) {
         if (profile == null) throw new IllegalArgumentException("profile is null");
@@ -120,17 +122,17 @@ public final class LanguageRegistry {
             try {
                 l.onLanguagesChanged(profile, false);
             } catch (RuntimeException ignored) {
-                // A throwing listener must not break registration
-                // (same defensive policy as EditorPainterHost).
+                // Un listener qui lève ne doit pas casser l'enregistrement
+                // (même politique défensive que EditorPainterHost).
             }
         }
         return profile;
     }
 
     /**
-     * Unregisters the profile registered under the canonical name
-     * {@code name} (aliases and extensions of that profile are removed
-     * too). Returns false when no profile is registered under that name.
+     * Retire le profil enregistré sous le nom canonique {@code name}
+     * (les alias et extensions de ce profil sont aussi retirés).
+     * Renvoie false quand aucun profil n'est enregistré sous ce nom.
      */
     public static boolean unregister(String name) {
         ensureBuiltins();
@@ -143,13 +145,13 @@ public final class LanguageRegistry {
             try {
                 l.onLanguagesChanged(p, true);
             } catch (RuntimeException ignored) {
-                // see register()
+                // voir register()
             }
         }
         return true;
     }
 
-    /** The canonical names of every registered profile (sorted). */
+    /** Les noms canoniques de tous les profils enregistrés (triés). */
     public static Set<String> registeredNames() {
         ensureBuiltins();
         Set<String> names = new TreeSet<>();
@@ -157,7 +159,7 @@ public final class LanguageRegistry {
         return names;
     }
 
-    /** The canonical profile objects registered (one per language). */
+    /** Les objets profils canoniques enregistrés (un par langage). */
     public static Set<LanguageProfile> registeredProfiles() {
         ensureBuiltins();
         Set<LanguageProfile> out = new TreeSet<>((a, b) -> a.name.compareTo(b.name));
@@ -174,8 +176,8 @@ public final class LanguageRegistry {
     }
 
     /**
-     * Test-only: drops every registration (including custom profiles and
-     * overrides) and reinstalls the built-in table.
+     * Réservé aux tests : supprime tout enregistrement (y compris profils
+     * personnalisés et surcharges) et réinstalle la table intégrée.
      */
     static void resetToBuiltins() {
         synchronized (LanguageRegistry.class) {

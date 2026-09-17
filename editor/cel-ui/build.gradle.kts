@@ -1,6 +1,6 @@
 plugins {
     id("com.android.library")
-    // v3.34.0: publish the AAR for JitPack / Maven consumers.
+    // Publication de l'AAR pour les consommateurs JitPack / Maven.
     id("maven-publish")
 }
 
@@ -17,8 +17,8 @@ android {
         debug { isMinifyEnabled = false }
     }
 
-    // v3.34.0: publish the release variant (required for maven-publish's
-    // components["release"] to exist) with a sources jar for IDE navigation.
+    // Publie la variante release (requis pour que components["release"] de
+    // maven-publish existe) avec un jar de sources pour la navigation IDE.
     publishing {
         singleVariant("release") {
             withSourcesJar()
@@ -35,7 +35,7 @@ android {
         checkReleaseBuilds = false
     }
 
-    // v3.33.7: Robolectric tests need this to avoid "SDK not found" errors.
+    // Les tests Robolectric en ont besoin pour éviter les erreurs « SDK not found ».
     testOptions {
         unitTests {
             isIncludeAndroidResources = true
@@ -49,7 +49,7 @@ dependencies {
     api(project(":cel-core"))
     api(project(":cel-lsp-api"))
 
-    // v3.33.7: Tests Robolectric pour le lifecycle de EditorView.
+    // Tests Robolectric pour le cycle de vie d'EditorView.
     testImplementation("org.robolectric:robolectric:4.13")
     testImplementation("androidx.test:core:1.6.1")
     testImplementation("androidx.test.ext:junit:1.2.1")
@@ -61,7 +61,7 @@ tasks.withType<JavaCompile>().configureEach {
     options.encoding = "UTF-8"
 }
 
-// v3.33.7: Use JUnit 4 for Robolectric (Robolectric doesn't support JUnit 5 yet).
+// JUnit 4 pour Robolectric (Robolectric ne supporte pas encore JUnit 5).
 tasks.withType<Test>().configureEach {
     useJUnit()
     testLogging {
@@ -69,9 +69,9 @@ tasks.withType<Test>().configureEach {
     }
 }
 
-// ── v3.34.0 — Maven publication (JitPack / local `publishToMavenLocal`) ──
-// JitPack overrides groupId (com.github.<user>) and version (git tag) at
-// build time; these values are the standalone/local-publish defaults.
+// ── Publication Maven (JitPack / `publishToMavenLocal` local) ──
+// JitPack surcharge le groupId (com.github.<user>) et la version (tag git)
+// au build ; ces valeurs sont les défauts standalone/publication locale.
 afterEvaluate {
     publishing {
         publications {

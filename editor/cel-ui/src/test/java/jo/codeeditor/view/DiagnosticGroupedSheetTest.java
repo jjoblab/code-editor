@@ -22,18 +22,15 @@ import java.util.List;
 import static org.junit.Assert.*;
 
 /**
- * v3.36.0 — Tests de la sheet diagnostic groupée par ligne (roadmap item
- * 5, portage {@code diagnosticsByStartLine} de CodeAssist v3.20).
+ * Tests de la sheet diagnostic groupée par ligne.
  *
- * <p>Avant v3.36.0, une ligne portant une erreur ET un warning ne
- * surface que la plus sévère : le warning était inatteignable depuis la
- * chip. Vérifie : le groupe Error/Warning par ligne (chip group + badge
- * count), le hit-test qui porte le groupe, l'ouverture de la sheet
- * groupée (multi) vs le popup détail (mono), la géométrie partagée
- * (rows + close), le routage du tap sur une rangée → popup détail, et le
- * smoke render complet (chips avec badge + sheet) sans crash.</p>
- *
- * @since v3.36.0
+ * <p>Sans groupement, une ligne portant une erreur ET un warning
+ * n'affichait que la plus sévère : le warning restait inatteignable depuis
+ * la chip. Vérifie : le groupe Error/Warning par ligne (chip group + badge
+ * count), le hit-test qui porte le groupe, l'ouverture de la sheet groupée
+ * (multi) vs le popup détail (mono), la géométrie partagée (rows + close),
+ * le routage du tap sur une rangée → popup détail, et le smoke render
+ * complet (chips avec badge + sheet) sans crash.</p>
  */
 @RunWith(RobolectricTestRunner.class)
 public class DiagnosticGroupedSheetTest {
@@ -74,7 +71,7 @@ public class DiagnosticGroupedSheetTest {
         f.setFloat(target, value);
     }
 
-    /** A view whose line 2 carries one error + one warning + one info. */
+    /** Une vue dont la ligne 2 porte une erreur + un warning + une info. */
     private EditorView viewWithGroup() {
         EditorView view = newView();
         injectMetrics(view, 40f, 10f);
@@ -91,8 +88,8 @@ public class DiagnosticGroupedSheetTest {
         return view;
     }
 
-    /** Simulates a full tap (DOWN + UP at the same spot) — routes through
-     * the real gesture pipeline (modal sheetGesture included). */
+    /** Simule un tap complet (DOWN + UP au même endroit) — passe par le
+     * vrai pipeline de gestes (sheetGesture modal inclus). */
     private static void tap(EditorView view, float x, float y) {
         long down = SystemClock.uptimeMillis();
         MotionEvent d = MotionEvent.obtain(down, down, MotionEvent.ACTION_DOWN, x, y, 0);
@@ -103,19 +100,20 @@ public class DiagnosticGroupedSheetTest {
         u.recycle();
     }
 
-    // ── Chip group + badge ────────────────────────────────────────
+    // ── Groupe chip + badge ────────────────────────────────────────
 
     @Test
     public void chipDiagnosticsForLine_errorWarningOnlySeveritySorted() {
         EditorView view = viewWithGroup();
-        // Line 2's chip group = Error + Warning (info stays squiggle-only).
+        // Le groupe de chips de la ligne 2 = Error + Warning (l'info
+        // reste juste soulignée, sans chip).
         List<DiagnosticShift.Diagnostic> group = view.chipDiagnosticsForLine(2);
         assertEquals(2, group.size());
         assertEquals(3, group.get(0).severity);
         assertEquals(2, group.get(1).severity);
-        // Line 1 has nothing.
+        // La ligne 1 n'a rien.
         assertTrue(view.chipDiagnosticsForLine(1).isEmpty());
-        // Legacy accessor: the most severe diagnostic (v2.31 contract).
+        // Accesseur historique : le diagnostic le plus sévère.
         DiagnosticShift.Diagnostic primary = view.chipDiagnosticForLine(2);
         assertNotNull(primary);
         assertEquals(3, primary.severity);
@@ -130,9 +128,9 @@ public class DiagnosticGroupedSheetTest {
         assertNotNull(without);
         assertNotNull(with);
         assertTrue("badge must widen the pill", with[2] > without[2]);
-        assertEquals(0f, without[7], 0f); // badgeD = 0 without badge
-        assertTrue(with[7] > 0f);         // badgeD > 0 with badge
-        // 2-arg legacy overload behaves like badgeCount=0.
+        assertEquals(0f, without[7], 0f); // badgeD = 0 sans badge
+        assertTrue(with[7] > 0f);         // badgeD > 0 avec badge
+        // La surcharge historique à 2 arguments se comporte comme badgeCount=0.
         float[] legacy = view.diagnosticChipMetrics(err, 2);
         assertEquals(without[2], legacy[2], 0.01f);
     }
@@ -140,48 +138,48 @@ public class DiagnosticGroupedSheetTest {
     @Test
     public void findDiagnosticChipHitAt_carriesTheWholeGroup() {
         EditorView view = viewWithGroup();
-        // Compute the chip's rectangle from the shared metrics…
+        // Calcule le rectangle de la chip depuis les métriques partagées…
         List<DiagnosticShift.Diagnostic> group = view.chipDiagnosticsForLine(2);
         float[] m = view.diagnosticChipMetrics(group.get(0), 2, group.size());
         assertNotNull(m);
         float cx = m[0] + m[2] * 0.5f;
         float cy = m[1] + m[3] * 0.5f;
-        // …and hit-test it.
+        // …puis le teste au hit-test.
         EditorView.DiagnosticChipHit hit = view.findDiagnosticChipHitAt(cx, cy);
         assertNotNull(hit);
         assertEquals(2, hit.line);
         assertEquals(2, hit.diagnostics.size());
         assertEquals(3, hit.primary().severity);
-        // The legacy single-diagnostic accessor still works.
+        // L'accesseur historique mono-diagnostic fonctionne toujours.
         assertEquals(view.chipDiagnosticForLine(2), view.findDiagnosticChipAt(cx, cy));
-        // A point far from the chip misses.
+        // Un point loin de la chip rate.
         assertNull(view.findDiagnosticChipHitAt(m[0] + m[2] + 500f, cy));
     }
 
-    // ── Sheet show / dismiss / routing ────────────────────────────
+    // ── Sheet : ouverture / fermeture / routage ────────────────────
 
     @Test
     public void showDiagnosticListSheet_multiOpensGroupedSheet_singleOpensDetail() {
         EditorView view = viewWithGroup();
-        // Multi → grouped sheet.
+        // Multi → sheet groupée.
         view.showDiagnosticListSheet(2);
         assertTrue(view.isDiagnosticListSheetVisible());
         assertFalse(view.diagnosticPopupVisible);
         float[] m = view.diagnosticListSheetMetrics();
         assertNotNull(m);
         assertEquals(3f, m[4], 0f); // rowCount = 3 (error + warning + info)
-                                    // the sheet lists ALL diagnostics of
-                                    // the line — info included (CodeAssist
-                                    // parity: every diagnostic reachable)
-        assertEquals(0f, m[5], 0f); // no truncation row
+                                    // la sheet liste TOUS les diagnostics
+                                    // de la ligne — info incluse (chaque
+                                    // diagnostic reste atteignable)
+        assertEquals(0f, m[5], 0f); // pas de rangée de troncature
         assertTrue(m[0] < m[1]);    // panelTop < panelBottom
 
-        // Dismiss (public API).
+        // Fermeture (API publique).
         view.dismissDiagnosticListSheet();
         assertFalse(view.isDiagnosticListSheetVisible());
         assertNull(view.diagnosticListSheetMetrics());
 
-        // Single diagnostic on line 0 → straight to the detail popup.
+        // Diagnostic unique sur la ligne 0 → directement le popup détail.
         EditorDocument doc = view.getSession().getDocument();
         int p = doc.getText().toString().indexOf("public");
         List<DiagnosticShift.Diagnostic> one = new ArrayList<>();
@@ -194,7 +192,7 @@ public class DiagnosticGroupedSheetTest {
         assertNotNull(view.diagnosticPopupItem);
         assertEquals("solo error", view.diagnosticPopupItem.message);
 
-        // Out-of-range line is a no-op.
+        // Ligne hors bornes : no-op.
         view.dismissDiagnosticPopup();
         view.showDiagnosticListSheet(99);
         assertFalse(view.isDiagnosticListSheetVisible());
@@ -217,7 +215,7 @@ public class DiagnosticGroupedSheetTest {
         float[] m = view.diagnosticListSheetMetrics();
         assertNotNull(m);
         assertEquals(EditorView.DIAG_LIST_MAX_ROWS, (int) m[4]);
-        assertEquals(1f, m[5], 0f); // truncation row shown
+        assertEquals(1f, m[5], 0f); // rangée de troncature affichée
     }
 
     @Test
@@ -226,7 +224,7 @@ public class DiagnosticGroupedSheetTest {
         view.showDiagnosticListSheet(2);
         float[] m = view.diagnosticListSheetMetrics();
         assertNotNull(m);
-        // Tap the second row (the warning — previously unreachable).
+        // Tape la deuxième rangée (le warning — auparavant inatteignable).
         float rowY = m[0] + m[2] + 1.5f * m[3];
         float x = view.getWidth() * 0.5f;
         tap(view, x, rowY);
@@ -240,7 +238,7 @@ public class DiagnosticGroupedSheetTest {
     public void tapScrim_dismissesGroupedSheet() {
         EditorView view = viewWithGroup();
         view.showDiagnosticListSheet(2);
-        // Tap well above the panel (in the scrim area).
+        // Tape bien au-dessus du panneau (dans la zone de scrim).
         tap(view, view.getWidth() * 0.5f, 10f);
         assertFalse(view.isDiagnosticListSheetVisible());
     }
@@ -253,10 +251,10 @@ public class DiagnosticGroupedSheetTest {
         Bitmap bmp = Bitmap.createBitmap(1080, 1920, Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(bmp);
         view.draw(canvas);
-        // With the grouped sheet up.
+        // Avec la sheet groupée ouverte.
         view.showDiagnosticListSheet(2);
         view.draw(canvas);
-        // With the detail popup up.
+        // Avec le popup détail ouvert.
         view.dismissDiagnosticListSheet();
         view.showDiagnosticPopup(view.chipDiagnosticForLine(2),
                 view.chipDiagnosticForLine(2).start);

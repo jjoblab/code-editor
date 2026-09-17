@@ -11,19 +11,18 @@ import android.graphics.Canvas;
 import static org.junit.Assert.*;
 
 /**
- * Robolectric tests for v2.39 features:
+ * Tests Robolectric :
  * <ul>
- *   <li>Markdown/HTML preview badge → popup sheet overlay
+ *   <li>Badge preview Markdown/HTML → overlay sheet popup
  *       ({@link EditorView#openPreview(boolean)}, {@link EditorPreviewSheet})</li>
- *   <li>Tap-and-hold hover toggle
+ *   <li>Bascule hover par appui-long tactile
  *       ({@link EditorView#setTouchHoverEnabled(boolean)})</li>
- *   <li>Signature help Up/Down keyboard navigation
+ *   <li>Navigation clavier Haut/Bas de l'aide de signature
  *       ({@link EditorView#cycleSignatureHelp(int)},
  *        {@link EditorView#getEffectiveActiveSignature()})</li>
  * </ul>
  *
  * @author jo@Dev
- * @since v2.39
  */
 @RunWith(RobolectricTestRunner.class)
 public class EditorPreviewSheetTest {
@@ -34,9 +33,9 @@ public class EditorPreviewSheetTest {
     }
 
     /**
-     * A minimal {@link EditorPreviewHost} that declares {@code .md}/{@code .html}/{@code .xml}
-     * as previewable and returns {@code null} from {@code onCreatePreviewView}
-     * (canvas fallback path).
+     * Un {@link EditorPreviewHost} minimal qui déclare {@code .md}/{@code .html}/{@code .xml}
+     * prévisualisables et renvoie {@code null} depuis {@code onCreatePreviewView}
+     * (chemin de repli canvas).
      */
     private static class StubHost implements EditorPreviewHost {
         @Override public boolean canPreview(String fileName) {
@@ -53,7 +52,7 @@ public class EditorPreviewSheetTest {
         @Override public boolean hitTestPreview(float x, float y) { return false; }
     }
 
-    // ── Touch hover toggle ─────────────────────────────────────────
+    // ── Bascule hover tactile ──────────────────────────────────────
 
     @Test
     public void touchHoverEnabled_defaultFalse() {
@@ -71,7 +70,7 @@ public class EditorPreviewSheetTest {
         assertFalse(view.isTouchHoverEnabled());
     }
 
-    // ── Preview: fileName → previewable detection ─────────────────
+    // ── Preview : fileName → détection prévisualisable ─────────────
 
     @Test
     public void setFileName_withPreviewHost_marksPreviewable() {
@@ -98,7 +97,7 @@ public class EditorPreviewSheetTest {
         assertEquals("", view.getFileName());
     }
 
-    // ── PreviewMode enum ───────────────────────────────────────────
+    // ── Énum PreviewMode ───────────────────────────────────────────
 
     @Test
     public void previewMode_noneByDefault() {
@@ -119,7 +118,7 @@ public class EditorPreviewSheetTest {
         assertTrue(EditorView.PreviewMode.SHEET_FULL.isSheet());
     }
 
-    // ── Sheet overlay lifecycle ────────────────────────────────────
+    // ── Cycle de vie de l'overlay sheet ────────────────────────────
 
     @Test
     public void getPreviewSheet_nullWhenNone() {
@@ -130,7 +129,7 @@ public class EditorPreviewSheetTest {
     @Test
     public void closePreviewSheet_isSafeWhenNoSheet() {
         EditorView view = createEditor();
-        // Should not throw when no sheet is open.
+        // Ne doit pas throw quand aucune sheet n'est ouverte.
         view.closePreviewSheet();
         assertEquals(EditorView.PreviewMode.NONE, view.getPreviewMode());
     }
@@ -139,7 +138,7 @@ public class EditorPreviewSheetTest {
     public void isXmlPreviewActive_falseForSheetModes() {
         EditorView view = createEditor();
         view.setPreviewHost(new StubHost());
-        // SHEET_* modes never draw on the editor canvas.
+        // Les modes SHEET_* ne dessinent jamais sur le canvas de l'éditeur.
         view.setPreviewMode(EditorView.PreviewMode.SHEET_SPLIT);
         assertFalse("SHEET_SPLIT should not draw on editor canvas",
             view.isXmlPreviewActive());
@@ -148,29 +147,29 @@ public class EditorPreviewSheetTest {
             view.isXmlPreviewActive());
     }
 
-    // ── Signature help Up/Down navigation ─────────────────────────
+    // ── Navigation Haut/Bas de l'aide de signature ────────────────
 
     @Test
     public void getEffectiveActiveSignature_noHelp_returnsNegativeOne() {
         EditorView view = createEditor();
-        // No signature help populated → effective active = -1.
+        // Aucune aide de signature peuplée → actif effectif = -1.
         assertEquals(-1, view.getEffectiveActiveSignature());
     }
 
     @Test
     public void cycleSignatureHelp_withNoHelp_isSafeNoOp() {
         EditorView view = createEditor();
-        // Should not crash when no help is loaded.
+        // Ne doit pas crasher quand aucune aide n'est chargée.
         view.cycleSignatureHelp(1);
         view.cycleSignatureHelp(-1);
         assertEquals(-1, view.getEffectiveActiveSignature());
     }
 
-    // ── v2.42 — Defensive detach in EditorPreviewSheet.show ─────────
+    // ── Détachement défensif dans EditorPreviewSheet.show ──────────
 
     /**
-     * Stub host that returns the SAME cached View across calls —
-     * simulates the AppEditorPreviewHost pattern (cached WebView reused).
+     * Stub d'hôte qui renvoie la MÊME View en cache à chaque appel —
+     * simule le patron AppEditorPreviewHost (WebView en cache réutilisée).
      */
     private static class CachedViewHost implements EditorPreviewHost {
         private android.view.View cachedBody;
@@ -190,9 +189,10 @@ public class EditorPreviewSheetTest {
         @Override
         public android.view.View onCreatePreviewView(Context ctx, EditorView editor,
                                                      EditorView.PreviewMode mode) {
-            // Return the SAME View on every call — this is the AppEditorPreviewHost
-            // pattern. Without defensive detach, the second openPreview call would
-            // throw IllegalStateException: "child already has a parent".
+            // Renvoie la MÊME View à chaque appel — c'est le patron
+            // AppEditorPreviewHost. Sans détachement défensif, le second
+            // appel openPreview lèverait IllegalStateException :
+            // « child already has a parent ».
             if (cachedBody == null) {
                 cachedBody = new android.view.View(ctx);
             }
@@ -202,38 +202,42 @@ public class EditorPreviewSheetTest {
 
     @Test
     public void openPreviewSheet_cachedBodyViewAcrossOpen_reusesWithoutCrash() {
-        // Regression for the user-reported crash on EditorPreviewSheet.show:102
-        // (java.lang.IllegalStateException: The specified child already has a parent).
-        // The host caches the WebView; the second open tried to add it to a new
-        // bodyFrame without detaching first. The fix detaches the bodyView in
-        // EditorPreviewSheet.show() before re-adding it.
+        // Régression du crash signalé sur EditorPreviewSheet.show:102
+        // (java.lang.IllegalStateException: The specified child already has
+        // a parent). L'hôte met la WebView en cache ; la seconde ouverture
+        // tentait de l'ajouter à un nouveau bodyFrame sans la détacher
+        // d'abord. Le correctif détache le bodyView dans
+        // EditorPreviewSheet.show() avant de le ré-ajouter.
         EditorView view = createEditor();
         view.setPreviewHost(new CachedViewHost());
         view.setFileName("README.md");
-        // EditorView.openPreviewSheet bails early (post-defer) when width/height
-        // are 0. Measure + layout the editor to non-zero dims so the sheet opens
-        // synchronously inside the test.
+        // EditorView.openPreviewSheet abandonne tôt (post-defer) quand
+        // width/height sont 0. Measure + layout de l'éditeur à des
+        // dimensions non nulles pour que la sheet s'ouvre de façon
+        // synchrone dans le test.
         int w = 1024, h = 768;
         view.measure(
             android.view.View.MeasureSpec.makeMeasureSpec(w, android.view.View.MeasureSpec.EXACTLY),
             android.view.View.MeasureSpec.makeMeasureSpec(h, android.view.View.MeasureSpec.EXACTLY));
         view.layout(0, 0, w, h);
-        // First open — sheet shows, cached body gets a parent.
+        // Première ouverture — la sheet s'affiche, le body en cache reçoit
+        // un parent.
         view.setPreviewMode(EditorView.PreviewMode.SHEET_SPLIT);
         EditorPreviewSheet sheet1 = view.getPreviewSheet();
         assertTrue("first open should succeed (sheet non-null)",
             sheet1 != null);
         assertTrue("first open should show", sheet1.isShowing());
-        // Close.
+        // Fermeture.
         view.closePreviewSheet();
         assertEquals(EditorView.PreviewMode.NONE, view.getPreviewMode());
-        // Second open — must NOT throw IllegalStateException (the v2.42 fix).
+        // Seconde ouverture — ne doit PAS lever IllegalStateException
+        // (le détachement défensif).
         view.setPreviewMode(EditorView.PreviewMode.SHEET_SPLIT);
         EditorPreviewSheet sheet2 = view.getPreviewSheet();
         assertTrue("second open should succeed after defensive detach (sheet non-null)",
             sheet2 != null);
         assertTrue("second open should show", sheet2.isShowing());
-        // Cleanup.
+        // Nettoyage.
         view.closePreviewSheet();
     }
 }

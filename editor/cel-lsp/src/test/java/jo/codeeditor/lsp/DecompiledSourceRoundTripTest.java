@@ -1,5 +1,8 @@
 package jo.codeeditor.lsp;
 
+import jo.codeeditor.lsp.connection.InProcessStreamConnectionProvider;
+import jo.codeeditor.lsp.connection.StreamConnectionProvider;
+
 import org.eclipse.lsp4j.InitializeParams;
 import org.eclipse.lsp4j.InitializeResult;
 import org.eclipse.lsp4j.ServerCapabilities;
@@ -21,7 +24,7 @@ import java.util.concurrent.Executors;
 import static org.junit.Assert.*;
 
 /**
- * ★ v2.40 — Round-trip JSON-RPC de la méthode LSP PERSONNALISÉE
+ * Round-trip JSON-RPC de la méthode LSP PERSONNALISÉE
  * {@code textDocument/decompiledSource} (câble de bout en bout la
  * fonctionnalité « GO TO Definition sur cible binaire » — le serveur
  * :lspjava l'expose via {@code jo.lspjava.lsp.NavTextDocumentService}).
@@ -51,7 +54,6 @@ import static org.junit.Assert.*;
  * </ol>
  *
  * @author jo@Dev
- * @since v2.40
  */
 public class DecompiledSourceRoundTripTest {
 
@@ -94,8 +96,8 @@ public class DecompiledSourceRoundTripTest {
         public CompletableFuture<Map<String, Object>> decompiledSource(
                 Map<String, Object> params) {
             Map<String, Object> result = new LinkedHashMap<>();
-            // Echo the FQCN back as the source — verifier le round-trip
-            // du FQCN params.source → result.source.
+            // Renvoie le FQCN en écho comme source — vérifie le
+            // round-trip du FQCN params.fqcn → result.source.
             String fqcn = params.get("fqcn") == null ? "" : params.get("fqcn").toString();
             result.put("source", "// Decompiled from " + fqcn + ".class\n"
                     + "package " + fqcn.substring(0, Math.max(0, fqcn.lastIndexOf('.'))) + ";\n"

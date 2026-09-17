@@ -70,7 +70,7 @@ class DiagnosticShiftTest {
     @Test
     void mapStart_insideDelete() {
         EditSpan s = new EditSpan(5, 3, 0);
-        // Position inside deleted range clamps to edit start
+        // Une position dans la plage supprimée est bornée au début de l'édition
         int mapped = DiagnosticShift.mapStart(6, s);
         assertTrue(mapped >= 5 && mapped <= 8, "Expected 5-8, got " + mapped);
     }

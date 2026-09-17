@@ -9,11 +9,12 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Pure-JVM tests for {@link NavigationMenu}'s static symbol-filter helpers.
+ * Tests JVM pur pour les helpers statiques de filtrage de symboles de
+ * {@link NavigationMenu}.
  *
- * <p>v1.0.7 — Gap 6 (go-to-symbol popup). The popup itself is Canvas-drawn
- * in the View layer, but the filter logic (prefix + camel-hump subsequence)
- * is pure Java and tested here.
+ * <p>Le popup go-to-symbol lui-même est dessiné sur Canvas dans la couche
+ * View, mais la logique de filtre (préfixe + sous-séquence camel-hump)
+ * est du Java pur et testée ici.
  */
 class NavigationMenuTest {
 
@@ -74,7 +75,7 @@ class NavigationMenuTest {
             new NavigationMenu.Symbol("getString", 0, "method", ""),
             new NavigationMenu.Symbol("setString", 10, "method", ""),
             new NavigationMenu.Symbol("other", 20, "field", ""));
-        // "gS" should match "getString" via camel-hump (g at 0, S at 1).
+        // "gS" doit correspondre à "getString" via camel-hump (g à 0, S à 1).
         var filtered = NavigationMenu.filter(symbols, "gS");
         assertEquals(1, filtered.size());
         assertEquals("getString", filtered.get(0).name);
@@ -86,11 +87,11 @@ class NavigationMenuTest {
             new NavigationMenu.Symbol("ArrayList", 0, "class", ""),
             new NavigationMenu.Symbol("HashMap", 10, "class", ""),
             new NavigationMenu.Symbol("other", 20, "field", ""));
-        // "AL" should match "ArrayList" via camel-hump.
+        // "AL" doit correspondre à "ArrayList" via camel-hump.
         var filtered = NavigationMenu.filter(symbols, "AL");
         assertEquals(1, filtered.size());
         assertEquals("ArrayList", filtered.get(0).name);
-        // "HM" should match "HashMap".
+        // "HM" doit correspondre à "HashMap".
         var filtered2 = NavigationMenu.filter(symbols, "HM");
         assertEquals(1, filtered2.size());
         assertEquals("HashMap", filtered2.get(0).name);
@@ -101,7 +102,7 @@ class NavigationMenuTest {
         var symbols = Arrays.asList(
             new NavigationMenu.Symbol("get_foo", 0, "method", ""),
             new NavigationMenu.Symbol("other", 10, "field", ""));
-        // "gf" should match "get_foo" — g at 0 (word start), f at 4 (after _).
+        // "gf" doit correspondre à "get_foo" — g à 0 (début de mot), f à 4 (après _).
         var filtered = NavigationMenu.filter(symbols, "gf");
         assertEquals(1, filtered.size());
         assertEquals("get_foo", filtered.get(0).name);
@@ -149,24 +150,20 @@ class NavigationMenuTest {
 
     @Test
     void isCamelHumpSubsequence_skipsNonMatching() {
-        // "gSt" matches "getString" — g at 0 (pi==0), S at 3 (word start),
-        // t at 4 (immediately follows S which was matched, but !prevMatched
-        // doesn't apply here — actually isWordStart after uppercase doesn't
-        // qualify. Let me re-check: the algo requires pi==0 OR isWordStart
-        // OR !prevMatched. After S was matched at li=3, prevMatched=true.
-        // At li=4 (t), isWordStart=FALSE (prev char 'S' is uppercase, not
-        // _/. /whitespace), prevMatched=TRUE → !prevMatched=FALSE.
-        // So 't' wouldn't match here.
-        // Let me use a clearer example: "AS" matches "ArrayList" — A at 0,
-        // S at 5 (word start, uppercase).
+        // Règle de correspondance : l'algo exige pi==0 OU isWordStart OU
+        // !prevMatched. "AL" correspond à "ArrayList" — A à 0 (pi==0),
+        // S à 5 (début de mot, majuscule). En revanche, un caractère qui
+        // suit directement une majuscule appariée (prevMatched=true) et
+        // qui n'est pas un début de mot ne peut pas être apparié.
         assertTrue(NavigationMenu.isCamelHumpSubsequence("ArrayList", "AL"));
     }
 
     @Test
     void isCamelHumpSubsequence_strictContiguousDoesNotMatch() {
-        // "get" matching "getString" via camel-hump DOESN'T work — the algo
-        // requires word-starts or non-contiguous matches after the first char.
-        // The filter method catches this case via startsWith instead.
+        // "get" ne correspond PAS à "getString" via camel-hump — l'algo
+        // exige des débuts de mot ou des correspondances non contiguës après
+        // le premier caractère. La méthode filter rattrape ce cas via
+        // startsWith.
         assertFalse(NavigationMenu.isCamelHumpSubsequence("getString", "get"));
     }
 

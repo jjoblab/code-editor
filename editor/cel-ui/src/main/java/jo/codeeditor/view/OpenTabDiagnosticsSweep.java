@@ -3,8 +3,8 @@ package jo.codeeditor.view;
 import android.os.Handler;
 import android.os.Looper;
 
-import jo.codeeditor.lang.Diagnostic;
-import jo.codeeditor.lang.DiagnosticsProvider;
+import jo.codeeditor.lang.model.Diagnostic;
+import jo.codeeditor.lang.provider.DiagnosticsProvider;
 import jo.codeeditor.session.EditorSession;
 import jo.codeeditor.shift.DiagnosticShift;
 
@@ -14,52 +14,55 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 
 /**
- * v3.36.0 — Diagnostics sweep of the OPEN TABS (roadmap item 8, port of
- * CodeAssist v3.20's {@code OpenTabDiagnosticsSweep}).
+ * Balayage des diagnostics des ONGLETS OUVERTS (port de
+ * l'{@code OpenTabDiagnosticsSweep} de CodeAssist).
  *
- * <p>The editor already refreshes diagnostics of the <b>focused</b> tab on
- * every text change (debounced). But a multi-tab host ends up with stale
- * red dots on the tabs the user merely switched away from — this sweep
- * closes that gap. The host calls {@link #start(List)} whenever it wants
- * a refresh of every open editor (tab switch, save, window focus, idle…):
- * the sweep walks the list, re-runs each tab's
- * {@link DiagnosticsProvider} OFF the main thread, and applies the result
- * on the main thread — with a {@value #DEFAULT_GAP_MS} ms gap between
- * tabs so the UI thread never batches several applies in one frame
- * (CodeAssist's gap).</p>
+ * <p>L'éditeur rafraîchit déjà les diagnostics de l'onglet <b>actif</b> à
+ * chaque changement de texte (avec anti-rebond). Mais un hôte multi-onglets
+ * finit avec des points rouges périmés sur les onglets simplement quittés
+ * par l'utilisateur — ce balayage comble ce manque. L'hôte appelle
+ * {@link #start(List)} chaque fois qu'il veut rafraîchir tous les éditeurs
+ * ouverts (changement d'onglet, enregistrement, focus fenêtre, veille…) :
+ * le balayage parcourt la liste, ré-exécute le {@link DiagnosticsProvider}
+ * de chaque onglet HORS du thread principal et applique le résultat sur le
+ * thread principal — avec un intervalle de {@value #DEFAULT_GAP_MS} ms
+ * entre onglets pour que le thread UI n'applique jamais plusieurs résultats
+ * dans une même frame (intervalle de CodeAssist).</p>
  *
- * <p><b>Skipped tabs</b> (CodeAssist parity):</p>
+ * <p><b>Onglets ignorés</b> (parité CodeAssist) :</p>
  * <ul>
- *   <li>the tab that currently <b>has focus</b> — its own debounced task
- *       owns it (and the user is typing there);</li>
- *   <li><b>read-only</b> sessions — a file the host opened for viewing
- *       does not get re-analyzed;</li>
- *   <li><b>large</b> documents ({@code EditorDocument.isLarge()}) — the
- *       same gating the editor applies to semantic analysis;</li>
- *   <li>tabs without a wired diagnostics provider;</li>
- *   <li>detached views (no parent — the host is tearing the tab down).</li>
+ *   <li>l'onglet qui a actuellement le <b>focus</b> — sa propre tâche avec
+ *       anti-rebond en est responsable (et l'utilisateur y tape) ;</li>
+ *   <li>les sessions <b>en lecture seule</b> — un fichier ouvert pour
+ *       consultation n'est pas ré-analysé ;</li>
+ *   <li>les documents <b>volumineux</b> ({@code EditorDocument.isLarge()})
+ *       — le même filtrage que celui appliqué par l'éditeur à l'analyse
+ *       sémantique ;</li>
+ *   <li>les onglets sans provider de diagnostics branché ;</li>
+ *   <li>les vues détachées (sans parent — l'hôte est en train de démonter
+ *       l'onglet).</li>
  * </ul>
  *
- * <p>The sweep applies a result only if the tab's session is still the
- * one that was analyzed (a tab switch mid-flight discards the stale
- * result), and {@link #cancel()} stops the walk. Only ONE sweep runs at a
- * time per instance; starting a new sweep on the same tabs is cheap and
- * safe (older instances simply die out or are cancelled by the host).</p>
+ * <p>Le balayage n'applique un résultat que si la session de l'onglet est
+ * toujours celle qui a été analysée (un changement d'onglet en plein vol
+ * écarte le résultat périmé), et {@link #cancel()} arrête le parcours. Une
+ * seule instance de balayage s'exécute à la fois ; relancer un balayage sur
+ * les mêmes onglets est bon marché et sûr (les instances plus anciennes
+ * meurent d'elles-mêmes ou sont annulées par l'hôte).</p>
  *
  * <pre>{@code
- * // host: refresh every open tab's diagnostics after a save-all
+ * // hôte : rafraîchir les diagnostics de tous les onglets ouverts après un tout-enregistrer
  * OpenTabDiagnosticsSweep.start(openEditorViews);
  * }</pre>
- *
- * @since v3.36.0
  */
 public final class OpenTabDiagnosticsSweep {
 
-    /** CodeAssist gap: 40 ms between two tab applies. */
+    /** Intervalle CodeAssist : 40 ms entre deux applications d'onglet. */
     public static final long DEFAULT_GAP_MS = 40L;
 
-    /** Shared off-main executor (daemon — never blocks JVM exit). Typed
-     * as Executor so tests can inject a direct executor via reflection. */
+    /** Exécuteur partagé hors thread principal (daemon — ne bloque jamais
+     * la sortie de la JVM). Typé Executor pour que les tests puissent
+     * injecter un exécuteur direct par réflexion. */
     private static volatile Executor sharedExecutor;
 
     private final List<EditorView> tabs;
@@ -78,8 +81,8 @@ public final class OpenTabDiagnosticsSweep {
     }
 
     /**
-     * Starts a sweep over the given open editors (defensive copy — the
-     * host may mutate its tab list afterwards).
+     * Démarre un balayage des éditeurs ouverts donnés (copie défensive —
+     * l'hôte peut modifier sa liste d'onglets ensuite).
      */
     public static OpenTabDiagnosticsSweep start(List<EditorView> openTabs) {
         OpenTabDiagnosticsSweep sweep =
@@ -88,17 +91,17 @@ public final class OpenTabDiagnosticsSweep {
         return sweep;
     }
 
-    /** Stops the walk; an in-flight tab result is discarded on apply. */
+    /** Arrête le parcours ; un résultat d'onglet en vol est écarté à l'application. */
     public void cancel() {
         cancelled = true;
     }
 
-    /** Number of tabs whose diagnostics were recomputed (so far). */
+    /** Nombre d'onglets dont les diagnostics ont été recalculés (jusqu'ici). */
     public int processedCount() {
         return processed;
     }
 
-    /** Number of tabs skipped by the eligibility rules (so far). */
+    /** Nombre d'onglets ignorés par les règles d'éligibilité (jusqu'ici). */
     public int skippedCount() {
         return skipped;
     }
@@ -127,24 +130,24 @@ public final class OpenTabDiagnosticsSweep {
             EditorView tab = tabs.get(index++);
             if (!eligible(tab)) {
                 skipped++;
-                continue; // no work done — no gap needed
+                continue; // aucun travail effectué — pas d'intervalle nécessaire
             }
             analyze(tab);
-            return; // next step is scheduled after this tab's apply
+            return; // l'étape suivante est planifiée après l'application de cet onglet
         }
-        // Walk finished.
+        // Parcours terminé.
     }
 
-    /** CodeAssist eligibility: skip focused / read-only / large / provider-less / detached. */
+    /** Éligibilité CodeAssist : ignore focus / lecture seule / volumineux / sans provider / détaché. */
     private static boolean eligible(EditorView tab) {
         if (tab == null) return false;
-        if (tab.getParent() == null) return false;           // detached
-        if (tab.hasFocus()) return false;                    // owns its debounce
+        if (tab.getParent() == null) return false;           // détachée
+        if (tab.hasFocus()) return false;                    // possède son propre anti-rebond
         EditorSession session = tab.getSession();
         if (session == null) return false;
-        if (session.isReadOnly()) return false;              // view-only tab
+        if (session.isReadOnly()) return false;              // onglet consultation seule
         if (session.getDocument() != null
-                && session.getDocument().isLarge()) return false; // gated like sem analysis
+                && session.getDocument().isLarge()) return false; // filtré comme l'analyse sémantique
         return tab.getDiagnosticsProviderSpi() != null;
     }
 
@@ -157,8 +160,9 @@ public final class OpenTabDiagnosticsSweep {
             try {
                 diags = provider.computeDiagnostics(text);
             } catch (RuntimeException e) {
-                // A throwing provider must not kill the sweep (same policy
-                // as EditorPainterHost): count as skipped, keep walking.
+                // Un provider qui lève ne doit pas tuer le balayage (même
+                // politique qu'EditorPainterHost) : compté comme ignoré, le
+                // parcours continue.
                 main.post(() -> {
                     skipped++;
                     scheduleNext();
@@ -169,17 +173,19 @@ public final class OpenTabDiagnosticsSweep {
                     new ArrayList<>(diags != null ? diags.size() : 0);
             if (diags != null) {
                 for (Diagnostic d : diags) {
-                    // Legacy core Diagnostic has no code field — the sweep
-                    // feeds the same 4-arg conversion the focused-tab path
-                    // (EditorView.setLanguage's diagnosticsTask) uses.
+                    // Le Diagnostic historique du cœur n'a pas de champ code —
+                    // le balayage alimente la même conversion à 4 arguments
+                    // que le chemin de l'onglet actif (diagnosticsTask de
+                    // EditorView.setLanguage).
                     legacy.add(new DiagnosticShift.Diagnostic(
                             d.start, d.end, d.severity, d.message));
                 }
             }
             main.post(() -> {
                 if (cancelled) return;
-                // Stale guard: only apply if the tab still shows the same
-                // session (the host may have switched files mid-flight).
+                // Garde anti-périmé : n'applique que si l'onglet montre
+                // toujours la même session (l'hôte a pu changer de fichier
+                // en plein vol).
                 if (tab.getSession() == session && tab.getParent() != null) {
                     session.setDiagnostics(legacy);
                     tab.notifyDiagnosticsChanged();

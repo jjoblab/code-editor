@@ -8,14 +8,13 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Performance benchmarks for {@link LineRenderCache}.
+ * Benchmarks de performance pour {@link LineRenderCache}.
  *
- * <p>Not a full JMH suite — these are lightweight timing assertions that
- * verify the cache delivers O(1) hits and that LRU eviction stays cheap
- * even at the 512-entry cap. Run with {@code ./gradlew test --tests
- * LineRenderCacheBenchmark} — the tests print timing to stdout.
- *
- * <p>v1.0.8 — stability focus.
+ * <p>Pas une suite JMH complète — il s'agit d'assertions de temporisation
+ * légères qui vérifient que le cache offre des accès en O(1) et que
+ * l'éviction LRU reste peu coûteuse même à la limite de 512 entrées.
+ * Lancer avec {@code ./gradlew test --tests
+ * LineRenderCacheBenchmark} — les tests affichent les temps sur stdout.
  */
 class LineRenderCacheBenchmark {
 
@@ -26,16 +25,16 @@ class LineRenderCacheBenchmark {
     @Test
     void benchmark_cacheHit_isO1() {
         LineRenderCache cache = new LineRenderCache();
-        // Fill the cache with 100 entries.
+        // Remplit le cache avec 100 entrées.
         for (int i = 0; i < 100; i++) {
             cache.put(new LineRenderCache.LineCacheEntry(
                 i, 1, 0, 0, null, null, null, null, "L" + i));
         }
-        // Warm up.
+        // Échauffement.
         for (int i = 0; i < WARMUP_ITERATIONS; i++) {
             cache.get(i % 100, 1, 0, 0);
         }
-        // Benchmark.
+        // Mesure.
         long start = System.nanoTime();
         for (int i = 0; i < BENCHMARK_ITERATIONS; i++) {
             cache.get(i % 100, 1, 0, 0);
@@ -44,8 +43,9 @@ class LineRenderCacheBenchmark {
         double avgNs = elapsedNs / (double) BENCHMARK_ITERATIONS;
         System.out.printf("[benchmark] cache hit: %.1f ns/op (%d ops in %.2f ms)%n",
             avgNs, BENCHMARK_ITERATIONS, elapsedNs / 1e6);
-        // A cache hit should be sub-microsecond. Allow generous headroom for
-        // CI / VM jitter — the benchmark is informational, not a hard SLA.
+        // Un accès en cache doit être inférieur à la microseconde. Marge
+        // généreuse pour le jitter CI / VM — ce benchmark est informatif,
+        // pas un SLA strict.
         assertTrue(avgNs < 50_000,
             "cache hit too slow: " + avgNs + " ns/op (expected < 50000 ns/op)");
     }
@@ -53,11 +53,11 @@ class LineRenderCacheBenchmark {
     @Test
     void benchmark_cacheMiss_isCheap() {
         LineRenderCache cache = new LineRenderCache();
-        // Warm up.
+        // Échauffement.
         for (int i = 0; i < WARMUP_ITERATIONS; i++) {
-            cache.get(i, 1, 0, 0); // always a miss (different line each time)
+            cache.get(i, 1, 0, 0); // toujours un échec (ligne différente à chaque fois)
         }
-        // Benchmark.
+        // Mesure.
         long start = System.nanoTime();
         for (int i = 0; i < BENCHMARK_ITERATIONS; i++) {
             cache.get(i + WARMUP_ITERATIONS, 1, 0, 0);
@@ -66,7 +66,7 @@ class LineRenderCacheBenchmark {
         double avgNs = elapsedNs / (double) BENCHMARK_ITERATIONS;
         System.out.printf("[benchmark] cache miss: %.1f ns/op (%d ops in %.2f ms)%n",
             avgNs, BENCHMARK_ITERATIONS, elapsedNs / 1e6);
-        // A miss (HashMap lookup + return null) should be sub-microsecond.
+        // Un échec (recherche HashMap + retour null) doit être inférieur à la microseconde.
         assertTrue(avgNs < 50_000,
             "cache miss too slow: " + avgNs + " ns/op (expected < 50000 ns/op)");
     }
@@ -74,7 +74,7 @@ class LineRenderCacheBenchmark {
     @Test
     void benchmark_lruEviction_at512Entries() {
         LineRenderCache cache = new LineRenderCache();
-        // Insert 1000 entries — should trigger LRU eviction down to 512.
+        // Insère 1000 entrées — doit déclencher l'éviction LRU jusqu'à 512.
         long start = System.nanoTime();
         for (int i = 0; i < 1000; i++) {
             cache.put(new LineRenderCache.LineCacheEntry(
@@ -84,8 +84,8 @@ class LineRenderCacheBenchmark {
         System.out.printf("[benchmark] insert 1000 (evict to 512): %.2f ms, final size=%d%n",
             elapsedNs / 1e6, cache.size());
         assertEquals(CACHE_CAP, cache.size());
-        // Insertion of 1000 entries with eviction should complete in under 500ms
-        // (generous headroom for CI).
+        // L'insertion de 1000 entrées avec éviction doit se terminer en moins de 500 ms
+        // (marge généreuse pour la CI).
         assertTrue(elapsedNs < 500_000_000,
             "LRU eviction too slow: " + (elapsedNs / 1e6) + " ms (expected < 500 ms)");
     }
@@ -93,17 +93,17 @@ class LineRenderCacheBenchmark {
     @Test
     void benchmark_shiftKeys_largeCache() {
         LineRenderCache cache = new LineRenderCache();
-        // Fill with 500 entries.
+        // Remplit avec 500 entrées.
         for (int i = 0; i < 500; i++) {
             cache.put(new LineRenderCache.LineCacheEntry(
                 i, 1, 0, 0, null, null, null, null, "L" + i));
         }
-        // Warm up.
+        // Échauffement.
         for (int i = 0; i < 100; i++) {
             cache.shiftKeys(250, 1);
             cache.shiftKeys(250, -1);
         }
-        // Benchmark.
+        // Mesure.
         long start = System.nanoTime();
         for (int i = 0; i < 1000; i++) {
             cache.shiftKeys(250, 1);
@@ -112,14 +112,14 @@ class LineRenderCacheBenchmark {
         long elapsedNs = System.nanoTime() - start;
         double avgNs = elapsedNs / 2000.0;
         System.out.printf("[benchmark] shiftKeys (500 entries): %.1f ns/op%n", avgNs);
-        // shiftKeys rebuilds the HashMap — should be under 1ms per call for 500 entries.
+        // shiftKeys reconstruit la HashMap — doit rester sous 1 ms par appel pour 500 entrées.
         assertTrue(avgNs < 1_000_000,
             "shiftKeys too slow: " + avgNs + " ns/op (expected < 1000000 ns/op)");
     }
 
     @Test
     void benchmark_buildColumnMaps_largeLine() {
-        // Simulate the column-map build for a 1000-char line with 50 inlays.
+        // Simule la construction des cartes de colonnes pour une ligne de 1000 caractères avec 50 inlays.
         int lineLength = 1000;
         List<LineRenderCache.InlayPiece> inlays = new ArrayList<>();
         for (int i = 0; i < 50; i++) {
@@ -137,27 +137,27 @@ class LineRenderCacheBenchmark {
         long elapsedNs = System.nanoTime() - start;
         double avgNs = elapsedNs / 10_000.0;
         System.out.printf("[benchmark] buildColumnMaps (1000 chars, 50 inlays): %.1f ns/op%n", avgNs);
-        // Building column maps is O(lineLength + inlays) — should be under 100µs.
+        // La construction des cartes de colonnes est en O(longueurLigne + inlays) — doit rester sous 100 µs.
         assertTrue(avgNs < 100_000,
             "buildColumnMaps too slow: " + avgNs + " ns/op (expected < 100000 ns/op)");
     }
 
     @Test
     void benchmark_tripleStampValidation_vsSingleStamp() {
-        // Verify that triple-stamp validation (rev + inlayRev + semRev) is
-        // not significantly slower than single-stamp (rev only).
+        // Vérifie que la validation triple-stamp (rev + inlayRev + semRev) n'est
+        // pas significativement plus lente que la validation single-stamp (rev seule).
         LineRenderCache cache = new LineRenderCache();
         for (int i = 0; i < 100; i++) {
             cache.put(new LineRenderCache.LineCacheEntry(
                 i, 1, 2, 3, null, null, null, null, "L" + i));
         }
-        // Triple-stamp benchmark.
+        // Mesure triple-stamp.
         long start = System.nanoTime();
         for (int i = 0; i < BENCHMARK_ITERATIONS; i++) {
             cache.get(i % 100, 1, 2, 3);
         }
         long tripleNs = System.nanoTime() - start;
-        // Single-stamp benchmark.
+        // Mesure single-stamp.
         start = System.nanoTime();
         for (int i = 0; i < BENCHMARK_ITERATIONS; i++) {
             cache.get(i % 100, 1);
@@ -167,8 +167,8 @@ class LineRenderCacheBenchmark {
             tripleNs / (double) BENCHMARK_ITERATIONS,
             singleNs / (double) BENCHMARK_ITERATIONS,
             tripleNs / (double) singleNs);
-        // Triple-stamp should be at most 5x slower than single-stamp (3 int
-        // compares vs 1 — the HashMap lookup dominates, but CI jitter can amplify).
+        // Le triple-stamp doit être au plus 5x plus lent que le single-stamp (3 comparaisons
+        // d'entiers contre 1 — la recherche HashMap domine, mais le jitter CI peut amplifier).
         double ratio = tripleNs / (double) singleNs;
         assertTrue(ratio < 5.0,
             "triple-stamp validation too slow vs single-stamp: " + ratio + "x (expected < 5x)");

@@ -11,17 +11,15 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * v3.36.0 — Tests des diagnostics groupés par ligne de début (roadmap
- * item 5, portage {@code diagnosticsByStartLine()} de CodeAssist v3.20).
+ * Tests des diagnostics groupés par ligne de début
+ * ({@code diagnosticsByStartLine()}).
  *
  * <p>Vérifie : le groupement par ligne de début (offset → ligne), le tri
  * sévérité-décroissante puis offset-croissant (le premier élément est la
  * diagnostique « primaire » affichée par la chip), la mémoïsation par
  * référence de liste (même instance tant que la liste source ne change
- * pas, rebuild après setDiagnostics — même pattern que les buckets
- * inlays/sem v3.34.0), et le comportement sur lignes sans diagnostics.</p>
- *
- * @since v3.36.0
+ * pas, rebuild après setDiagnostics), et le comportement sur lignes sans
+ * diagnostics.</p>
  */
 public class DiagnosticsByLineTest {
 
@@ -55,17 +53,17 @@ public class DiagnosticsByLineTest {
         session.setDiagnostics(diags(e1, w1, info0));
 
         EditorDocument doc = session.getDocument();
-        assertEquals(0, session.getDiagnosticsForLine(1).size()); // untouched line
-        // line 3 carries both the error and the warning
+        assertEquals(0, session.getDiagnosticsForLine(1).size()); // ligne non concernée
+        // la ligne 3 porte à la fois l'erreur et le warning
         List<DiagnosticShift.Diagnostic> line3 = session.getDiagnosticsForLine(3);
         assertEquals(2, line3.size());
         assertSame(e1, line3.get(0), "most severe first (error before warning)");
         assertSame(w1, line3.get(1));
-        // info lives on line 0 alone
+        // l'info vit seule sur la ligne 0
         List<DiagnosticShift.Diagnostic> line0 = session.getDiagnosticsForLine(0);
         assertEquals(1, line0.size());
         assertSame(info0, line0.get(0));
-        // untouched lines → empty (never null)
+        // lignes non concernées → vide (jamais null)
         assertNotNull(session.getDiagnosticsForLine(4));
         assertTrue(session.getDiagnosticsForLine(4).isEmpty());
         assertTrue(session.getDiagnosticsForLine(99).isEmpty());
@@ -84,17 +82,17 @@ public class DiagnosticsByLineTest {
                 run, run + 3, 2, "w-line2");
         DiagnosticShift.Diagnostic info = new DiagnosticShift.Diagnostic(
                 g + 1, g + 2, 1, "info");
-        // Register in a scrambled order — the bucket must re-sort.
+        // Enregistrement dans un ordre brouillé — le bucket doit re-trier.
         session.setDiagnostics(diags(info, warnOnLine2, errLate, warnEarly));
 
-        // Line 3 carries greet (error@name is the most severe but ALSO on 3):
-        // [errLate(3), warnEarly(2, offset g), info(1)]
+        // La ligne 3 porte greet (error@name est la plus sévère mais AUSSI
+        // sur 3) : [errLate(3), warnEarly(2, offset g), info(1)]
         List<DiagnosticShift.Diagnostic> line3 = session.getDiagnosticsForLine(3);
         assertEquals(3, line3.size());
         assertSame(errLate, line3.get(0), "error first");
         assertSame(warnEarly, line3.get(1), "warning after error");
         assertSame(info, line3.get(2), "info last");
-        // "run" sits on line 2 — its warning buckets there.
+        // "run" est sur la ligne 2 — son warning atterrit dans ce bucket.
         List<DiagnosticShift.Diagnostic> line2 = session.getDiagnosticsForLine(2);
         assertEquals(1, line2.size());
         assertSame(warnOnLine2, line2.get(0));
@@ -112,7 +110,8 @@ public class DiagnosticsByLineTest {
         List<DiagnosticShift.Diagnostic> b2 = session.getDiagnosticsForLine(3);
         assertSame(b1, b2, "same source list → memoized bucket instance");
 
-        // Pushing a NEW list (what setDiagnostics/edits do) rebuilds.
+        // Pousser une NOUVELLE liste (ce que font setDiagnostics/edits)
+        // force le rebuild.
         DiagnosticShift.Diagnostic w = new DiagnosticShift.Diagnostic(
                 off("name"), off("name") + 4, 2, "warn");
         session.setDiagnostics(diags(e, w));
@@ -120,7 +119,7 @@ public class DiagnosticsByLineTest {
         assertNotSame(b1, b3, "new source list → rebuilt bucket");
         assertEquals(2, b3.size());
 
-        // Empty diagnostics → empty buckets, no crash.
+        // Diagnostics vides → buckets vides, pas de crash.
         session.setDiagnostics(new ArrayList<>());
         assertTrue(session.getDiagnosticsForLine(3).isEmpty());
         List<DiagnosticShift.Diagnostic> b4 = session.getDiagnosticsForLine(3);
@@ -135,12 +134,12 @@ public class DiagnosticsByLineTest {
                 new DiagnosticShift.Diagnostic(-50, -10, 3, "negative"),
                 new DiagnosticShift.Diagnostic(99999, 100000, 2, "beyond eof")));
         EditorDocument doc = session.getDocument();
-        // Clamped to doc bounds — negative maps to line 0, beyond-eof to the
-        // LAST line (offset == length resolves to the final line's start);
-        // never throws.
+        // Ramenés aux bornes du doc — le négatif mappe sur la ligne 0,
+        // l'au-delà de la fin sur la DERNIÈRE ligne (offset == length se
+        // résout sur le début de la dernière ligne) ; jamais d'exception.
         assertEquals(1, session.getDiagnosticsForLine(0).size());
         assertEquals(1, session.getDiagnosticsForLine(doc.lineCount() - 1).size());
-        // No line in between got anything.
+        // Aucune ligne intermédiaire n'a rien reçu.
         for (int line = 1; line < doc.lineCount() - 1; line++) {
             assertEquals(0, session.getDiagnosticsForLine(line).size());
         }

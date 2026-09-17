@@ -5,19 +5,19 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Tests for the incremental per-line syntax highlighter.
+ * Tests du surligneur de syntaxe incrémental par ligne.
  */
 class SyntaxHighlighterTest {
 
     private final SyntaxHighlighter hl = new SyntaxHighlighter();
 
-    // ── Java keywords ─────────────────────────────────────────────
+    // ── Mots-clés Java ─────────────────────────────────────────────
 
     @Test
     void javaKeywords_recognized() {
         StyledLine line = hl.styleLine("public class Foo", LexState.NORMAL, "java");
         assertFalse(line.spans.isEmpty());
-        // "public" and "class" should be KEYWORD
+        // « public » et « class » doivent être KEYWORD
         boolean hasPublic = line.spans.stream().anyMatch(s ->
             s.type == TokenType.KEYWORD);
         assertTrue(hasPublic, "Expected KEYWORD token for 'public' or 'class'");
@@ -33,10 +33,10 @@ class SyntaxHighlighterTest {
     @Test
     void javaTypeName_recognized() {
         StyledLine line = hl.styleLine("String name", LexState.NORMAL, "java");
-        // "int" should be TYPE
+        // « int » devrait être TYPE
     }
 
-    // ── Strings ───────────────────────────────────────────────────
+    // ── Chaînes ───────────────────────────────────────────────────
 
     @Test
     void doubleQuotedString() {
@@ -61,7 +61,7 @@ class SyntaxHighlighterTest {
         assertEquals("\"hello\\nworld\"", stringSpan);
     }
 
-    // ── Comments ──────────────────────────────────────────────────
+    // ── Commentaires ──────────────────────────────────────────────────
 
     @Test
     void lineComment() {
@@ -74,8 +74,8 @@ class SyntaxHighlighterTest {
     void inlineComment() {
         StyledLine line = hl.styleLine("int x = 5; // comment", LexState.NORMAL, "java");
         assertTrue(line.spans.stream().anyMatch(s -> s.type == TokenType.COMMENT));
-        // "int" should be TYPE
-        // "int" is TYPE, "x" could be VARIABLE, "// comment" is COMMENT
+        // « int » devrait être TYPE
+        // « int » est TYPE, « x » pourrait être VARIABLE, « // comment » est COMMENT
     }
 
     @Test
@@ -109,7 +109,7 @@ class SyntaxHighlighterTest {
         assertEquals(LexState.NORMAL, line.exitState);
     }
 
-    // ── Numbers ───────────────────────────────────────────────────
+    // ── Nombres ───────────────────────────────────────────────────
 
     @Test
     void integerLiteral() {
@@ -144,12 +144,12 @@ class SyntaxHighlighterTest {
         assertTrue(line.spans.stream().anyMatch(s -> s.type == TokenType.ANNOTATION));
     }
 
-    // ── Functions ─────────────────────────────────────────────────
+    // ── Fonctions ─────────────────────────────────────────────────
 
     @Test
     void functionCall() {
         StyledLine line = hl.styleLine("foo(bar)", LexState.NORMAL, "java");
-        // "foo" should be FUNC (followed by '(')
+        // « foo » devrait être FUNC (suivi de '(')
         assertTrue(line.spans.stream().anyMatch(s -> s.type == TokenType.FUNC));
     }
 
@@ -180,12 +180,12 @@ class SyntaxHighlighterTest {
     @Test
     void xmlTagAndAttribute() {
         StyledLine line = hl.styleLine("<TextView android:text=\"hello\" />", LexState.NORMAL, "xml");
-        // "int" should be TYPE
+        // « int » devrait être TYPE
         assertTrue(line.spans.stream().anyMatch(s -> s.type == TokenType.PROPERTY));
         assertTrue(line.spans.stream().anyMatch(s -> s.type == TokenType.STRING));
     }
 
-    // ── Punctuation ───────────────────────────────────────────────
+    // ── Ponctuation ───────────────────────────────────────────────
 
     @Test
     void punctuation() {
@@ -194,7 +194,7 @@ class SyntaxHighlighterTest {
         assertTrue(punctCount >= 3, "Expected at least 3 PUNCT tokens, got " + punctCount);
     }
 
-    // ── Exit state continuity ─────────────────────────────────────
+    // ── Continuité de l'état de sortie ─────────────────────────────
 
     @Test
     void initialState_normal() {
@@ -214,25 +214,25 @@ class SyntaxHighlighterTest {
         assertEquals(LexState.NORMAL, l3.exitState);
     }
 
-    // ── v2.44 — HTML fallback + TextMate enable/disable toggle ────
+    // ── Repli HTML + porte d'activation TextMate ────
 
     /**
-     * v2.44 — When TextMate is disabled (no tokenizer registered, OR
-     * globally disabled), HTML files fall through to the built-in XML
-     * tokenizer, which recognizes tags, attributes, strings, and comments.
-     * This guarantees HTML files get reasonable coloring even when
-     * TextMate is unavailable (e.g. large files).
+     * Quand TextMate est désactivé (aucun tokenizer enregistré, OU globalement
+     * désactivé), les fichiers HTML retombent sur le tokenizer XML intégré,
+     * qui reconnaît balises, attributs, chaînes et commentaires. Cela garantit
+     * une coloration raisonnable des fichiers HTML même quand TextMate est
+     * indisponible (ex. gros fichiers).
      */
     @Test
     void htmlFallsBackToXmlTokenizer_whenNoTextMateRegistered() {
-        // Default state: no TextMate tokenizer registered.
+        // État par défaut : aucun tokenizer TextMate enregistré.
         SyntaxHighlighter.setTextMateTokenizer(null);
         try {
             StyledLine line = hl.styleLine(
                 "<div class=\"container\">",
                 LexState.NORMAL, "html");
-            // Should produce at least one TYPE (the tag name), one PROPERTY
-            // (the attribute), and one STRING (the attribute value).
+            // Doit produire au moins un TYPE (le nom de balise), un PROPERTY
+            // (l'attribut) et un STRING (la valeur d'attribut).
             assertTrue(!line.spans.isEmpty(),
                 "HTML fallback should produce some spans");
             assertTrue(
@@ -242,22 +242,22 @@ class SyntaxHighlighterTest {
                 line.spans.stream().anyMatch(s -> s.type == TokenType.STRING),
                 "HTML attribute value should be STRING");
         } finally {
-            // Reset global state for other tests.
+            // Réinitialise l'état global pour les autres tests.
             SyntaxHighlighter.setTextMateTokenizer(null);
         }
     }
 
     /**
-     * v3.37.0 (B13) — The TextMate circuit breaker is now a per-call
-     * gate ({@code styleLine(..., allowTextMate)}): when {@code false},
-     * even if a TextMate tokenizer IS registered, styleLine falls
-     * through to the built-in tokenizer. Replaces the removed global
-     * {@code setTextMateEnabled(false)} static toggle.
+     * Le disjoncteur TextMate est désormais une porte par appel
+     * ({@code styleLine(..., allowTextMate)}) : quand {@code false}, même
+     * si un tokenizer TextMate EST enregistré, styleLine retombe sur le
+     * tokenizer intégré. Remplace l'ancien interrupteur statique global
+     * {@code setTextMateEnabled(false)} désormais supprimé.
      */
     @Test
     void textMateGate_disablesDelegation() {
-        // Register a fake TextMate tokenizer that would delegate to itself
-        // (causing infinite recursion if not bypassed).
+        // Enregistre un faux tokenizer TextMate qui se délèguerait à lui-même
+        // (provoquant une récursion infinie s'il n'était pas contourné).
         TextMateTokenizer fake = new TextMateTokenizer() {
             @Override
             public boolean isAvailable(String language) {
@@ -271,8 +271,8 @@ class SyntaxHighlighterTest {
         };
         SyntaxHighlighter.setTextMateTokenizer(fake);
         try {
-            // Local gate closed — should NOT call fake.tokenize, should use
-            // the built-in Java tokenizer and produce a KEYWORD for "public".
+            // Porte locale fermée — ne doit PAS appeler fake.tokenize, doit
+            // utiliser le tokenizer Java intégré et produire un KEYWORD pour « public ».
             StyledLine line = hl.styleLine("public class Foo",
                 LexState.NORMAL, "java", false);
             assertTrue(
@@ -284,11 +284,11 @@ class SyntaxHighlighterTest {
     }
 
     /**
-     * v3.37.0 (B13) — When {@code allowTextMate=true} AND a TextMate
-     * tokenizer IS registered AND it reports isAvailable(language)=true,
-     * styleLine delegates to it. Verified via a stub that returns a
-     * sentinel span. The legacy 3-arg overload must behave the same
-     * (it delegates with the gate open).
+     * Quand {@code allowTextMate=true} ET qu'un tokenizer TextMate est
+     * enregistré ET qu'il rapporte isAvailable(language)=true, styleLine
+     * lui délègue. Vérifié via un stub qui renvoie une span sentinelle.
+     * La surcharge legacy à 3 arguments doit se comporter de la même façon
+     * (elle délègue porte ouverte).
      */
     @Test
     void textMateGate_delegatesWhenEnabled() {
@@ -299,7 +299,7 @@ class SyntaxHighlighterTest {
             }
             @Override
             public StyledLine tokenize(String line, int entryState, String language) {
-                // Return a sentinel span so we can verify delegation happened.
+                // Renvoie une span sentinelle pour vérifier que la délégation a eu lieu.
                 return new StyledLine(
                     java.util.Collections.singletonList(
                         new LineSpan(0, line.length(), TokenType.ANNOTATION)),
@@ -308,13 +308,13 @@ class SyntaxHighlighterTest {
         };
         SyntaxHighlighter.setTextMateTokenizer(stub);
         try {
-            // Explicit open gate.
+            // Porte explicitement ouverte.
             StyledLine gated = hl.styleLine("public class Foo",
                 LexState.NORMAL, "java", true);
             assertTrue(
                 gated.spans.stream().allMatch(s -> s.type == TokenType.ANNOTATION),
                 "delegation should have happened (explicit gate)");
-            // Legacy 3-arg overload = gate open (back-compat contract).
+            // Surcharge legacy à 3 arguments = porte ouverte (contrat de rétrocompatibilité).
             StyledLine legacy = hl.styleLine("public class Foo",
                 LexState.NORMAL, "java");
             assertTrue(
@@ -326,12 +326,13 @@ class SyntaxHighlighterTest {
     }
 
     // ═══════════════════════════════════════════════════════════════════
-    // v2.46 — PARSER MAISON: tests for the new built-in language tokenizers.
+    // PARSER MAISON : tests des tokenizers de langages intégrés.
     //
-    // These tests cover the new language tokenizers added in v2.46 so the
-    // parser maison is exercised when :tm4e is not on the classpath. Each
-    // test asserts the bare minimum: the tokenizer recognizes at least one
-    // KEYWORD / STRING / COMMENT / NUMBER for a sample line in that language.
+    // Ces tests couvrent les tokenizers de langages intégrés afin que le
+    // parser maison soit exercé quand :tm4e n'est pas sur le classpath.
+    // Chaque test vérifie le minimum vital : le tokenizer reconnaît au
+    // moins un KEYWORD / STRING / COMMENT / NUMBER sur une ligne d'exemple
+    // du langage.
     // ═══════════════════════════════════════════════════════════════════
 
     // ─── C ─────────────────────────────────────────────────────────────
@@ -346,9 +347,9 @@ class SyntaxHighlighterTest {
     @Test
     void cPreprocessorDirective_recognized() {
         StyledLine line = hl.styleLine("#include <stdio.h>", LexState.NORMAL, "c");
-        // The default Java path treats '#' as a color literal start, but
-        // "include" after '#' should still produce some span. We just check
-        // that the tokenizer doesn't crash and produces something.
+        // Le chemin Java par défaut traite '#' comme début de littéral couleur,
+        // mais « include » après '#' devrait quand même produire une span. On
+        // vérifie juste que le tokenizer ne plante pas et produit quelque chose.
         assertTrue(!line.spans.isEmpty(),
             "C preprocessor line should produce spans");
     }
@@ -671,11 +672,11 @@ class SyntaxHighlighterTest {
             "Smali Ljava/lang/String; should be TYPE");
     }
 
-    // ── v2.55 — JS/TS template literals ────────────────────────────
+    // ── Template literals JS/TS ────────────────────────────
 
     @Test
     void jsTemplateLiteral_basicString() {
-        // `Hello world` → 1 STRING span covering the whole literal.
+        // `Hello world` → 1 span STRING couvrant tout le littéral.
         StyledLine line = hl.styleLine("`Hello world`", LexState.NORMAL, "javascript");
         assertTrue(line.spans.stream().anyMatch(s -> s.type == TokenType.STRING),
             "JS template literal should produce at least one STRING span");
@@ -683,7 +684,7 @@ class SyntaxHighlighterTest {
 
     @Test
     void jsTemplateLiteral_withInterpolation() {
-        // `Hello ${name}` → STRING segment(s) + VARIABLE for ${name}.
+        // `Hello ${name}` → segment(s) STRING + VARIABLE pour ${name}.
         StyledLine line = hl.styleLine("`Hello ${name}`", LexState.NORMAL, "javascript");
         assertTrue(line.spans.stream().anyMatch(s -> s.type == TokenType.STRING),
             "JS template literal should produce a STRING segment for the literal text");
@@ -693,7 +694,7 @@ class SyntaxHighlighterTest {
 
     @Test
     void jsTemplateLiteral_multipleInterpolations() {
-        // `${a}${b}` → 2 distinct VARIABLE spans + 0 STRING (just backticks at edges).
+        // `${a}${b}` → 2 spans VARIABLE distinctes + 0 STRING (juste des backticks aux bords).
         StyledLine line = hl.styleLine("`x${a}y${b}`", LexState.NORMAL, "typescript");
         long varCount = line.spans.stream().filter(s -> s.type == TokenType.VARIABLE).count();
         assertEquals(2, varCount, "Expected 2 VARIABLE spans for ${a} and ${b}");
@@ -701,7 +702,7 @@ class SyntaxHighlighterTest {
 
     @Test
     void jsTemplateLiteral_withEscape() {
-        // `\n` inside template literal should be ESCAPE.
+        // `\n` dans un template literal doit être ESCAPE.
         StyledLine line = hl.styleLine("`line1\\nline2`", LexState.NORMAL, "javascript");
         assertTrue(line.spans.stream().anyMatch(s -> s.type == TokenType.ESCAPE),
             "JS template literal escape \\n should produce an ESCAPE span");
@@ -709,28 +710,28 @@ class SyntaxHighlighterTest {
 
     @Test
     void jsTemplateLiteral_nestedBracesInInterpolation() {
-        // `${ {a:1}.a }` — nested object literal inside interpolation.
-        // The parser should find the matching } at the right place.
+        // `${ {a:1}.a }` — littéral objet imbriqué dans l'interpolation.
+        // Le parseur doit trouver le } correspondant au bon endroit.
         StyledLine line = hl.styleLine("`${ {a:1}.a }`", LexState.NORMAL, "javascript");
-        // At least one VARIABLE span should cover the whole interpolation.
+        // Au moins une span VARIABLE doit couvrir toute l'interpolation.
         assertTrue(line.spans.stream().anyMatch(s -> s.type == TokenType.VARIABLE),
             "JS template literal with nested braces should still produce a VARIABLE span");
     }
 
     @Test
     void jsTemplateLiteral_notTriggeredForJava() {
-        // Backticks in Java should NOT be treated as template literals
-        // (Java doesn't have them). They fall through to PUNCT.
+        // Les backticks en Java ne doivent PAS être traités comme des template
+        // literals (Java ne les a pas). Ils retombent en PUNCT.
         StyledLine line = hl.styleLine("int x = 0; // `not a template`",
             LexState.NORMAL, "java");
-        // The comment should cover the backtick portion.
+        // Le commentaire doit couvrir la portion avec backtick.
         assertTrue(line.spans.stream().anyMatch(s -> s.type == TokenType.COMMENT),
             "Java line with backtick in comment should be COMMENT, not STRING");
     }
 
     @Test
     void jsTemplateLiteral_unterminatedGoesToStringEof() {
-        // `unterminated on one line → STRING until end of line.
+        // `unterminated` non fermé sur une ligne → STRING jusqu'à la fin de ligne.
         StyledLine line = hl.styleLine("`unterminated string", LexState.NORMAL, "javascript");
         assertTrue(line.spans.stream().anyMatch(s -> s.type == TokenType.STRING),
             "Unterminated JS template literal should produce a STRING span to EOF");

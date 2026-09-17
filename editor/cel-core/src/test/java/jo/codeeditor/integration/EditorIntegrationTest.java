@@ -9,7 +9,8 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Integration tests: type a full method, undo all, redo all, verify text matches.
+ * Tests d'intégration : saisir une méthode complète, tout annuler, tout
+ * rétablir, vérifier que le texte correspond.
  */
 class EditorIntegrationTest {
 
@@ -18,7 +19,7 @@ class EditorIntegrationTest {
         EditorSession s = new EditorSession(EditorDocument.of(""));
         s.setLanguage("java");
 
-        // Type a simple method
+        // Saisir une méthode simple
         String[] keystrokes = {
             "p", "u", "b", "l", "i", "c", " ", "v", "o", "i", "d", " ",
             "m", "a", "i", "n", "(", ")", " ", "{", "\n",
@@ -40,15 +41,15 @@ class EditorIntegrationTest {
         assertTrue(typed.contains("public void main()"));
         assertTrue(typed.contains("System.out.println"));
 
-        // Undo everything
+        // Tout annuler
         int undoCount = 0;
         while (s.undo()) {
             undoCount++;
-            if (undoCount > 200) break; // safety
+            if (undoCount > 200) break; // garde-fou
         }
         assertTrue(undoCount > 0, "Should have undone at least one step");
 
-        // Redo everything
+        // Tout rétablir
         int redoCount = 0;
         while (s.redo()) {
             redoCount++;
@@ -64,7 +65,7 @@ class EditorIntegrationTest {
         EditorSession s = new EditorSession(EditorDocument.of(initial));
         s.setLanguage("java");
 
-        // Comment lines 2-4
+        // Commenter les lignes 2 à 4
         s.setSelection(Selection.range(
             s.getDocument().lineStart(1),
             s.getDocument().lineEnd(3)
@@ -75,7 +76,7 @@ class EditorIntegrationTest {
         assertTrue(commented.contains("// line3"));
         assertTrue(commented.contains("// line4"));
 
-        // Uncomment
+        // Décommenter
         s.setSelection(Selection.range(
             s.getDocument().lineStart(1),
             s.getDocument().lineEnd(3)
@@ -93,7 +94,8 @@ class EditorIntegrationTest {
         s.indent();
         assertEquals("    aaa\n    bbb\n    ccc", s.getText());
 
-        // Reset selection to cover all lines after indent (cursor moved to end)
+        // Réinitialiser la sélection pour couvrir toutes les lignes après
+        // l'indentation (le curseur a bougé en fin de document)
         s.setSelection(Selection.range(0, s.getDocument().length()));
         s.dedent();
         assertEquals(initial, s.getText());
@@ -116,12 +118,12 @@ class EditorIntegrationTest {
         String initial = "aaa\nbbb\nccc";
         EditorSession s = new EditorSession(EditorDocument.of(initial));
 
-        // Move first line down
+        // Déplacer la première ligne vers le bas
         s.setSelection(0);
         s.moveLineDown();
         assertEquals("bbb\naaa\nccc", s.getText());
 
-        // Move it back up (now on line 1)
+        // La remonter (elle est désormais en ligne 1)
         s.setSelection(4);
         s.moveLineUp();
         assertEquals(initial, s.getText());
@@ -145,7 +147,7 @@ class EditorIntegrationTest {
         s.setSelection(0);
         s.commitText("/* start\nmiddle\nend */\nint x = 5;");
 
-        // The last line should have KEYWORD and NUMBER tokens
+        // La dernière ligne doit contenir des tokens KEYWORD et NUMBER
         var lastLine = s.getStyledLines().get(3);
         assertTrue(lastLine.spans.stream().anyMatch(sp -> sp.type == jo.codeeditor.highlight.TokenType.KEYWORD));
         assertTrue(lastLine.spans.stream().anyMatch(sp -> sp.type == jo.codeeditor.highlight.TokenType.NUMBER));
@@ -153,7 +155,7 @@ class EditorIntegrationTest {
 
     @Test
     void largeFile_editPerformance() {
-        // Build a 1000-line file
+        // Construire un fichier de 1000 lignes
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < 1000; i++) {
             if (i > 0) sb.append('\n');
@@ -162,7 +164,7 @@ class EditorIntegrationTest {
         EditorSession s = new EditorSession(EditorDocument.of(sb.toString()));
         s.setLanguage("java");
 
-        // Edit in the middle
+        // Éditer au milieu
         int midLine = 500;
         s.setSelection(s.getDocument().lineStart(midLine));
         s.commitText("// edited ");
@@ -170,7 +172,7 @@ class EditorIntegrationTest {
         assertTrue(s.getText().contains("// edited line 500"));
         assertEquals(1000, s.getDocument().lineCount());
 
-        // Undo
+        // Annuler
         s.undo();
         assertTrue(s.getText().contains("line 500"));
         assertFalse(s.getText().contains("// edited line 500"));

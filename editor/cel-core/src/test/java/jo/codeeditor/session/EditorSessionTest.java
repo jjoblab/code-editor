@@ -8,11 +8,12 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Tests for the editor session (edit engine, undo/redo, smart edits).
+ * Tests de la session d'édition (moteur d'édition, undo/redo, éditions
+ * intelligentes).
  */
 class EditorSessionTest {
 
-    // ── Basic editing ─────────────────────────────────────────────
+    // ── Édition de base ─────────────────────────────────────────
 
     @Test
     void commitText_insertsAtCursor() {
@@ -43,7 +44,7 @@ class EditorSessionTest {
     @Test
     void backspace_pairAware() {
         EditorSession s = new SessionBuilder("()").build();
-        s.setSelection(1); // between ( and )
+        s.setSelection(1); // entre ( et )
         s.backspace();
         assertEquals("", s.getText());
     }
@@ -113,14 +114,14 @@ class EditorSessionTest {
         assertEquals(" world", s.getText());
     }
 
-    // ── Auto-close brackets ───────────────────────────────────────
+    // ── Auto-fermeture des paires ───────────────────────────────
 
     @Test
     void typeChar_autoCloseParen() {
         EditorSession s = new SessionBuilder("").build();
         s.typeChar('(');
         assertEquals("()", s.getText());
-        assertEquals(1, s.getSelection().start); // cursor between parens
+        assertEquals(1, s.getSelection().start); // curseur entre les parenthèses
     }
 
     @Test
@@ -142,8 +143,8 @@ class EditorSessionTest {
     @Test
     void typeChar_skipOverCloser() {
         EditorSession s = new SessionBuilder("()").build();
-        s.setSelection(1); // between ( and )
-        s.typeChar(')');   // should skip over, not insert
+        s.setSelection(1); // entre ( et )
+        s.typeChar(')');   // doit sauter par-dessus, pas insérer
         assertEquals("()", s.getText());
         assertEquals(2, s.getSelection().start);
     }
@@ -157,7 +158,7 @@ class EditorSessionTest {
         assertEquals(2, s.getSelection().start);
     }
 
-    // ── Indent / Dedent ───────────────────────────────────────────
+    // ── Indentation / Désindentation ────────────────────────────
 
     @Test
     void indent_currentLine() {
@@ -178,7 +179,7 @@ class EditorSessionTest {
     @Test
     void indent_multiLine() {
         EditorSession s = new SessionBuilder("aaa\nbbb\nccc").build();
-        s.setSelection(Selection.range(0, 11)); // select all
+        s.setSelection(Selection.range(0, 11)); // tout sélectionner
         s.indent();
         assertEquals("    aaa\n    bbb\n    ccc", s.getText());
     }
@@ -191,7 +192,7 @@ class EditorSessionTest {
         assertEquals("aaa\nbbb\nccc", s.getText());
     }
 
-    // ── Comment toggling ──────────────────────────────────────────
+    // ── Bascule de commentaires ─────────────────────────────────
 
     @Test
     void toggleLineComment_addsComment() {
@@ -225,12 +226,12 @@ class EditorSessionTest {
         assertEquals("aaa\nbbb\nccc", s.getText());
     }
 
-    // ── Line operations ───────────────────────────────────────────
+    // ── Opérations sur les lignes ───────────────────────────────
 
     @Test
     void duplicateLine() {
         EditorSession s = new SessionBuilder("hello\nworld").build();
-        s.setSelection(0); // on first line
+        s.setSelection(0); // sur la première ligne
         s.duplicateLine();
         assertEquals("hello\nhello\nworld", s.getText());
     }
@@ -238,7 +239,7 @@ class EditorSessionTest {
     @Test
     void deleteLine() {
         EditorSession s = new SessionBuilder("aaa\nbbb\nccc").build();
-        s.setSelection(0); // on first line
+        s.setSelection(0); // sur la première ligne
         s.deleteLines();
         assertEquals("bbb\nccc", s.getText());
     }
@@ -254,7 +255,7 @@ class EditorSessionTest {
     @Test
     void moveLineUp_swaps() {
         EditorSession s = new SessionBuilder("aaa\nbbb").build();
-        s.setSelection(4); // on second line
+        s.setSelection(4); // sur la deuxième ligne
         s.moveLineUp();
         assertEquals("bbb\naaa", s.getText());
     }
@@ -262,7 +263,7 @@ class EditorSessionTest {
     @Test
     void moveLineDown_noOpAtBottom() {
         EditorSession s = new SessionBuilder("aaa\nbbb").build();
-        s.setSelection(4); // on second line
+        s.setSelection(4); // sur la deuxième ligne
         s.moveLineDown();
         assertEquals("aaa\nbbb", s.getText());
     }
@@ -270,7 +271,7 @@ class EditorSessionTest {
     @Test
     void moveLineDown_swaps() {
         EditorSession s = new SessionBuilder("aaa\nbbb").build();
-        s.setSelection(0); // on first line
+        s.setSelection(0); // sur la première ligne
         s.moveLineDown();
         assertEquals("bbb\naaa", s.getText());
     }
@@ -328,7 +329,7 @@ class EditorSessionTest {
         s.commitText(" world");
         s.undo();
 
-        // New edit should clear redo stack
+        // Une nouvelle édition doit vider la pile de redo
         s.setSelection(5);
         s.commitText("!");
         assertFalse(s.redo());
@@ -351,7 +352,7 @@ class EditorSessionTest {
         assertEquals("", s.getText());
     }
 
-    // ── Language ──────────────────────────────────────────────────
+    // ── Langage ─────────────────────────────────────────────────
 
     @Test
     void setLanguage_updatesHighlighting() {
@@ -361,7 +362,7 @@ class EditorSessionTest {
         assertFalse(s.getStyledLines().isEmpty());
     }
 
-    // ── v3.37.0 (B13) — TextMate gate: per-call, no global static ────
+    // ── Gate TextMate : par-appel, sans statique globale ────────
 
     /** Stub tokenizer : sentinel ANNOTATION span sur toute la ligne. */
     private static jo.codeeditor.highlight.TextMateTokenizer sentinelTokenizer() {
@@ -384,11 +385,9 @@ class EditorSessionTest {
     }
 
     /**
-     * v3.37.0 (B13) — Petit document + tokenizer enregistré disponible
-     * → délégation ACTIVE (sémantique v2.44 d'origine, restaurée : le
-     * hack v2.55 « setTextMateEnabled(false) à chaque setLanguage » est
-     * retiré). En production tm4e étant absent, le tokenizer reste null
-     * et ce path ne s'active jamais — le test le prouve avec un stub.
+     * Petit document + tokenizer enregistré disponible → délégation ACTIVE.
+     * En production, tm4e étant absent, le tokenizer reste null et ce path
+     * ne s'active jamais — le test le prouve avec un stub.
      */
     @Test
     void setLanguage_smallDocument_delegatesToRegisteredTokenizer() throws Exception {
@@ -407,9 +406,9 @@ class EditorSessionTest {
     }
 
     /**
-     * v3.37.0 (B13) — Document au-delà de TEXTMATE_LINE_LIMIT → le gate
-     * local se ferme pour SA passe de restyle : le parser maison tokenise
-     * tout, le tokenizer enregistré n'est jamais consulté.
+     * Document au-delà de TEXTMATE_LINE_LIMIT → le gate local se ferme pour
+     * SA passe de restyle : le parser maison tokenise tout, le tokenizer
+     * enregistré n'est jamais consulté.
      */
     @Test
     void setLanguage_largeDocument_skipsRegisteredTokenizer() throws Exception {
@@ -433,11 +432,11 @@ class EditorSessionTest {
     }
 
     /**
-     * LE test du design smell B13 : avant v3.37, le drapeau global
-     * statique coupé par la session du gros document désactivait la
-     * délégation TextMate pour la session du petit document. Le gate
-     * étant désormais local à chaque passe de restyle, les deux
-     * sessions coexistent sans interférer.
+     * Test clé d'isolation : le drapeau global statique coupé par la
+     * session du gros document ne doit PAS désactiver la délégation
+     * TextMate pour la session du petit document. Le gate étant local
+     * à chaque passe de restyle, les deux sessions coexistent sans
+     * interférer.
      */
     @Test
     void setLanguage_largeSession_doesNotAffectSmallSession() throws Exception {
@@ -465,36 +464,36 @@ class EditorSessionTest {
         }
     }
 
-    // ── v2.45 — Async restyle path ───────────────────────────────────────
+    // ── Restyle asynchrone ─────────────────────────────────────
 
     /**
-     * v2.45 — setLanguage on a small doc kicks off an async restyle.
-     * isAsyncRestylePending() returns true immediately after the call.
+     * setLanguage sur un petit doc déclenche un restyle asynchrone.
+     * isAsyncRestylePending() renvoie true juste après l'appel.
      */
     @Test
     void setLanguage_smallDocument_kicksOffAsyncRestyle() throws Exception {
         EditorSession s = new SessionBuilder("public class Foo {}").build();
         s.setLanguage("java");
-        // Right after setLanguage, an async restyle should be in flight
-        // (or just-completed — race). We check that it either is
-        // pending OR has already populated styledLines.
+        // Juste après setLanguage, un restyle asynchrone doit être en
+        // cours (ou tout juste terminé — race). On vérifie qu'il est soit
+        // pending, soit a déjà peuplé styledLines.
         boolean pending = s.isAsyncRestylePending();
         if (pending) {
-            // Wait for it to finish.
+            // Attendre sa fin.
             s.awaitPendingRestyle();
         }
-        // After waiting, no longer pending.
+        // Après attente, plus pending.
         assertFalse(s.isAsyncRestylePending(),
             "Async restyle should be complete after await");
-        // styledLines should be populated (1 line for "public class Foo {}").
+        // styledLines doit être peuplé (1 ligne pour "public class Foo {}").
         assertEquals(1, s.getStyledLines().size(),
             "styledLines should have 1 entry after async restyle");
     }
 
     /**
-     * v2.45 — After async restyle completes, the styledLines list
-     * contains the expected number of lines (matching the doc's
-     * line count).
+     * Une fois le restyle asynchrone terminé, la liste styledLines
+     * contient le nombre de lignes attendu (correspondant au lineCount
+     * du doc).
      */
     @Test
     void asyncRestyle_populatesStyledLinesWithCorrectCount() throws Exception {
@@ -502,37 +501,36 @@ class EditorSessionTest {
         EditorSession s = new SessionBuilder(text).build();
         s.setLanguage("java");
         s.awaitPendingRestyle();
-        // EditorDocument.lineCount for "line 1\nline 2\nline 3\nline 4\nline 5"
-        // should be 5 (no trailing newline → 5 lines).
+        // EditorDocument.lineCount pour "line 1\nline 2\nline 3\nline 4\nline 5"
+        // doit être 5 (pas de \n final → 5 lignes).
         assertEquals(s.getDocument().lineCount(), s.getStyledLines().size(),
             "styledLines count must match doc line count");
     }
 
     /**
-     * v2.45 — Calling setLanguage twice in quick succession cancels
-     * the first restyle. The second one wins. No exception, no deadlock.
+     * Deux setLanguage rapprochés annulent le premier restyle.
+     * Le second gagne. Pas d'exception, pas de deadlock.
      */
     @Test
     void asyncRestyle_doubleSetLanguage_cancelsFirstRestyle() throws Exception {
         EditorSession s = new SessionBuilder("first").build();
         s.setLanguage("java");
-        // Immediately switch to a different text — first restyle should
-        // be cancelled, second should win.
-        s.replaceRange(0, 5, "second");  // replaces "first" with "second"
-        s.setLanguage("java");  // re-triggers async restyle
+        // Basculer immédiatement vers un texte différent — le premier
+        // restyle doit être annulé, le second doit gagner.
+        s.replaceRange(0, 5, "second");  // remplace "first" par "second"
+        s.setLanguage("java");  // re-déclenche le restyle asynchrone
         s.awaitPendingRestyle();
-        // After waiting, styledLines should be consistent with the doc.
+        // Après attente, styledLines doit être cohérent avec le doc.
         assertEquals(s.getDocument().lineCount(), s.getStyledLines().size(),
             "styledLines count must match doc line count after double restyle");
     }
 
     /**
-     * v2.55 — Large documents ALSO use async restyle (avant v2.55, ils
-     * utilisaient restyleAll sync). Maintenant que tm4e est retiré de
-     * l'app, tous les setLanguage déclenchent restyleAllAsync, peu
-     * importe la tailleur du doc. Le parser maison est ~10-50x plus
-     * rapide que tm4e par ligne, donc même un 5000-lignes se tokenize
-     * en <1s en arrière-plan.
+     * Les gros documents utilisent AUSSI le restyle asynchrone : tous les
+     * setLanguage déclenchent restyleAllAsync, peu importe la taille du
+     * doc. Le parser maison est ~10-50x plus rapide que tm4e par ligne,
+     * donc même un 5000-lignes se tokenise en moins d'une seconde en
+     * arrière-plan.
      */
     @Test
     void largeDocument_usesSyncRestyle_populatesImmediately() throws Exception {
@@ -543,14 +541,14 @@ class EditorSessionTest {
         }
         EditorSession s = new SessionBuilder(big.toString()).build();
         s.setLanguage("java");
-        // v2.55 : un async restyle doit être en cours (ou déjà terminé).
-        // Si il est encore en cours, on l'attend.
+        // Un restyle asynchrone doit être en cours (ou déjà terminé).
+        // S'il est encore en cours, on l'attend.
         if (s.isAsyncRestylePending()) {
             s.awaitPendingRestyle();
         }
-        // Après attente : styledLines est peuplé et match doc.lineCount.
+        // Après attente : styledLines est peuplé et correspond à doc.lineCount.
         assertEquals(s.getDocument().lineCount(), s.getStyledLines().size(),
-            "v2.55: Large doc styledLines count must match doc lineCount after async restyle completes");
+            "Gros document : le nombre de styledLines doit correspondre à doc.lineCount après le restyle asynchrone");
     }
 }
 

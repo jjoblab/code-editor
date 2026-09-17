@@ -4,16 +4,15 @@ import jo.codeeditor.document.EditorDocument;
 import jo.codeeditor.session.EditorSession;
 
 /**
- * v3.11.0: Extracted from EditorView — handles all scroll mechanics:
- * caret-into-view, line/offset scrolling, max scroll bounds.
+ * Gestionnaire des mécaniques de défilement d'EditorView : recentrage du
+ * caret dans la vue, défilement par ligne/offset et bornes maximales de
+ * défilement.
  *
- * <p>EditorView delegates {@code scrollCaretIntoView}, {@code scrollToLine},
- * {@code scrollToOffset}, {@code scrollBy}, {@code scrollHorizontallyBy},
- * {@code maxV}, {@code maxH} to this class. The scroll state ({@code vOffset},
- * {@code hOffset}) stays in EditorView (package-private) and is mutated
- * directly by this manager.
- *
- * @since v3.11.0
+ * <p>EditorView délègue à cette classe {@code scrollCaretIntoView},
+ * {@code scrollToLine}, {@code scrollToOffset}, {@code scrollBy},
+ * {@code scrollHorizontallyBy}, {@code maxV} et {@code maxH}. L'état du
+ * défilement ({@code vOffset}, {@code hOffset}) reste dans EditorView
+ * (package-privé) et est modifié directement par ce gestionnaire.
  */
 class EditorScrollManager {
 
@@ -24,9 +23,10 @@ class EditorScrollManager {
     }
 
     /**
-     * Scrolls the caret into view after every edit / caret move.
-     * Word-wrap-aware: computes the caret's Y from the wrap model so a
-     * caret on the 3rd wrapped row of a long line scrolls correctly.
+     * Ramène le caret dans la vue après chaque édition ou déplacement du
+     * caret. Sensible au retour à la ligne automatique : le Y du caret est
+     * calculé depuis le modèle de repli, afin qu'un caret sur la 3e rangée
+     * repliée d'une longue ligne défile correctement.
      */
     void scrollCaretIntoView() {
         if (view.session == null || view.getWidth() == 0 || view.getHeight() == 0) return;
@@ -37,18 +37,19 @@ class EditorScrollManager {
         float lineHeight = view.metrics.getLineHeight();
         float charWidth = view.metrics.getCharWidth();
         float textLeft = view.metrics.getGutterWidth() + view.metrics.getPadLeft();
-        // Vertical: doc-line top, plus extra rows if the caret is on a wrapped row.
+        // Vertical : haut de la ligne du document, plus les rangées
+        // supplémentaires si le caret est sur une rangée repliée.
         float caretY = view.docLineToY(line);
         if (view.wordWrap && view.wrapModel != null) {
-            // ★ v2.33 — rangée via wrapRowsFor (les rangées de continuation
-            // sont plus étroites : l'ancien col/maxColsPerRow était décalé).
+            // ★ Rangée obtenue via wrapRowsFor (les rangées de continuation
+            // sont plus étroites : l'ancien calcul col/maxColsPerRow était décalé).
             EditorDocument doc2 = view.session.getDocument();
             int lineLen = doc2.lineEnd(line) - doc2.lineStart(line);
             EditorView.WrapRows wr = view.wrapRowsFor(line, lineLen);
             caretY += wr.rowForCol(col) * lineHeight;
         }
         float viewH = view.getHeight();
-        // Vertical — only scroll if the caret is actually outside the viewport.
+        // Vertical — ne défile que si le caret est réellement hors du viewport.
         if (caretY < view.vOffset) {
             view.vOffset = Math.max(0, caretY - lineHeight);
         } else if (caretY + lineHeight > view.vOffset + viewH) {
@@ -56,10 +57,10 @@ class EditorScrollManager {
         }
         view.vOffset = EditorView.clamp(view.vOffset, 0, maxV());
 
-        // Horizontal — skipped in wrap mode (every row is fully visible).
-        // v3.7.1 Bugfix (Bug 4): use caretScreenPos() so the caret's X is
-        // fold-aware — if the caret is on a fold-start or fold-end line,
-        // the visible X may differ from col*charWidth.
+        // Horizontal — ignoré en mode repli automatique (chaque rangée est
+        // entièrement visible). On utilise caretScreenPos() pour un X de caret
+        // sensible aux replis : si le caret est sur une ligne de début ou de
+        // fin de repli, le X visible peut différer de col*charWidth.
         if (!view.wordWrap) {
             float[] screenPos = view.caretScreenPos(caret);
             float caretScreenX = screenPos[0];
@@ -88,7 +89,7 @@ class EditorScrollManager {
             view.vOffset = y + lineHeight - viewHeight;
         }
         view.vOffset = EditorView.clamp(view.vOffset, 0, maxV());
-        // ★ v0.1.0.49-v2.20 — Notifie le sticky-bottom des consoles.
+        // ★ Notifie le sticky-bottom des consoles.
         view.notifyScrollPositionChanged();
         view.invalidate();
     }
@@ -105,7 +106,7 @@ class EditorScrollManager {
         float newV = EditorView.clamp(view.vOffset + dy, 0, maxV());
         if (newV != view.vOffset) {
             view.vOffset = newV;
-            // ★ v0.1.0.49-v2.20 — Notifie le sticky-bottom des consoles.
+            // ★ Notifie le sticky-bottom des consoles.
             view.notifyScrollPositionChanged();
             view.invalidate();
         }
@@ -120,9 +121,9 @@ class EditorScrollManager {
     }
 
     /**
-     * Max vertical scroll: content height minus viewport height, at least 0.
-     * When word wrap is on, the content height includes the extra rows
-     * from each wrapped line.
+     * Défilement vertical maximal : hauteur du contenu moins hauteur du
+     * viewport, à 0 au minimum. En mode repli automatique, la hauteur du
+     * contenu inclut les rangées supplémentaires de chaque ligne repliée.
      */
     float maxV() {
         if (view.session == null) return 0;
@@ -140,39 +141,42 @@ class EditorScrollManager {
     }
 
     /**
-     * Max horizontal scroll: longest line's width minus text-area width, at least 0.
-     * Returns 0 when word wrap is on (no horizontal scroll in wrap mode).
+     * Défilement horizontal maximal : largeur de la ligne la plus longue
+     * moins largeur de la zone de texte, à 0 au minimum. Renvoie 0 quand
+     * le repli automatique est actif (pas de défilement horizontal dans ce
+     * mode).
      *
-     * <p>★ v2.33 — l'étendue tient compte des inlay hints tissés au-delà de
-     * la fin de ligne (longueur VISUELLE) ET du débordement des chips
-     * diagnostics ({@code chipExtentContentX}, mesuré au draw pass —
-     * pattern {@code contentWidth()} de CodeAssist EditorGeometry) : un
-     * hint/chip qui dépasse la ligne la plus longue est désormais
-     * ATTEIGNABLE au scroll horizontal.</p>
+     * <p>★ L'étendue tient compte des inlay hints tissés au-delà de la fin
+     * de ligne (longueur VISUELLE) ET du débordement des chips diagnostics
+     * ({@code chipExtentContentX}, mesuré au draw pass — pattern
+     * {@code contentWidth()} de CodeAssist EditorGeometry) : un hint/chip
+     * qui dépasse la ligne la plus longue est ATTEIGNABLE au défilement
+     * horizontal.</p>
      *
-     * <p>v3.35.0 (roadmap item 4 / hotspot P4) — memoized max column count:
-     * maxH() used to scan EVERY line of the document plus the inlay
-     * extras on EVERY call — and it is called several times per frame
-     * (scroll clamping in scrollBy / scrollHorizontallyBy / fling /
-     * caret-into-view). The scan now runs ONCE per
-     * {@code (session, document revision, inlay revision)}:</p>
+     * <p>Nombre maximal de colonnes mémoïsé : maxH() balaierait sinon
+     * CHAQUE ligne du document plus les apports des inlays à CHAQUE appel
+     * — or il est appelé plusieurs fois par frame (borne de défilement
+     * dans scrollBy / scrollHorizontallyBy / fling / recentrage du caret).
+     * Le balayage ne s'exécute qu'UNE FOIS par triplet
+     * {@code (session, révision du document, révision des inlays)} :</p>
      *
      * <ul>
-     *   <li>{@link EditorDocument} is IMMUTABLE and replaced on every edit,
-     *       so the document reference alone is a reliable edition key —
-     *       a true incremental max (maintaining the max across edits)
-     *       would need line-level tracking of WHICH line was the longest,
-     *       fragile next to inlay shifts, for no measurable gain (one
-     *       O(lines) scan per keystroke instead of several per frame);</li>
-     *   <li>{@code setInlayHints} bumps the session's inlay revision, and
-     *       an edit shifts the hints while replacing the document — both
-     *       paths invalidate the memo.</li>
+     *   <li>{@link EditorDocument} est IMMUABLE et remplacé à chaque
+     *       édition, donc la seule référence du document est une clé
+     *       d'édition fiable — un max réellement incrémental (maintenu
+     *       à travers les éditions) exigerait de suivre QUELLE ligne
+     *       était la plus longue, fragile face aux décalages des inlays,
+     *       pour un gain non mesurable (un balayage O(lignes) par frappe
+     *       au lieu de plusieurs par frame) ;</li>
+     *   <li>{@code setInlayHints} incrémente la révision des inlays de la
+     *       session, et une édition décale les hints tout en remplaçant le
+     *       document — les deux chemins invalident le mémo.</li>
      * </ul>
      *
-     * <p>Pixel conversion (charWidth) and the chip extent
-     * ({@code chipExtentContentX}, measured at draw time) deliberately stay
-     * OUT of the memo: the cached value is in COLUMNS, so font-size changes
-     * don't need to invalidate it.</p>
+     * <p>La conversion en pixels (charWidth) et l'étendue des chips
+     * ({@code chipExtentContentX}, mesurée au draw) restent volontairement
+     * HORS du mémo : la valeur cachée est en COLONNES, les changements de
+     * taille de police n'ont donc pas besoin de l'invalider.</p>
      */
     private EditorDocument maxColsDoc;
     private EditorSession maxColsSession;
@@ -205,8 +209,8 @@ class EditorScrollManager {
     }
 
     /**
-     * The actual O(lines + hints) scan — runs once per document/inlay
-     * revision instead of once per maxH() call.
+     * Le balayage réel en O(lignes + hints) — exécuté une fois par révision
+     * document/inlays au lieu d'une fois par appel à maxH().
      */
     private int computeMaxCols(EditorDocument doc) {
         int maxCols = 0;

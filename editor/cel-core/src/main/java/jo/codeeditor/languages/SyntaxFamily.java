@@ -1,28 +1,23 @@
 package jo.codeeditor.languages;
 
 /**
- * v3.36.0 — Lexical family of a language (roadmap item 7, port of
- * CodeAssist v3.20's {@code SyntaxFamily}).
+ * Famille lexicale d'un langage (portage du {@code SyntaxFamily}
+ * de CodeAssist).
  *
- * <p>The family decides which built-in tokenizer
- * {@code SyntaxHighlighter.styleLine} routes to: every language of the
- * XML family shares the XML tokenizer, every shell alias shares the shell
- * tokenizer, and so on. Before v3.36.0 this routing was a chain of
- * string comparisons listing every alias explicitly ({@code "yaml".equals(l)
- * || "yml".equals(l)}); with the registry the alias table lives in
- * {@link LanguageProfile} and the dispatch is a single enum switch.</p>
+ * <p>La famille décide vers quel tokenizer intégré
+ * {@code SyntaxHighlighter.styleLine} route : tout langage de la
+ * famille XML partage le tokenizer XML, tout alias shell partage le
+ * tokenizer shell, et ainsi de suite. Le routage est un simple switch
+ * d'enum : la table d'alias vit dans {@link LanguageProfile}.</p>
  *
- * <p>Consequence for aliases: short ids that previously fell through the
- * string chains to the generic C tokenizer ({@code "py"}, {@code "md"},
- * {@code "svg"}, {@code "htm"}, {@code "ini"}) now route to their proper
- * tokenizer — a fix, not a regression.</p>
- *
- * @since v3.36.0
+ * <p>Conséquence pour les alias : les ids courts ({@code "py"},
+ * {@code "md"}, {@code "svg"}, {@code "htm"}, {@code "ini"}) routent
+ * vers leur tokenizer propre — un correctif, pas une régression.</p>
  */
 public enum SyntaxFamily {
     /** Java, Kotlin, C/C++, Go, Rust, PHP, Swift, Dart, Groovy, JS/TS, Scala. */
     C_LIKE,
-    /** Python (and its {@code py} alias). */
+    /** Python (et son alias {@code py}). */
     PYTHON,
     /** Lua. */
     LUA,
@@ -38,14 +33,14 @@ public enum SyntaxFamily {
     YAML,
     /** SQL. */
     SQL,
-    /** .properties / .ini key-value files. */
+    /** Fichiers clé-valeur .properties / .ini. */
     PROPERTIES,
     /** TOML. */
     TOML,
-    /** Smali (Android dex bytecode). */
+    /** Smali (bytecode dex Android). */
     SMALI,
-    /** Markdown (and its {@code md} alias). */
+    /** Markdown (et son alias {@code md}). */
     MARKDOWN,
-    /** Log files (timestamps + levels). */
+    /** Fichiers de log (horodatages + niveaux). */
     LOG;
 }

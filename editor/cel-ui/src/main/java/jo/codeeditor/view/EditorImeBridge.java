@@ -15,36 +15,34 @@ import jo.codeeditor.session.EditorSession;
 import jo.codeeditor.shift.EditSpan;
 
 /**
- * v3.11.0: Extracted from EditorView — handles all IME integration:
- * {@link android.view.inputmethod.InputConnection} implementation,
- * extracted-text snapshots, cursor anchor info, and the
- * {@link EditorSession.ImeListener} bridge.
+ * Pont IME, extrait d'EditorView — gère toute l'intégration IME :
+ * implémentation {@link android.view.inputmethod.InputConnection},
+ * instantanés de texte extrait, infos d'ancre de curseur, et pont
+ * {@link EditorSession.ImeListener}.
  *
- * <p>Contains:
+ * <p>Contient :
  * <ul>
- *   <li>{@link EditorInputConnection} — the {@link BaseInputConnection}
- *       subclass that routes every IME text operation to the
- *       {@link EditorSession}.</li>
+ *   <li>{@link EditorInputConnection} — la sous-classe de
+ *       {@link BaseInputConnection} qui route chaque opération texte de
+ *       l'IME vers {@link EditorSession}.</li>
  *   <li>{@link Api34InputConnection} / {@link Api31InputConnection} —
- *       API-specific subclasses loaded only on API 34+ / 31+.</li>
- *   <li>{@link EditorImeBridge} — implements {@link EditorSession.ImeListener}
- *       and pushes session callbacks (text changed, selection changed) to the
- *       {@link InputMethodManager}.</li>
- *   <li>{@link #buildExtractedText()} — windowed snapshot for the IME.</li>
+ *       sous-classes spécifiques d'API chargées uniquement sur API 34+ / 31+.</li>
+ *   <li>{@link EditorImeBridge} — implémente {@link EditorSession.ImeListener}
+ *       et pousse les rappels de session (texte changé, sélection changée)
+ *       vers le {@link InputMethodManager}.</li>
+ *   <li>{@link #buildExtractedText()} — instantané fenêtré pour l'IME.</li>
  *   <li>{@link #buildCursorAnchorInfo()} / {@link #pushCursorAnchorInfo()} —
- *       caret position info for Japanese/Chinese IMEs.</li>
- *   <li>{@link #onCreateInputConnection(EditorInfo)} — configures the
- *       {@link EditorInfo} and returns the right {@link EditorInputConnection}
- *       subclass for the device's API level.</li>
+ *       infos de position du caret pour les IME japonais/chinois.</li>
+ *   <li>{@link #onCreateInputConnection(EditorInfo)} — configure
+ *       l'{@link EditorInfo} et renvoie la bonne sous-classe
+ *       {@link EditorInputConnection} selon le niveau d'API de l'appareil.</li>
  * </ul>
  *
- * <p>EditorView delegates {@code onCreateInputConnection},
- * {@code buildExtractedText}, {@code pushCursorAnchorInfo} to this class.
- * The IME state ({@code extractedTextMonitorToken}, {@code cursorAnchorMonitorMode},
- * {@code connectionGeneration}) stays in EditorView (package-private) and is
- * accessed/mutated by this bridge.
- *
- * @since v3.11.0
+ * <p>EditorView délègue {@code onCreateInputConnection},
+ * {@code buildExtractedText}, {@code pushCursorAnchorInfo} à cette classe.
+ * L'état IME ({@code extractedTextMonitorToken}, {@code cursorAnchorMonitorMode},
+ * {@code connectionGeneration}) reste dans EditorView (package-private) et
+ * est accédé/muté par ce pont.
  */
 class EditorImeBridge {
 
@@ -57,11 +55,11 @@ class EditorImeBridge {
     static final int MAX_EXTRACT_CHARS = 100_000;
 
     // ════════════════════════════════════════════════════════════════
-    // InputConnection creation
+    // Création de l'InputConnection
     // ════════════════════════════════════════════════════════════════
 
     InputConnection onCreateInputConnection(EditorInfo outAttrs) {
-        // inputType: text + multiline + no-suggestions + visible-password
+        // inputType : texte + multiligne + sans suggestions + mot de passe visible
         outAttrs.inputType = InputType.TYPE_CLASS_TEXT
             | InputType.TYPE_TEXT_FLAG_MULTI_LINE
             | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
@@ -83,7 +81,7 @@ class EditorImeBridge {
     }
 
     // ════════════════════════════════════════════════════════════════
-    // Extracted text + cursor anchor
+    // Texte extrait + ancre de curseur
     // ════════════════════════════════════════════════════════════════
 
     ExtractedText buildExtractedText() {
@@ -145,19 +143,20 @@ class EditorImeBridge {
     }
 
     // ════════════════════════════════════════════════════════════════
-    // Session.ImeListener implementation
+    // Implémentation de Session.ImeListener
     // ════════════════════════════════════════════════════════════════
 
     /**
-     * Receives callbacks from {@link EditorSession} and pushes them to the
-     * {@link InputMethodManager}. Registered as the session's IME listener.
+     * Reçoit les rappels de {@link EditorSession} et les pousse vers le
+     * {@link InputMethodManager}. Enregistré comme listener IME de la session.
      */
     final EditorSession.ImeListener listener = new EditorSession.ImeListener() {
         @Override
         public void onTextChanged(EditSpan span) {
-            // v3.33.10: CaretAnimator.onEditOrMove() is the single entry
-            // point — it sets view.lastEditTime, resets blink toggle, makes
-            // the caret visible, and cancels any in-flight glide.
+            // CaretAnimator.onEditOrMove() est le point d'entrée unique —
+            // il définit view.lastEditTime, réinitialise la bascule de
+            // clignotement, rend le caret visible et annule tout glissement
+            // en cours.
             view.caretAnim.onEditOrMove();
             if (view.extractedTextMonitorToken != -1) {
                 InputMethodManager imm = view.imm();
@@ -179,12 +178,12 @@ class EditorImeBridge {
             }
             view.scrollManager.scrollCaretIntoView();
             view.refreshSignatureHelp();
-            // v3.33.11: Refresh document highlights when the caret moves —
-            // the symbol under the caret changed, so the LSP server should
-            // be re-queried for the new occurrences.
+            // Rafraîchit les surbrillances de document quand le caret bouge —
+            // le symbole sous le caret a changé, donc le serveur LSP doit
+            // être réinterrogé pour les nouvelles occurrences.
             view.scheduleDocumentHighlights();
-            // v2.32: matching-bracket highlight — recompute synchronously
-            // (bounded scan, CodeAssist recomputes per recomposition too).
+            // Surbrillance des crochets appariés — recalcul synchrone
+            // (scan borné, CodeAssist recalcule aussi à chaque recomposition).
             view.updateBracketPair();
             if (view.cursorAnchorMonitorMode != 0) {
                 pushCursorAnchorInfo();
@@ -218,13 +217,13 @@ class EditorImeBridge {
     };
 
     // ════════════════════════════════════════════════════════════════
-    // InputConnection subclasses
+    // Sous-classes d'InputConnection
     // ════════════════════════════════════════════════════════════════
 
     /**
-     * Bridge between the IME framework and the editor session.
-     * Every text operation is overridden to act on the {@link EditorSession}
-     * directly, never on a phantom {@code Editable}.
+     * Pont entre le framework IME et la session d'éditeur.
+     * Chaque opération texte est surchargée pour agir directement sur
+     * {@link EditorSession}, jamais sur un {@code Editable} fantôme.
      */
     static class EditorInputConnection extends BaseInputConnection {
         final EditorView view;
@@ -369,15 +368,15 @@ class EditorImeBridge {
         }
 
         /**
-         * v3.34.0: explicit SDK_INT guard — SurroundingText is API 31+. The
-         * method is only ever called from {@link Api31InputConnection#
-         * getSurroundingText}, which the bridge instantiates solely when
-         * {@code SDK_INT >= S}; the in-method guard makes that contract
-         * explicit for lint (and safe if a future caller forgets it).
+         * Garde SDK_INT explicite — SurroundingText est API 31+. La méthode
+         * n'est jamais appelée que depuis {@link Api31InputConnection#
+         * getSurroundingText}, que le pont instancie uniquement quand
+         * {@code SDK_INT >= S} ; la garde interne rend ce contrat explicite
+         * pour lint (et sûr si un futur appelant l'oublie).
          */
         android.view.inputmethod.SurroundingText getSurroundingTextCompat(int beforeLength, int afterLength, int flags) {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
-                return null; // API < 31: framework never asks for surrounding text.
+                return null; // API < 31 : le framework ne demande jamais le texte environnant.
             }
             EditorSession s = session();
             if (s == null) return null;
@@ -470,7 +469,7 @@ class EditorImeBridge {
     }
 
     /**
-     * API 34+ subclass that overrides {@code replaceText}.
+     * Sous-classe API 34+ qui surcharge {@code replaceText}.
      */
     private static final class Api34InputConnection extends EditorInputConnection {
         private Api34InputConnection(EditorView view, int generation) {
@@ -490,7 +489,7 @@ class EditorImeBridge {
     }
 
     /**
-     * API 31+ subclass that overrides {@code getSurroundingText}.
+     * Sous-classe API 31+ qui surcharge {@code getSurroundingText}.
      */
     private static final class Api31InputConnection extends EditorInputConnection {
         private Api31InputConnection(EditorView view, int generation) {

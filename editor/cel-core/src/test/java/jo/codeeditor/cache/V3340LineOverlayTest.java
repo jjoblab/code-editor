@@ -8,14 +8,15 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * v3.34.0 regression tests — LineOverlay-backed revision stamps.
+ * Tests de régression — tampons de révision adossés à LineOverlay.
  *
- * <p>Port of the CodeAssist v3.20 {@code LineOverlay<T>} pattern: the
- * per-line inlay/sem revision stamps now live in parallel primitive arrays
- * spliced with {@code System.arraycopy} instead of re-built HashMaps. These
- * tests pin the OBSERVABLE semantics that must not change: absent lines
- * return -1 (both before any write and after being spliced into existence),
- * splices move values with their lines, and removeFrom truncates.</p>
+ * <p>Portage du schéma {@code LineOverlay<T>} de CodeAssist : les tampons
+ * de révision inlay/sem par ligne vivent désormais dans des tableaux de
+ * primitifs parallèles recollés par {@code System.arraycopy} au lieu de
+ * HashMaps reconstruites. Ces tests figent les sémantiques OBSERVABLES qui
+ * ne doivent pas changer : les lignes absentes renvoient -1 (aussi bien
+ * avant toute écriture qu'après avoir été insérées par splice), les splices
+ * déplacent les valeurs avec leurs lignes, et removeFrom tronque.</p>
  */
 class V3340LineOverlayTest {
 
@@ -42,7 +43,7 @@ class V3340LineOverlayTest {
     void splice_insertion_newLinesAreAbsent() {
         LineRenderCache c = new LineRenderCache();
         for (int i = 0; i < 6; i++) c.setInlayRevision(i, 100 + i);
-        // Insert 2 lines at index 2 (lines 2..3 are new).
+        // Insère 2 lignes à l'index 2 (les lignes 2..3 sont nouvelles).
         c.shiftKeys(2, 2);
         assertEquals(100, c.getInlayRevision(0));
         assertEquals(101, c.getInlayRevision(1));
@@ -58,7 +59,7 @@ class V3340LineOverlayTest {
     void splice_deletion_valuesCollapse() {
         LineRenderCache c = new LineRenderCache();
         for (int i = 0; i < 6; i++) c.setSemRevision(i, 200 + i);
-        // Delete 2 lines at index 1 (lines 1..2 removed).
+        // Supprime 2 lignes à l'index 1 (les lignes 1..2 sont retirées).
         c.shiftKeys(1, -2);
         assertEquals(200, c.getSemRevision(0));
         assertEquals(203, c.getSemRevision(1), "old line 3 collapses to 1");
@@ -92,8 +93,8 @@ class V3340LineOverlayTest {
 
     @Test
     void shiftKeys_layoutEntriesStillShift() {
-        // The bounded 512-entry layout cache must keep its documented
-        // shiftKeys contract (v1.0.7 tests) now that the overlays splice.
+        // Le cache de layout borné à 512 entrées doit conserver son contrat
+        // shiftKeys documenté maintenant que les overlays sont recollés par splice.
         LineRenderCache c = new LineRenderCache();
         List<LineRenderCache.InlayPiece> noInlays = new ArrayList<>();
         List<LineRenderCache.SemSpan> noSpans = new ArrayList<>();

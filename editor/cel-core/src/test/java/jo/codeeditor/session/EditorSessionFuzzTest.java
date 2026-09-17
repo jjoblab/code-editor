@@ -10,12 +10,11 @@ import java.util.Random;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Fuzz tests for {@link EditorSession} — random edit sequences that verify
- * the session's invariants (line count, styled-lines count, selection
- * bounds, undo/redo consistency) stay correct. Detects rare state
- * corruption that fixed-input unit tests miss.
- *
- * <p>v1.0.8 — stability focus.
+ * Tests fuzz pour {@link EditorSession} — séquences d'éditions aléatoires
+ * vérifiant que les invariants de la session (nombre de lignes, nombre de
+ * lignes stylées, bornes de sélection, cohérence undo/redo) restent
+ * corrects. Détecte les corruptions d'état rares que les tests unitaires à
+ * entrées fixes manquent.
  */
 class EditorSessionFuzzTest {
 
@@ -30,7 +29,7 @@ class EditorSessionFuzzTest {
             int choice = rng.nextInt(8);
             switch (choice) {
                 case 0: case 1:
-                    // Insert a random string at the caret.
+                    // Insérer une chaîne aléatoire au caret.
                     s.commitText(randomText(rng, 15));
                     break;
                 case 2:
@@ -38,25 +37,25 @@ class EditorSessionFuzzTest {
                     if (s.getSelection().start > 0) s.backspace();
                     break;
                 case 3:
-                    // Move caret to a random offset.
+                    // Déplacer le caret à un offset aléatoire.
                     s.setSelection(rng.nextInt(s.getText().length() + 1));
                     break;
                 case 4:
-                    // Select a random range.
+                    // Sélectionner une plage aléatoire.
                     int a = rng.nextInt(s.getText().length() + 1);
                     int b = rng.nextInt(s.getText().length() + 1);
                     s.setSelection(Selection.range(Math.min(a, b), Math.max(a, b)));
                     break;
                 case 5:
-                    // Type a single char.
+                    // Saisir un caractère unique.
                     s.typeChar((char) ('a' + rng.nextInt(26)));
                     break;
                 case 6:
-                    // Undo (if possible).
+                    // Annuler (si possible).
                     s.undo();
                     break;
                 case 7:
-                    // Redo (if possible).
+                    // Rétablir (si possible).
                     s.redo();
                     break;
             }
@@ -68,18 +67,18 @@ class EditorSessionFuzzTest {
     void fuzz_undoRedoRoundTripPreservesContent() {
         Random rng = new Random(SEED + System.nanoTime());
         EditorSession s = new EditorSession(EditorDocument.of(""));
-        // Apply 50 random edits, snapshot the text + caret.
+        // Appliquer 50 éditions aléatoires et capturer le texte + le caret.
         for (int i = 0; i < 50; i++) {
             s.commitText(randomText(rng, 10));
         }
         String textAfterEdits = s.getText();
         int caretAfterEdits = s.getSelection().start;
-        // Undo all 50.
+        // Tout annuler (les 50).
         for (int i = 0; i < 50; i++) {
             assertTrue(s.undo(), "undo " + i + " should succeed");
         }
         assertEquals("", s.getText(), "after undoing all edits, doc must be empty");
-        // Redo all 50.
+        // Tout rétablir (les 50).
         for (int i = 0; i < 50; i++) {
             assertTrue(s.redo(), "redo " + i + " should succeed");
         }
@@ -91,19 +90,20 @@ class EditorSessionFuzzTest {
 
     @Test
     void fuzz_emptyDocAllOps() {
-        // Edge case: every op on an empty document must be a no-op or safe.
+        // Cas limite : chaque opération sur un document vide doit être un
+        // no-op ou sûre.
         EditorSession s = new EditorSession(EditorDocument.of(""));
-        // Backspace on empty doc — no crash.
+        // Backspace sur doc vide — pas de crash.
         s.backspace();
         assertEquals(0, s.getText().length());
-        // Undo on empty doc — no crash, returns false.
+        // Undo sur doc vide — pas de crash, renvoie false.
         assertFalse(s.undo());
-        // Redo on empty doc — no crash, returns false.
+        // Redo sur doc vide — pas de crash, renvoie false.
         assertFalse(s.redo());
-        // Select word at offset 0 on empty doc.
+        // Sélection de mot à l'offset 0 sur doc vide.
         s.selectWordAt(0);
         assertTrue(s.getSelection().isCursor());
-        // Move caret — no crash.
+        // Déplacement du caret — pas de crash.
         s.moveHorizontal(-1, false);
         s.moveHorizontal(1, false);
         s.moveVertical(-1, false);
@@ -116,7 +116,7 @@ class EditorSessionFuzzTest {
         EditorSession s = new EditorSession(EditorDocument.of("X"));
         assertEquals(1, s.getText().length());
         assertEquals(1, s.getDocument().lineCount());
-        // Type at the end.
+        // Saisir à la fin.
         s.setSelection(1);
         s.typeChar('Y');
         assertEquals("XY", s.getText());
@@ -128,7 +128,8 @@ class EditorSessionFuzzTest {
 
     @Test
     void fuzz_surrogatePairsInDocument() {
-        // Emoji and surrogate pairs must not corrupt the line index.
+        // Les emojis et paires de substituts ne doivent pas corrompre
+        // l'index de lignes.
         EditorSession s = new EditorSession(EditorDocument.of("Hello 🌍 World"));
         s.setSelection(6);
         s.typeChar('!');
@@ -138,17 +139,17 @@ class EditorSessionFuzzTest {
 
     @Test
     void fuzz_manyNewlinesLineCount() {
-        // Stress: insert 100 newlines and verify line count.
+        // Stress : insérer 100 sauts de ligne et vérifier le nombre de lignes.
         EditorSession s = new EditorSession(EditorDocument.of(""));
         for (int i = 0; i < 100; i++) {
             s.commitText("line\n");
         }
-        // 100 "line\n" = 100 lines + 1 empty line at the end = 101 lines.
-        // Actually "line\n" * 100 = "line\nline\n...line\n" — the last \n
-        // creates an empty line, so lineCount = 101.
+        // 100 "line\n" = 100 lignes + 1 ligne vide à la fin = 101 lignes.
+        // "line\n" * 100 = "line\nline\n...line\n" — le dernier \n crée
+        // une ligne vide, donc lineCount = 101.
         assertEquals(101, s.getDocument().lineCount(),
             "100 newlines must produce 101 lines");
-        // Styled lines must match line count.
+        // Les lignes stylées doivent correspondre au nombre de lignes.
         assertEquals(s.getDocument().lineCount(), s.getStyledLines().size(),
             "styledLines.size must match doc.lineCount");
         verifyInvariants(s, "after 100 newlines");
@@ -156,11 +157,11 @@ class EditorSessionFuzzTest {
 
     @Test
     void fuzz_selectionAlwaysInBounds() {
-        // After any edit, the selection must be within [0, doc.length()].
+        // Après toute édition, la sélection doit être dans [0, doc.length()].
         Random rng = new Random(42);
         EditorSession s = new EditorSession(EditorDocument.of("hello world"));
         for (int i = 0; i < 100; i++) {
-            s.setSelection(rng.nextInt(20)); // may be past the end
+            s.setSelection(rng.nextInt(20)); // peut dépasser la fin
             s.commitText(randomText(rng, 5));
             Selection sel = s.getSelection();
             assertTrue(sel.start >= 0 && sel.start <= s.getDocument().length(),
@@ -172,7 +173,7 @@ class EditorSessionFuzzTest {
 
     @Test
     void fuzz_composingRegionClearedOnFinish() {
-        // After imeFinishComposing, isComposing() must be false.
+        // Après imeFinishComposing, isComposing() doit être false.
         EditorSession s = new EditorSession(EditorDocument.of("hello"));
         s.setSelection(2);
         s.imeSetComposingText("XYZ", 1);
@@ -183,7 +184,8 @@ class EditorSessionFuzzTest {
 
     @Test
     void fuzz_batchEditGroupsUndo() {
-        // Edits inside a batch must be grouped into a single undo step.
+        // Les éditions dans un batch doivent être groupées en une seule
+        // étape d'undo.
         EditorSession s = new EditorSession(EditorDocument.of(""));
         s.beginBatch();
         s.commitText("a");
@@ -191,31 +193,31 @@ class EditorSessionFuzzTest {
         s.commitText("c");
         s.endBatch();
         assertEquals("abc", s.getText());
-        // One undo must revert all three.
+        // Un seul undo doit annuler les trois.
         assertTrue(s.undo());
         assertEquals("", s.getText());
     }
 
-    /** Verifies the session's internal invariants. */
+    /** Vérifie les invariants internes de la session. */
     private static void verifyInvariants(EditorSession s, String context) {
-        // ★ v2.55 — Undo/redo déclenchent maintenant restyleAllAsync au lieu
-        // de restyleAll sync. Pendant le gap async, styledLines peut ne pas
-        // matcher doc.lineCount() (comportement documenté dans restyleAllAsync).
+        // ★ Undo/redo déclenchent restyleAllAsync (et non restyleAll sync).
+        // Pendant le gap async, styledLines peut ne pas matcher
+        // doc.lineCount() (comportement documenté dans restyleAllAsync).
         // On attend le pending restyle pour vérifier la cohérence finale.
         if (s.isAsyncRestylePending()) {
             try { s.awaitPendingRestyle(); } catch (InterruptedException ignored) {}
         }
         EditorDocument doc = s.getDocument();
-        // Invariant 1: styledLines.size == doc.lineCount.
+        // Invariant 1 : styledLines.size == doc.lineCount.
         assertEquals(doc.lineCount(), s.getStyledLines().size(),
             "styledLines.size mismatch " + context);
-        // Invariant 2: selection in bounds.
+        // Invariant 2 : sélection dans les bornes.
         Selection sel = s.getSelection();
         assertTrue(sel.start >= 0 && sel.start <= doc.length(),
             "selection.start out of bounds " + context + ": " + sel.start);
         assertTrue(sel.end >= 0 && sel.end <= doc.length(),
             "selection.end out of bounds " + context + ": " + sel.end);
-        // Invariant 3: composing region in bounds (if active).
+        // Invariant 3 : région de composition dans les bornes (si active).
         if (s.isComposing()) {
             int[] comp = s.getComposingRegion();
             assertNotNull(comp);
@@ -224,10 +226,10 @@ class EditorSessionFuzzTest {
             assertTrue(comp[1] >= 0 && comp[1] <= doc.length(),
                 "composingEnd out of bounds " + context);
         }
-        // Invariant 4: text consistency — getText() matches doc.getText().
+        // Invariant 4 : cohérence du texte — getText() correspond à doc.getText().
         assertEquals(doc.getText(), s.getText(),
             "session.getText() != doc.getText() " + context);
-        // Invariant 5: lineStarts are monotonic and within bounds.
+        // Invariant 5 : les lineStarts sont monotones et dans les bornes.
         for (int i = 0; i < doc.lineCount(); i++) {
             int start = doc.lineStart(i);
             int end = doc.lineEnd(i);

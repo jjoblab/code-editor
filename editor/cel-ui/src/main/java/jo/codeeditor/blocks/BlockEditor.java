@@ -1,22 +1,20 @@
 package jo.codeeditor.blocks;
 
 import java.util.*;
+import jo.codeeditor.view.chrome.EditorTheme;
 
 /**
- * Block editing: parse Java into a tree of typed blocks, render blocks
- * with shapes, and provide completion inside block slots.
- * This is a simplified structural editor for block-based code editing.
- * Ported from CodeAssist BlockEditor.kt.
- 
- *
- * @since v1.0.7
-*/
+ * Édition par blocs : analyse le Java en un arbre de blocs typés, dessine
+ * les blocs avec des formes et fournit la complétion dans les emplacements
+ * de blocs. Éditeur structurel simplifié pour l'édition de code par blocs.
+ * Porté depuis le BlockEditor.kt de CodeAssist.
+ */
 public class BlockEditor {
 
     // ── BlockType ─────────────────────────────────────────────────
 
     /**
-     * Type of a block in the tree.
+     * Type d'un bloc dans l'arbre.
      */
     public enum BlockType {
         EXPRESSION,
@@ -28,7 +26,7 @@ public class BlockEditor {
     // ── BlockNode ─────────────────────────────────────────────────
 
     /**
-     * A node in the block tree.
+     * Un nœud de l'arbre de blocs.
      */
     public static final class BlockNode {
         public final BlockType type;
@@ -48,12 +46,12 @@ public class BlockEditor {
             this.label = label != null ? label : "";
         }
 
-        /** Returns true if this node has children. */
+        /** Renvoie true si ce nœud a des enfants. */
         public boolean hasChildren() {
             return !children.isEmpty();
         }
 
-        /** Returns the depth of the tree rooted at this node. */
+        /** Renvoie la profondeur de l'arbre enraciné à ce nœud. */
         public int depth() {
             int max = 0;
             for (BlockNode child : children) {
@@ -62,7 +60,7 @@ public class BlockEditor {
             return max + 1;
         }
 
-        /** Returns the total number of nodes in the tree. */
+        /** Renvoie le nombre total de nœuds dans l'arbre. */
         public int nodeCount() {
             int count = 1;
             for (BlockNode child : children) {
@@ -71,7 +69,7 @@ public class BlockEditor {
             return count;
         }
 
-        /** Find the deepest node containing the given offset. */
+        /** Recherche le nœud le plus profond contenant l'offset donné. */
         public BlockNode nodeAt(int offset) {
             if (offset < startOffset || offset >= endOffset) return null;
             for (BlockNode child : children) {
@@ -90,16 +88,17 @@ public class BlockEditor {
     // ── BlockParser ───────────────────────────────────────────────
 
     /**
-     * Parser that converts Java source text into a block tree.
-     * Simplified: identifies top-level declarations, statements, and expressions.
+     * Analyseur convertissant du code source Java en arbre de blocs.
+     * Simplifié : identifie les déclarations de premier niveau, les
+     * instructions et les expressions.
      */
     public static final class BlockParser {
 
         /**
-         * Parse Java source into a block tree.
+         * Analyse du code source Java en arbre de blocs.
          *
-         * @param source Java source code
-         * @return root block node
+         * @param source code source Java
+         * @return nœud bloc racine
          */
         public static BlockNode parse(String source) {
             if (source == null || source.isEmpty()) {
@@ -110,7 +109,7 @@ public class BlockEditor {
             int pos = 0;
 
             while (pos < source.length()) {
-                // Skip whitespace
+                // Ignore les blancs
                 while (pos < source.length() && Character.isWhitespace(source.charAt(pos))) pos++;
                 if (pos >= source.length()) break;
 
@@ -119,7 +118,7 @@ public class BlockEditor {
                     children.add(stmt);
                     pos = stmt.endOffset;
                 } else {
-                    // Skip unrecognized character
+                    // Ignore le caractère non reconnu
                     pos++;
                 }
             }
@@ -128,18 +127,18 @@ public class BlockEditor {
         }
 
         /**
-         * Parse a single statement starting at pos.
+         * Analyse une instruction unique commençant à pos.
          */
         private static BlockNode parseStatement(String source, int pos) {
             if (pos >= source.length()) return null;
 
-            // Skip whitespace
+            // Ignore les blancs
             while (pos < source.length() && Character.isWhitespace(source.charAt(pos))) pos++;
             if (pos >= source.length()) return null;
 
             int start = pos;
 
-            // Find the end of this statement (semicolon, block close, or EOF)
+            // Trouve la fin de cette instruction (point-virgule, accolade fermante ou EOF)
             int depth = 0;
             boolean inString = false;
             char stringChar = 0;
@@ -149,7 +148,7 @@ public class BlockEditor {
 
                 if (inString) {
                     if (ch == '\\') {
-                        pos++; // skip escape
+                        pos++; // ignore l'échappement
                     } else if (ch == stringChar) {
                         inString = false;
                     }
@@ -168,7 +167,7 @@ public class BlockEditor {
                         String label = extractLabel(text, type);
                         return new BlockNode(type, text, start, pos, Collections.emptyList(), label);
                     } else if (ch == '{' && depth == 1) {
-                        // Block statement: find matching close brace
+                        // Instruction bloc : trouve l'accolade fermante correspondante
                         int blockEnd = findMatchingBrace(source, pos);
                         if (blockEnd >= 0) {
                             pos = blockEnd + 1;
@@ -183,7 +182,7 @@ public class BlockEditor {
                 pos++;
             }
 
-            // Statement without terminator
+            // Instruction sans terminateur
             if (pos > start) {
                 String text = source.substring(start, pos);
                 BlockType type = classifyStatement(text);
@@ -195,10 +194,10 @@ public class BlockEditor {
         }
 
         /**
-         * Parse the body of a block (between { and }).
+         * Analyse le corps d'un bloc (entre { et }).
          */
         private static List<BlockNode> parseBlockBody(String source, int closeBracePos) {
-            // Find the open brace matching closeBracePos
+            // Trouve l'accolade ouvrante correspondant à closeBracePos
             int openBrace = -1;
             int depth = 0;
             for (int i = closeBracePos; i >= 0; i--) {
@@ -229,7 +228,7 @@ public class BlockEditor {
         }
 
         /**
-         * Classify a statement by its text.
+         * Classe une instruction d'après son texte.
          */
         private static BlockType classifyStatement(String text) {
             String trimmed = text.trim();
@@ -249,11 +248,11 @@ public class BlockEditor {
         }
 
         /**
-         * Extract a short label for a block.
+         * Extrait un libellé court pour un bloc.
          */
         private static String extractLabel(String text, BlockType type) {
             String trimmed = text.trim();
-            // First word or keyword
+            // Premier mot ou mot-clé
             int spaceIdx = trimmed.indexOf(' ');
             if (spaceIdx > 0) {
                 return trimmed.substring(0, spaceIdx);
@@ -265,7 +264,7 @@ public class BlockEditor {
         }
 
         /**
-         * Find the matching closing brace for an opening brace at pos.
+         * Trouve l'accolade fermante correspondant à l'accolade ouvrante à pos.
          */
         private static int findMatchingBrace(String source, int pos) {
             if (pos >= source.length() || source.charAt(pos) != '{') return -1;
@@ -293,18 +292,19 @@ public class BlockEditor {
     // ── BlockRenderer ─────────────────────────────────────────────
 
     /**
-     * Renders blocks as structured data for display.
-     * Each block gets a shape type, color, and indentation level.
+     * Produit les blocs sous forme de données structurées pour l'affichage.
+     * Chaque bloc reçoit un type de forme, une couleur et un niveau
+     * d'indentation.
      */
     public static final class BlockRenderer {
 
-        /** Rendered block data. */
+        /** Données de bloc rendu. */
         public static final class RenderedBlock {
             public final int indentLevel;
             public final BlockType type;
             public final String label;
             public final String shape; // "rect", "rounded", "diamond", "hexagon"
-            public final int color;    // ARGB color
+            public final int color;    // couleur ARGB
             public final int startOffset;
             public final int endOffset;
 
@@ -325,14 +325,14 @@ public class BlockEditor {
             }
         }
 
-        /** Default colors for block types. */
-        private static final int COLOR_EXPRESSION = 0xFF4FC3F7; // light blue
-        private static final int COLOR_STATEMENT = 0xFF81C784;  // light green
-        private static final int COLOR_BLOCK = 0xFFFFB74D;      // light orange
-        private static final int COLOR_VALUE = 0xFFBA68C8;      // light purple
+        /** Couleurs par défaut des types de bloc. */
+        private static final int COLOR_EXPRESSION = 0xFF4FC3F7; // bleu clair
+        private static final int COLOR_STATEMENT = 0xFF81C784;  // vert clair
+        private static final int COLOR_BLOCK = 0xFFFFB74D;      // orange clair
+        private static final int COLOR_VALUE = 0xFFBA68C8;      // violet clair
 
         /**
-         * Render a block tree into a flat list of rendered blocks.
+         * Rend un arbre de blocs en liste plate de blocs rendus.
          */
         public static List<RenderedBlock> render(BlockNode root) {
             List<RenderedBlock> result = new ArrayList<>();
@@ -376,12 +376,12 @@ public class BlockEditor {
     // ── SlotCompletion ────────────────────────────────────────────
 
     /**
-     * Completion inside block slots: suggests valid completions
-     * based on the slot type (expression, statement, etc.).
+     * Complétion dans les emplacements de blocs : suggère des complétions
+     * valides selon le type d'emplacement (expression, instruction, etc.).
      */
     public static final class SlotCompletion {
 
-        /** A slot completion suggestion. */
+        /** Une suggestion de complétion d'emplacement. */
         public static final class Suggestion {
             public final String text;
             public final String description;
@@ -400,7 +400,7 @@ public class BlockEditor {
         }
 
         /**
-         * Get suggestions for a slot of the given type.
+         * Obtient les suggestions pour un emplacement du type donné.
          */
         public static List<Suggestion> suggestionsFor(BlockType slotType, String prefix) {
             List<Suggestion> result = new ArrayList<>();
@@ -447,36 +447,37 @@ public class BlockEditor {
         }
     }
 
-    // ── Rendering (G7 — v1.0.9) ──────────────────────────────────
+    // ── Rendu ─────────────────────────────────────────────────────
 
     /**
-     * Renders the block tree as nested colored rectangles (Scratch-like).
-     * Each {@link BlockNode} is a rounded rectangle whose color depends on
-     * its {@link BlockType}. Children are drawn indented inside their parent.
+     * Dessine l'arbre de blocs en rectangles colorés imbriqués (façon
+     * Scratch). Chaque {@link BlockNode} est un rectangle arrondi dont la
+     * couleur dépend de son {@link BlockType}. Les enfants sont dessinés
+     * en retrait dans leur parent.
      *
-     * <p>This is a basic rendering — full Scratch-style block shapes (puzzle
-     * tabs, slots, drop shadows) can be layered on top in a future version.
-     * The goal here is a functional visual that lets the user see the block
-     * structure and tap a block to select it.
+     * <p>Rendu basique — les formes de blocs complètes façon Scratch
+     * (tenons de puzzle, emplacements, ombres portées) peuvent être
+     * ajoutées par-dessus ultérieurement. L'objectif ici est un visuel
+     * fonctionnel permettant de voir la structure de blocs et de toucher
+     * un bloc pour le sélectionner.
      *
-     * @param canvas   the Canvas to draw on
-     * @param metrics  the editor metrics (for char width, line height)
-     * @param theme    the editor theme (for background/text colors)
-     * @param scrollY  the vertical scroll offset (px)
-     * @param viewH    the viewport height (px)
-     * @param viewW    the viewport width (px)
-     * @since v1.0.9 (G7)
+     * @param canvas   le Canvas sur lequel dessiner
+     * @param metrics  les métriques de l'éditeur (largeur de caractère, hauteur de ligne)
+     * @param theme    le thème de l'éditeur (couleurs de fond/texte)
+     * @param scrollY  l'offset de défilement vertical (px)
+     * @param viewH    la hauteur du viewport (px)
+     * @param viewW    la largeur du viewport (px)
      */
     public void draw(android.graphics.Canvas canvas, Object metrics, Object theme,
                      float scrollY, float viewH, float viewW) {
         if (root == null) return;
-        // We use reflection-free casts via the EditorMetrics/EditorTheme
-        // classes — but BlockEditor is in a different package and shouldn't
-        // depend on the view layer. So we accept Object and cast here to
-        // avoid a circular dependency. The caller (EditorView) always passes
-        // the right types.
+        // Casts sans réflexion via les classes EditorMetrics/EditorTheme —
+        // mais BlockEditor est dans un autre package et ne doit pas dépendre
+        // de la couche vue. On accepte donc Object et on caste ici pour
+        // éviter une dépendance circulaire. L'appelant (EditorView) passe
+        // toujours les bons types.
         jo.codeeditor.view.EditorMetrics m = (jo.codeeditor.view.EditorMetrics) metrics;
-        jo.codeeditor.view.EditorTheme t = (jo.codeeditor.view.EditorTheme) theme;
+        jo.codeeditor.view.chrome.EditorTheme t = (jo.codeeditor.view.chrome.EditorTheme) theme;
         android.graphics.Paint bgPaint = new android.graphics.Paint();
         android.graphics.Paint textPaint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
         textPaint.setTypeface(m.getTypeface());
@@ -485,38 +486,38 @@ public class BlockEditor {
         float padY = m.getLineHeight() * 0.15f;
         float rowH = m.getLineHeight() * 1.1f;
         float indent = m.getCharWidth() * 2;
-        // Walk the tree depth-first, drawing each node as a row.
+        // Parcourt l'arbre en profondeur, en dessinant chaque nœud comme une rangée.
         drawNode(canvas, root, m, t, bgPaint, textPaint,
             m.getPadLeft(), m.getPadTop() - scrollY, rowH, indent, padX, padY, viewW, 0);
     }
 
     private void drawNode(android.graphics.Canvas canvas, BlockNode node,
-                          jo.codeeditor.view.EditorMetrics m, jo.codeeditor.view.EditorTheme t,
+                          jo.codeeditor.view.EditorMetrics m, jo.codeeditor.view.chrome.EditorTheme t,
                           android.graphics.Paint bgPaint, android.graphics.Paint textPaint,
                           float x, float y, float rowH, float indent, float padX, float padY,
                           float viewW, int depth) {
-        if (y > m.getPadTop() + 10000) return; // far below viewport — stop
-        // Color by type.
+        if (y > m.getPadTop() + 10000) return; // bien en dessous du viewport — arrêt
+        // Couleur selon le type.
         int color;
         switch (node.type) {
-            case STATEMENT: color = 0xFF4FC3F7; break; // light blue
-            case EXPRESSION: color = 0xFF81C784; break; // green
+            case STATEMENT: color = 0xFF4FC3F7; break; // bleu clair
+            case EXPRESSION: color = 0xFF81C784; break; // vert
             case VALUE: color = 0xFFFFB74D; break; // orange
-            case BLOCK: default: color = 0xFF9575CD; break; // purple
+            case BLOCK: default: color = 0xFF9575CD; break; // violet
         }
-        // Draw the block rectangle.
+        // Dessine le rectangle du bloc.
         float blockW = Math.min(viewW - x - m.getPadRight(), m.getCharWidth() * 30);
         android.graphics.RectF rect = new android.graphics.RectF(x, y, x + blockW, y + rowH);
         bgPaint.setColor(color);
         canvas.drawRoundRect(rect, rowH * 0.2f, rowH * 0.2f, bgPaint);
-        // Label.
+        // Libellé.
         String label = node.label != null && !node.label.isEmpty() ? node.label : node.type.name().toLowerCase(java.util.Locale.ROOT);
         if (node.text != null && !node.text.isEmpty() && node.text.length() < 30) {
             label = label + ": " + node.text.trim();
         }
         textPaint.setColor(0xFF000000);
         canvas.drawText(label, x + padX, y + rowH * 0.7f, textPaint);
-        // Children (indented, below).
+        // Enfants (en retrait, en dessous).
         float childY = y + rowH + padY;
         for (BlockNode child : node.children) {
             drawNode(canvas, child, m, t, bgPaint, textPaint,
@@ -525,22 +526,21 @@ public class BlockEditor {
         }
     }
 
-    /** The root block node (parsed from the source). */
+    /** Le nœud bloc racine (analysé depuis la source). */
     private BlockNode root;
 
     /**
-     * Parses the given source text into a block tree and stores it as the
-     * root for rendering. Call this before {@link #draw} or after the
-     * document changes.
+     * Analyse le texte source donné en arbre de blocs et le stocke comme
+     * racine pour le rendu. À appeler avant {@link #draw} ou après toute
+     * modification du document.
      *
-     * @param source the source text to parse
-     * @since v1.0.9 (G7)
+     * @param source le texte source à analyser
      */
     public void setSource(String source) {
         this.root = BlockParser.parse(source);
     }
 
-    /** Returns the root block node, or null if {@link #setSource} wasn't called. */
+    /** Renvoie le nœud bloc racine, ou null si {@link #setSource} n'a pas été appelé. */
     public BlockNode getRoot() {
         return root;
     }

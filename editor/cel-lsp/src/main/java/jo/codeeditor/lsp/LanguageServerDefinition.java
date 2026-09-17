@@ -1,5 +1,7 @@
 package jo.codeeditor.lsp;
 
+import jo.codeeditor.lsp.connection.StreamConnectionProvider;
+
 import org.eclipse.lsp4j.ServerCapabilities;
 import org.eclipse.lsp4j.services.LanguageServer;
 
@@ -9,17 +11,18 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * Abstract registration for a language server. The host creates one
- * {@code LanguageServerDefinition} per server type (jdtls for Java,
- * kotlin-language-server for Kotlin, etc.) and registers it with a
+ * Enregistrement abstrait d'un serveur de langage. L'hôte crée un
+ * {@code LanguageServerDefinition} par type de serveur (jdtls pour Java,
+ * kotlin-language-server pour Kotlin, etc.) et l'enregistre auprès d'un
  * {@link LspProject}.
  *
- * <p>Subclasses must implement {@link #createConnectionProvider(String)} to
- * return the transport (subprocess, TCP socket, or LocalSocket). Everything
- * else (LSP4J launcher, initialize handshake, capability negotiation) is
- * handled by the framework.
+ * <p>Les sous-classes doivent implémenter
+ * {@link #createConnectionProvider(String)} pour retourner le transport
+ * (sous-processus, socket TCP ou LocalSocket). Tout le reste (launcher
+ * LSP4J, poignée de main initialize, négociation de capacités) est pris
+ * en charge par le cadre.
  *
- * <p><b>v2.52 — Subset F multi-extension support :</b> par défaut, un
+ * <p><b>Support multi-extension :</b> par défaut, un
  * LanguageServerDefinition gère une seule extension (la valeur passée au
  * constructeur). Les sous-classes qui gèrent plusieurs extensions (ex. Kotlin
  * pour {@code .kt} ET {@code .kts}) peuvent redéfinir
@@ -29,7 +32,7 @@ import java.util.Set;
  * <em>partage</em> l'instance unique du serveur entre ces extensions
  * (pas de duplication de server).</p>
  *
- * <p>Example for a remote jdtls:
+ * <p>Exemple avec un jdtls distant :
  * <pre>{@code
  * LanguageServerDefinition jdtls = new LanguageServerDefinition("java", "jdtls") {
  *     @Override
@@ -45,8 +48,6 @@ import java.util.Set;
  *     }
  * };
  * }</pre>
- *
- * @since v2.2.0
  */
 public abstract class LanguageServerDefinition {
 
@@ -55,26 +56,26 @@ public abstract class LanguageServerDefinition {
     private Set<LspFeature> disabledFeatures = Collections.emptySet();
 
     /**
-     * @param ext the file extension this server handles (e.g. "java", "kt")
-     * @param name a display name (e.g. "jdtls", "kotlin-language-server")
+     * @param ext l'extension de fichier gérée par ce serveur (ex. "java", "kt")
+     * @param name un nom d'affichage (ex. "jdtls", "kotlin-language-server")
      */
     protected LanguageServerDefinition(String ext, String name) {
         this.ext = ext;
         this.name = name;
     }
 
-    /** Returns the file extension (without the dot). */
+    /** Retourne l'extension de fichier (sans le point). */
     public String getExt() { return ext; }
 
-    /** Returns the display name. */
+    /** Retourne le nom d'affichage. */
     public String getName() { return name; }
 
     /**
-     * ★ v2.52 Subset F — Extensions supplémentaires que ce serveur gère
-     * (en plus de {@link #getExt()}). Par défaut, retourne un set vide
-     * (mono-extension). Les sous-classes peuvent override pour gérer
-     * plusieurs extensions — ex. Kotlin gère {@code .kt} (principale) ET
-     * {@code .kts} (supplémentaire).
+     * Extensions supplémentaires que ce serveur gère (en plus de
+     * {@link #getExt()}). Par défaut, retourne un set vide (mono-extension).
+     * Les sous-classes peuvent redéfinir cette méthode pour gérer plusieurs
+     * extensions — ex. Kotlin gère {@code .kt} (principale) ET {@code .kts}
+     * (supplémentaire).
      *
      * <p>Le {@link LspProject} enregistre la définition sous TOUTES les
      * extensions (principale + supplémentaires) via
@@ -86,9 +87,9 @@ public abstract class LanguageServerDefinition {
     }
 
     /**
-     * ★ v2.52 Subset F — Toutes les extensions gérées par ce serveur
-     * (principale + supplémentaires). Utilisé par {@link LspProject} pour
-     * l'enregistrement multi-extension.
+     * Toutes les extensions gérées par ce serveur (principale +
+     * supplémentaires). Utilisé par {@link LspProject} pour l'enregistrement
+     * multi-extension.
      */
     public final Set<String> getAllExtensions() {
         Set<String> all = new HashSet<>();
@@ -98,36 +99,37 @@ public abstract class LanguageServerDefinition {
     }
 
     /**
-     * Creates the connection provider for this server. Called when the
-     * server is started. The working directory is the project root.
+     * Crée le fournisseur de connexion pour ce serveur. Appelée au démarrage
+     * du serveur. Le répertoire de travail est la racine du projet.
      */
     public abstract StreamConnectionProvider createConnectionProvider(String workingDir);
 
     /**
-     * Returns the expected server capabilities, or {@code null} to discover
-     * them from the initialize result. Override to pre-declare capabilities
-     * for faster startup (avoids waiting for the server's response before
-     * enabling features).
+     * Retourne les capacités serveur attendues, ou {@code null} pour les
+     * découvrir depuis le résultat d'initialize. Redéfinir pour pré-déclarer
+     * des capacités et accélérer le démarrage (évite d'attendre la réponse
+     * du serveur avant d'activer les fonctionnalités).
      */
     public ServerCapabilities expectedCapabilities() { return null; }
 
     /**
-     * Returns the initialization options to send in the initialize request,
-     * or {@code null} for none.
+     * Retourne les options d'initialisation à envoyer dans la requête
+     * initialize, ou {@code null} pour aucune.
      */
     public Object getInitializationOptions() { return null; }
 
     /**
-     * Returns the set of LSP features to disable (e.g. {@link LspFeature#INLAY_HINT}
-     * if the host doesn't want inlay hints from this server).
+     * Retourne l'ensemble des fonctionnalités LSP à désactiver (ex.
+     * {@link LspFeature#INLAY_HINT} si l'hôte ne veut pas d'inlay hints de
+     * ce serveur).
      */
     public Set<LspFeature> getDisabledFeatures() { return disabledFeatures; }
 
-    /** Sets the disabled features. */
+    /** Définit les fonctionnalités désactivées. */
     public void setDisabledFeatures(Set<LspFeature> features) {
         this.disabledFeatures = features != null ? features : Collections.emptySet();
     }
 
-    /** Returns true if the server should be sent an exit notification on shutdown. */
+    /** Retourne true si une notification exit doit être envoyée au serveur à l'arrêt. */
     public boolean callExitForLanguageServer() { return true; }
 }

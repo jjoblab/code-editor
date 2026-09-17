@@ -1,48 +1,46 @@
 package jo.codeeditor.view;
 
 /**
- * v3.36.0 — Value classes of the plugin decoration system (roadmap item 9,
- * port of CodeAssist v3.20's {@code DecorationStyles} +
- * {@code textDecorations}/{@code gutterMarks}/{@code pluginInlays}).
+ * Classes de valeurs du système de décorations pour plugins.
  *
- * <p>Decorations are produced per frame by registered
- * {@link EditorDecorationPainter}s and drawn by the renderer:</p>
+ * <p>Les décorations sont produites à chaque frame par les
+ * {@link EditorDecorationPainter}s enregistrés puis dessinées par le
+ * renderer :</p>
  * <ul>
- *   <li>{@link TextDecoration} — colored underline / box / strike-through
- *       over a document range (in the text area, above squiggles);</li>
- *   <li>{@link GutterMark} — a thin colored vertical bar at the right edge
- *       of the gutter's line-number area (VCS-blame style);</li>
- *   <li>{@link PluginInlay} — phantom text after the line end, offset-aware
- *       (dimmed, never interactive).</li>
+ *   <li>{@link TextDecoration} — soulignement / encadré / barré coloré sur
+ *       une plage du document (dans la zone de texte, au-dessus des
+ *       soulignements ondulés) ;</li>
+ *   <li>{@link GutterMark} — fine barre verticale colorée au bord droit de
+ *       la zone de numéros de ligne de la gouttière (style VCS blame) ;</li>
+ *   <li>{@link PluginInlay} — texte fantôme après la fin de ligne, indexé
+ *       par offset (atténué, jamais interactif).</li>
  * </ul>
- *
- * @since v3.36.0
  */
 public final class EditorDecorations {
 
     private EditorDecorations() {}
 
-    /** How a {@link TextDecoration} renders its range. */
+    /** Manière dont un {@link TextDecoration} rend sa plage. */
     public static final class DecorationStyles {
-        /** Thick colored line under the text (2.5dp). */
+        /** Ligne colorée épaisse sous le texte (2,5 dp). */
         public static final int UNDERLINE = 0;
-        /** 1dp stroked rounded rectangle around the text. */
+        /** Rectangle arrondi de contour 1 dp autour du texte. */
         public static final int BOX = 1;
-        /** Horizontal line through the middle of the text. */
+        /** Ligne horizontale traversant le texte en son milieu. */
         public static final int STRIKE_THROUGH = 2;
 
         private DecorationStyles() {}
     }
 
-    /** A colored range decoration in the text area. */
+    /** Décoration colorée sur une plage dans la zone de texte. */
     public static final class TextDecoration {
-        /** Start offset (inclusive, document space). */
+        /** Offset de début (inclus, espace document). */
         public final int start;
-        /** End offset (exclusive, document space). */
+        /** Offset de fin (exclu, espace document). */
         public final int end;
-        /** ARGB color. */
+        /** Couleur ARGB. */
         public final int color;
-        /** One of {@link DecorationStyles} constants. */
+        /** Une des constantes de {@link DecorationStyles}. */
         public final int style;
 
         public TextDecoration(int start, int end, int color, int style) {
@@ -53,11 +51,11 @@ public final class EditorDecorations {
         }
     }
 
-    /** A colored bar on the gutter for one document line. */
+    /** Barre colorée sur la gouttière pour une ligne du document. */
     public static final class GutterMark {
-        /** Document line (0-based). */
+        /** Ligne du document (base 0). */
         public final int line;
-        /** ARGB color. */
+        /** Couleur ARGB. */
         public final int color;
 
         public GutterMark(int line, int color) {
@@ -66,13 +64,13 @@ public final class EditorDecorations {
         }
     }
 
-    /** Phantom text drawn after the line that contains {@code offset}. */
+    /** Texte fantôme dessiné après la ligne contenant {@code offset}. */
     public static final class PluginInlay {
-        /** Document offset — the inlay decorates the line containing it. */
+        /** Offset dans le document — l'inlay décore la ligne qui le contient. */
         public final int offset;
-        /** Phantom text (single line, drawn at 85% size). */
+        /** Texte fantôme (une ligne, dessiné à 85 % de la taille). */
         public final String text;
-        /** ARGB color. */
+        /** Couleur ARGB. */
         public final int color;
 
         public PluginInlay(int offset, String text, int color) {

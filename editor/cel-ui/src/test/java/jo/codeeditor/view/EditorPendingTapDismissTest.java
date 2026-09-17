@@ -20,16 +20,13 @@ import java.lang.reflect.Field;
 import static org.junit.Assert.*;
 
 /**
- * ★ v2.35 — verrouille le <b>pendingTapDismiss différé</b> (portage
- * {@code EditorInteraction.pendingTapDismiss} / {@code EditorInputModifier
- * onPress/onTap} de CodeAssist) :
+ * Verrouille le <b>pendingTapDismiss différé</b> :
  *
  * <ul>
  *   <li><b>Tap seul dans une sélection</b> — la sélection reste vivante
  *       pendant la fenêtre multi-tap (anti-flicker : pill + poignées
  *       visibles), puis est REFERMÉE au caret tapé une fois la fenêtre
- *       écoulée (c'est le correctif demandé : CodeIDE gardait la sélection
- *       pour toujours) ;</li>
+ *       écoulée (sinon elle resterait vivante pour toujours) ;</li>
  *   <li><b>Double-tap</b> — le second tap annule le pending et ÉTEND la
  *       sélection (selectWordAt) : après la fenêtre, rien ne se referme ;</li>
  *   <li><b>Swipe</b> — un déplacement au-delà du slop (scroll) annule le
@@ -45,7 +42,6 @@ import static org.junit.Assert.*;
  * {@code SystemClock.sleep} qui l'avance ET exécute les tâches dues.</p>
  *
  * @author jo@Dev
- * @since v2.35
  */
 @RunWith(RobolectricTestRunner.class)
 public class EditorPendingTapDismissTest {
@@ -103,7 +99,7 @@ public class EditorPendingTapDismissTest {
         upEvent.recycle();
     }
 
-    /** Screen position (center) of the given document offset. */
+    /** Position écran (centre) de l'offset de document donné. */
     private static float[] screenPosFor(int offset) {
         int line = 0, col = 0;
         for (int i = 0; i < offset; i++) {
@@ -134,7 +130,7 @@ public class EditorPendingTapDismissTest {
         float[] pos = screenPosFor(DOC.indexOf("name")); // au cœur de la sélection
 
         // Tap dans la sélection : elle reste VIVANTE (anti-flicker) et la
-        // pill est (re)montrée — CodeAssist onPress.
+        // pill est (re)montrée (onPress).
         tap(view, pos[0], pos[1]);
         Selection after = view.getSession().getSelection();
         assertFalse("anti-flicker: selection alive inside the window",
@@ -150,7 +146,7 @@ public class EditorPendingTapDismissTest {
         assertFalse(view.getSession().getSelection().isCursor());
 
         // Fenêtre écoulée → commit : la sélection se referme au caret tapé,
-        // pill + poignées masquées (CodeAssist onTap).
+        // pill + poignées masquées (onTap).
         SystemClock.sleep(320);
         idleMainLooper();
         Selection committed = view.getSession().getSelection();

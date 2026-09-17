@@ -1,7 +1,7 @@
 package jo.codeeditor.completion;
 
 /**
- * ★ v2.30 — Badge de type pour le popup de complétion.
+ * Badge de type pour le popup de complétion.
  *
  * <p>Portage Java du {@code KindBadge} de CodeAssist
  * ({@code ide-ui/.../components/Badges.kt}) : chaque suggestion porte un
@@ -23,7 +23,6 @@ package jo.codeeditor.completion;
  * Paint) reste dans le renderer UI.</p>
  *
  * @author jo@Dev
- * @since v2.30
  */
 public final class CompletionKindBadge {
 
@@ -68,7 +67,7 @@ public final class CompletionKindBadge {
      *                (« annotation », « package », « record »), ou null
      * @param iconFallback l'icône string historique (« k », « m », « f »,
      *                     « c », « v »…) quand le kind LSP est absent
-     *                     (providers v1.x) — sert de secours au glyphe
+     *                     — sert de secours au glyphe
      * @param darkTheme true pour un thème sombre (palette telle quelle),
      *                  false pour un thème clair (palette assombrie)
      * @param methodAccent couleur d'accent du thème pour le badge « M »
@@ -118,7 +117,7 @@ public final class CompletionKindBadge {
             default: break;                            // Text, Unit, Color, File… → fallback
         }
 
-        // ── 3. Secours icône string historique (providers v1.x) ──
+        // ── 3. Secours icône string historique ──
         if (iconFallback != null && !iconFallback.isEmpty()) {
             switch (iconFallback) {
                 case "k": return new Meta("K", tone(KEYWORD, darkTheme));
@@ -141,7 +140,7 @@ public final class CompletionKindBadge {
 
     /**
      * Taille de police du glyphe relativement à la taille du badge —
-     * un glyphe long (« {} ») se réduit pour tenre dans le carré.
+     * un glyphe long (« {} ») se réduit pour tenir dans le carré.
      * Portage de {@code fontSize = (if (ch.length > 1) size*0.42 else size*0.56)}.
      */
     public static float glyphSizeFactor(String glyph) {

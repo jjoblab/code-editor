@@ -4,22 +4,21 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Coordinates the z-order and dismissal of editor popups (completion,
- * signature help, hover, code actions, go-to-symbol).
+ * Coordonne l'ordre z (z-order) et la fermeture des popups de l'éditeur
+ * (complétion, aide de signature, hover, actions de code, go-to-symbol).
  *
- * <p>Each popup has a priority — opening a popup with higher priority
- * dismisses all popups with lower priority. This prevents the overlapping
- * popups bug that Sora Editor has (issue #725).
+ * <p>Chaque popup porte une priorité : l'ouverture d'un popup de priorité
+ * supérieure referme tous les popups de priorité inférieure — deux popups
+ * ne se recouvrent donc jamais.</p>
  *
- * <p>The {@link jo.codeeditor.view.EditorView} owns a single instance
- * and calls {@link #onPopupShown} / {@link #onPopupDismissed} whenever
- * a popup's visibility changes.
- *
- * @since v2.0.0
+ * <p>Le {@link jo.codeeditor.view.EditorView} possède une instance unique,
+ * exposée à l'hôte via {@code getPopupCoordinator()} ; les méthodes
+ * {@link #onPopupShown} / {@link #onPopupDismissed} sont à appeler à chaque
+ * changement de visibilité d'un popup.</p>
  */
 public final class PopupCoordinator {
 
-    /** Popup priority levels (higher = on top). */
+    /** Niveaux de priorité des popups (plus élevé = au-dessus). */
     public static final int PRIORITY_COMPLETION = 10;
     public static final int PRIORITY_SIGNATURE_HELP = 20;
     public static final int PRIORITY_HOVER = 30;
@@ -28,7 +27,7 @@ public final class PopupCoordinator {
     public static final int PRIORITY_GO_TO_LINE = 60;
     public static final int PRIORITY_RENAME = 70;
 
-    /** Listener notified when a popup is force-dismissed by a higher-priority one. */
+    /** Listener notifié quand un popup est refermé de force par un popup plus prioritaire. */
     public interface DismissListener {
         void onDismissPopup(int popupType);
     }
@@ -37,14 +36,14 @@ public final class PopupCoordinator {
     private DismissListener dismissListener;
 
     /**
-     * Called when a popup is shown. Dismisses all active popups with lower
-     * priority.
+     * Appelée quand un popup s'ouvre. Referme tous les popups actifs de
+     * priorité inférieure.
      *
-     * @param popupType the popup type identifier (use the PRIORITY_* constants)
-     * @param priority  the popup priority
+     * @param popupType l'identifiant du type de popup (utiliser les constantes PRIORITY_*)
+     * @param priority  la priorité du popup
      */
     public void onPopupShown(int popupType, int priority) {
-        // Dismiss lower-priority popups.
+        // Referme les popups de priorité inférieure.
         List<PopupEntry> toDismiss = new ArrayList<>();
         for (PopupEntry entry : activePopups) {
             if (entry.priority < priority) {
@@ -57,7 +56,7 @@ public final class PopupCoordinator {
                 dismissListener.onDismissPopup(entry.popupType);
             }
         }
-        // Add the new popup (or update if already present).
+        // Ajoute le nouveau popup (ou met à jour sa priorité s'il est déjà présent).
         boolean found = false;
         for (PopupEntry entry : activePopups) {
             if (entry.popupType == popupType) {
@@ -71,17 +70,17 @@ public final class PopupCoordinator {
         }
     }
 
-    /** Called when a popup is dismissed (by the user or programmatically). */
+    /** Appelée quand un popup est fermé (par l'utilisateur ou programmatiquement). */
     public void onPopupDismissed(int popupType) {
         activePopups.removeIf(entry -> entry.popupType == popupType);
     }
 
-    /** Returns true if any popup is currently active. */
+    /** Retourne vrai si au moins un popup est actuellement actif. */
     public boolean hasActivePopups() {
         return !activePopups.isEmpty();
     }
 
-    /** Returns true if a popup of the given type is active. */
+    /** Retourne vrai si un popup du type donné est actif. */
     public boolean isPopupActive(int popupType) {
         for (PopupEntry entry : activePopups) {
             if (entry.popupType == popupType) return true;
@@ -89,7 +88,7 @@ public final class PopupCoordinator {
         return false;
     }
 
-    /** Dismisses all active popups. */
+    /** Referme tous les popups actifs. */
     public void dismissAll() {
         List<PopupEntry> copy = new ArrayList<>(activePopups);
         activePopups.clear();

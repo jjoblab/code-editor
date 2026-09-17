@@ -19,14 +19,12 @@ import java.util.List;
 import static org.junit.Assert.*;
 
 /**
- * ★ v2.30 — Smoke tests du RENDU du popup de complétion avec badges de
- * type (portage KindBadge de CodeAssist) : la chaîne complète — badge
- * (glyphe + teinte), label avec runs de match du préfixe, detail aligné
- * à droite — ne doit pas planter sur un Canvas réel, quel que soit le
- * kind (LSP moderne, tag data, ou provider v1.x sans kind).
+ * Smoke tests du RENDU du popup de complétion avec badges de type : la
+ * chaîne complète — badge (glyphe + teinte), label avec runs de match du
+ * préfixe, detail aligné à droite — ne doit pas planter sur un Canvas réel,
+ * quel que soit le kind (LSP moderne, tag data, ou provider sans kind).
  *
  * @author jo@Dev
- * @since v2.30
  */
 @RunWith(RobolectricTestRunner.class)
 public class CompletionPopupBadgeRenderTest {
@@ -82,8 +80,8 @@ public class CompletionPopupBadgeRenderTest {
 
     @Test
     public void drawsPopupWithLegacyProvidersAndKeywords() {
-        // Provider v1.x : kind inconnu + icône string historique ;
-        // mot-clé builtin (kind 14) ; snippet « {} ».
+        // Provider sans kind exploitable : kind inconnu + icône string
+        // historique ; mot-clé builtin (kind 14) ; snippet « {} ».
         EditorView view = viewWithCompletion(
                 new CompletionSession.Item("obj", "", "obj", "v", 0, 5, false, false),
                 new CompletionSession.Item("public", "keyword", "public",

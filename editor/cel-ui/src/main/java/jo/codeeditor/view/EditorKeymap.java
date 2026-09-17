@@ -7,14 +7,15 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * v3.36.0 — Rebindable, data-driven keymap (roadmap item 6, port of
- * CodeAssist v3.20's {@code EditorKeymap}).
+ * Keymap rebindable piloté par les données (portage de l'
+ * {@code EditorKeymap} de CodeAssist).
  *
- * <p>A keymap is an ordered table of {@link Binding}s (command id + key
- * code + ctrl/shift modifiers). {@link EditorKeyHandler} resolves each
- * hardware key event through the view's keymap and executes the matching
- * command — the v1.x cascade of {@code if}/{@code switch} blocks is gone,
- * and hosts can rebind, add or remove shortcuts at runtime:</p>
+ * <p>Un keymap est une table ordonnée de {@link Binding}s (identifiant de
+ * commande + code touche + modificateurs ctrl/shift). {@link EditorKeyHandler}
+ * résout chaque événement touche matérielle via le keymap de la vue et
+ * exécute la commande correspondante — la cascade historique de blocs
+ * {@code if}/{@code switch} a disparu, et les hôtes peuvent rebinder,
+ * ajouter ou retirer des raccourcis à l'exécution :</p>
  *
  * <pre>{@code
  * EditorKeymap km = EditorKeymap.defaults()
@@ -23,51 +24,51 @@ import java.util.List;
  * view.setKeymap(km);
  * }</pre>
  *
- * <h2>Resolution order</h2>
- * <p>{@link #resolve(int, boolean, boolean)} walks four passes so the
- * table can be exact while legacy modifier habits still work:</p>
+ * <h2>Ordre de résolution</h2>
+ * <p>{@link #resolve(int, boolean, boolean)} parcourt quatre passes pour
+ * que la table puisse être exacte tout en gardant les habitudes
+ * historiques de modificateurs :</p>
  * <ol>
- *   <li>exact match (keyCode + ctrl + shift);</li>
- *   <li>ignore ctrl, keep shift — e.g. Ctrl+Left still moves the caret,
- *       Ctrl+Tab still indents;</li>
- *   <li>keep ctrl, ignore shift — e.g. Ctrl+Shift+A still selects all
- *       (the v1.x ctrl-switch ignored shift);</li>
- *   <li>ignore both — e.g. Shift+Enter still inserts a newline.</li>
+ *   <li>correspondance exacte (keyCode + ctrl + shift) ;</li>
+ *   <li>ignorer ctrl, garder shift — ex. Ctrl+Gauche déplace quand même
+ *       le caret, Ctrl+Tab indente quand même ;</li>
+ *   <li>garder ctrl, ignorer shift — ex. Ctrl+Shift+A sélectionne quand
+ *       même tout (le switch ctrl historique ignorait shift) ;</li>
+ *   <li>ignorer les deux — ex. Shift+Entrée insère quand même une ligne.</li>
  * </ol>
- * <p>Alt/meta are never part of a binding (don't-care).</p>
+ * <p>Alt/meta ne font jamais partie d'une liaison (indifférents).</p>
  *
- * <h2>Chords (v3.37.0)</h2>
- * <p>Two-key sequences (port of CodeAssist v3.20's {@code Outcome.Pending}):
- * the first key arms a short-lived pending state, the second key
- * completes (or abandons) the sequence — IntelliJ's {@code Ctrl+K Ctrl+C}
- * style shortcuts. A key that already has a single-key binding ALWAYS
- * resolves as that binding first; chords only capture keys that would
- * otherwise fall through, so the default table (chord-free) is 100 %
- * behavior-compatible with v3.36.0:</p>
+ * <h2>Chords</h2>
+ * <p>Séquences à deux touches (portage du {@code Outcome.Pending} de
+ * CodeAssist) : la première touche arme un état en attente de courte
+ * durée, la seconde complète (ou abandonne) la séquence — raccourcis
+ * façon IntelliJ {@code Ctrl+K Ctrl+C}. Une touche qui possède déjà une
+ * liaison mono-touche se résout TOUJOURS d'abord comme cette liaison ;
+ * les chords ne capturent que les touches qui seraient sinon traitées
+ * en repli, donc la table par défaut (sans chord) reste 100 % compatible
+ * au comportement historique :</p>
  *
  * <pre>{@code
  * EditorKeymap km = EditorKeymap.defaults()
  *         .bindChord(EditorCommands.TOGGLE_LINE_COMMENT,
  *                 KeyStroke.of(KeyEvent.KEYCODE_K, true, false),
  *                 KeyStroke.of(KeyEvent.KEYCODE_C, true, false));
- * view.setKeymap(km);   // Ctrl+K then Ctrl+C = comment lines
+ * view.setKeymap(km);   // Ctrl+K puis Ctrl+C = commenter les lignes
  * }</pre>
  *
- * <p>While a chord is pending, Escape cancels it and the pending state
- * expires after 2 s of silence. The default table reproduces the
- * pre-v3.36.0 {@code EditorKeyHandler} behavior: Ctrl+Z/Y/A/C/X/V/D/F/S,
+ * <p>Pendant qu'un chord est en attente, Échap l'annule et l'état en
+ * attente expire après 2 s de silence. La table par défaut reproduit le
+ * comportement historique de {@code EditorKeyHandler} : Ctrl+Z/Y/A/C/X/V/D/F/S,
  * Ctrl+Space, Ctrl+P, Ctrl+., Ctrl+Shift+O/I/L, Ctrl+Plus/Minus/0,
- * Ctrl+G, Backspace/Delete/Enter/Tab/Space, arrows + Home/End/PageUp/
- * PageDown (Shift = extend), F1/F2/F12 (Shift+F12 = references).</p>
+ * Ctrl+G, Retour arrière/Suppr/Entrée/Tab/Espace, flèches + Home/End/PageUp/
+ * PageDown (Shift = étendre), F1/F2/F12 (Shift+F12 = références).</p>
  *
- * <p>Not thread-safe — read and mutate on the UI thread, then hand the
- * instance to {@code EditorView.setKeymap}.</p>
- *
- * @since v3.36.0
+ * <p>Non thread-safe — lire et muter sur le thread UI, puis confier
+ * l'instance à {@code EditorView.setKeymap}.</p>
  */
 public final class EditorKeymap {
 
-    /** One table row: {@code command} bound to {@code keyCode} + modifiers. */
+    /** Une ligne de table : {@code command} lié à {@code keyCode} + modificateurs. */
     public static final class Binding {
         public final String command;
         public final int keyCode;
@@ -107,9 +108,9 @@ public final class EditorKeymap {
     }
 
     /**
-     * v3.37.0 — One physical key event segment of a chord: key code +
-     * ctrl/shift modifiers (alt/meta are don't-cares, like single
-     * bindings). Value class with structural equality.
+     * Un segment d'événement touche physique d'un chord : code touche +
+     * modificateurs ctrl/shift (alt/meta indifférents, comme les liaisons
+     * simples). Classe de valeur avec égalité structurelle.
      */
     public static final class KeyStroke {
         public final int keyCode;
@@ -122,7 +123,7 @@ public final class EditorKeymap {
             this.shift = shift;
         }
 
-        /** Factory (readable at call sites: {@code KeyStroke.of(KEYCODE_K, true, false)}). */
+        /** Fabrique (lisible aux sites d'appel : {@code KeyStroke.of(KEYCODE_K, true, false)}). */
         public static KeyStroke of(int keyCode, boolean ctrl, boolean shift) {
             return new KeyStroke(keyCode, ctrl, shift);
         }
@@ -150,8 +151,8 @@ public final class EditorKeymap {
         }
     }
 
-    /** v3.37.0 — One chord table row: {@code command} bound to the
-     * two-stroke sequence {@code first}, then {@code second}. */
+    /** Une ligne de table de chord : {@code command} lié à la séquence à
+     * deux frappes {@code first}, puis {@code second}. */
     public static final class ChordBinding {
         public final String command;
         public final KeyStroke first;
@@ -192,28 +193,28 @@ public final class EditorKeymap {
     private final List<Binding> table = new ArrayList<>();
     private final List<ChordBinding> chords = new ArrayList<>();
 
-    /** An empty keymap (every key falls through to the printable path). */
+    /** Un keymap vide (toute touche retombe sur le chemin imprimable). */
     public EditorKeymap() {}
 
     /**
-     * The default table — a verbatim port of the pre-v3.36.0
-     * {@code EditorKeyHandler} switch cascades.
+     * La table par défaut — un portage verbatim des cascades de switch
+     * historiques de {@code EditorKeyHandler}.
      */
     public static EditorKeymap defaults() {
         EditorKeymap km = new EditorKeymap();
-        // ── History ───────────────────────────────────────────────
+        // ── Historique ─────────────────────────────────────────
         km.bind(EditorCommands.UNDO, KeyEvent.KEYCODE_Z, true, false);
         km.bind(EditorCommands.REDO, KeyEvent.KEYCODE_Y, true, false);
-        // ── Selection / clipboard ─────────────────────────────────
+        // ── Sélection / presse-papiers ───────────────────────────
         km.bind(EditorCommands.SELECT_ALL, KeyEvent.KEYCODE_A, true, false);
         km.bind(EditorCommands.COPY, KeyEvent.KEYCODE_C, true, false);
         km.bind(EditorCommands.CUT, KeyEvent.KEYCODE_X, true, false);
         km.bind(EditorCommands.PASTE, KeyEvent.KEYCODE_V, true, false);
         km.bind(EditorCommands.DUPLICATE, KeyEvent.KEYCODE_D, true, false);
-        // ── File / host actions ───────────────────────────────────
+        // ── Fichier / actions hôte ─────────────────────────────
         km.bind(EditorCommands.FIND, KeyEvent.KEYCODE_F, true, false);
         km.bind(EditorCommands.SAVE, KeyEvent.KEYCODE_S, true, false);
-        // ── Language intelligence ─────────────────────────────────
+        // ── Intelligence du langage ───────────────────────────
         km.bind(EditorCommands.TRIGGER_COMPLETION, KeyEvent.KEYCODE_SPACE, true, false);
         km.bind(EditorCommands.TRIGGER_SIGNATURE_HELP, KeyEvent.KEYCODE_P, true, false);
         km.bind(EditorCommands.CODE_ACTIONS, KeyEvent.KEYCODE_PERIOD, true, false);
@@ -233,7 +234,7 @@ public final class EditorKeymap {
         km.bind(EditorCommands.ZOOM_OUT, KeyEvent.KEYCODE_MINUS, true, false);
         km.bind(EditorCommands.ZOOM_OUT, KeyEvent.KEYCODE_NUMPAD_SUBTRACT, true, false);
         km.bind(EditorCommands.ZOOM_RESET, KeyEvent.KEYCODE_0, true, false);
-        // ── Editing ───────────────────────────────────────────────
+        // ── Édition ─────────────────────────────────────────────
         km.bind(EditorCommands.BACKSPACE, KeyEvent.KEYCODE_DEL, false, false);
         km.bind(EditorCommands.DELETE_FORWARD, KeyEvent.KEYCODE_FORWARD_DEL, false, false);
         km.bind(EditorCommands.NEW_LINE, KeyEvent.KEYCODE_ENTER, false, false);
@@ -242,7 +243,7 @@ public final class EditorKeymap {
         km.bind(EditorCommands.INDENT, KeyEvent.KEYCODE_TAB, false, false);
         km.bind(EditorCommands.DEDENT, KeyEvent.KEYCODE_TAB, false, true);
         km.bind(EditorCommands.INSERT_SPACE, KeyEvent.KEYCODE_SPACE, false, false);
-        // ── Caret movement (Shift = extend) ───────────────────────
+        // ── Déplacement du caret (Shift = étendre) ─────────────
         km.bind(EditorCommands.MOVE_LEFT, KeyEvent.KEYCODE_DPAD_LEFT, false, false);
         km.bind(EditorCommands.EXTEND_LEFT, KeyEvent.KEYCODE_DPAD_LEFT, false, true);
         km.bind(EditorCommands.MOVE_RIGHT, KeyEvent.KEYCODE_DPAD_RIGHT, false, false);
@@ -263,9 +264,10 @@ public final class EditorKeymap {
     }
 
     /**
-     * Binds {@code keyCode}+modifiers to {@code command} (fluent). A later
-     * binding for the same key+modifiers replaces an earlier one; the same
-     * command may live on several keys (e.g. ZOOM_IN on =/+/numpad+).
+     * Lie {@code keyCode}+modificateurs à {@code command} (fluent). Une
+     * liaison ultérieure pour la même touche+modificateurs remplace la
+     * précédente ; une même commande peut vivre sur plusieurs touches
+     * (ex. ZOOM_IN sur =/+/pavé num.+).
      */
     public EditorKeymap bind(String command, int keyCode, boolean ctrl, boolean shift) {
         if (command == null) throw new IllegalArgumentException("command is null");
@@ -280,8 +282,8 @@ public final class EditorKeymap {
         return this;
     }
 
-    /** Removes EVERY binding of {@code command} — single-key rows AND
-     * chord rows (fluent). */
+    /** Retire TOUTES les liaisons de {@code command} — lignes mono-touche ET
+     * lignes de chord (fluent). */
     public EditorKeymap unbind(String command) {
         if (command == null) return this;
         table.removeIf(b -> b.command.equals(command));
@@ -289,8 +291,8 @@ public final class EditorKeymap {
         return this;
     }
 
-    /** True when {@code command} has at least one binding (single-key
-     * or chord). */
+    /** Vrai quand {@code command} possède au moins une liaison (mono-touche
+     * ou chord). */
     public boolean isBound(String command) {
         for (Binding b : table) {
             if (b.command.equals(command)) return true;
@@ -301,7 +303,7 @@ public final class EditorKeymap {
         return false;
     }
 
-    /** The first binding of {@code command} (introspection / UI), or null. */
+    /** La première liaison de {@code command} (introspection / UI), ou null. */
     public Binding bindingFor(String command) {
         for (Binding b : table) {
             if (b.command.equals(command)) return b;
@@ -309,13 +311,13 @@ public final class EditorKeymap {
         return null;
     }
 
-    /** An unmodifiable view of the whole table (introspection / UI). */
+    /** Une vue non modifiable de toute la table (introspection / UI). */
     public List<Binding> bindings() {
         return Collections.unmodifiableList(table);
     }
 
-    /** The first chord bound to {@code command} (introspection / UI),
-     * or null. */
+    /** Le premier chord lié à {@code command} (introspection / UI),
+     * ou null. */
     public ChordBinding chordBindingFor(String command) {
         for (ChordBinding c : chords) {
             if (c.command.equals(command)) return c;
@@ -323,19 +325,20 @@ public final class EditorKeymap {
         return null;
     }
 
-    /** An unmodifiable view of the chord table (introspection / UI). */
+    /** Une vue non modifiable de la table de chords (introspection / UI). */
     public List<ChordBinding> chordBindings() {
         return Collections.unmodifiableList(chords);
     }
 
-    // ── Chords (v3.37.0) ─────────────────────────────────────────
+    // ── Chords ──────────────────────────────────────────────
 
     /**
-     * Binds the two-key sequence {@code first} then {@code second} to
-     * {@code command} (fluent). A later chord with the same two strokes
-     * replaces an earlier one. The first key of a chord only captures
-     * events that no single-key binding resolves — unbind the simple
-     * binding first if both exist (see class javadoc).
+     * Lie la séquence à deux touches {@code first} puis {@code second} à
+     * {@code command} (fluent). Un chord ultérieur avec les mêmes deux
+     * frappes remplace le précédent. La première touche d'un chord ne
+     * capture que les événements qu'aucune liaison mono-touche ne résout —
+     * délier d'abord la liaison simple si les deux existent (voir la
+     * javadoc de la classe).
      */
     public EditorKeymap bindChord(String command, KeyStroke first, KeyStroke second) {
         ChordBinding chord = new ChordBinding(command, first, second);
@@ -351,11 +354,12 @@ public final class EditorKeymap {
     }
 
     /**
-     * Resolves the FIRST key of a potential chord: returns the registered
-     * first-stroke when some chord starts at this key event (same
-     * four-pass modifier fallback as {@link #resolve}), else null. The
-     * returned stroke is what {@link #resolveChord} expects as
-     * {@code first} — the event's modifiers may differ from the binding's.
+     * Résout la PREMIÈRE touche d'un chord potentiel : renvoie la première
+     * frappe enregistrée quand un chord commence à cet événement touche
+     * (même repli de modificateurs en quatre passes que {@link #resolve}),
+     * sinon null. La frappe renvoyée est celle que {@link #resolveChord}
+     * attend comme {@code first} — les modificateurs de l'événement
+     * peuvent différer de ceux de la liaison.
      */
     public KeyStroke resolveChordStart(int keyCode, boolean ctrl, boolean shift) {
         KeyStroke s = matchChordStart(keyCode, ctrl, shift);
@@ -374,10 +378,11 @@ public final class EditorKeymap {
     }
 
     /**
-     * Completes a pending chord: resolves the second key event against
-     * every chord whose first stroke is {@code first} (same four-pass
-     * modifier fallback on the second stroke), or null when the sequence
-     * is not a chord (the key is then processed as a fresh keystroke).
+     * Complète un chord en attente : résout le second événement touche
+     * contre chaque chord dont la première frappe est {@code first} (même
+     * repli de modificateurs en quatre passes sur la seconde frappe), ou
+     * null quand la séquence n'est pas un chord (la touche est alors
+     * traitée comme une frappe fraîche).
      */
     public ChordBinding resolveChord(KeyStroke first, int keyCode, boolean ctrl, boolean shift) {
         ChordBinding c = matchChord(first, keyCode, ctrl, shift);
@@ -398,9 +403,10 @@ public final class EditorKeymap {
     }
 
     /**
-     * Resolves a key event to its binding, or null when the key is not
-     * bound. See the class javadoc for the four-pass modifier fallback
-     * (exact → drop ctrl → drop shift → drop both).
+     * Résout un événement touche en sa liaison, ou null quand la touche
+     * n'est pas liée. Voir la javadoc de la classe pour le repli de
+     * modificateurs en quatre passes (exact → sans ctrl → sans shift →
+     * sans les deux).
      */
     public Binding resolve(int keyCode, boolean ctrl, boolean shift) {
         Binding b = match(keyCode, ctrl, shift);

@@ -19,22 +19,21 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 /**
- * v3.35.0 (roadmap item 3 / hotspot P3) — tests of the memoized fold
- * prefix-sum index behind {@code EditorView.countHiddenLinesAbove},
- * {@code docLineToY}, {@code docLineForScreenY} and the renderer's
- * {@code isLineFoldedCached}.
+ * Tests de l'index mémoïsé de sommes préfixes des folds derrière
+ * {@code EditorView.countHiddenLinesAbove}, {@code docLineToY},
+ * {@code docLineForScreenY} et le {@code isLineFoldedCached} du renderer.
  *
  * <p>Layout du document DOC ("l0\n…\nl9", lignes de 2 chars) : lineStarts
  * = [0,3,6,9,12,15,18,21,24,27]. Le fold de référence couvre les offsets
  * [6, 18] → startLine=l2, endLine=l6 → les lignes cachées sont
  * (startLine, endLine] = {l3, l4, l5, l6} (4 lignes).</p>
  *
- * <p>Pins :</p>
+ * <p>Verrouille :</p>
  * <ul>
  *   <li>hiddenAbove / isHidden contre une référence calculée à la main
  *       (folds au-dessus, à cheval, en dessous ; folds multiples ;
- *       régions chevauchantes fusionnées en UNION au lieu de l'ancien
- *       double comptage) ;</li>
+ *       régions chevauchantes fusionnées en UNION au lieu d'un double
+ *       comptage) ;</li>
  *   <li>invalidation : rebuild sur toggle (mutation EN PLACE de la liste —
  *       la raison d'un compteur foldRev), sur édition (shift des offsets),
  *       sur setFoldRegions, sur swap de session ;</li>
@@ -97,7 +96,7 @@ public class FoldIndexTest {
         f.setFloat(target, value);
     }
 
-    // ── countHiddenLinesAbove semantics ──────────────────────────────
+    // ── Sémantique de countHiddenLinesAbove ──────────────────────
 
     @Test
     public void hiddenAbove_noFoldsIsZeroEverywhere() {
@@ -139,7 +138,7 @@ public class FoldIndexTest {
     @Test
     public void hiddenAbove_overlappingFoldsMergeAsUnion() {
         // [6,18] → (l2,l6] ; [12,27] → (l4,l9] → union {l3..l9} (7 lignes).
-        // L'ANCIEN code sommait les deux contributions (double comptage) —
+        // Sommer les deux contributions serait un double comptage —
         // l'union est la sémantique correcte (même choix que
         // FoldModel.mergeRegions).
         EditorSession s = new EditorSession(EditorDocument.of(DOC));
@@ -163,7 +162,7 @@ public class FoldIndexTest {
         }
     }
 
-    // ── isHidden semantics (draw path) ──────────────────────────────
+    // ── Sémantique de isHidden (chemin de draw) ────────────────────
 
     @Test
     public void isHidden_matchesFoldInterior() {
@@ -171,11 +170,11 @@ public class FoldIndexTest {
         // Lignes cachées = (l2, l6] = l3, l4, l5, l6.
         assertFalse(view.isLineFoldedCached(0));
         assertFalse(view.isLineFoldedCached(1));
-        assertFalse(view.isLineFoldedCached(2));   // fold start: VISIBLE
+        assertFalse(view.isLineFoldedCached(2));   // début de fold : VISIBLE
         assertTrue(view.isLineFoldedCached(3));
         assertTrue(view.isLineFoldedCached(4));
         assertTrue(view.isLineFoldedCached(5));
-        assertTrue(view.isLineFoldedCached(6));    // fold end: CACHÉE
+        assertTrue(view.isLineFoldedCached(6));    // fin de fold : CACHÉE
         assertFalse(view.isLineFoldedCached(7));   // première visible après
         assertFalse(view.isLineFoldedCached(9));
     }
@@ -241,7 +240,7 @@ public class FoldIndexTest {
         assertFalse(view.isLineFoldedCached(4));
     }
 
-    // ── docLineToY / docLineForScreenY round-trip ───────────────────
+    // ── docLineToY / docLineForScreenY : aller-retour ─────────────
 
     @Test
     public void docLineToY_isFoldAware() {
@@ -262,7 +261,7 @@ public class FoldIndexTest {
         EditorView view = viewWithCollapsedFold();
         int[] visibleLines = {0, 1, 2, 7, 8, 9};
         for (int line : visibleLines) {
-            float contentY = view.docLineToY(line);   // top of the line
+            float contentY = view.docLineToY(line);   // haut de la ligne
             // Un point au MILIEU de la ligne, en coordonnée écran
             // (vOffset = 0 ici).
             float screenY = contentY + view.metrics.getLineHeight() / 2f

@@ -1,22 +1,21 @@
 package jo.codeeditor.view;
 
 /**
- * v3.36.0 — The plugin painter SPI (roadmap item 9, port of CodeAssist
- * v3.20's {@code EditorPainter}).
+ * SPI de painter pour plugins.
  *
- * <p>Register implementations on an editor via
- * {@code EditorView.getPainterHost().register(painter)} — or ship them as
- * Java {@link java.util.ServiceLoader} services
+ * <p>Enregistrer les implémentations sur un éditeur via
+ * {@code EditorView.getPainterHost().register(painter)} — ou les fournir
+ * comme services Java {@link java.util.ServiceLoader}
  * ({@code META-INF/services/jo.codeeditor.view.EditorDecorationPainter})
- * and call {@link EditorPainterHost#loadFromClasspath()}.</p>
+ * et appeler {@link EditorPainterHost#loadFromClasspath()}.</p>
  *
- * <p>{@link #paint(EditorPaintContext)} runs once per render pass on the
- * UI thread; decorate only the visible window and keep allocations light.
- * A painter that throws is removed from the host so a broken plugin can
- * never crash the editor (CodeAssist {@code EditorPainterHost} policy).
- * </p>
+ * <p>{@link #paint(EditorPaintContext)} s'exécute une fois par passe de rendu
+ * sur le thread UI ; ne décorer que la fenêtre visible et limiter les
+ * allocations. Un painter qui lève une exception est retiré de son hôte afin
+ * qu'un plugin défaillant ne puisse jamais faire planter l'éditeur
+ * (politique du {@code EditorPainterHost}).</p>
  *
- * <p>Example — underline every TODO:</p>
+ * <p>Exemple — souligner chaque TODO :</p>
  * <pre>{@code
  * public class TodoPainter implements EditorDecorationPainter {
  *     public void paint(EditorPaintContext ctx) {
@@ -34,23 +33,21 @@ package jo.codeeditor.view;
  *     }
  * }
  * }</pre>
- *
- * @since v3.36.0
  */
 public interface EditorDecorationPainter {
 
     /**
-     * Optional stable id — used to deduplicate ServiceLoader-provided
-     * painters. Defaults to the class name.
+     * Identifiant stable facultatif — sert à dédupliquer les painters fournis
+     * via ServiceLoader. Par défaut : le nom de la classe.
      */
     default String id() {
         return getClass().getName();
     }
 
     /**
-     * Contributes decorations for the current render pass. Runs on the UI
-     * thread inside the draw — keep it fast. Throwing here removes the
-     * painter from its host.
+     * Contribue des décorations pour la passe de rendu courante. S'exécute sur
+     * le thread UI pendant le dessin — rester rapide. Lever une exception ici
+     * retire le painter de son hôte.
      */
     void paint(EditorPaintContext ctx);
 }

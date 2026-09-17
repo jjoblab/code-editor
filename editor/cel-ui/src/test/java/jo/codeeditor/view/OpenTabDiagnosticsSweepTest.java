@@ -12,8 +12,8 @@ import android.content.Context;
 import android.widget.FrameLayout;
 
 import jo.codeeditor.document.EditorDocument;
-import jo.codeeditor.lang.Diagnostic;
-import jo.codeeditor.lang.DiagnosticsProvider;
+import jo.codeeditor.lang.model.Diagnostic;
+import jo.codeeditor.lang.provider.DiagnosticsProvider;
 import jo.codeeditor.lang.EmptyLanguage;
 import jo.codeeditor.session.EditorSession;
 
@@ -26,8 +26,7 @@ import java.util.concurrent.Executor;
 import static org.junit.Assert.*;
 
 /**
- * v3.36.0 — Tests du sweep diagnostics des onglets ouverts (roadmap item
- * 8, portage {@code OpenTabDiagnosticsSweep} de CodeAssist v3.20).
+ * Tests du sweep diagnostics des onglets ouverts.
  *
  * <p>Vérifie : l'application des diagnostics sur un onglet arrière-plan
  * (calcul hors main thread, application sur le main looper), les règles
@@ -39,18 +38,16 @@ import static org.junit.Assert.*;
  * <p>L'exécuteur partagé est remplacé par un exécuteur direct (réflexion)
  * pour un test déterministe : le calcul tourne inline, les applications
  * passent par le main looper de Robolectric (idle()).</p>
- *
- * @since v3.36.0
  */
 @RunWith(RobolectricTestRunner.class)
 @LooperMode(LooperMode.Mode.PAUSED)
 public class OpenTabDiagnosticsSweepTest {
 
-    /** A language whose diagnostics provider returns fixed diagnostics. */
+    /** Un langage dont le provider de diagnostics renvoie des diagnostics fixes. */
     private static class TestLang extends EmptyLanguage {
         final List<Diagnostic> result;
-        /** Optional side effect run during each compute — used to simulate
-         *  host activity mid-sweep (tab switch, teardown…). */
+        /** Effet de bord optionnel exécuté à chaque compute — simule une
+         *  activité hôte en plein sweep (changement d'onglet, teardown…). */
         Runnable onCompute;
 
         TestLang(List<Diagnostic> result) {
@@ -66,8 +63,9 @@ public class OpenTabDiagnosticsSweepTest {
         }
     }
 
-    /** A language whose provider throws from its SECOND call on (the first
-     *  call serves the view's own inline debounce at setLanguage time). */
+    /** Un langage dont le provider throw à partir du SECOND appel (le
+     *  premier appel sert le debounce inline propre à la vue au moment du
+     *  setLanguage). */
     private static class ThrowingLang extends EmptyLanguage {
         boolean thrown = false;
 
@@ -91,16 +89,17 @@ public class OpenTabDiagnosticsSweepTest {
 
     private EditorView newTab(String doc, jo.codeeditor.lang.Language lang) {
         Context ctx = RuntimeEnvironment.getApplication();
-        // Attach to a parent — the sweep skips detached views (teardown).
+        // Attache à un parent — le sweep saute les vues détachées (teardown).
         FrameLayout parent = new FrameLayout(ctx);
         EditorView view = new EditorView(ctx);
         parent.addView(view);
         view.setSession(new EditorSession(EditorDocument.of(doc)));
         if (lang != null) {
             view.setLanguage(lang);
-            // setLanguage arms/runs the view's OWN debounced diagnostics
-            // task (inline when the view has no handler yet). Clear its
-            // result so the tests below observe the SWEEP's work only.
+            // setLanguage arme/exécute la tâche de diagnostics debouncée
+            // PROPRE à la vue (inline quand la vue n'a pas encore de
+            // handler). Nettoie son résultat pour que les tests ci-dessous
+            // n'observent que le travail du SWEEP.
             view.getSession().setDiagnostics(new ArrayList<>());
         }
         view.measure(1080, 1920);
@@ -109,10 +108,10 @@ public class OpenTabDiagnosticsSweepTest {
     }
 
     private static void drainMainLooper() {
-        // idleFor advances the (paused) Robolectric clock, so the sweep's
-        // postDelayed(40ms) cascade — apply → scheduleNext → next tab —
-        // runs to completion. runToEndOfTasks() does NOT run tasks posted
-        // with a delay during execution.
+        // idleFor avance l'horloge (en pause) de Robolectric, donc la
+        // cascade postDelayed(40ms) du sweep — apply → scheduleNext →
+        // onglet suivant — tourne jusqu'au bout. runToEndOfTasks()
+        // N'exécute PAS les tâches postées avec délai pendant l'exécution.
         Shadows.shadowOf(android.os.Looper.getMainLooper())
                 .idleFor(Duration.ofSeconds(5));
     }
@@ -123,7 +122,7 @@ public class OpenTabDiagnosticsSweepTest {
         return out;
     }
 
-    // ── The happy path ────────────────────────────────────────────
+    // ── Le chemin nominal ────────────────────────────────────────
 
     @Test
     public void sweep_appliesDiagnosticsToBackgroundTab() {
@@ -150,7 +149,7 @@ public class OpenTabDiagnosticsSweepTest {
         assertEquals(0, sweep.skippedCount());
     }
 
-    // ── Eligibility rules ─────────────────────────────────────────
+    // ── Règles d'éligibilité ─────────────────────────────────────
 
     @Test
     public void sweep_skipsReadOnlyTabs() {
@@ -164,8 +163,8 @@ public class OpenTabDiagnosticsSweepTest {
 
     @Test
     public void sweep_skipsLargeDocuments() {
-        // > 50k lines crosses EditorDocument.isLarge() — same gating the
-        // editor applies to semantic analysis.
+        // > 50k lignes franchit EditorDocument.isLarge() — même seuil que
+        // l'éditeur applique à l'analyse sémantique.
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < 50_100; i++) sb.append('x').append('\n');
         EditorView tab = newTab(sb.toString(), new TestLang(oneError("never")));
@@ -178,7 +177,7 @@ public class OpenTabDiagnosticsSweepTest {
 
     @Test
     public void sweep_skipsTabsWithoutProvider() {
-        EditorView tab = newTab("class A {}\n", null); // EmptyLanguage, no provider
+        EditorView tab = newTab("class A {}\n", null); // EmptyLanguage, pas de provider
         OpenTabDiagnosticsSweep.start(List.of(tab));
         drainMainLooper();
         assertTrue(tab.getSession().getDiagnostics().isEmpty());
@@ -197,7 +196,7 @@ public class OpenTabDiagnosticsSweepTest {
         assertEquals(1, sweep.processedCount());
     }
 
-    // ── Robustness ────────────────────────────────────────────────
+    // ── Robustesse ────────────────────────────────────────────────
 
     @Test
     public void sweep_throwingProviderIsCountedAsSkipped_andWalkContinues() {
@@ -215,16 +214,17 @@ public class OpenTabDiagnosticsSweepTest {
     public void sweep_staleSessionResultIsDiscarded() {
         TestLang lang = new TestLang(oneError("stale"));
         EditorView tab = newTab("class A {}\n", lang);
-        // The view's own inline diagnostics task already ran during
-        // setLanguage — arm the mid-flight side effect only for the SWEEP's
-        // compute: swap the session WHILE the background compute runs
-        // (host switched files mid-sweep).
+        // La tâche de diagnostics inline propre à la vue a déjà tourné
+        // pendant setLanguage — arme l'effet de bord en plein vol
+        // uniquement pour le compute du SWEEP : swappe la session PENDANT
+        // que le calcul d'arrière-plan tourne (l'hôte a changé de fichier
+        // en plein sweep).
         lang.onCompute = () -> tab.setSession(
                 new EditorSession(EditorDocument.of("class C {}\n")));
         OpenTabDiagnosticsSweep sweep = OpenTabDiagnosticsSweep.start(List.of(tab));
         drainMainLooper();
-        // analyze captured the OLD session; the apply sees a different one
-        // → discarded + counted as skipped, never applied.
+        // analyze a capturé l'ANCIENNE session ; l'apply en voit une autre
+        // → jeté + compté comme sauté, jamais appliqué.
         assertEquals(0, sweep.processedCount());
         assertEquals(1, sweep.skippedCount());
     }
@@ -234,7 +234,7 @@ public class OpenTabDiagnosticsSweepTest {
         EditorView t1 = newTab("class A {}\n", new TestLang(oneError("first")));
         EditorView t2 = newTab("class B {}\n", new TestLang(oneError("second")));
         OpenTabDiagnosticsSweep sweep = OpenTabDiagnosticsSweep.start(List.of(t1, t2));
-        // Cancel before the main looper runs anything.
+        // Annule avant que le main looper n'exécute quoi que ce soit.
         sweep.cancel();
         drainMainLooper();
         assertTrue(t1.getSession().getDiagnostics().isEmpty());

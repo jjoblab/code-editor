@@ -1,21 +1,19 @@
 package jo.codeeditor.highlight;
 
 /**
- * Token types for syntax highlighting.
+ * Types de jetons pour la coloration syntaxique.
  *
- * <p>v3.1.0: expanded from 9 to 16 types, matching CodeAssist's SyntaxColors
- * coverage. The new types allow finer-grained coloring:
+ * <p>L'ensemble couvre la palette de SyntaxColors de CodeAssist et permet
+ * une coloration plus fine :
  * <ul>
- *   <li>{@link #OPERATOR} — +, -, *, /, =, !, ?, :, etc. (was PUNCT)</li>
- *   <li>{@link #ESCAPE} — escape sequences inside strings (n, t, u-XXXX)</li>
- *   <li>{@link #LABEL} — goto labels, case labels</li>
- *   <li>{@link #PROPERTY} — object properties (foo.bar — the "bar" part)</li>
- *   <li>{@link #VARIABLE} — variable identifiers (distinct from keywords/types)</li>
- *   <li>{@link #CONSTANT} — ALL_CAPS constants, enum values</li>
- *   <li>{@link #REGEXP} — regular expression literals (future use)</li>
+ *   <li>{@link #OPERATOR} — +, -, *, /, =, !, ?, :, etc.</li>
+ *   <li>{@link #ESCAPE} — séquences d'échappement dans les chaînes (n, t, u-XXXX)</li>
+ *   <li>{@link #LABEL} — étiquettes goto, étiquettes case</li>
+ *   <li>{@link #PROPERTY} — propriétés d'objet (foo.bar — la partie « bar »)</li>
+ *   <li>{@link #VARIABLE} — identifiants de variables (distincts des mots-clés/types)</li>
+ *   <li>{@link #CONSTANT} — constantes ALL_CAPS, valeurs d'enum</li>
+ *   <li>{@link #REGEXP} — littéraux d'expressions régulières (usage futur)</li>
  * </ul>
- *
- * @since v1.0.0 (expanded v3.1.0)
  */
 public enum TokenType {
     KEYWORD,
@@ -27,23 +25,23 @@ public enum TokenType {
     TYPE,
     PUNCT,
     PLAIN,
-    // ── v3.1.0 additions ──────────────────────────────────────
-    /** Operators: +, -, *, /, =, !, ?, :, <, >, &, |, ^, ~. */
+    // ── Types additionnels ──────────────────────────────────────
+    /** Opérateurs : +, -, *, /, =, !, ?, :, <, >, &, |, ^, ~. */
     OPERATOR,
-    /** Escape sequences inside strings: n, t, u-XXXX, etc. */
+    /** Séquences d'échappement dans les chaînes : n, t, u-XXXX, etc. */
     ESCAPE,
-    /** Goto labels, case labels. */
+    /** Étiquettes goto, étiquettes case. */
     LABEL,
-    /** Object properties after a dot: foo.{bar} — the "bar" part. */
+    /** Propriétés d'objet après un point : foo.{bar} — la partie « bar ». */
     PROPERTY,
-    /** Variable identifiers (distinct from keywords/types). */
+    /** Identifiants de variables (distincts des mots-clés/types). */
     VARIABLE,
-    /** ALL_CAPS constants, enum values. */
+    /** Constantes ALL_CAPS, valeurs d'enum. */
     CONSTANT,
-    /** Regular expression literals. */
+    /** Littéraux d'expressions régulières. */
     REGEXP,
-    // ── v0.1.0.49-v2.20 additions (console/log coloration) ─────
-    // Utilisés par le styleur « log » (SyntaxHighlighter.styleLog) pour la
+    // ── Coloration console/log ─────
+    // Utilisés par le styleur « log » (LogTokenizer.styleLog) pour la
     // coloration sémantique des consoles Gradle/JVM embarquées dans l'app
     // CodeIDE (ConsoleLogView). Chaque thème EditorTheme mappe ces types
     // via colorForToken() — cf. champs error/warning/info + logSuccess.

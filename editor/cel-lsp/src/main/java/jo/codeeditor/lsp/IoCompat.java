@@ -11,36 +11,34 @@ import java.io.OutputStream;
 import java.nio.charset.Charset;
 
 /**
- * API-24-safe file read/write helpers.
+ * Aides de lecture/écriture de fichiers compatibles API 24.
  *
- * <p>v3.34.0 fix (lint NewApi ×12): the previous implementation used
- * {@code java.nio.file.Files.readAllBytes}, {@code File.toPath} (API 26+)
- * and {@code java.nio.file.Path.of} (API 34+) while the library's
- * {@code minSdk} is 24. On Android 7.x (API 24/25) every call site threw
- * {@code NoSuchMethodError} at runtime — the LSP rename / apply-edits-to-disk
- * features crashed instead of degrading gracefully.
+ * <p>{@code java.nio.file.Files.readAllBytes}, {@code File.toPath} (API 26+)
+ * et {@code java.nio.file.Path.of} (API 34+) sont indisponibles alors que le
+ * {@code minSdk} de la bibliothèque est 24 : sur Android 7.x (API 24/25),
+ * chaque point d'appel levait {@code NoSuchMethodError} à l'exécution —
+ * les fonctionnalités LSP de renommage et d'application d'éditions sur
+ * disque plantaient au lieu de se dégrader proprement.
  *
- * <p>This helper performs the same work with {@code java.io} streams only,
- * which exist on every API level. Behavior matches
- * {@code Files.readAllBytes} / {@code Files.write} for the cases we care
- * about (UTF-8 text files, whole-file overwrite).
- *
- * @since v3.34.0
+ * <p>Cette aide réalise le même travail uniquement avec des flux
+ * {@code java.io}, présents à tous les niveaux d'API. Le comportement
+ * correspond à {@code Files.readAllBytes} / {@code Files.write} pour les
+ * cas utiles ici (fichiers texte UTF-8, écrasement complet de fichier).
  */
 final class IoCompat {
 
     private static final int BUFFER_SIZE = 8192;
 
     private IoCompat() {
-        // Utility class.
+        // Classe utilitaire.
     }
 
     /**
-     * Reads the whole file as UTF-8 text. Equivalent to
-     * {@code new String(Files.readAllBytes(file.toPath()), UTF_8)} but
-     * compatible with API 24+.
+     * Lit tout le fichier en texte UTF-8. Équivalent à
+     * {@code new String(Files.readAllBytes(file.toPath()), UTF_8)} mais
+     * compatible API 24+.
      *
-     * @return the file content, or {@code null} if the file cannot be read
+     * @return le contenu du fichier, ou {@code null} si la lecture échoue
      */
     static String readUtf8(File file) {
         if (file == null || !file.isFile()) return null;
@@ -60,11 +58,11 @@ final class IoCompat {
     }
 
     /**
-     * Reads the whole file at the given (URI or plain) path as UTF-8 text.
-     * Strips a leading {@code file://} scheme if present, matching the
-     * previous inline logic at the call sites.
+     * Lit tout le fichier au chemin donné (URI ou chemin simple) en texte
+     * UTF-8. Retire un éventuel schéma {@code file://} en tête, comme
+     * l'attendent les points d'appel.
      *
-     * @return the file content, or {@code null} if unreadable
+     * @return le contenu du fichier, ou {@code null} si illisible
      */
     static String readUtf8(String uriOrPath) {
         if (uriOrPath == null || uriOrPath.isEmpty()) return null;
@@ -75,11 +73,11 @@ final class IoCompat {
     }
 
     /**
-     * Overwrites the file with the given UTF-8 text. Equivalent to
-     * {@code Files.write(file.toPath(), text.getBytes(UTF_8))} but
-     * compatible with API 24+.
+     * Écrase le fichier avec le texte UTF-8 donné. Équivalent à
+     * {@code Files.write(file.toPath(), text.getBytes(UTF_8))} mais
+     * compatible API 24+.
      *
-     * @return true on success
+     * @return true en cas de succès
      */
     static boolean writeUtf8(File file, String text) {
         if (file == null || text == null) return false;

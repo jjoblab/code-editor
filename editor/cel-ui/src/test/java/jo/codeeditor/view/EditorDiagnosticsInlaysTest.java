@@ -20,10 +20,10 @@ import java.util.List;
 import static org.junit.Assert.*;
 
 /**
- * ★ v2.31 — Tests des correctifs UI de l'éditeur :
+ * Tests des correctifs UI de l'éditeur :
  * <ul>
  *   <li><b>Inlay hints tissés</b> — {@code visualColFor}/{@code rawColFor}
- *       round-trip (CodeAssist rawToVisual/visualToRaw semantics) : le texte
+ *       aller-retour (sémantique rawToVisual/visualToRaw) : le texte
  *       après un hint est décalé, le caret s'ancre AVANT le hint, un tap DANS
  *       le hint revient sur sa colonne d'ancrage ;</li>
  *   <li><b>Indent guides modernisés</b> — {@code leadingIndentOrBlank}
@@ -39,7 +39,6 @@ import static org.junit.Assert.*;
  * par réflexion ({@link #injectMetrics}).</p>
  *
  * @author jo@Dev
- * @since v2.31
  */
 @RunWith(RobolectricTestRunner.class)
 public class EditorDiagnosticsInlaysTest {
@@ -66,7 +65,7 @@ public class EditorDiagnosticsInlaysTest {
         return view;
     }
 
-    /** Injects deterministic metrics (Robolectric legacy fonts return zeros). */
+    /** Injecte des métriques déterministes (les fontes legacy de Robolectric renvoient des zéros). */
     private static void injectMetrics(EditorView view, float lineHeight, float charWidth) {
         try {
             setFloat(view.metrics, "lineHeight", lineHeight);
@@ -99,12 +98,12 @@ public class EditorDiagnosticsInlaysTest {
 
         int line = doc.lineForOffset(anchor);
         int col = anchor - doc.lineStart(line);
-        // Column BEFORE the hint: identity (no inlay woven before it).
+        // Colonne AVANT le hint : identité (aucun inlay tissé avant lui).
         assertEquals(0, view.visualColFor(line, 0));
         assertEquals(col, view.visualColFor(line, col));
-        // Lines without hints: identity.
+        // Lignes sans hints : identité.
         assertEquals(7, view.visualColFor(0, 7));
-        // A column AFTER the hint is shifted right by the hint's length (5).
+        // Une colonne APRÈS le hint est décalée à droite de la longueur du hint (5).
         assertEquals(col + 1 + 5, view.visualColFor(line, col + 1));
     }
 
@@ -119,12 +118,12 @@ public class EditorDiagnosticsInlaysTest {
 
         int line = doc.lineForOffset(anchor);
         int col = anchor - doc.lineStart(line);
-        // Round-trip: visual col of (col+1) maps back to raw col+1.
+        // Aller-retour : la col visuelle de (col+1) remape vers la col brute col+1.
         int vis = view.visualColFor(line, col + 1);
         assertEquals(col + 1, view.rawColFor(line, vis));
-        // A tap INSIDE the hint (visual col anchor+2) snaps to the anchor col.
+        // Un tap DANS le hint (col visuelle ancre+2) s'aligne sur la col d'ancrage.
         assertEquals(col, view.rawColFor(line, col + 2));
-        // No inlays on other lines → identity.
+        // Pas d'inlays sur les autres lignes → identité.
         assertEquals(7, view.rawColFor(0, 7));
     }
 
@@ -142,18 +141,18 @@ public class EditorDiagnosticsInlaysTest {
         int col = anchor - doc.lineStart(line);
         float charWidth = view.metrics.getCharWidth();
         float textAreaLeft = view.metrics.getGutterWidth() + view.metrics.getPadLeft();
-        // Tap in the middle of the woven hint (visual col anchor + 2).
+        // Tape au milieu du hint tissé (col visuelle ancre + 2).
         int offset = view.offsetAt(textAreaLeft + (col + 2) * charWidth + 1,
             view.metrics.getPadTop() + (line + 0.5f) * view.metrics.getLineHeight());
         assertEquals(anchor, offset);
-        // Tap just AFTER the hint → the argument's raw column (col), not the
-        // visual one — caret and code stay aligned on the document.
+        // Tape juste APRÈS le hint → la colonne brute de l'argument (col),
+        // pas la visuelle — le caret et le code restent alignés sur le document.
         int after = view.offsetAt(textAreaLeft + (col + 5) * charWidth,
             view.metrics.getPadTop() + (line + 0.5f) * view.metrics.getLineHeight());
         assertEquals(anchor, after);
     }
 
-    // ── Indent guides : blank-line sentinel ─────────────────────────
+    // ── Indent guides : sentinel des lignes vides ─────────────────────
 
     @Test
     public void indentGuides_blankLineReportsMinusOne() {
@@ -177,7 +176,7 @@ public class EditorDiagnosticsInlaysTest {
         Canvas canvas = new Canvas(bmp);
         view.draw(canvas); // drawCaret early-return : ne doit ni crasher ni dessiner
         assertTrue(view.getSession().isReadOnly());
-        // Toggle back — still renders fine.
+        // Re-bascule — le rendu reste correct.
         view.getSession().setReadOnly(false);
         view.draw(canvas);
         assertFalse(view.getSession().isReadOnly());
@@ -205,16 +204,16 @@ public class EditorDiagnosticsInlaysTest {
 
         float[] m = view.diagnosticSheetMetrics();
         assertNotNull(m);
-        // Panel docked at the bottom: [panelTop, getHeight()].
+        // Panneau ancré en bas : [panelTop, getHeight()].
         assertTrue(m[0] < m[1]);
         assertEquals(view.getHeight(), m[1], 0.01f);
-        // Close button sits inside the header, near the right edge.
+        // Le bouton fermer est dans l'en-tête, près du bord droit.
         assertTrue(m[4] > view.getWidth() * 0.8f);
         assertTrue(m[5] > m[0]);
 
         Bitmap bmp = Bitmap.createBitmap(1080, 1920, Bitmap.Config.ARGB_8888);
         EditorRenderer renderer = new EditorRenderer(view);
-        renderer.drawDiagnosticPopup(new Canvas(bmp)); // smoke — no crash
+        renderer.drawDiagnosticPopup(new Canvas(bmp)); // smoke — pas de crash
 
         view.dismissDiagnosticPopup();
         assertFalse(view.isDiagnosticPopupVisible());
@@ -225,30 +224,32 @@ public class EditorDiagnosticsInlaysTest {
     public void diagnosticChip_tapOnPillFindsTheDiagnostic() {
         EditorView view = viewWithDiagnostic(3);
         EditorDocument doc = view.getSession().getDocument();
-        assertTrue(view.diagnosticChipsEnabled); // enabled by default (v2.31)
+        assertTrue(view.diagnosticChipsEnabled); // activé par défaut
 
         int line = doc.lineForOffset(
             view.getSession().getDiagnostics().get(0).start);
-        // The pill sits after the line end — a tap on its box must find it.
+        // La pill se trouve après la fin de ligne — un tap sur sa boîte doit
+        // la trouver.
         float[] m = view.diagnosticChipMetrics(
             view.getSession().getDiagnostics().get(0), line);
         assertNotNull("chip metrics must exist for a visible diagnostic", m);
-        assertTrue(m[2] > 0); // non-empty width
-        assertTrue(m[3] > 0); // non-empty height
+        assertTrue(m[2] > 0); // largeur non vide
+        assertTrue(m[3] > 0); // hauteur non vide
 
         DiagnosticShift.Diagnostic hit = view.findDiagnosticChipAt(
             m[0] + m[2] * 0.5f, m[1] + m[3] * 0.5f);
         assertNotNull("tap on the pill centre must hit the diagnostic", hit);
         assertEquals(3, hit.severity);
 
-        // A tap far left of the pill (on the code itself) must NOT hit it.
+        // Un tap bien à gauche de la pill (sur le code lui-même) ne doit
+        // PAS la toucher.
         assertNull(view.findDiagnosticChipAt(
             view.metrics.getGutterWidth() + 2, m[1] + m[3] * 0.5f));
     }
 
     @Test
     public void diagnosticChip_infoSeverityGetsNoChip() {
-        EditorView view = viewWithDiagnostic(1); // Info → no chip (CodeAssist)
+        EditorView view = viewWithDiagnostic(1); // Info → pas de chip
         EditorDocument doc = view.getSession().getDocument();
         int line = doc.lineForOffset(
             view.getSession().getDiagnostics().get(0).start);
@@ -268,7 +269,7 @@ public class EditorDiagnosticsInlaysTest {
         view.showDiagnosticPopup(view.getSession().getDiagnostics().get(0), anchor);
 
         Bitmap bmp = Bitmap.createBitmap(1080, 1920, Bitmap.Config.ARGB_8888);
-        view.draw(new Canvas(bmp)); // full pipeline smoke — no crash
+        view.draw(new Canvas(bmp)); // smoke du pipeline complet — pas de crash
         assertTrue(view.isDiagnosticPopupVisible());
     }
 
@@ -276,9 +277,9 @@ public class EditorDiagnosticsInlaysTest {
     public void countWrappedLines_basic() {
         EditorView view = newView();
         view.textPaint.setTextSize(40f);
-        // Short message on a wide-enough line → 1 line.
+        // Message court sur une ligne assez large → 1 ligne.
         assertEquals(1, view.countWrappedLines("hello world", 10000f));
-        // Very narrow → more lines than words groups.
+        // Très étroit → plus de lignes que de groupes de mots.
         assertTrue(view.countWrappedLines("aaa bbb ccc", 10f) >= 2);
         assertEquals(1, view.countWrappedLines("", 100f));
         assertEquals(1, view.countWrappedLines(null, 100f));

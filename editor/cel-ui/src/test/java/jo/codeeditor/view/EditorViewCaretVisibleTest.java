@@ -13,19 +13,19 @@ import jo.codeeditor.session.EditorSession;
 import static org.junit.Assert.*;
 
 /**
- * ★ v2.59 — Vérifie l'API {@link EditorView#setCaretVisible(boolean)}
- * introduite pour découpler « cacher le caret » de
+ * Vérifie l'API {@link EditorView#setCaretVisible(boolean)}
+ * qui découple « cacher le caret » de
  * {@link EditorSession#setReadOnly(boolean)}.
  *
- * <p><b>Contexte du fix</b> : avant v2.59, le {@code ConsoleLogView} utilisait
- * {@code setReadOnly(true)} pour empêcher l'utilisateur de taper ET cacher le
- * caret — mais ce flag bloquait AUSSI les mutations programmatiques
+ * <p><b>Contexte</b> : si le {@code ConsoleLogView} utilise
+ * {@code setReadOnly(true)} pour empêcher l'utilisateur de taper ET cacher
+ * le caret, ce flag bloque AUSSI les mutations programmatiques
  * (appendLine / setContent / clearAll via {@code EditorSession.replaceRange}),
- * donc la console restait VIDE à vie (l'éditeur ne montrait que le bandeau
- * ligne-1). En découplant les deux rôles ({@code setReadOnly} pour bloquer
- * les éditions, {@code setCaretVisible(false)} pour cacher le caret), la
- * console peut enfin muter son document programmatiquement sans montrer de
- * caret à l'utilisateur.</p>
+ * donc la console resterait VIDE à vie (l'éditeur ne montrerait que le
+ * bandeau ligne-1). En découplant les deux rôles ({@code setReadOnly}
+ * pour bloquer les éditions, {@code setCaretVisible(false)} pour cacher le
+ * caret), la console peut muter son document programmatiquement sans
+ * montrer de caret à l'utilisateur.</p>
  *
  * <p><b>Stratégie</b> : Robolectric est utilisé pour fournir un
  * {@link Context} fonctionnel à EditorView. On vérifie :</p>
@@ -40,11 +40,10 @@ import static org.junit.Assert.*;
  *   <li><b>Non-régression</b> : un {@link EditorSession} attaché à l'EditorView
  *       sans {@code setReadOnly(true)} accepte une mutation programmatique
  *       via {@code replaceRange} (le document grossit). C'est précisément
- *       le fix qui rend la console de build fonctionnelle.</li>
+ *       ce qui rend la console de build fonctionnelle.</li>
  * </ol>
  *
  * @author jo@Dev
- * @since v2.59
  */
 @RunWith(RobolectricTestRunner.class)
 public class EditorViewCaretVisibleTest {
@@ -75,16 +74,15 @@ public class EditorViewCaretVisibleTest {
 
     /**
      * Vérifie que drawCaret ne garde pas une référence à EditorSession.readOnly
-     * pour décider de la visibilité — c'est-à-dire qu'après le fix, un
-     * EditorView avec un EditorSession NON read-only MAIS avec
-     * caretVisible=false se comporte comme avant (caret caché). Le champ
-     * {@code caretVisible} est la nouvelle source de vérité.
+     * pour décider de la visibilité — c'est-à-dire qu'un EditorView avec un
+     * EditorSession NON read-only MAIS avec caretVisible=false cache bien son
+     * caret. Le champ {@code caretVisible} est la source de vérité.
      */
     @Test
     public void setCaretVisible_false_worksWithoutReadOnlySession() {
         EditorView view = newEditorView();
         // Session explicitement NON read-only (comme le fait désormais le
-        // ConsoleLogView après le fix v2.59).
+        // ConsoleLogView).
         EditorSession session = new EditorSession(EditorDocument.of(""));
         assertFalse("Session neuve ne doit PAS être read-only par défaut",
                 session.isReadOnly());
@@ -97,17 +95,17 @@ public class EditorViewCaretVisibleTest {
     }
 
     /**
-     * Test de non-régression du fix principal : un EditorView dont la session
-     * n'est PAS read-only peut quand même muter son document via
+     * Test de non-régression : un EditorView dont la session
+     * n'est PAS read-only peut muter son document via
      * {@link EditorSession#replaceRange(int, int, String)}. C'est précisément
-     * ce que ConsoleLogView.appendLine() fait — et ce qui était cassé avant
-     * v2.59 (setReadOnly(true) bloquait la mutation programmatique).
+     * ce que fait ConsoleLogView.appendLine() — ce qu'un setReadOnly(true)
+     * bloquait (mutation programmatique impossible).
      */
     @Test
     public void sessionNotReadOnly_acceptsProgrammaticReplaceRange() {
         EditorView view = newEditorView();
         EditorSession session = new EditorSession(EditorDocument.of(""));
-        session.setReadOnly(false);  // explicite — comportement nouveau ConsoleLogView
+        session.setReadOnly(false);  // explicite — comportement ConsoleLogView actuel
         view.setSession(session);
 
         int lenBefore = session.getDocument().length();
@@ -122,9 +120,9 @@ public class EditorViewCaretVisibleTest {
     }
 
     /**
-     * Vérifie qu'une session read-only bloque ENCORE les mutations (comportement
-     * historique inchangé — on n'a pas touché EditorSession.setReadOnly).
-     * ConsoleLogView ne doit PLUS l'utiliser, mais d'autres appelants
+     * Vérifie qu'une session read-only bloque toujours les mutations
+     * (comportement inchangé d'EditorSession.setReadOnly).
+     * ConsoleLogView ne doit plus l'utiliser, mais d'autres appelants
      * éventuels conservent ce comportement.
      */
     @Test
@@ -145,7 +143,7 @@ public class EditorViewCaretVisibleTest {
                 "", session.getText());
     }
 
-    // ─── Helpers ────────────────────────────────────────────────────────────
+    // ─── Aides ─────────────────────────────────────────────────────────────
 
     private static EditorView newEditorView() {
         return new EditorView(RuntimeEnvironment.getApplication());

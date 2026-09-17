@@ -16,30 +16,27 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Default {@link LanguageClient} implementation — receives notifications
- * and requests FROM the language server.
+ * Implémentation {@link LanguageClient} par défaut — reçoit les
+ * notifications et requêtes ENVOYÉES PAR le serveur de langage.
  *
- * <p>v3.5.0: proper {@code workspace/configuration} PULL handling. Many
- * servers (EmmyLua, gopls, rust-analyzer, …) pull their settings from the
- * client via {@code workspace/configuration} requests instead of — or in
- * addition to — receiving them via {@code workspace/didChangeConfiguration}
- * push. Previously this returned an empty list, which meant EmmyLua never
- * got its inspection settings and therefore never published diagnostics
- * (completion + signature help worked because they don't depend on
- * inspection config). Now the settings pushed via
- * {@link LspEditor#sendDidChangeConfiguration(Object)} are stored and
- * served back to the server on demand, with dot-path section navigation
- * (e.g. a request for section {@code "emmylua.inspections"} returns the
- * nested {@code inspections} object).
- *
- * @since v2.2.0
+ * <p>Gestion PULL de {@code workspace/configuration} : de nombreux serveurs
+ * (EmmyLua, gopls, rust-analyzer, …) tirent leurs réglages du client via des
+ * requêtes {@code workspace/configuration} au lieu de — ou en plus de — les
+ * recevoir par push {@code workspace/didChangeConfiguration}. Sans réponse
+ * réelle, EmmyLua n'obtient jamais ses réglages d'inspection et ne publie
+ * donc aucun diagnostic (la complétion et l'aide à la signature fonctionnent
+ * car elles ne dépendent pas de la configuration d'inspection). Les réglages
+ * poussés via {@link LspEditor#sendDidChangeConfiguration(Object)} sont donc
+ * stockés et resservis au serveur à la demande, avec navigation par chemin
+ * pointé (ex. une requête pour la section {@code "emmylua.inspections"}
+ * retourne l'objet {@code inspections} imbriqué).
  */
 public class DefaultLanguageClient implements LanguageClient {
 
-    /** v3.3.2: Set by LspEditor so diagnostics reach the editor. */
+    /** Positionné par LspEditor pour que les diagnostics atteignent l'éditeur. */
     private volatile LspEditor lspEditor;
 
-    /** v3.5.0: The settings object last pushed via didChangeConfiguration. */
+    /** L'objet de réglages dernièrement poussé via didChangeConfiguration. */
     private volatile Object settings;
 
     public void setLspEditor(LspEditor editor) {
@@ -47,9 +44,10 @@ public class DefaultLanguageClient implements LanguageClient {
     }
 
     /**
-     * v3.5.0: Stores the settings object so {@link #configuration} can
-     * serve it back to the server on {@code workspace/configuration} pull
-     * requests. Called by {@link LspEditor#sendDidChangeConfiguration}.
+     * Stocke l'objet de réglages afin que {@link #configuration} puisse le
+     * resservir au serveur sur les requêtes PULL
+     * {@code workspace/configuration}. Appelée par
+     * {@link LspEditor#sendDidChangeConfiguration}.
      */
     public void setSettings(Object settings) {
         this.settings = settings;
@@ -57,9 +55,9 @@ public class DefaultLanguageClient implements LanguageClient {
 
     @Override
     public void publishDiagnostics(PublishDiagnosticsParams diagnostics) {
-        // v3.5.0: log EVERY publishDiagnostics notification BEFORE the null
-        // check, so we can see if the server is sending them even when
-        // lspEditor isn't wired yet (race condition diagnosis).
+        // Journalise CHAQUE notification publishDiagnostics AVANT le contrôle
+        // de nullité, afin de voir si le serveur les envoie même quand
+        // lspEditor n'est pas encore câblé (diagnostic de condition de course).
         int count = diagnostics != null && diagnostics.getDiagnostics() != null
             ? diagnostics.getDiagnostics().size() : 0;
         String uri = diagnostics != null ? diagnostics.getUri() : "(null)";
@@ -68,30 +66,31 @@ public class DefaultLanguageClient implements LanguageClient {
             lspEditor.getProject().getLogSink().log(
                 "publishDiagnostics RECEIVED: count=" + count + " uri=" + uri);
         }
-        // v3.3.2 fix: actually forward diagnostics to the LspEditor.
+        // Transmet réellement les diagnostics au LspEditor.
         if (lspEditor != null) {
             lspEditor.publishDiagnostics(diagnostics);
         }
     }
 
     /**
-     * v3.5.0: Properly handle the server's {@code workspace/configuration}
-     * PULL request. For each requested {@link org.eclipse.lsp4j.ConfigurationItem}
-     * we navigate the stored settings by the item's {@code section} (a
-     * dot-separated path like {@code "emmylua.inspections.undeclaredVariable"})
-     * and return the value at that path. If the section is null or empty,
-     * the whole settings object is returned. If the path doesn't exist or
-     * no settings were pushed, null is returned for that item (per the LSP
-     * spec, the server must tolerate null entries).
+     * Traite la requête PULL {@code workspace/configuration} du serveur.
+     * Pour chaque {@link org.eclipse.lsp4j.ConfigurationItem} demandé,
+     * navigue dans les réglages stockés selon son {@code section} (chemin
+     * séparé par points, ex.
+     * {@code "emmylua.inspections.undeclaredVariable"}) et retourne la
+     * valeur à ce chemin. Section null ou vide : l'objet de réglages entier
+     * est retourné. Chemin inexistant ou aucun réglage poussé : null est
+     * retourné pour cet item (selon la spécification LSP, le serveur doit
+     * tolérer les entrées null).
      *
-     * <p>This is what makes EmmyLua actually publish diagnostics: it pulls
-     * {@code "emmylua.inspections.*"} settings, and without a real answer
-     * here every inspection level defaults to "None" → zero diagnostics.
+     * <p>C'est ce qui permet à EmmyLua de publier des diagnostics : il tire
+     * les réglages {@code "emmylua.inspections.*"} et, sans réponse réelle
+     * ici, chaque niveau d'inspection vaut « None » par défaut → zéro
+     * diagnostic.
      *
-     * <p>Same pattern as Sora Editor's DefaultLanguageClient, except Sora
-     * returns the whole settings object for every section (we do proper
-     * path navigation so a request for {@code "emmylua.inspections"}
-     * returns just the inspections sub-object, not the whole tree).
+     * <p>La navigation de chemin est réelle : une requête pour
+     * {@code "emmylua.inspections"} retourne uniquement le sous-objet
+     * inspections, pas l'arbre complet des réglages.
      */
     @Override
     public CompletableFuture<List<Object>> configuration(ConfigurationParams configurationParams) {
@@ -113,23 +112,24 @@ public class DefaultLanguageClient implements LanguageClient {
     }
 
     /**
-     * v3.5.0: Navigates a dot-separated {@code section} path inside the
-     * {@code settings} object (a {@link com.google.gson.JsonElement} or a
-     * POJO). Returns the value at the path, or null if the path doesn't
-     * exist or settings is null. A null/empty section returns the whole
-     * settings object.
+     * Navigue un chemin {@code section} séparé par points dans l'objet
+     * {@code settings} (un {@link com.google.gson.JsonElement} ou un POJO).
+     * Retourne la valeur au chemin, ou null si le chemin n'existe pas ou si
+     * settings est null. Une section null/vide retourne l'objet de réglages
+     * entier.
      */
     private static Object resolveSection(Object settings, String section) {
         if (settings == null) return null;
         if (section == null || section.isEmpty()) return settings;
-        // Only JsonObject supports dot-path navigation. If the server pushed
-        // a non-JSON object (e.g. a Map), we return the whole thing — the
-        // server will have to deal with it.
+        // Seul JsonObject permet la navigation par chemin pointé. Si l'objet
+        // poussé n'est pas JSON (ex. une Map), l'objet entier est retourné —
+        // le serveur devra s'en accommoder.
         if (settings instanceof com.google.gson.JsonElement) {
             com.google.gson.JsonElement el = (com.google.gson.JsonElement) settings;
             if (!el.isJsonObject()) return settings;
             com.google.gson.JsonObject obj = el.getAsJsonObject();
-            // Split on "." — but be careful: some servers use nested paths.
+            // Découpe sur « . » — attention : certains serveurs utilisent des
+            // chemins imbriqués.
             String[] parts = section.split("\\.");
             com.google.gson.JsonElement current = obj;
             for (String part : parts) {
@@ -140,15 +140,14 @@ public class DefaultLanguageClient implements LanguageClient {
             }
             return current;
         }
-        // POJO / Map fallback — return the whole object.
+        // Repli POJO / Map — retourner l'objet entier.
         return settings;
     }
 
     /**
-     * v3.3.9: Handle the server's workspace/workspaceFolders PULL request.
-     * Returns the project's workspace path so the server can register
-     * the workspace root.
-     * <p>Same pattern as Sora Editor's DefaultLanguageClient.
+     * Traite la requête PULL workspace/workspaceFolders du serveur.
+     * Retourne le chemin de l'espace de travail du projet pour que le
+     * serveur puisse enregistrer la racine de l'espace de travail.
      */
     @Override
     public CompletableFuture<List<WorkspaceFolder>> workspaceFolders() {
@@ -177,8 +176,9 @@ public class DefaultLanguageClient implements LanguageClient {
         return CompletableFuture.completedFuture(new MessageActionItem(""));
     }
 
-    // v3.3.6: Log server messages so the user can see what the server is
-    // saying — EmmyLua sends progress and error info via window/logMessage.
+    // Journalise les messages du serveur pour que l'utilisateur voie ce
+    // qu'il dit — EmmyLua envoie ses informations de progression et d'erreur
+    // via window/logMessage.
     @Override
     public void showMessage(MessageParams message) {
         String log = "server/showMessage: " + message.getType() + ": " + message.getMessage();

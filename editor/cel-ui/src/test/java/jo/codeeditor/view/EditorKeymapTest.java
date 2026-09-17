@@ -7,23 +7,20 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 /**
- * v3.36.0 — Tests de la keymap data-driven rebindable (roadmap item 6,
- * portage {@code EditorKeymap}/{@code EditorCommands} de CodeAssist v3.20).
+ * Tests de la keymap data-driven rebindable.
  *
- * <p>Couvrent : la table par défaut (portage verbatim des cascades
- * v3.35.0), les 4 passes de résolution des modificateurs (exact → sans
- * ctrl → sans shift → sans aucun — préserve les habitudes Ctrl+flèches,
- * Shift+Enter, Ctrl+Shift+A), le rebind/unbind, et l'immuabilité de la
- * table par défaut (defaults() retourne une instance neuve).</p>
+ * <p>Couvrent : la table par défaut, les 4 passes de résolution des
+ * modificateurs (exact → sans ctrl → sans shift → sans aucun — préserve
+ * les habitudes Ctrl+flèches, Shift+Enter, Ctrl+Shift+A), le rebind/unbind,
+ * et l'immuabilité de la table par défaut (defaults() retourne une
+ * instance neuve).</p>
  *
  * <p>Test JVM pur : seules les constantes de {@link KeyEvent} sont
  * utilisées (aucun appel framework).</p>
- *
- * @since v3.36.0
  */
 public class EditorKeymapTest {
 
-    // ── Default table: verbatim port of the v3.35.0 cascades ───────
+    // ── Table par défaut ────────────────────────────────────────────
 
     @Test
     public void defaults_ctrlShortcutsResolve() {
@@ -95,56 +92,57 @@ public class EditorKeymapTest {
     @Test
     public void defaults_unboundKeysResolveToNull() {
         EditorKeymap km = EditorKeymap.defaults();
-        // Plain letters are not commands (printable fall-through).
+        // Les lettres simples ne sont pas des commandes (retombée imprimable).
         assertNull(km.resolve(KeyEvent.KEYCODE_A, false, false));
         assertNull(km.resolve(KeyEvent.KEYCODE_G, false, false));
         assertNull(km.resolve(KeyEvent.KEYCODE_Z, false, false));
-        // Ctrl+O alone (without shift) is not bound.
+        // Ctrl+O seul (sans shift) n'est pas lié.
         assertNull(km.resolve(KeyEvent.KEYCODE_O, true, false));
     }
 
-    // ── Modifier fallback passes (legacy habit preservation) ────────
+    // ── Replis de modificateurs (habitudes conservées) ─────────────
 
     @Test
     public void resolve_fallbackPasses_preserveLegacyModifierHabits() {
         EditorKeymap km = EditorKeymap.defaults();
-        // Pass 2 (drop ctrl, keep shift): Ctrl+Left still moves the caret
-        // (v3.35.0 movement switch ignored ctrl).
+        // Passe 2 (sans ctrl, avec shift) : Ctrl+Gauche déplace toujours
+        // le caret (le switch de déplacement historique ignorait ctrl).
         assertEquals(EditorCommands.MOVE_LEFT, km.resolve(KeyEvent.KEYCODE_DPAD_LEFT, true, false).command);
         assertEquals(EditorCommands.EXTEND_LEFT, km.resolve(KeyEvent.KEYCODE_DPAD_LEFT, true, true).command);
-        // Ctrl+Tab still indents (v3.35.0 behavior).
+        // Ctrl+Tab indente toujours.
         assertEquals(EditorCommands.INDENT, km.resolve(KeyEvent.KEYCODE_TAB, true, false).command);
-        // Pass 3 (keep ctrl, drop shift): Ctrl+Shift+A still selects all
-        // (the v3.35.0 ctrl-switch ignored shift).
+        // Passe 3 (avec ctrl, sans shift) : Ctrl+Shift+A sélectionne
+        // toujours tout (le switch ctrl historique ignorait shift).
         assertEquals(EditorCommands.SELECT_ALL, km.resolve(KeyEvent.KEYCODE_A, true, true).command);
         assertEquals(EditorCommands.UNDO, km.resolve(KeyEvent.KEYCODE_Z, true, true).command);
-        // Pass 4 (drop both): Shift+Enter still inserts a newline.
+        // Passe 4 (sans aucun) : Shift+Enter insère toujours une nouvelle ligne.
         assertEquals(EditorCommands.NEW_LINE, km.resolve(KeyEvent.KEYCODE_ENTER, false, true).command);
         assertEquals(EditorCommands.BACKSPACE, km.resolve(KeyEvent.KEYCODE_DEL, false, true).command);
-        // Exact matches ALWAYS win over fallbacks — Ctrl+Shift+O is
-        // go-to-symbol, not "move" anything.
+        // Les matchs exacts gagnent TOUJOURS sur les replis — Ctrl+Shift+O
+        // est go-to-symbol, pas un « move ».
         assertEquals(EditorCommands.GO_TO_SYMBOL, km.resolve(KeyEvent.KEYCODE_O, true, true).command);
-        // Shift+Tab is DEDENT (exact), never the fallback INDENT.
+        // Shift+Tab est DEDENT (exact), jamais le repli INDENT.
         assertEquals(EditorCommands.DEDENT, km.resolve(KeyEvent.KEYCODE_TAB, false, true).command);
-        // Alt is a don't-care: Alt+Left behaves like Left.
+        // Alt est indifférent : Alt+Gauche se comporte comme Gauche.
         assertEquals(EditorCommands.MOVE_LEFT, km.resolve(KeyEvent.KEYCODE_DPAD_LEFT, false, false).command);
     }
 
-    // ── Rebinding ──────────────────────────────────────────────────
+    // ── Rebind / unbind ─────────────────────────────────────────────
 
     @Test
     public void bind_rebindsCommands() {
         EditorKeymap km = EditorKeymap.defaults();
-        // Ctrl+Shift+Z = redo (IntelliJ convention).
+        // Ctrl+Shift+Z = redo (convention IntelliJ).
         km.bind(EditorCommands.REDO, KeyEvent.KEYCODE_Z, true, true);
         assertEquals(EditorCommands.REDO, km.resolve(KeyEvent.KEYCODE_Z, true, true).command);
-        // The historical Ctrl+Y still works.
+        // Le Ctrl+Y historique fonctionne toujours.
         assertEquals(EditorCommands.REDO, km.resolve(KeyEvent.KEYCODE_Y, true, false).command);
 
-        // Rebinding the SAME key+mods replaces the previous command.
+        // Re-binder la MÊME touche+modificateurs remplace la commande
+        // précédente.
         km.bind(EditorCommands.SAVE, KeyEvent.KEYCODE_Z, true, true);
         assertEquals(EditorCommands.SAVE, km.resolve(KeyEvent.KEYCODE_Z, true, true).command);
-        // Other commands untouched.
+        // Les autres commandes sont intactes.
         assertTrue(km.isBound(EditorCommands.FORMAT_DOCUMENT));
         assertNotNull(km.bindingFor(EditorCommands.FORMAT_DOCUMENT));
     }
@@ -159,7 +157,7 @@ public class EditorKeymapTest {
         assertNull(km.resolve(KeyEvent.KEYCODE_EQUALS, true, false));
         assertNull(km.resolve(KeyEvent.KEYCODE_PLUS, true, false));
         assertNull(km.resolve(KeyEvent.KEYCODE_NUMPAD_ADD, true, false));
-        // Other commands untouched.
+        // Les autres commandes sont intactes.
         assertEquals(EditorCommands.ZOOM_OUT, km.resolve(KeyEvent.KEYCODE_MINUS, true, false).command);
     }
 
@@ -204,9 +202,9 @@ public class EditorKeymapTest {
         assertNotNull(b1.toString());
     }
 
-    // ── v3.37.0 — Chords (two-key sequences, Outcome.Pending port) ────
+    // ── Chords (séquences à deux touches, Outcome.Pending) ──────────
 
-    /** Ctrl+K → Ctrl+C helper stroke. */
+    /** Frappe utilitaire Ctrl+K → Ctrl+C. */
     private static EditorKeymap.KeyStroke ctrlK() {
         return EditorKeymap.KeyStroke.of(KeyEvent.KEYCODE_K, true, false);
     }
@@ -219,19 +217,19 @@ public class EditorKeymapTest {
     public void chord_bindAndResolve() {
         EditorKeymap km = new EditorKeymap();
         km.bindChord(EditorCommands.TOGGLE_LINE_COMMENT, ctrlK(), ctrlC());
-        // The first key arms the pending state…
+        // La première touche arme l'état pending…
         EditorKeymap.KeyStroke start = km.resolveChordStart(
             KeyEvent.KEYCODE_K, true, false);
         assertNotNull(start);
         assertEquals(ctrlK(), start);
-        // …the second key completes the sequence.
+        // …la seconde touche complète la séquence.
         EditorKeymap.ChordBinding chord = km.resolveChord(
             start, KeyEvent.KEYCODE_C, true, false);
         assertNotNull(chord);
         assertEquals(EditorCommands.TOGGLE_LINE_COMMENT, chord.command);
-        // An unrelated second key does not complete the chord.
+        // Une seconde touche sans rapport ne complète pas le chord.
         assertNull(km.resolveChord(start, KeyEvent.KEYCODE_X, true, false));
-        // A key that starts no chord returns null.
+        // Une touche qui n'amorce aucun chord renvoie null.
         assertNull(km.resolveChordStart(KeyEvent.KEYCODE_F, true, false));
     }
 
@@ -241,13 +239,15 @@ public class EditorKeymapTest {
         km.bindChord(EditorCommands.TOGGLE_LINE_COMMENT,
             EditorKeymap.KeyStroke.of(KeyEvent.KEYCODE_K, true, false),
             EditorKeymap.KeyStroke.of(KeyEvent.KEYCODE_C, true, false));
-        // Event presses Ctrl+Shift+K: pass 3 (drop shift) matches the
-        // registered (K, ctrl, false) first stroke — and the RETURNED
-        // stroke is the binding's, not the event's.
+        // L'événement presse Ctrl+Shift+K : la passe 3 (sans shift)
+        // correspond à la première frappe enregistrée (K, ctrl, false) —
+        // et la frappe RENVOYÉE est celle du binding, pas celle de
+        // l'événement.
         EditorKeymap.KeyStroke start = km.resolveChordStart(
             KeyEvent.KEYCODE_K, true, true);
         assertEquals(ctrlK(), start);
-        // Second key pressed with an extra modifier also falls back.
+        // La seconde touche pressée avec un modificateur en plus fait aussi
+        // l'objet d'un repli.
         EditorKeymap.ChordBinding chord = km.resolveChord(
             start, KeyEvent.KEYCODE_C, true, true);
         assertNotNull(chord);
@@ -262,7 +262,7 @@ public class EditorKeymapTest {
         assertEquals(1, km.chordBindings().size());
         assertEquals(EditorCommands.TOGGLE_BLOCK_COMMENT,
             km.chordBindings().get(0).command);
-        // Distinct second stroke → distinct row.
+        // Seconde frappe distincte → ligne distincte.
         km.bindChord(EditorCommands.FORMAT_DOCUMENT, ctrlK(),
             EditorKeymap.KeyStroke.of(KeyEvent.KEYCODE_F, true, false));
         assertEquals(2, km.chordBindings().size());
@@ -284,7 +284,7 @@ public class EditorKeymapTest {
     @Test
     public void chord_isBoundAndBindingForIncludeChords() {
         EditorKeymap km = new EditorKeymap();
-        // Command exists ONLY as a chord: isBound true, bindings() empty.
+        // Commande existant UNIQUEMENT en chord : isBound vrai, bindings() vide.
         km.bindChord(EditorCommands.TOGGLE_LINE_COMMENT, ctrlK(), ctrlC());
         assertTrue(km.isBound(EditorCommands.TOGGLE_LINE_COMMENT));
         assertEquals(0, km.bindings().size());
@@ -333,8 +333,9 @@ public class EditorKeymapTest {
 
     @Test
     public void defaults_haveNoChords() {
-        // v3.36.0 back-compat: the default table stays chord-free, so
-        // every key resolves exactly like before (single-key dispatch).
+        // Compatibilité ascendante : la table par défaut reste sans chord,
+        // donc chaque touche se résout exactement comme avant (dispatch
+        // mono-touche).
         EditorKeymap km = EditorKeymap.defaults();
         assertEquals(0, km.chordBindings().size());
         assertNull(km.resolveChordStart(KeyEvent.KEYCODE_K, true, false));
@@ -342,15 +343,16 @@ public class EditorKeymapTest {
 
     @Test
     public void chord_singleKeyBindingWinsOverChordStart() {
-        // Priority contract: a key with a single-key binding resolves as
-        // that binding — the handler only consults resolveChordStart()
-        // after resolve() missed, so a bound key never arms a chord.
-        // This test pins the keymap side of that contract: both can
-        // coexist in the table without interference.
+        // Contrat de priorité : une touche avec un binding mono-touche se
+        // résout comme ce binding — le handler ne consulte
+        // resolveChordStart() qu'après un échec de resolve(), donc une
+        // touche liée n'arme jamais un chord. Ce test verrouille le côté
+        // keymap de ce contrat : les deux peuvent coexister dans la table
+        // sans interférence.
         EditorKeymap km = EditorKeymap.defaults();
         km.bindChord(EditorCommands.TOGGLE_LINE_COMMENT, ctrlK(), ctrlC());
-        // Ctrl+Z still resolves as UNDO (single-key), while Ctrl+K (not
-        // single-bound by default) starts the chord.
+        // Ctrl+Z se résout toujours en UNDO (mono-touche), tandis que
+        // Ctrl+K (non lié en mono-touche par défaut) amorce le chord.
         assertEquals(EditorCommands.UNDO,
             km.resolve(KeyEvent.KEYCODE_Z, true, false).command);
         assertNotNull(km.resolveChordStart(KeyEvent.KEYCODE_K, true, false));

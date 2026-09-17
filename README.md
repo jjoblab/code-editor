@@ -1,57 +1,88 @@
-# Code Editor Lib (cel)
+# Code Editor (cel)
 
-Une bibliothèque Java **standalone pour Android** qui reproduit l'architecture de l'éditeur de code de [CodeAssist](https://github.com/tyron12233/CodeAssist) — un IDE Android construit from scratch avec un éditeur custom (pas Sora Editor).
+Une bibliothèque Java **standalone pour Android** qui fournit un éditeur de code
+complet — moteur d'édition pur, coloration syntaxique incrémentale, couche
+Android Canvas et intégration LSP — construite from scratch (pas Sora Editor).
 
-> **v3.37.0** — alignée sur l'analyse des évolutions editor de CodeAssist v3.9 → v3.20
-> (portage `LineOverlay`, prefetch idle, buckets par ligne, commentaires language-driven,
-> cache de layouts contenu-adressé, fold index O(log folds), correctifs lifecycle & API 24 ;
-> v3.36.0 : diagnostics groupés par ligne, keymap rebindable, registre de langages
-> contribuables, sweep des onglets ouverts, SPI plugins décorations, Gradle 9/AGP 9 ;
-> v3.37.0 : chords keymap (`Ctrl+K Ctrl+C` à la IntelliJ), retrait de l'état statique
-> textMateEnabled (B13), CI GitHub Actions — roadmap du rapport traitée à 12/12).
-> Voir `RAPPORT_ANALYSE_V3.34.0.md` et `CHANGELOG.md` pour le détail.
+> L'historique complet des versions figure dans [`CHANGELOG.md`](CHANGELOG.md).
+> Les fonctionnalités sont détaillées dans [`FEATURES.md`](FEATURES.md), le
+> guide d'intégration dans [`USAGE.md`](USAGE.md).
 
 ## Modules
 
 | Module | Rôle | Dépend de |
 |--------|------|-----------|
-| `:cel-core` | Moteur pur (sans Android UI) : Rope, EditorDocument, EditorSession, EditOps, FindReplace, DiagnosticShift, SnippetSession, FoldModel, WrapModel, LineRenderCache, SyntaxHighlighter, complétion | — |
-| `:cel-lsp-api` | SPI langage : `Language`, providers (completion, hover, diagnostics, definition, rename, format, inlay hints…) | `:cel-core` |
+| `:cel-core` | Moteur pur (sans Android UI) : Rope, EditorDocument, EditorSession, EditOps, FindReplace, DiagnosticShift, SnippetSession, FoldModel, WrapModel, LineRenderCache, SyntaxHighlighter, complétion, registre de langages | — |
+| `:cel-lsp-api` | SPI langage : `Language`, 17 interfaces de providers (completion, hover, diagnostics, definition, rename, format, inlay hints…) et 15 classes de données | `:cel-core` |
 | `:cel-lsp` | Intégration LSP4J : `LspProject`, `LspEditor`, serveurs in-process/socket/process | `:cel-core`, `:cel-lsp-api`, `:cel-ui` (compileOnly) |
-| `:cel-ui` | Vues Android : `EditorView` (Canvas), renderer, gutter, popups, IME bridge, bar tools, breadcrumb | `:cel-core`, `:cel-lsp-api` |
+| `:cel-ui` | Vues Android : `EditorView` (Canvas), renderer et painters, gutter, popups, IME bridge, bar tools, breadcrumb, minimap | `:cel-core`, `:cel-lsp-api` |
 
 ## Installation
 
-### Via JitPack (recommandé)
+### Via GitHub Packages (méthode principale)
 
-1. Poussez ce dépôt sur GitHub, puis créez un tag : `git tag v3.37.0 && git push origin v3.37.0`
-   (le workflow CI `.github/workflows/ci.yml` vérifie build + tests + lint sur chaque
-   push/PR, et assemble la release + valide la publication Maven sur chaque tag `v*`)
-2. Ajoutez le dépôt JitPack dans le `settings.gradle.kts` de l'app consommatrice :
+Les artefacts sont publiés sur `maven.pkg.github.com` avec les coordonnées
+`jo.codeeditor:<module>:<version>` (version courante : `3.37.0`).
+
+1. Créez un jeton d'accès personnel GitHub avec le droit `read:packages`.
+2. Renseignez vos identifiants dans `~/.gradle/gradle.properties` :
+
+```properties
+gpr.user=<votre-utilisateur-github>
+gpr.key=<votre-jeton-d-acces>
+```
+
+3. Ajoutez le dépôt et les dépendances dans l'application consommatrice :
 
 ```kotlin
+// settings.gradle.kts
 dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-        maven { url = uri("https://jitpack.io") }
+        maven {
+            name = "GitHubPackages"
+            url = uri("https://maven.pkg.github.com/jjoblab/code-editor")
+            credentials {
+                username = providers.gradleProperty("gpr.user").get()
+                password = providers.gradleProperty("gpr.key").get()
+            }
+        }
     }
 }
 ```
 
-3. Ajoutez les dépendances (JitPack remplace le groupId par `com.github.<votre-user>`) :
-
 ```kotlin
+// app/build.gradle.kts
 dependencies {
     // Le module UI embarque transitivement cel-core et cel-lsp-api.
-    implementation("com.github.<votre-user>.code-editor:cel-ui:v3.37.0")
+    implementation("jo.codeeditor:cel-ui:3.37.0")
 
     // Optionnel — intégration Language Server Protocol (LSP4J).
-    implementation("com.github.<votre-user>.code-editor:cel-lsp:v3.37.0")
+    // Ses dépendances vers cel-core/cel-lsp-api/cel-ui sont compileOnly :
+    // gardez la ligne cel-ui ci-dessus.
+    implementation("jo.codeeditor:cel-lsp:3.37.0")
 }
 ```
 
-### Via le module local
+### Via JitPack (alternative de secours)
+
+Si GitHub Packages n'est pas accessible, JitPack construit la bibliothèque à
+la demande depuis un tag Git (le fichier `jitpack.yml` épingle le JDK 17) :
+
+```kotlin
+// settings.gradle.kts — ajouter le dépôt JitPack
+maven { url = uri("https://jitpack.io") }
+```
+
+```kotlin
+dependencies {
+    implementation("com.github.jjoblab:cel-ui:v3.37.0")
+    implementation("com.github.jjoblab:cel-lsp:v3.37.0") // optionnel
+}
+```
+
+### Via les modules locaux (inclusion des sources)
 
 ```kotlin
 // settings.gradle.kts
@@ -73,24 +104,27 @@ L'éditeur repose sur une architecture en couches séparées, où chaque composa
 
 ```
 ┌─────────────────────────────────────────────────┐
-│                  EditorView                      │  ← Android Canvas rendering
-│  (gutter, caret, selection, squiggles, touch)    │
+│                  EditorView                      │  ← Rendu Android Canvas
+│  (gutter, caret, sélection, squiggles, touch)    │
 ├─────────────────────────────────────────────────┤
-│               EditorSession                      │  ← Edit engine (undo/redo, IME)
+│               EditorSession                      │  ← Moteur d'édition (undo/redo, IME)
 │  ┌──────────┐ ┌──────────┐ ┌──────────────────┐ │
 │  │ EditOps  │ │ FindRepl │ │ DiagnosticShift  │ │
 │  │ (smart)  │ │ (search) │ │ (offset mapping) │ │
 │  └──────────┘ └──────────┘ └──────────────────┘ │
 ├─────────────────────────────────────────────────┤
-│ SyntaxHighlighter │ FoldModel │ WrapModel       │  ← Per-line analysis
+│ SyntaxHighlighter │ FoldModel │ WrapModel       │  ← Analyse par ligne
 │ LineRenderCache   │ SnippetSession              │
 ├─────────────────────────────────────────────────┤
-│            EditorDocument                        │  ← Line-indexed text model
+│            EditorDocument                        │  ← Modèle de texte indexé par ligne
 │  ┌──────────────────────────────────────────┐   │
-│  │              Rope (balanced tree)         │   │  ← O(log N) per edit
+│  │              Rope (arbre équilibré)       │   │  ← O(log N) par édition
 │  └──────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────┘
 ```
+
+Voir [`ARCHITECTURE.md`](ARCHITECTURE.md) pour l'organisation détaillée des
+packages de chaque module.
 
 ## Utilisation rapide
 
@@ -110,7 +144,7 @@ session.undo();          // annule
 
 // Important : quand la session n'est plus utilisée (onDestroy de l'hôte),
 // libérez son thread de restyle :
-session.dispose();       // v3.34.0
+session.dispose();
 ```
 
 ### EditorView (Android)
@@ -118,12 +152,10 @@ session.dispose();       // v3.34.0
 ```java
 EditorView editorView = new EditorView(context);
 editorView.setSession(session);
-editorView.setTheme(EditorTheme.DARK);
-// Le prefetch idle hors viewport est actif par défaut (v3.34.0) : les
-// lignes autour du viewport sont pré-chauffées après 150 ms de scroll calme.
+editorView.setTheme(EditorTheme.dark());
 ```
 
-### Extensibilité (v3.36.0)
+### Extensibilité
 
 ```java
 // 1. Enregistrer son propre langage — coloration + commentaires pris en
@@ -140,8 +172,8 @@ session.setLanguage("mylang");
 editorView.setKeymap(EditorKeymap.defaults()
         .bind(EditorCommands.REDO, KeyEvent.KEYCODE_Z, true, true)); // Ctrl+Shift+Z
 
-// 2b. Ou lie une séquence à deux touches (chord, v3.37.0) — la
-//     première touche arme un pending de 2 s, Escape annule :
+// 2b. Ou lie une séquence à deux touches (chord) — la première touche
+//     arme un pending de 2 s, Escape annule :
 editorView.setKeymap(EditorKeymap.defaults()
         .bindChord(EditorCommands.TOGGLE_LINE_COMMENT,
                 EditorKeymap.KeyStroke.of(KeyEvent.KEYCODE_K, true, false),
@@ -149,7 +181,7 @@ editorView.setKeymap(EditorKeymap.defaults()
         .bindChord(EditorCommands.TOGGLE_BLOCK_COMMENT,
                 EditorKeymap.KeyStroke.of(KeyEvent.KEYCODE_K, true, false),
                 EditorKeymap.KeyStroke.of(KeyEvent.KEYCODE_U, true, false)));
-// Ctrl+K Ctrl+C = commenter, Ctrl+K Ctrl+U = décommenter (IntelliJ)
+// Ctrl+K Ctrl+C = commenter, Ctrl+K Ctrl+U = décommenter (style IntelliJ)
 
 // 3. Décorer l'éditeur depuis un plugin (un painter qui throw est retiré,
 //    jamais un crash) :
@@ -160,7 +192,7 @@ editorView.getPainterHost().register(new TodoPainter());
 OpenTabDiagnosticsSweep.start(openEditorViews);
 ```
 
-### LSP ( Language Server Protocol)
+### LSP (Language Server Protocol)
 
 ```java
 LspProject project = new LspProject("/path/to/workspace");
@@ -169,14 +201,17 @@ LspEditor editor = project.createEditor("file:///path/to/Foo.java");
 editor.setEditorView(editorView);
 editor.connect();
 // …
-project.shutdown(); // borné à 2 s par serveur (v3.34.0)
+project.shutdown(); // borné à 2 s par serveur
 ```
+
+Le guide complet (thèmes, diagnostics, résolveurs, raccourcis, aperçu XML)
+figure dans [`USAGE.md`](USAGE.md).
 
 ## Tests
 
 ```bash
-./gradlew testDebugUnitTest
-# 922 tests (v3.37.0), 0 failures :
+./gradlew test
+# 922 tests, 0 failure :
 #   cel-core 655 · cel-lsp-api 22 · cel-lsp 15 · cel-ui 230
 ```
 
@@ -184,47 +219,55 @@ project.shutdown(); // borné à 2 s par serveur (v3.34.0)
 
 | Opération | Complexité | Détail |
 |-----------|-----------|--------|
-| Insertion 1 char | O(log N + leafSize) | Rope replace, leaf max 512 chars |
+| Insertion 1 char | O(log N + leafSize) | Rope replace, feuille max 512 chars |
 | lineForOffset | O(log L) | Recherche binaire sur lineStarts |
-| Undo | O(edited text) | Coalescence, pas de copie complète |
-| Syntax highlighting | O(edited line) | Incrémental, état de sortie + cascade stop-rule |
-| Cache rendu par ligne | O(1) | Triple-stamp (text + inlay + sem), LRU 512 |
-| Filtre inlays/sem par ligne | O(bucket) | Index par ligne mémoïsé (v3.34.0, portage LineOverlay de CodeAssist 3.20) |
-| Splice des stamps de révision | O(région) | Tableaux int[] + System.arraycopy (v3.34.0) |
-| Prefetch idle | — | ±1 viewport après 150 ms de calme, chunks de 8 (v3.34.0) |
-| Folds cachés au-dessus d'une ligne | O(log folds) | Index mémoïsé fusionné + prefix-sums, clé (session, foldRev, doc) (v3.35.0) |
-| Ligne pour un Y écran | O(log n × log folds) | Recherche binaire sur visibleIndex = l − hiddenAbove(l) (v3.35.0) |
-| maxH (scroll horizontal) | O(1) par appel | maxCols mémoïsé par (session, doc, inlayRev), scan une fois par édition (v3.35.0) |
-| Layouts ligatures | O(1) sur hit | Cache contenu-adressé LRU 64, clé = texte de ligne (v3.35.0) |
-| Diagnostics par ligne de début | O(bucket) | Buckets mémoïsés, tri sévérité-desc (v3.36.0, portage diagnosticsByStartLine) |
-| Chips diagnostics | O(lignes visibles) | Itération des buckets groupés, badge de compte (v3.36.0) |
+| Undo | O(texte édité) | Coalescence, pas de copie complète |
+| Coloration syntaxique | O(ligne éditée) | Incrémentale, état de sortie + cascade stop-rule |
+| Cache rendu par ligne | O(1) | Triple-stamp (texte + inlay + sem), LRU 512 |
+| Filtre inlays/sem par ligne | O(bucket) | Index par ligne mémoïsé |
+| Splice des stamps de révision | O(région) | Tableaux int[] + System.arraycopy |
+| Prefetch idle | — | ±1 viewport après 150 ms de calme, chunks de 8 |
+| Folds cachés au-dessus d'une ligne | O(log folds) | Index mémoïsé fusionné + prefix-sums |
+| Ligne pour un Y écran | O(log n × log folds) | Recherche binaire sur visibleIndex = l − hiddenAbove(l) |
+| maxH (scroll horizontal) | O(1) par appel | maxCols mémoïsé, scan une fois par édition |
+| Layouts ligatures | O(1) sur hit | Cache contenu-adressé LRU 64, clé = texte de ligne |
+| Diagnostics par ligne de début | O(bucket) | Buckets mémoïsés, tri sévérité-desc |
+| Chips diagnostics | O(lignes visibles) | Itération des buckets groupés, badge de compte |
 | Grands fichiers | gating | > 2,5 M chars ou > 50 k lignes : analyse/folding/inlays coupés, édition conservée |
 
 ## Build
 
 ```bash
-# Prérequis : JDK 17, Android SDK (platform 34)
+# Prérequis : JDK 17+, Android SDK (platform 34)
 ./gradlew assembleDebug          # AARs debug des 4 modules
 ./gradlew assembleRelease        # AARs release
-./gradlew testDebugUnitTest      # tests (AGP 9 : la variante debug porte les tests unitaires)
-./gradlew lintDebug              # 0 erreur
+./gradlew test                   # tests (AGP 9 : la variante debug porte les tests unitaires)
+./gradlew lint                   # lint des 4 modules
 ./gradlew publishToMavenLocal    # publication Maven locale (jo.codeeditor:*)
 ```
 
-Gradle wrapper **9.5.1** · AGP **9.0.0** · `compileSdk 34` · `minSdk 24` · Java **17**.
+Gradle wrapper **9.5.1** · AGP **9.0.0** · `compileSdk 34` · `minSdk 24` ·
+Java **17 minimum** (21 validé) · encodage source **UTF-8**.
+
+Les instructions complètes (installation de la toolchain, publication Maven)
+figurent dans [`BUILD.md`](BUILD.md).
 
 ## CI
 
-Le workflow GitHub Actions (`.github/workflows/ci.yml`, v3.37.0) exécute sur chaque
-push (main) et chaque PR : `assembleDebug` + `testDebugUnitTest` + `lint` sur JDK 17
-Temurin, avec cache Gradle et validation des wrapper JARs (`gradle/actions/setup-gradle`).
-Sur chaque tag `v*`, un job release ajoute `assembleRelease` + `publishToMavenLocal`
-(dry-run de la publication JitPack) et uploade les AAR/POM en artefacts — un tag ne
-peut plus être poussé à l'aveugle.
+Le workflow GitHub Actions (`.github/workflows/ci.yml`) exécute sur chaque
+push (main) et chaque PR : `assembleDebug` + `testDebugUnitTest` + `lint` sur
+JDK 17 Temurin, avec cache Gradle et validation des wrapper JARs
+(`gradle/actions/setup-gradle`). Sur chaque tag `v*`, un job release ajoute
+`assembleRelease` + `publishToMavenLocal` (validation de la publication) et
+uploade les AAR/POM en artefacts. La publication sur GitHub Packages est
+manuelle (`./gradlew publish`, voir [`BUILD.md`](BUILD.md)) : aucun workflow
+automatisé de publication n'existe à ce jour.
 
 ## Crédits
 
-Architecture basée sur l'analyse du projet [CodeAssist](https://github.com/tyron12233/CodeAssist) par tyron12233 (évolutions v3.9 → v3.20 intégrées en v3.34.0-v3.37.0). Implémentation en Java pur pour Android.
+L'architecture s'inspire du projet [CodeAssist](https://github.com/tyron12233/CodeAssist)
+par tyron12233 — implémentation indépendante en Java pour Android, sans code
+commun (voir `NOTICE`).
 
 ## Licence
 

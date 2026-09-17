@@ -1,21 +1,15 @@
 package jo.codeeditor.view;
 
-import android.content.ClipData;
-import android.content.ClipboardManager;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Paint;
-import android.graphics.Path;
 import android.graphics.Rect;
-import android.graphics.RectF;
 import android.util.TypedValue;
 import android.view.GestureDetector;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
-import android.view.VelocityTracker;
 import android.view.View;
-import android.view.ViewConfiguration;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.OverScroller;
 
@@ -23,7 +17,6 @@ import jo.codeeditor.cache.LineRenderCache;
 import jo.codeeditor.document.EditorDocument;
 import jo.codeeditor.document.Selection;
 import jo.codeeditor.find.Match;
-import jo.codeeditor.highlight.LineSpan;
 import jo.codeeditor.highlight.StyledLine;
 import jo.codeeditor.highlight.TokenType;
 import jo.codeeditor.lang.Language;
@@ -34,43 +27,47 @@ import jo.codeeditor.shift.DiagnosticShift;
 
 import java.util.ArrayList;
 import java.util.List;
+import jo.codeeditor.view.chrome.BreadcrumbBar;
+import jo.codeeditor.view.chrome.EditorTheme;
+import jo.codeeditor.view.chrome.GutterView;
 
 /**
- * Android custom View for code editing with Canvas rendering.
+ * Vue Android personnalisée pour l'édition de code avec rendu Canvas.
  *
- * <p>Architecture follows the CodeAssist reference editor:
+ * <p>Architecture :
  * <ul>
- *   <li><b>IME bridge</b> — explicit {@code wantsKeyboard} flag set only by a
- *       user tap; {@code onCreateInputConnection} configures
- *       {@code EditorInfo} with the right inputType/imeOptions/initialSel
- *       and returns an {@link EditorImeBridge.EditorInputConnection} that overrides every
- *       text-operation method, including {@code replaceText} (API 34),
- *       {@code closeConnection} (generation-guarded), {@code getExtractedText}
- *       (with monitor arming), and {@code beginBatchEdit}/{@code endBatchEdit}
- *       (mapped to {@link EditorSession#beginBatch()}/{@link EditorSession#endBatch()}).</li>
- *   <li><b>Touch</b> — single-finger scroll + drag-select with slop
- *       disambiguation, long-press word select, double/triple tap word/line
- *       select, pinch zoom on a separate {@link ScaleGestureDetector}.</li>
- *   <li><b>Scroll</b> — vertical + horizontal with clamping to
- *       {@code [0, maxV()]} and {@code [0, maxH()]}, momentum fling via
- *       {@link OverScroller}, auto-scroll caret into view on every edit.</li>
- *   <li><b>Render</b> — single Canvas pass: background → current-line band
- *       → gutter → selection → text → squiggles → indent guides → caret.
- *       All offsets clamped; the selection fill is wrapped in
- *       {@code try/catch} so a one-frame stale offset can never crash the
- *       whole editor.</li>
- *   <li><b>Caret</b> — 2px accent bar; blink goes solid on every edit /
- *       caret move and only resumes after 530ms of inactivity.</li>
- *   <li><b>Hardware keys</b> — full {@code onKeyDown} override for backspace,
- *       arrows, Enter, Tab, Home/End, PageUp/Down, Ctrl+Z/Y/A/C/V/X, Ctrl±/0
- *       zoom.</li>
- *   <li><b>Clipboard</b> — {@link #copy()}, {@link #cut()}, {@link #paste()}
- *       via {@link ClipboardManager}.</li>
+ *   <li><b>Pont IME</b> — flag explicite {@code wantsKeyboard} positionné
+ *       uniquement par un tap utilisateur ; {@code onCreateInputConnection}
+ *       configure {@code EditorInfo} avec le bon inputType/imeOptions/initialSel
+ *       et retourne une {@link EditorImeBridge.EditorInputConnection} qui surcharge
+ *       chaque méthode d'opération texte, y compris {@code replaceText}
+ *       (API 34), {@code closeConnection} (gardée par génération),
+ *       {@code getExtractedText} (avec armement du monitor) et
+ *       {@code beginBatchEdit}/{@code endBatchEdit} (mappés sur
+ *       {@link EditorSession#beginBatch()}/{@link EditorSession#endBatch()}).</li>
+ *   <li><b>Toucher</b> — défilement à un doigt + sélection par glissement
+ *       avec désambiguïsation par slop, sélection de mot au long-press,
+ *       word/line select au double/triple tap, zoom pinch sur un
+ *       {@link ScaleGestureDetector} séparé.</li>
+ *   <li><b>Défilement</b> — vertical + horizontal avec bornage à
+ *       {@code [0, maxV()]} et {@code [0, maxH()]}, fling à inertie via
+ *       {@link OverScroller}, auto-scroll du caret dans la vue à chaque
+ *       édition.</li>
+ *   <li><b>Rendu</b> — passe Canvas unique : fond → bande de ligne courante
+ *       → gouttière → sélection → texte → soulignés → guides d'indentation
+ *       → caret. Tous les offsets sont bornés ; le remplissage de la
+ *       sélection est enveloppé dans un {@code try/catch} pour qu'un offset
+ *       périmé d'une frame ne puisse jamais faire planter tout l'éditeur.</li>
+ *   <li><b>Caret</b> — barre d'accent de 2px ; le clignotement passe en
+ *       plein à chaque édition / déplacement du caret et ne reprend qu'après
+ *       530ms d'inactivité.</li>
+ *   <li><b>Touches matérielles</b> — surcharge complète de
+ *       {@code onKeyDown} pour backspace, flèches, Entrée, Tab, Home/End,
+ *       PageUp/Down, Ctrl+Z/Y/A/C/V/X, zoom Ctrl±/0.</li>
+ *   <li><b>Presse-papiers</b> — {@link #copy()}, {@link #cut()},
+ *       {@link #paste()} via le presse-papiers Android (délégué à EditorClipboard).</li>
  * </ul>
- 
- *
- * @since v1.0.0
-*/
+ */
 public class EditorView extends View {
 
     EditorSession session;
@@ -78,40 +75,42 @@ public class EditorView extends View {
     EditorTheme theme;
     final GutterView gutterView;
 
-    // ── Scroll state ──────────────────────────────────────────────
+    // ── État de défilement ────────────────────────────────────────
     float vOffset = 0;
     float hOffset = 0;
 
     // ── Zoom ───────────────────────────────────────────────────────
-    // v3.36.0 (roadmap item 11): the zoom state (fontScale + scale
-    // mutations) moved to EditorZoomController; EditorView keeps the
-    // public delegating wrappers.
+    // L'état de zoom (fontScale + mutations d'échelle) vit dans
+    // EditorZoomController ; EditorView ne conserve que les wrappers
+    // publics de délégation.
     final EditorZoomController zoom = new EditorZoomController(this);
     static final float BASE_TEXT_SIZE_SP = 14f;
 
-    // ── Find highlights (visual decoration) ───────────────────────
-    // Set by the host (e.g. Find/Replace bar) — every match in the
-    // viewport is tinted theme.findMatch, the current one theme.findCurrent.
+    // ── Surlignages de recherche (décoration visuelle) ────────────
+    // Renseignés par l'hôte (ex. barre Rechercher/Remplacer) — chaque
+    // occurrence dans le viewport est teintée theme.findMatch, la
+    // courante theme.findCurrent.
     final List<Match> findHighlights = new ArrayList<>();
     int findCurrentIndex = -1;
 
-    // ── Completion popup ───────────────────────────────────────────
-    // Simple keyword-based completion built into the view. The host can
-    // also drive a richer CompletionController externally and feed items
-    // via setCompletionItems(items, tokenStart, prefix).
+    // ── Popup de complétion ────────────────────────────────────────
+    // Complétion simple par mots-clés intégrée à la vue. L'hôte peut
+    // aussi piloter en externe un CompletionController plus riche et
+    // alimenter les items via setCompletionItems(items, tokenStart,
+    // prefix).
     final List<jo.codeeditor.completion.CompletionSession.Item> completionItems = new ArrayList<>();
     int completionSelected = 0;
     int completionScrollOffset = 0;
     int completionTokenStart = -1;
     String completionPrefix = "";
     boolean completionVisible = false;
-    // v3.3.5: Client-side cache for completion filtering.
-    // When the provider returns items for a token, we cache them as the
-    // "base" set. On subsequent keystrokes that extend the same token,
-    // we filter the cached set by prefix (case-insensitive + fuzzy)
-    // instead of re-querying the provider. This is the CodeAssist pattern
-    // — keeps the popup responsive and stable while a slow LSP server
-    // catches up.
+    // Cache côté client pour le filtrage de complétion.
+    // Quand le provider retourne des items pour un token, on les met en
+    // cache comme jeu de « base ». Aux frappes suivantes qui étendent le
+    // même token, on filtre le jeu en cache par préfixe (insensible à la
+    // casse + fuzzy) au lieu de re-requêter le provider — le popup reste
+    // ainsi réactif et stable pendant qu'un serveur LSP lent rattrape
+    // son retard.
     List<jo.codeeditor.completion.CompletionSession.Item> completionBaseItems = new ArrayList<>();
     int completionBaseTokenStart = -1;
     static final int COMPLETION_MAX_ROWS = 8;
@@ -119,34 +118,36 @@ public class EditorView extends View {
     static final float COMPLETION_WIDTH_DP = 280f;
     CompletionProvider completionProvider;
 
-    // ── Word wrap ──────────────────────────────────────────────────
-    // When enabled, long lines wrap across multiple visual rows inside the
-    // text area. The wrap model caches per-line row counts and provides
-    // O(log L) doc-line ↔ visual-row mapping via prefix sums.
+    // ── Retour à la ligne (word wrap) ──────────────────────────────
+    // Quand activé, les lignes longues se replient sur plusieurs rangées
+    // visuelles dans la zone de texte. Le modèle de wrap met en cache le
+    // nombre de rangées par ligne et fournit la correspondance
+    // O(log L) ligne-doc ↔ rangée-visuelle via sommes préfixes.
     boolean wordWrap = false;
     jo.codeeditor.wrap.WrapModel wrapModel;
     int wrapWidthPx = 0;
 
     /**
-     * ★ v2.33 — étendue horizontale (coords CONTENU hors-gutter) de la chip
-     * diagnostic la plus à droite, mesurée par le draw pass
-     * (pattern {@code chipExtent} de CodeAssist EditorGeometry) : une chip
-     * qui déborde de sa ligne étend la largeur scrollable (maxH).
+     * Étendue horizontale (coords CONTENU hors gouttière) de la chip
+     * diagnostic la plus à droite, mesurée par la passe de dessin
+     * (pattern {@code chipExtent}) : une chip qui déborde de sa ligne
+     * étend la largeur scrollable (maxH).
      * 0 = aucune chip dessinée ce frame.
      */
     float chipExtentContentX = 0f;
 
     /**
-     * ★ v2.33 — géométrie de pliage d'UNE ligne en mode word-wrap (source
-     * unique partagée par le rendu, le caret/tap, le scroll et les chips —
-     * réplique exacte des règles de drawWrappedLine v3.31.1) : 1re rangée
-     * pleine largeur à {@code textAreaLeft}, rangées de continuation plus
-     * étroites indentées du leading-whitespace (cap à la demi-largeur).
+     * Géométrie de repli d'UNE ligne en mode word-wrap (source unique
+     * partagée par le rendu, le caret/tap, le scroll et les chips) :
+     * 1re rangée pleine largeur à {@code textAreaLeft}, rangées de
+     * continuation plus étroites indentées du leading-whitespace (cap à
+     * la demi-largeur).
      *
-     * <p>AVANT : la formule de comptage ({@code ceil(len / maxCols)}) et le
-     * découpage ({@code maxCols + (r-1)*colsPerCont}) DIVERGEAIENT dès que
-     * l'indent de continuation > 0 — la queue de la ligne (jusqu à
-     * {@code wrapIndentCols} caractères) n'était JAMAIS dessinée.</p>
+     * <p>La formule de comptage ({@code ceil(len / maxCols)}) et le
+     * découpage ({@code maxCols + (r-1)*colsPerCont}) doivent rester
+     * cohérents : dès que l'indent de continuation > 0, toute divergence
+     * laisserait la queue de la ligne (jusqu'à {@code wrapIndentCols}
+     * caractères) jamais dessinée.</p>
      */
     static final class WrapRows {
         final int maxColsPerRow;   // capacité de la 1re rangée
@@ -181,313 +182,73 @@ public class EditorView extends View {
 
     /**
      * Calcule la géométrie de pliage d'une ligne (word-wrap). Hors wrap,
-     * retourne une rangée unique pleine largeur.
+     * retourne une rangée unique pleine largeur (délégué à
+     * {@link EditorWrapGeometry}).
      */
     WrapRows wrapRowsFor(int line, int lineLen) {
-        if (!wordWrap || wrapModel == null || wrapWidthPx <= 0) {
-            return new WrapRows(Integer.MAX_VALUE / 4, 0, Integer.MAX_VALUE / 4, 1);
-        }
-        float charWidth = metrics.getCharWidth();
-        int maxColsPerRow = Math.max(1, (int) (wrapWidthPx / charWidth));
-        String text = lineLen > 0 ? session.getDocument().lineText(line) : "";
-        int leadingWs = 0;
-        for (int i = 0; i < text.length() && leadingWs < lineLen; i++) {
-            char c = text.charAt(i);
-            if (c == ' ' || c == '\t') leadingWs++;
-            else break;
-        }
-        int maxIndent = Math.max(0, maxColsPerRow / 2 - 1);
-        int wrapIndentCols = Math.min(leadingWs, maxIndent);
-        int colsPerCont = Math.max(1, maxColsPerRow - wrapIndentCols);
-        int rows = lineLen <= maxColsPerRow ? 1
-                : 1 + (lineLen - maxColsPerRow + colsPerCont - 1) / colsPerCont;
-        return new WrapRows(maxColsPerRow, wrapIndentCols, colsPerCont, rows);
+        return wrapGeometry.wrapRowsFor(line, lineLen);
     }
 
-    // ── Per-line render cache (v1.0.7 — Gap 3) ────────────────────
-    // Caches, per doc line, the StyledLine plus the per-line filtered
-    // inlay pieces + sem spans + raw↔visual column maps. Validated by
-    // a triple-stamp (text rev + inlay rev + sem rev) so a single
-    // edit only invalidates the lines whose text actually changed —
-    // not the whole viewport. LRU-evicted at 512 entries.
+    // ── Cache de rendu par ligne ──────────────────────────────────
+    // Met en cache, par ligne de doc, la StyledLine plus les pièces
+    // d'inlay filtrées par ligne + les spans sémantiques + les tables
+    // de conversion colonnes brutes↔visuelles. Validé par un
+    // triple-stamp (rev texte + rev inlay + rev sém) pour qu'une
+    // édition n'invalide que les lignes dont le texte a réellement
+    // changé — pas tout le viewport. Éviction LRU à 512 entrées.
     final LineRenderCache renderCache = new LineRenderCache();
 
-    // ── v3.35.0 — Fold prefix-sum index (roadmap item 3 / hotspot P3) ──
-    // countHiddenLinesAbove() used to walk the WHOLE fold list (with a
-    // lineForOffset binary search per region) on EVERY call — and the
-    // draw path calls it once per visible line via docLineToY, making
-    // drawing O(viewport × folds × log lines) with folds collapsed.
-    // This index stores the collapsed folds as merged, sorted, parallel
-    // arrays and answers hiddenAbove(line) / isHidden(line) in O(log folds).
-    //
-    // Cache key: (session identity, session.getFoldRevision(), doc
-    // identity). A list-reference compare alone can NOT be used because
-    // getFoldRegions() wraps a NEW unmodifiable view on every call and
-    // toggleFoldAtLine()/expandFoldAt() mutate the backing list in place
-    // — the revision counter bumped by every mutation is the only
-    // reliable invalidation signal.
-    private EditorSession foldIndexSession;
-    private int foldIndexRev = -1;
-    private EditorDocument foldIndexDoc;
-    private FoldIndex foldIndexCache = FoldIndex.EMPTY;
+    // ── Index de pliage à sommes préfixes ──────────────────────────
+    // Possédé par EditorFoldIndex (mémoïsation + requêtes O(log plis)) ;
+    // isLineFoldedCached() / countHiddenLinesAbove() ci-dessous et
+    // docLineForScreenY() consomment l'index via relais.
+    final EditorFoldIndex foldIndex = new EditorFoldIndex(this);
+    // Géométrie du word wrap (rangées, docLine↔Y, colonnes de rangée)
+    // — possédée par EditorWrapGeometry.
+    final EditorWrapGeometry wrapGeometry = new EditorWrapGeometry(this);
+    // Mapping point écran ↔ offset document et position écran du caret
+    // — possédé par EditorHitMapper.
+    final EditorHitMapper hitMapper = new EditorHitMapper(this);
+    // Construction du modèle de rangées du menu contextuel unifié
+    // — possédée par EditorNavMenuRows.
+    final EditorNavMenuRows navMenuRowsBuilder = new EditorNavMenuRows(this);
 
     /**
-     * v3.35.0 — merged/sorted collapsed-fold index with prefix sums.
-     * Overlapping regions are MERGED (the pre-v3.35.0 code could
-     * double-count them in countHiddenLinesAbove; the union is the
-     * correct semantics and matches FoldModel.mergeRegions).
-     */
-    static final class FoldIndex {
-        final int[] startLines;    // merged, sorted, non-overlapping
-        final int[] endLines;      // (endLines[i] - startLines[i]) hidden lines each
-        final int[] hiddenBefore;  // prefix sums of (end - start), size n+1
-        final int[] startSum;      // prefix sums of startLines, size n+1
-
-        static final FoldIndex EMPTY = new FoldIndex(
-                new int[0], new int[0], new int[0], new int[0]);
-
-        private FoldIndex(int[] startLines, int[] endLines,
-                          int[] hiddenBefore, int[] startSum) {
-            this.startLines = startLines;
-            this.endLines = endLines;
-            this.hiddenBefore = hiddenBefore;
-            this.startSum = startSum;
-        }
-
-        static FoldIndex build(List<jo.codeeditor.shift.DiagnosticShift.FoldRegion> folds,
-                               EditorDocument doc) {
-            int n = 0;
-            for (jo.codeeditor.shift.DiagnosticShift.FoldRegion r : folds) {
-                if (r.collapsed) n++;
-            }
-            if (n == 0) return EMPTY;
-            int[] s = new int[n];
-            int[] e = new int[n];
-            int m = 0;
-            for (jo.codeeditor.shift.DiagnosticShift.FoldRegion r : folds) {
-                if (!r.collapsed) continue;
-                s[m] = doc.lineForOffset(r.start);
-                e[m] = doc.lineForOffset(r.end);
-                if (e[m] < s[m]) { int t = s[m]; s[m] = e[m]; e[m] = t; }
-                m++;
-            }
-            // Sort both parallel arrays by startLine (index sort — fold
-            // counts are small, typically tens).
-            Integer[] order = new Integer[m];
-            for (int i = 0; i < m; i++) order[i] = i;
-            java.util.Arrays.sort(order, (a, b) -> Integer.compare(s[a], s[b]));
-            int[] ss = new int[m];
-            int[] ee = new int[m];
-            for (int i = 0; i < m; i++) { ss[i] = s[order[i]]; ee[i] = e[order[i]]; }
-            // Merge overlapping regions (union — same semantics as
-            // FoldModel.mergeRegions).
-            int[] ms = new int[m];
-            int[] me = new int[m];
-            int k = 0;
-            for (int i = 0; i < m; i++) {
-                if (k > 0 && ss[i] <= me[k - 1]) {
-                    if (ee[i] > me[k - 1]) me[k - 1] = ee[i];
-                } else {
-                    ms[k] = ss[i];
-                    me[k] = ee[i];
-                    k++;
-                }
-            }
-            // Prefix sums: hiddenBefore[t] = Σ_{i<t} (me[i]-ms[i]);
-            // startSum[t] = Σ_{i<t} ms[i].
-            int[] hiddenBefore = new int[k + 1];
-            int[] startSum = new int[k + 1];
-            for (int i = 0; i < k; i++) {
-                hiddenBefore[i + 1] = hiddenBefore[i] + (me[i] - ms[i]);
-                startSum[i + 1] = startSum[i] + ms[i];
-            }
-            return new FoldIndex(java.util.Arrays.copyOf(ms, k),
-                    java.util.Arrays.copyOf(me, k), hiddenBefore, startSum);
-        }
-
-        boolean isEmpty() { return startLines.length == 0; }
-
-        /**
-         * Number of doc lines strictly ABOVE {@code docLine} that are
-         * hidden by collapsed folds. O(log folds).
-         */
-        int hiddenAbove(int docLine) {
-            int n = startLines.length;
-            if (n == 0 || docLine <= 0) return 0;
-            // Folds [0, k) start strictly above docLine.
-            int k = lowerBound(startLines, docLine);
-            if (k == 0) return 0;
-            // Among them, folds [0, j) end strictly above docLine too
-            // (fully above — endLines is sorted since regions are merged).
-            int j = lowerBound(endLines, docLine);
-            int sum = hiddenBefore[j];
-            // Folds [j, k) straddle docLine: each hides (docLine-1-startLine)
-            // lines above it.
-            sum += (k - j) * (docLine - 1) - (startSum[k] - startSum[j]);
-            return sum;
-        }
-
-        /** True when {@code docLine} is INSIDE a collapsed fold — i.e.
-         * startLine < docLine <= endLine for some merged region. O(log folds). */
-        boolean isHidden(int docLine) {
-            int n = startLines.length;
-            if (n == 0 || docLine <= 0) return false;
-            int k = lowerBound(startLines, docLine);
-            if (k == 0) return false;
-            // Regions are sorted & non-overlapping: the only candidate
-            // with start < docLine is index k-1, and (since endLines is
-            // sorted) no earlier region can reach docLine either.
-            return endLines[k - 1] >= docLine;
-        }
-
-        private static int lowerBound(int[] a, int key) {
-            int lo = 0, hi = a.length;
-            while (lo < hi) {
-                int mid = (lo + hi) >>> 1;
-                if (a[mid] < key) lo = mid + 1; else hi = mid;
-            }
-            return lo;
-        }
-    }
-
-    /** v3.35.0 — the memoized fold index, rebuilt when
-     *  (session, fold revision, document) changes. */
-    private FoldIndex foldIndex() {
-        EditorSession s = session;
-        if (s == null) return FoldIndex.EMPTY;
-        if (s != foldIndexSession || s.getFoldRevision() != foldIndexRev
-                || s.getDocument() != foldIndexDoc) {
-            foldIndexSession = s;
-            foldIndexRev = s.getFoldRevision();
-            foldIndexDoc = s.getDocument();
-            foldIndexCache = FoldIndex.build(s.getFoldRegions(), foldIndexDoc);
-        }
-        return foldIndexCache;
-    }
-
-    /**
-     * v3.35.0 — O(log folds) replacement for {@code session.isLineFolded()}
-     * in the draw / hit-test paths (same semantics: union of the
-     * {@code (startLine, endLine]} ranges of collapsed folds).
+     * Remplacement en O(log plis) de {@code session.isLineFolded()} dans
+     * les chemins de dessin / hit-test (même sémantique : union des
+     * plages {@code (startLine, endLine]} des plis repliés).
      */
     boolean isLineFoldedCached(int docLine) {
-        return foldIndex().isHidden(docLine);
+        return foldIndex.get().isHidden(docLine);
     }
 
-    // ── v3.35.0 — Content-addressed shaped-layout cache (roadmap item 2) ──
-    // Port of CodeAssist 3.20's rememberTextMeasurer(cacheSize = 64):
-    // ~25% of the lines of a real file are byte-identical ("}", "    }",
-    // ""…) and the ligature-mode draw path used to rebuild a
-    // SpannableStringBuilder + a StaticLayout (native text shaping) for
-    // EVERY line on EVERY frame — scroll, caret blink, selection drag.
-    // This LRU memoizes the shaped layout by line CONTENT so identical
-    // lines share a single StaticLayout.
-    //
-    // Cache key: the line TEXT itself. Entry validity: a signature of the
-    // line's spans (start, end, type) + the base paint color, PLUS global
-    // invalidation when the font (typeface/textSize → EditorMetrics
-    // font revision) or the theme (colors baked into the spans) changes.
-    // Session identity deliberately does NOT participate: same text +
-    // same spans + same font + same theme = same pixels, whatever the
-    // document — that's the whole point of content addressing.
-    static final int SHAPED_CACHE_CAPACITY = 64;
-
-    private static final class ShapedEntry {
-        final android.text.StaticLayout layout;
-        final int spansSig;
-        ShapedEntry(android.text.StaticLayout layout, int spansSig) {
-            this.layout = layout;
-            this.spansSig = spansSig;
-        }
-    }
-
-    private final java.util.LinkedHashMap<String, ShapedEntry> shapedLayoutCache =
-            new java.util.LinkedHashMap<String, ShapedEntry>(16, 0.75f, true) {
-                @Override
-                protected boolean removeEldestEntry(
-                        java.util.Map.Entry<String, ShapedEntry> eldest) {
-                    return size() > SHAPED_CACHE_CAPACITY;
-                }
-            };
-    private int shapedCacheFontRev = -1;
-    private EditorTheme shapedCacheTheme;
+    // ── Cache de layouts façonnés adressé par contenu ─────────────
+    // ~25 % des lignes d'un fichier réel sont identiques octet pour
+    // octet ; cette LRU vit dans EditorShapedLayoutCache et mémoïse le
+    // layout façonné par CONTENU de ligne (relais ci-dessous pour le
+    // chemin de dessin et les tests).
+    final EditorShapedLayoutCache shapedCache = new EditorShapedLayoutCache(this);
+    // Construction des entrées de cache par ligne + correspondance de
+    // colonnes brute↔visuelle (inlays) — possédées par
+    // EditorLineLayoutResolver.
+    final EditorLineLayoutResolver lineLayouts = new EditorLineLayoutResolver(this);
 
     /**
-     * v3.35.0 — returns a shaped {@link android.text.StaticLayout} for the
-     * ligature-mode drawing of {@code lineText}, memoized content-addressed
-     * (roadmap item 2). Identical lines (same text, same span signature,
-     * same base color, same font generation, same theme) share ONE layout
-     * instead of paying the SpannableStringBuilder + shaping cost per frame.
+     * Retourne un {@link android.text.StaticLayout} façonné pour le dessin
+     * en mode ligatures de {@code lineText}, mémoïsé par adressage de
+     * contenu (délégué à {@link EditorShapedLayoutCache#layoutFor}).
      *
-     * <p>Thread-safety: called from the UI thread only (draw path).</p>
+     * <p>Sûreté de threads : appelé depuis le thread UI uniquement
+     * (chemin de dessin).</p>
      */
     android.text.StaticLayout shapedLayoutFor(String lineText, StyledLine styled,
                                               android.graphics.Paint paint) {
-        int fontRev = metrics.getFontRevision();
-        if (fontRev != shapedCacheFontRev || theme != shapedCacheTheme) {
-            // Typeface / text size / theme colors changed — every cached
-            // layout is stale (colors and font are baked into the spans
-            // and the TextPaint captured at build time).
-            shapedLayoutCache.clear();
-            shapedCacheFontRev = fontRev;
-            shapedCacheTheme = theme;
-        }
-        int sig = shapedSignature(styled, paint);
-        ShapedEntry e = shapedLayoutCache.get(lineText);
-        if (e != null && e.spansSig == sig) return e.layout;
-
-        android.text.SpannableStringBuilder ssb =
-                new android.text.SpannableStringBuilder(lineText);
-        if (styled != null && styled.spans != null) {
-            for (LineSpan span : styled.spans) {
-                int start = clamp(span.startCol, 0, lineText.length());
-                int end = clamp(span.endCol, 0, lineText.length());
-                if (start >= end) continue;
-                int color = theme.colorForToken(span.type);
-                ssb.setSpan(new android.text.style.ForegroundColorSpan(color),
-                    start, end, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-                // v2.55 — StyleSpan pour COMMENT (italic) et KEYWORD (bold).
-                if (span.type == jo.codeeditor.highlight.TokenType.COMMENT) {
-                    ssb.setSpan(new android.text.style.StyleSpan(
-                            android.graphics.Typeface.ITALIC),
-                        start, end, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-                } else if (span.type == jo.codeeditor.highlight.TokenType.KEYWORD) {
-                    ssb.setSpan(new android.text.style.StyleSpan(
-                            android.graphics.Typeface.BOLD),
-                        start, end, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-                } else if (span.type == jo.codeeditor.highlight.TokenType.ANNOTATION) {
-                    // Annotations en gras aussi pour les distinguer
-                    // rapidement des types normaux.
-                    ssb.setSpan(new android.text.style.StyleSpan(
-                            android.graphics.Typeface.BOLD),
-                        start, end, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-                }
-            }
-        }
-        android.text.StaticLayout sl = new android.text.StaticLayout(
-            ssb, new android.text.TextPaint(paint), Integer.MAX_VALUE,
-            android.text.Layout.Alignment.ALIGN_NORMAL, 1f, 0f, false);
-        shapedLayoutCache.put(lineText, new ShapedEntry(sl, sig));
-        return sl;
+        return shapedCache.layoutFor(lineText, styled, paint);
     }
 
-    /** v3.35.0 — quick validity signature: spans (start, end, type) +
-     *  the base paint color (mutated at draw time — e.g. the magnifier
-     *  path — so it must participate to avoid serving a stale base color). */
-    private static int shapedSignature(StyledLine styled, android.graphics.Paint paint) {
-        int h = paint.getColor();
-        if (styled == null || styled.spans == null) return h;
-        for (LineSpan span : styled.spans) {
-            h = h * 31 + span.startCol;
-            h = h * 31 + span.endCol;
-            h = h * 31 + span.type.ordinal();
-        }
-        return h;
-    }
-
-    /** v3.35.0 — number of memoized shaped layouts (tests/diagnostics). */
+    /** Nombre de layouts façonnés mémoïsés (tests/diagnostics). */
     int shapedLayoutCacheSize() {
-        return shapedLayoutCache.size();
+        return shapedCache.size();
     }
 
     private final EditorSession.OnLinesShiftedListener cacheShiftListener =
@@ -498,12 +259,12 @@ public class EditorView extends View {
             }
             @Override
             public void onLinesReset() {
-                // v2.45 — EditorSession.restyleAllAsync may call this
-                // from a background thread (the restyleExecutor worker).
-                // renderCache.clear() mutates a HashMap and must run on
-                // the UI thread; invalidate() must also be on the UI
-                // thread for the view to redraw correctly. Mirror the
-                // notifyDiagnosticsChanged cross-thread pattern.
+                // EditorSession.restyleAllAsync peut appeler ceci depuis
+                // un thread en arrière-plan (le worker restyleExecutor).
+                // renderCache.clear() mute une HashMap et doit s'exécuter
+                // sur le thread UI ; invalidate() doit aussi être sur le
+                // thread UI pour que la vue se redessine correctement.
+                // Miroir du pattern multi-thread de notifyDiagnosticsChanged.
                 if (getHandler() != null
                         && Thread.currentThread() != getHandler().getLooper().getThread()) {
                     getHandler().post(() -> {
@@ -517,12 +278,13 @@ public class EditorView extends View {
             }
         };
 
-    // ── Signature help popup (v1.0.7 — Gap 2) ────────────────────
-    // Shows function signature help above the caret when the caret is
-    // inside a function call. Anchored ABOVE the caret line (unlike
-    // completion which is BELOW). Falls back to a synthetic "function(…)
-    // param N" popup when no resolver is plugged in — useful for the
-    // demo and for languages without a language server.
+    // ── Popup d'aide de signature ────────────────────────────────
+    // Affiche l'aide de signature de fonction au-dessus du caret quand
+    // le caret est dans un appel de fonction. Ancré AU-DESSUS de la ligne
+    // du caret (contrairement à la complétion, qui est EN DESSOUS).
+    // Repli sur un popup synthétique « function(…) param N » quand aucun
+    // résolveur n'est branché — utile pour la démo et pour les langages
+    // sans serveur de langage.
     final jo.codeeditor.completion.SignatureHelpController signatureHelpController =
         new jo.codeeditor.completion.SignatureHelpController();
     boolean signatureHelpVisible = false;
@@ -530,62 +292,54 @@ public class EditorView extends View {
     SignatureHelpResolver signatureHelpResolver;
 
     /**
-     * Resolver interface for signature help — the host plugs one in to
-     * feed language-aware signatures. Without a resolver, the popup
-     * falls back to a synthetic "function(…) param N" hint.
+     * Interface de résolveur pour l'aide de signature — l'hôte en branche
+     * un pour alimenter des signatures conscientes du langage. Sans
+     * résolveur, le popup se replie sur une indication synthétique
+     * « function(…) param N ».
      */
     public interface SignatureHelpResolver {
         jo.codeeditor.completion.SignatureHelpController.SignatureHelp resolve(
             String text, int caret);
     }
 
-    // ── Quick doc popup (v1.0.7 — Gap 4) ──────────────────────────
-    // Shows documentation for the symbol at the caret / hover position.
-    // Desktop: hover > 500ms triggers. Mobile: long-press symbol triggers.
-    // Dismissed by tap elsewhere, scroll, edit, or Esc.
+    // ── Popup quick doc ───────────────────────────────────────────
+    // Affiche la documentation du symbole à la position caret / survol.
+    // Desktop : un survol > 500ms déclenche. Mobile : un long-press sur
+    // le symbole déclenche. Fermé par un tap ailleurs, scroll, édition
+    // ou Échap.
     QuickDocResolver quickDocResolver;
     boolean quickDocVisible = false;
     jo.codeeditor.doc.QuickDoc.QuickDocContent quickDocContent;
-    // v3.3.10: Diagnostics provider — stored so we can re-run diagnostics
-    // on every text change (debounced). Without this, diagnostics were only
-    // computed ONCE 500ms after setLanguage and never refreshed.
-    private jo.codeeditor.lang.DiagnosticsProvider diagnosticsProviderSpi;
-    private Runnable diagnosticsTask;
-    private static final int DIAGNOSTICS_DEBOUNCE_MS = 600;
+    // Provider de diagnostics + poussée débouncée vers la session et la
+    // gouttière — possédés par EditorDiagnosticsPusher.
+    final EditorDiagnosticsPusher diagnosticsPusher = new EditorDiagnosticsPusher(this);
+    // Requêtes de diagnostics (groupes de chips, hit-tests, garde
+    // ampoule) — possédées par EditorDiagnosticsLocator.
+    final EditorDiagnosticsLocator diagnosticsLocator = new EditorDiagnosticsLocator(this);
     float quickDocX, quickDocY;
-    /** v2.38 — offset d'ancrage du quick doc : le popup est REPOSITIONNÉ à chaque frame depuis cet offset (il suit le texte au scroll, motif Sora HoverWindow) au lieu de rester figé en coordonnées écran. */
+    /** Offset d'ancrage du quick doc : le popup est REPOSITIONNÉ à chaque frame depuis cet offset (il suit le texte au scroll) au lieu de rester figé en coordonnées écran. */
     int quickDocAnchorOffset;
-    /** v2.38 — scroll vertical du corps du quick doc (drag sur le popup, motif NavMenu). */
+    /** Scroll vertical du corps du quick doc (drag sur le popup). */
     float quickDocScrollY;
-    private static final long QUICK_DOC_HOVER_DELAY_MS = 500;
-    /** v2.38 — slop souris (px) avant de re-résoudre le symbole survolé (Sora : HOVER_TAP_SLOP = 20px) — un tremblement sous le seuil ne redémarre PAS le dwell. */
-    private static final float HOVER_SLOP_PX = 20f;
-    // v2.38 — position du POINTEUR (pas du caret !) sous laquelle résoudre
-    // le hover : l'ancien callback résolvait à selection.start → survoler
-    // un autre symbole sans bouger le caret affichait le MAUVAIS doc.
-    private float hoverX, hoverY;
-    private boolean hoverPositionValid = false;
-    private final Runnable quickDocHoverAction = () -> {
-        if (session != null && hoverPositionValid) {
-            // Résout sous le POINTEUR (Sora : la CharPosition sous la
-            // souris, jamais le caret).
-            int offset = offsetAt(hoverX, hoverY);
-            if (offset >= 0) showQuickDoc(offset);
-        }
-    };
+    // Survol souris → quick doc : dwell 500 ms + slop 20 px, possédés par
+    // EditorHoverQuickDoc (enregistre le listener de survol à la
+    // construction).
+    final EditorHoverQuickDoc hoverQuickDoc = new EditorHoverQuickDoc(this);
 
     /**
-     * Resolver for the quick-doc popup. Returns the raw doc comment text
-     * (Javadoc/KDoc); the view parses it via {@link jo.codeeditor.doc.QuickDoc#parseQuickDoc}.
+     * Résolveur du popup quick doc. Retourne le texte brut du commentaire
+     * de documentation (Javadoc/KDoc) ; la vue l'analyse via
+     * {@link jo.codeeditor.doc.QuickDoc#parseQuickDoc}.
      */
     public interface QuickDocResolver {
         String resolve(String text, int offset);
     }
 
-    // ── Code actions lightbulb (v1.0.7 — Gap 5) ──────────────────
-    // Shows a 💡 in the gutter for every visible line that has at least
-    // one code action. Tap the bulb → popup with the action list.
-    // Tap an action → apply.run() (the resolver supplies a Runnable).
+    // ── Ampoule des code actions ─────────────────────────────────
+    // Affiche une 💡 dans la gouttière pour chaque ligne visible qui a
+    // au moins une code action. Tap sur l'ampoule → popup avec la liste
+    // d'actions. Tap sur une action → apply.run() (le résolveur fournit
+    // un Runnable).
     CodeActionsResolver codeActionsResolver;
     final java.util.Map<Integer, List<CodeAction>> codeActionsByLine = new java.util.HashMap<>();
     boolean codeActionsPopupVisible = false;
@@ -596,15 +350,16 @@ public class EditorView extends View {
     static final int CODE_ACTIONS_MAX_ROWS = 8;
 
     /**
-     * Resolver for code actions. Returns a list of {@link CodeAction}s
-     * for the given document text + line.
+     * Résolveur des code actions. Retourne une liste de
+     * {@link CodeAction}s pour le texte de document + la ligne donnés.
      */
     public interface CodeActionsResolver {
         List<CodeAction> resolve(String text, int line);
     }
 
     /**
-     * A single code action (Gap 5) — title, kind, and a Runnable to apply it.
+     * Une code action unitaire — titre, kind et un Runnable pour
+     * l'appliquer.
      */
     public static final class CodeAction {
         public final String title;
@@ -618,7 +373,7 @@ public class EditorView extends View {
     }
 
     // ════════════════════════════════════════════════════════════════
-    // v2.36: Menu contextuel unifié (portage du NavMenu de CodeAssist)
+    // Menu contextuel unifié (NavMenu)
     // ════════════════════════════════════════════════════════════════
     // Le bouton « Actions ⋯ » de la toolbar de sélection ouvre le menu
     // contextuel unifié de l'éditeur : sections GO TO (options de navigation
@@ -636,8 +391,7 @@ public class EditorView extends View {
     /** Offset caret de résolution (l'extrémité START de la sélection). */
     int navMenuCaretOffset = -1;
     /** Options GO TO applicables (mode Menu) — Declaration /
-     *  Implementations / Type declaration / Super (ordre NavKind
-     *  CodeAssist). */
+     *  Implementations / Type declaration / Super (ordre NavKind). */
     List<NavigationMenu.NavOption> navMenuOptions = new ArrayList<>();
     /** Quick fixes (kind quickfix) de la ligne du caret (mode Menu). */
     List<CodeAction> navMenuQuickFixes = new ArrayList<>();
@@ -659,7 +413,7 @@ public class EditorView extends View {
     static final float NAV_MENU_MARGIN_DP = 8f;
 
     /**
-     * v2.36 — une rangée du menu contextuel unifié. SOURCE UNIQUE du
+     * Une rangée du menu contextuel unifié. SOURCE UNIQUE du
      * rendu et du hit-test (pattern SelectionToolbarMetrics).
      */
     static final class NavMenuRow {
@@ -687,9 +441,10 @@ public class EditorView extends View {
         }
     }
 
-    // ── Go-to-symbol popup (v1.0.7 — Gap 6) ──────────────────────
-    // Centred-at-top popup with a filter field and a scrollable symbol list.
-    // Filter is case-insensitive prefix + camel-hump (NavigationMenu.filter).
+    // ── Popup go-to-symbol ────────────────────────────────────────
+    // Popup centré en haut avec un champ de filtre et une liste de
+    // symboles scrollable. Le filtre est un préfixe insensible à la
+    // casse + camel-hump (NavigationMenu.filter).
     SymbolResolver symbolResolver;
     boolean goToSymbolVisible = false;
     String goToSymbolFilter = "";
@@ -703,175 +458,113 @@ public class EditorView extends View {
     static final float GO_TO_SYMBOL_RADIUS_DP = 6f;
 
     /**
-     * Resolver for the go-to-symbol popup. Returns ALL symbols in the
-     * document; the view filters via {@link NavigationMenu#filter} on
-     * every keystroke in the popup's filter field.
+     * Résolveur du popup go-to-symbol. Retourne TOUS les symboles du
+     * document ; la vue filtre via {@link NavigationMenu#filter} à chaque
+     * frappe dans le champ de filtre du popup.
      */
     public interface SymbolResolver {
         List<NavigationMenu.Symbol> resolve(String text);
     }
 
-    // ── v3.33.11: LSP providers wiring ─────────────────────────────
-    // The following resolvers bridge the SPI Language providers (definition,
-    // references, document highlights, rename, formatter, inlay hints) to
-    // the editor's UI / draw paths. setLanguage() wires them automatically
-    // when the SPI provider returns non-null.
+    // ── Câblage des providers LSP ─────────────────────────────────
+    // Les résolveurs suivants pontent les providers du SPI Language
+    // (definition, references, document highlights, rename, formatter,
+    // inlay hints) vers les chemins UI / dessin de l'éditeur.
+    // setLanguage() les branche automatiquement quand le provider SPI
+    // retourne non-null.
 
-    /** Resolver for go-to-definition. Returns a list of target locations. */
+    /** Résolveur du go-to-definition. Retourne une liste de localisations cibles. */
     public interface DefinitionResolver {
-        List<jo.codeeditor.lang.DefinitionLocation> resolve(String text, int offset);
+        List<jo.codeeditor.lang.model.DefinitionLocation> resolve(String text, int offset);
     }
     DefinitionResolver definitionResolver;
 
     /**
-     * v2.36 — resolver pour le go-to-TYPE-declaration (le type du symbole au
+     * Resolver pour le go-to-TYPE-declaration (le type du symbole au
      * caret, {@code Foo x = …} → {@code class Foo}). Nourrit la section
      * GO TO du menu contextuel unifié (toolbar de sélection → Actions ⋯).
      */
     public interface TypeDefinitionResolver {
-        List<jo.codeeditor.lang.DefinitionLocation> resolve(String text, int offset);
+        List<jo.codeeditor.lang.model.DefinitionLocation> resolve(String text, int offset);
     }
     TypeDefinitionResolver typeDefinitionResolver;
 
     /**
-     * v2.37 — resolver pour le go-to-IMPLEMENTATIONS (les héritiers DIRECTS
-     * du type en contexte au caret — une référence de type, sinon la classe
-     * englobante). Section GO TO du menu contextuel unifié (portage des
-     * {@code implementationTargets} de CodeAssist — icône layers).
+     * Resolver pour le go-to-IMPLEMENTATIONS (les héritiers DIRECTS du
+     * type en contexte au caret — une référence de type, sinon la classe
+     * englobante). Section GO TO du menu contextuel unifié
+     * ({@code implementationTargets} — icône layers).
      */
     public interface ImplementationsResolver {
-        List<jo.codeeditor.lang.DefinitionLocation> resolve(String text, int offset);
+        List<jo.codeeditor.lang.model.DefinitionLocation> resolve(String text, int offset);
     }
     ImplementationsResolver implementationsResolver;
 
     /**
-     * v2.37 — resolver pour le go-to-SUPER (le membre outrepassé dans chaque
+     * Resolver pour le go-to-SUPER (le membre outrepassé dans chaque
      * supertype, sinon les supertypes DIRECTS du type en contexte). Section
-     * GO TO du menu contextuel unifié (portage des {@code superTargets} de
-     * CodeAssist — icône pin).
+     * GO TO du menu contextuel unifié ({@code superTargets} — icône pin).
      */
     public interface SuperResolver {
-        List<jo.codeeditor.lang.DefinitionLocation> resolve(String text, int offset);
+        List<jo.codeeditor.lang.model.DefinitionLocation> resolve(String text, int offset);
     }
     SuperResolver superResolver;
 
-    /** Resolver for find-references. Returns a list of usage locations. */
+    /** Résolveur du find-references. Retourne une liste de localisations d'usage. */
     public interface ReferencesResolver {
-        List<jo.codeeditor.lang.DefinitionLocation> resolve(String text, int offset);
+        List<jo.codeeditor.lang.model.DefinitionLocation> resolve(String text, int offset);
     }
-    ReferencesResolver referencesResolver;
 
     /**
-     * Resolver for document highlights (occurrences of the symbol under
-     * the caret). Returns a list of [start, end] pairs (offsets).
+     * Résolveur des document highlights (occurrences du symbole sous le
+     * caret). Retourne une liste de paires [start, end] (offsets).
      */
     public interface DocumentHighlightResolver {
-        /** Returns int[]{start, end} pairs of highlighted ranges. */
+        /** Retourne des paires int[]{start, end} de plages surlignées. */
         List<int[]> resolve(String text, int offset);
     }
     DocumentHighlightResolver documentHighlightResolver;
-    /** Cached document-highlight ranges; invalidated on caret move + edit. */
+    /** Plages document-highlight en cache ; invalidées au déplacement du caret + édition. */
     final List<int[]> documentHighlights = new ArrayList<>();
 
     // ════════════════════════════════════════════════════════════════
-    // v2.32: Matching-bracket highlight (CodeAssist parity)
+    // Surlignage de l'appariement de parenthèses
     // ════════════════════════════════════════════════════════════════
 
     /**
-     * The currently highlighted bracket pair, as document offsets of the
-     * OPEN and CLOSE characters — or {@code null} when the caret is not
-     * adjacent to a bracket (or the bracket is unmatched). Recomputed
-     * synchronously on every caret move + edit by
-     * {@link #updateBracketPair()} — the scan is bounded
-     * ({@link #BRACKET_SCAN_LIMIT}) so an unmatched bracket in a huge
-     * file can't cost O(N) per keystroke.
+     * La paire de parenthèses actuellement surlignée, comme offsets
+     * document des caractères OUVRANT et FERMANT — ou {@code null} quand
+     * le caret n'est pas adjacent à une parenthèse (ou qu'elle est non
+     * appariée). Recalculée de façon synchrone à chaque déplacement du
+     * caret + édition par {@link #updateBracketPair()} — le balayage est
+     * borné ({@link #BRACKET_SCAN_LIMIT}) pour qu'une parenthèse non
+     * appariée dans un énorme fichier ne coûte pas O(N) par frappe.
      */
     int[] bracketPair;
 
     /**
-     * v2.32: Cap on the bracket-match scan (CodeAssist
-     * {@code BRACKET_SCAN_LIMIT = 50_000}) so an unmatched bracket in a
-     * huge file just yields no highlight instead of walking the whole
-     * document.
+     * Plafond du balayage d'appariement de parenthèses
+     * ({@code BRACKET_SCAN_LIMIT = 50_000}) pour qu'une parenthèse non
+     * appariée dans un énorme fichier ne produise simplement aucun
+     * surlignage au lieu de parcourir tout le document.
      */
     static final int BRACKET_SCAN_LIMIT = 50_000;
 
     /**
-     * v2.32: Port of CodeAssist {@code EditorEdits.matchingBracket}. Finds
-     * the matching bracket for the bracket immediately BEFORE or AT
-     * {@code caret}, as {@code [openOffset, closeOffset]}, or null.
-     *
-     * <p>Probes {@code caret-1} first (cursor right after a close bracket
-     * like {@code }|} or {@code )|} highlights the matching opener), then
-     * {@code caret} (cursor ON an open bracket highlights the closer).
-     * Naive depth scan ignoring strings/comments — fine for highlighting,
-     * exactly like CodeAssist.
+     * Trouve la parenthèse appariée pour celle immédiatement AVANT ou SUR
+     * {@code caret}, comme {@code [openOffset, closeOffset]}, ou null
+     * (délégué à {@link EditorBracketMatcher}).
      */
     static int[] matchingBracket(CharSequence text, int caret) {
-        if (text == null) return null;
-        for (int probe : new int[]{caret - 1, caret}) {
-            if (probe < 0 || probe >= text.length()) continue;
-            char ch = text.charAt(probe);
-            char close = closeOf(ch);
-            if (close != 0) {
-                int depth = 0;
-                int i = probe;
-                int limit = Math.min(text.length(), probe + BRACKET_SCAN_LIMIT);
-                while (i < limit) {
-                    char c = text.charAt(i);
-                    if (c == ch) depth++;
-                    else if (c == close) {
-                        depth--;
-                        if (depth == 0) return new int[]{probe, i};
-                    }
-                    i++;
-                }
-            } else {
-                char open = openOf(ch);
-                if (open == 0) continue;
-                int depth = 0;
-                int i = probe;
-                int limit = Math.max(0, probe - BRACKET_SCAN_LIMIT);
-                while (i >= limit) {
-                    char c = text.charAt(i);
-                    if (c == ch) depth++;
-                    else if (c == open) {
-                        depth--;
-                        if (depth == 0) return new int[]{i, probe};
-                    }
-                    i--;
-                }
-            }
-        }
-        return null;
-    }
-
-    /** Returns the closing bracket for an opening one, or 0 if not a bracket. */
-    private static char closeOf(char c) {
-        switch (c) {
-            case '(': return ')';
-            case '[': return ']';
-            case '{': return '}';
-            default: return 0;
-        }
-    }
-
-    /** Returns the opening bracket for a closing one, or 0 if not a bracket. */
-    private static char openOf(char c) {
-        switch (c) {
-            case ')': return '(';
-            case ']': return '[';
-            case '}': return '{';
-            default: return 0;
-        }
+        return EditorBracketMatcher.matchingBracket(text, caret);
     }
 
     /**
-     * v2.32: Recomputes {@link #bracketPair} from the current selection.
-     * Called synchronously on caret moves, edits, and language/session
-     * changes — the scan is bounded and typically stops at the match, so
-     * this is safe to run on the UI thread (CodeAssist recomputes it on
-     * every recomposition the same way).
+     * Recalcule {@link #bracketPair} depuis la sélection courante.
+     * Appelé de façon synchrone aux déplacements du caret, éditions et
+     * changements de langage/session — le balayage est borné et s'arrête
+     * typiquement à l'appariement, donc c'est sûr de l'exécuter sur le
+     * thread UI.
      */
     void updateBracketPair() {
         if (session == null) {
@@ -882,137 +575,85 @@ public class EditorView extends View {
         bracketPair = matchingBracket(session.getText(), sel.start);
     }
 
-    /** Resolver for rename. Returns the new full text after rename. */
+    /** Résolveur du rename. Retourne le nouveau texte complet après renommage. */
     public interface RenameResolver {
-        /** Returns the new text, or null if rename failed. */
+        /** Retourne le nouveau texte, ou null si le rename a échoué. */
         String rename(String text, int offset, String newName);
     }
     RenameResolver renameResolver;
 
-    /** Resolver for formatting. Returns the new full text. */
+    /** Résolveur du formatage. Retourne le nouveau texte complet. */
     public interface FormatterResolver {
         String format(String text);
     }
     FormatterResolver formatterResolver;
 
-    /** Provider for inlay hints. Pushed to session.setInlayHints() debounced. */
-    jo.codeeditor.lang.InlayHintProvider inlayHintProviderSpi;
-    private Runnable inlayHintTask;
-    private static final int INLAY_HINT_DEBOUNCE_MS = 800;
-
-    /** v0.1.0.50 : Schedules a debounced document-highlight refresh. */
+    // Inlay hints (débouncés), document highlights (débouncés) et
+    // génération d'annulation — possédés par EditorLanguageBridge ;
+    // scheduleDocumentHighlights() reste un relais package-private
+    // (appelé par EditorImeBridge).
     void scheduleDocumentHighlights() {
-        if (documentHighlightResolver == null) return;
-        if (getHandler() != null) {
-            getHandler().removeCallbacks(documentHighlightTask);
-            getHandler().postDelayed(documentHighlightTask, 400);
-        }
-    }
-    /** v0.1.0.50 : génération du documentHighlight (annulation). */
-    private volatile int docHighlightGeneration = 0;
-    private final Runnable documentHighlightTask = () -> {
-        if (session == null || documentHighlightResolver == null) return;
-        Selection sel = session.getSelection();
-        if (!sel.isCursor()) {
-            docHighlightGeneration++;
-            documentHighlights.clear();
-            invalidate();
-            return;
-        }
-        // v0.1.0.50 : la requête LSP (timeout 10 s, appelée toutes les
-        // 400 ms !) quitte le thread UI ; livraison latest-wins.
-        final int gen = ++docHighlightGeneration;
-        final String text = session.getText().toString();
-        final int caret = sel.start;
-        EditorPopupManager.FEATURE_EXECUTOR.execute(() -> {
-            List<int[]> result = null;
-            try {
-                result = documentHighlightResolver.resolve(text, caret);
-            } catch (Exception ignored) {
-            }
-            final List<int[]> fetched = result;
-            Runnable apply = () -> {
-                if (gen != docHighlightGeneration || session == null) return;
-                documentHighlights.clear();
-                if (fetched != null) documentHighlights.addAll(fetched);
-                invalidate();
-            };
-            android.os.Handler h = getHandler();
-            if (h != null) h.post(apply); else apply.run();
-        });
-    };
-
-    /** v3.33.11: Schedules a debounced inlay-hint refresh. */
-    private void scheduleInlayHints() {
-        if (inlayHintProviderSpi == null || inlayHintTask == null) return;
-        if (getHandler() != null) {
-            getHandler().removeCallbacks(inlayHintTask);
-            getHandler().postDelayed(inlayHintTask, INLAY_HINT_DEBOUNCE_MS);
-        }
+        languageBridge.scheduleDocumentHighlights();
     }
 
-    /** v0.1.0.50 : génération des inlay hints (annulation). */
-    private volatile int inlayGeneration = 0;
+    // État du popup references (réutilise l'UI go-to-symbol) — possédé par
+    // EditorReferencesController (visibilité, filtre, listes, sélection,
+    // scroll, génération d'annulation).
+    final EditorReferencesController referencesController = new EditorReferencesController(this);
 
-    /** v3.33.11: References popup state (reuses the go-to-symbol UI). */
-    boolean referencesPopupVisible = false;
-    String referencesFilter = "";
-    List<NavigationMenu.Symbol> referencesAll = new ArrayList<>();
-    List<NavigationMenu.Symbol> referencesFiltered = new ArrayList<>();
-    int referencesSelected = 0;
-    int referencesScrollOffset = 0;
-
-    // v3.33.5: BlockEditor, SymbolBarView, EditorBarTools, EditorLayoutManager supprimés (code mort).
-    // v3.18.0: Non-printable characters display (spaces, tabs, newlines).
+    // Affichage des caractères non imprimables (espaces, tabulations,
+    // sauts de ligne).
     boolean showNonPrintable = false;
 
-    // ★ v2.59 — Caret visibility toggle. Default true (caret visible).
+    // Bascule de visibilité du caret. Défaut true (caret visible).
     // Découple « cacher le caret » de EditorSession.setReadOnly(boolean) :
-    // avant, setReadOnly(true) était utilisé par ConsoleLogView pour
-    // empêcher l'utilisateur de taper ET cacher le caret — mais ce flag
-    // bloque AUSSI les mutations programmatiques (replaceRange dans
-    // appendLine/setContent/…) → la console restait vide à vie.
-    // Désormais, ConsoleLogView passe setFocusable(false) (bloque IME)
+    // setReadOnly(true) bloque AUSSI les mutations programmatiques
+    // (replaceRange dans appendLine/setContent/…) → l'utiliser pour
+    // empêcher la frappe ET cacher le caret laisserait la console
+    // vide à vie.
+    // ConsoleLogView passe donc setFocusable(false) (bloque l'IME)
     // + setCaretVisible(false) (cache le caret) sans toucher à setReadOnly
     // (le programme peut muter le document). Voir EditorRenderer.drawCaret.
     boolean caretVisible = true;
 
-    // v3.18.0: Magnifier state — re-armed in v2.35 for HANDLE DRAG only
-    // (dragHandle feeds X/Y; UP/CANCEL deactivate). The bubble itself is
-    // drawn by EditorRenderer.drawMagnifier (60dp, 2x zoom, ±3 lines,
-    // inlay-aware). Never active during scroll/drag-select — that was the
-    // v3.18.0 "interferes with selection" failure mode.
+    // État de la loupe — actif pour le DRAG DE POIGNÉE uniquement
+    // (dragHandle alimente X/Y ; UP/CANCEL désactivent). La bulle
+    // elle-même est dessinée par EditorRenderer.drawMagnifier (60dp,
+    // zoom 2x, ±3 lignes, consciente des inlays). Jamais active pendant
+    // le scroll / drag-select — pour ne pas interférer avec la sélection.
     boolean magnifierActive = false;
     float magnifierX = 0;
     float magnifierY = 0;
 
-    // v3.19.0: Font ligatures toggle. When enabled, the editor draws each line
-    // as a single drawText call (instead of per-span) so that ligatures like
-    // ->, =>, ==, !=, >=, <=, &&, ||, :: form properly. Syntax highlighting
-    // is disabled when ligatures are on (trade-off: ligatures vs colors).
+    // Bascule des ligatures de police. Quand activée, l'éditeur dessine
+    // chaque ligne en un seul appel drawText (au lieu de par span) pour
+    // que les ligatures comme ->, =>, ==, !=, >=, <=, &&, ||, :: se
+    // forment correctement. La coloration syntaxique est désactivée quand
+    // les ligatures sont actives (compromis : ligatures vs couleurs).
     boolean fontLigatures = false;
 
-    // v3.31.1: Minimap — VS Code-style miniature rendering of the entire file
-    // drawn in a narrow strip on the right edge. Shows the document structure
-    // at a glance + indicates the current viewport rectangle. Tap/drag to scroll.
+    // Minimap — rendu miniature à la VS Code du fichier entier, dessiné
+    // dans une bande étroite sur le bord droit. Montre la structure du
+    // document d'un coup d'œil + indique le rectangle du viewport courant.
+    // Tap/drag pour scroller. La géométrie (constantes + bornes) vit dans
+    // EditorChromePainter, qui dessine la bande.
     boolean minimapEnabled = false;
-    static final float MINIMAP_WIDTH_DP = 60f;
-    static final float MINIMAP_LINE_HEIGHT_PX = 2.5f;  // px per doc line
 
-    // ── EditorOverlayLayers (v1.0.7 — Gap 8) ────────────────────
-    // Lightweight Canvas-drawn overlays: diagnostic chips, selection
-    // toolbar, go-to-line popup, rename popup, diagnostic sheet.
-    // v1.0.9: go-to-line and rename now use real Android PopupWindow +
-    // EditText (the Canvas-only versions couldn't receive keyboard input).
+    // ── Couches de surcharge ─────────────────────────────────────
+    // Overlays légers dessinés au Canvas : chips de diagnostic, toolbar
+    // de sélection, popup go-to-line, popup rename, feuille de diagnostic.
+    // go-to-line et rename utilisent un vrai PopupWindow Android +
+    // EditText (les versions Canvas seul ne pouvaient pas recevoir la
+    // saisie clavier).
     boolean diagnosticChipsEnabled = true;
     boolean selectionToolbarVisible = false;
-    // ── v2.34: selection toolbar — CodeAssist SelectionToolbar parity ──
-    // The toolbar now also works in COLLAPSED mode (re-tap on the caret →
-    // Paste/Select all + icon buttons only), supports press feedback and an
-    // entrance animation (entrancePop + per-item cascade port).
-    /** uptimeMillis of the last show — drives the entrance animation. */
+    // ── Toolbar de sélection ─────────────────────────────────────
+    // La toolbar fonctionne aussi en mode REPLIÉ (re-tap sur le caret →
+    // Coller/Sélectionner tout + boutons icônes uniquement), avec feedback
+    // de pression et animation d'entrée (entrancePop + cascade par item).
+    /** uptimeMillis du dernier affichage — pilote l'animation d'entrée. */
     long selectionToolbarShownAt = 0L;
-    /** Index of the pressed item (press feedback), -1 = none. */
+    /** Index de l'item pressé (feedback de pression), -1 = aucun. */
     int selectionToolbarPressedIdx = -1;
     static final int SEL_ACT_COPY = 0;
     static final int SEL_ACT_CUT = 1;
@@ -1020,25 +661,20 @@ public class EditorView extends View {
     static final int SEL_ACT_SELECT_ALL = 3;
     static final int SEL_ACT_DOCS = 4;
     static final int SEL_ACT_ACTIONS = 5;
-    boolean goToLineVisible = false;
-    String goToLineText = "";
-    android.widget.PopupWindow goToLinePopup;
-    boolean renameVisible = false;
-    String renameText = "";
-    int renameStartOffset = -1;
-    int renameEndOffset = -1;
-    android.widget.PopupWindow renamePopup;
+    // L'état des popups go-to-line et rename (visibilité, texte, offsets,
+    // PopupWindow) vit dans EditorGoToLinePopup / EditorRenamePopup —
+    // leurs seuls consommateurs.
     boolean diagnosticSheetVisible = false;
-    // v3.4.0: Per-diagnostic popup (CodeAssist DiagnosticSheet pattern).
-    // Shows the FULL message + quick-fixes for a single tapped diagnostic.
-    // v2.31: redrawn as a CodeAssist-style bottom sheet (scrim + rounded
-    // panel + header with severity label + × close + quick-fix rows).
+    // Popup par diagnostic (pattern DiagnosticSheet).
+    // Affiche le message COMPLET + quick-fixes d'un seul diagnostic tapé.
+    // Redessiné en bottom sheet (scrim + panneau arrondi + en-tête avec
+    // libellé de sévérité + fermeture × + rangées de quick-fixes).
     boolean diagnosticPopupVisible = false;
     DiagnosticShift.Diagnostic diagnosticPopupItem = null;
     int diagnosticPopupOffset = -1;
     int diagnosticSheetScroll = 0;
 
-    // ── v2.31: Diagnostic sheet geometry (CodeAssist DiagnosticSheet port) ──
+    // ── Géométrie de la feuille de diagnostic ────────────────────
     static final float DIAG_SHEET_HEADER_DP = 46f;
     static final float DIAG_SHEET_MSG_LINE_DP = 19f;
     static final int DIAG_SHEET_MAX_MSG_LINES = 6;
@@ -1047,79 +683,74 @@ public class EditorView extends View {
     static final float DIAG_SHEET_BOTTOM_PAD_DP = 10f;
     static final float DIAG_SHEET_RADIUS_DP = 16f;
 
-    // ── v2.31: Diagnostic chip (CodeAssist DiagnosticChip port) ──
-    // One pill per line — the most severe Error/Warning — placed after the
-    // line end; tapping it opens the diagnostic sheet.
+    // ── Chip de diagnostic ──
+    // Une pastille par ligne — la plus sévère Error/Warning — placée après
+    // la fin de ligne ; la taper ouvre la feuille de diagnostic.
     static final float DIAG_CHIP_GAP_CHARS = 3f;
 
-    // ── v3.36.0: Grouped diagnostic list sheet (roadmap item 5) ──
-    // Port of CodeAssist v3.20 diagnosticsByStartLine(): when a line
-    // carries MULTIPLE diagnostics, its chip shows a count badge and its
-    // tap opens this grouped sheet first — every diagnostic starting on
-    // the line gets a row (severity dot + message); tapping a row opens
-    // the per-diagnostic popup with the quick fixes. Before this, the
-    // chip/gutter only surfaced the MOST severe diagnostic of the line:
-    // a warning hidden behind an error on the same line was unreachable.
-    // -1 = hidden.
+    // ── Feuille de liste de diagnostics groupée ──────────────────
+    // Regroupement par ligne de départ (diagnosticsByStartLine) : quand
+    // une ligne porte PLUSIEURS diagnostics, sa chip affiche un badge de
+    // compte et son tap ouvre d'abord cette feuille groupée — chaque
+    // diagnostic commençant sur la ligne a une rangée (point de sévérité +
+    // message) ; taper une rangée ouvre le popup par diagnostic avec les
+    // quick fixes. Sans cela, la chip/gouttière ne montrerait que le
+    // diagnostic le PLUS sévère de la ligne : un avertissement caché
+    // derrière une erreur sur la même ligne serait inatteignable.
+    // -1 = caché.
     int diagnosticListSheetLine = -1;
     static final float DIAG_LIST_ROW_DP = 44f;
     static final int DIAG_LIST_MAX_ROWS = 8;
 
-    // ── Selection handles (mobile) ─────────────────────────────────
-    // After a long-press or double-tap, two draggable handles appear at
-    // the start and end of the selection. Dragging a handle moves that
-    // end of the selection.
+    // ── Poignées de sélection (mobile) ────────────────────────────
+    // Après un long-press ou un double-tap, deux poignées déplaçables
+    // apparaissent au début et à la fin de la sélection. Glisser une
+    // poignée déplace cette extrémité de la sélection.
     boolean handlesVisible = false;
-    int handleDragMode = 0; // 0=none, 1=start, 2=end, 3=collapsed-caret
+    int handleDragMode = 0; // 0=aucune, 1=début, 2=fin, 3=caret replié
     static final float HANDLE_RADIUS_DP = 8f;
     static final float HANDLE_TAP_RADIUS_DP = 16f;
 
-    // ── IME state ──────────────────────────────────────────────────
+    // ── État IME ───────────────────────────────────────────────────
     /**
-     * Set ONLY by an explicit user tap. Focus alone never raises the
-     * keyboard — opening a file, switching tabs, returning from a sheet
-     * must not pop the IME. Losing focus clears the flag so a passive
-     * refocus stays silent.
+     * Positionné UNIQUEMENT par un tap utilisateur explicite. Le focus
+     * seul ne lève jamais le clavier — ouvrir un fichier, changer
+     * d'onglet, revenir d'une feuille ne doit pas faire surgir l'IME.
+     * La perte de focus efface le flag pour qu'un refocus passif reste
+     * silencieux.
      */
     boolean wantsKeyboard = false;
     final EditorImeBridge imeBridge = new EditorImeBridge(this);
     final EditorScrollManager scrollManager;
+    final EditorViewportPrefetcher viewportPrefetcher = new EditorViewportPrefetcher(this);
     int connectionGeneration = 0;
 
-    // ── Caret blink + glide ────────────────────────────────────────
-    // v3.33.10: ALL caret state lives in caretAnim. The renderer reads
-    // caretAnim.animX/animY directly. lastEditTime is the only caret-
-    // adjacent field kept on EditorView because it's also read by the
-    // scroll manager and the IME bridge as a "last user activity"
-    // timestamp — caretAnim.updateBlink() reads it via the view ref.
+    // ── Clignotement + glissement du caret ─────────────────────────
+    // TOUT l'état du caret vit dans caretAnim. Le renderer lit
+    // caretAnim.animX/animY directement. lastEditTime est le seul champ
+    // adjacent au caret conservé sur EditorView car il est aussi lu par
+    // le gestionnaire de scroll et le pont IME comme horodatage de
+    // « dernière activité utilisateur » — caretAnim.updateBlink() le lit
+    // via la ref de vue.
     final CaretAnimator caretAnim = new CaretAnimator(this);
     long lastEditTime = 0;
 
-    // ── Diagnostic squiggle ───────────────────────────────────────
+    // ── Souligné ondulé de diagnostic ────────────────────────────
 
-    // ── Indent guides ──────────────────────────────────────────────
+    // ── Guides d'indentation ──────────────────────────────────────
 
-    // ── Clipboard cap (Binder-safe) ───────────────────────────────
-    /**
-     * v2.34 — cap presse-papiers : 200 000 caractères en gardant la FIN
-     * (parité CodeAssist {@code clipForClipboard} — prévient la
-     * TransactionTooLargeException du binder ~1 Mo tout en préservant la
-     * partie utile d'une longue sélection, la fin). Avant : 1 M en gardant
-     * le début.
-     */
-    private static final int MAX_CLIPBOARD_CHARS = 200_000;
-
-    // ── Extracted-text window cap (Binder-safe) ───────────────────
+    // ── Plafond de fenêtre du texte extrait (sûr pour le Binder) ──
     static final int MAX_EXTRACT_CHARS = 100_000;
     int extractedTextMonitorToken = -1;
 
-    // ── Cursor anchor info (G9i, API 21+) ────────────────────────
-    // Some IMEs (Japanese/Chinese) request cursor anchor updates to
-    // position their candidate window. 0 = not monitoring; the IME
-    // sets this via InputConnection.requestCursorUpdates.
+    // ── Infos d'ancre du curseur (G9i, API 21+) ───────────────────
+    // Certains IME (japonais/chinois) demandent des mises à jour de
+    // l'ancre du curseur pour positionner leur fenêtre de candidats.
+    // 0 = pas de monitoring ; l'IME le règle via
+    // InputConnection.requestCursorUpdates.
     int cursorAnchorMonitorMode = 0;
 
-    // ── Reusable paints (avoid GC in onDraw) ──────────────────────
+    // ── Peintures réutilisables (évite le GC dans onDraw) ──────────
     final Paint bgPaint = new Paint();
     final Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     final Paint selPaint = new Paint();
@@ -1127,116 +758,76 @@ public class EditorView extends View {
     final Paint squigglePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     final Paint guidePaint = new Paint();
 
-    // v3.8.0: All Canvas drawing is delegated to this renderer. EditorView
-    // keeps its state fields, public API, input handling, IME, etc. — only
-    // the draw methods moved. The renderer accesses EditorView's
-    // package-private fields via the `view` reference.
+    // Tout le dessin Canvas est délégué à ce renderer. EditorView garde
+    // ses champs d'état, son API publique, la gestion des entrées, l'IME,
+    // etc. — seules les méthodes de dessin ont bougé. Le renderer accède
+    // aux champs package-private d'EditorView via la référence `view`.
     private final EditorRenderer renderer;
     final EditorInputHandler inputHandler;
     final EditorPopupManager popupManager;
     private final EditorKeyHandler keyHandler;
+    final EditorClipboard clipboard = new EditorClipboard(this);
+    // Actions de document asynchrones (go-to-definition, formatage,
+    // organize imports) — possédées par EditorDocumentActions.
+    final EditorDocumentActions documentActions = new EditorDocumentActions(this);
 
     /**
-     * v3.36.0 (roadmap item 6) — the data-driven, rebindable keymap.
-     * {@link EditorKeyHandler} resolves every hardware key event through
-     * this table; replace it with {@link #setKeymap(EditorKeymap)} to
-     * rebind commands at runtime (see {@link EditorCommands}).
+     * Le keymap piloté par les données, re-bindable.
+     * {@link EditorKeyHandler} résout chaque événement de touche matérielle
+     * à travers cette table ; remplacez-la via {@link #setKeymap(EditorKeymap)}
+     * pour re-binder des commandes à l'exécution (voir {@link EditorCommands}).
      */
     EditorKeymap keymap = EditorKeymap.defaults();
 
     /**
-     * v3.36.0 — Replaces the hardware-key keymap (fluent rebinding, see
-     * {@link EditorKeymap#defaults}). Pass null to restore the default
-     * table. Changes apply from the next key event.
+     * Remplace le keymap des touches matérielles (re-binding souple,
+     * voir {@link EditorKeymap#defaults}). Passer null restaure la table
+     * par défaut. Les changements s'appliquent au prochain événement de
+     * touche.
      */
     public void setKeymap(EditorKeymap keymap) {
         this.keymap = keymap != null ? keymap : EditorKeymap.defaults();
     }
 
-    /** v3.36.0 — The active keymap (mutable — rebind directly if needed). */
+    /** Le keymap actif (mutable — re-binder directement si besoin). */
     public EditorKeymap getKeymap() {
         return keymap;
     }
 
     /**
-     * v3.36.0 (roadmap item 9) — the plugin painter host. Register
-     * {@link EditorDecorationPainter}s to add text decorations, gutter
-     * marks and phantom inlays without touching the editor's own layers.
-     * A painter that throws is removed instead of crashing the editor.
+     * L'hôte des painters de plugin. Enregistrez des
+     * {@link EditorDecorationPainter}s pour ajouter des décorations de
+     * texte, des marques de gouttière et des inlays fantômes sans toucher
+     * aux couches propres de l'éditeur. Un painter qui lève est retiré
+     * plutôt que de faire planter l'éditeur.
      */
     final EditorPainterHost painterHost = new EditorPainterHost();
 
-    /** v3.36.0 — The plugin painter host (register/unregister painters). */
+    /** L'hôte des painters de plugin (enregistrer/désenregistrer des painters). */
     public EditorPainterHost getPainterHost() {
         return painterHost;
     }
 
-    // ── Language SPI (v2.0.0) ────────────────────────────────────
-    // The Language instance provides all language intelligence (completion,
-    // hover, signature help, diagnostics, etc.) via optional provider
-    // methods. When set, it replaces the v1.x per-feature resolvers.
-    /** v0.1.0.50 : accès package pour EditorPopupManager (trigger chars). */
+    // ── SPI Language ──────────────────────────────────────────────
+    // L'instance Language fournit toute l'intelligence de langage
+    // (complétion, hover, aide de signature, diagnostics, etc.) via des
+    // méthodes provider optionnelles. Une fois définie, elle remplace les
+    // résolveurs par fonctionnalité.
+    /** Accès package pour EditorPopupManager (trigger chars). */
     Language language;
-    /** Coordinates z-order + dismissal of all editor popups. v2.0.0. */
+    /** Coordonne le z-order + la fermeture de tous les popups de l'éditeur. */
     private final PopupCoordinator popupCoordinator = new PopupCoordinator();
 
-    // v3.31.1: StyleReceiver implementation — bridges the Language SPI's
-    // incremental Analyzer to the EditorSession's styledLines. The analyzer
-    // calls onStylesUpdated on a worker thread; we post to the UI thread to
-    // invalidate the affected lines + redraw.
-    private final jo.codeeditor.lang.StyleReceiver styleReceiver =
-            new jo.codeeditor.lang.StyleReceiver() {
-                @Override
-                public void onStylesUpdated(int startLine, int endLine) {
-                    if (getHandler() != null) {
-                        getHandler().post(() -> {
-                            // LineRenderCache n'a pas d'invalidateRange direct :
-                            // on invalide à partir de startLine (toutes les
-                            // lignes suivantes seront re-tokénisées par le
-                            // prochain appel à analyzer.styledLine(i)).
-                            renderCache.invalidateFrom(startLine);
-                            invalidate();
-                        });
-                    } else {
-                        renderCache.invalidateFrom(startLine);
-                        invalidate();
-                    }
-                }
-                @Override
-                public void onBlocksUpdated() {
-                    if (getHandler() != null) {
-                        getHandler().post(EditorView.this::invalidateBlocks);
-                    } else {
-                        invalidateBlocks();
-                    }
-                }
-            };
-
-    private void invalidateBlocks() {
-        if (session == null || language == null) return;
-        try {
-            java.util.List<jo.codeeditor.lang.CodeBlock> blocks =
-                    language.getAnalyzer().computeBlocks();
-            if (!blocks.isEmpty()) {
-                java.util.List<jo.codeeditor.shift.DiagnosticShift.FoldRegion> regions =
-                        new java.util.ArrayList<>(blocks.size());
-                for (jo.codeeditor.lang.CodeBlock b : blocks) {
-                    regions.add(new jo.codeeditor.shift.DiagnosticShift.FoldRegion(
-                            b.start, b.end, b.placeholder, b.kind, b.collapsed));
-                }
-                session.setFoldRegions(regions);
-                invalidate();
-            }
-        } catch (Throwable t) {
-            // Silent — the analyzer may not implement computeBlocks reliably.
-        }
-    }
+    // Pont SPI Language → résolveurs UI + rafraîchissements débouncés
+    // (code actions, inlay hints, document highlights) + StyleReceiver de
+    // l'analyzer — possédés par EditorLanguageBridge.
+    final EditorLanguageBridge languageBridge = new EditorLanguageBridge(this);
 
     // ── Listeners ──────────────────────────────────────────────────
     OnSelectionChangedListener selectionListener;
-    // v3.4.0: Additional selection listeners (BreadcrumbBar, etc.) that
-    // don't replace the primary one. setOnSelectionChangedListener sets
-    // the primary; addOnSelectionChangedListener adds a secondary.
+    // Listeners de sélection additionnels (BreadcrumbBar, etc.) qui ne
+    // remplacent pas le primaire. setOnSelectionChangedListener règle le
+    // primaire ; addOnSelectionChangedListener ajoute un secondaire.
     final java.util.List<OnSelectionChangedListener> extraSelectionListeners =
         new java.util.concurrent.CopyOnWriteArrayList<>();
 
@@ -1253,84 +844,54 @@ public class EditorView extends View {
     }
 
     /**
-     * XML layout constructor — required when the EditorView is declared
-     * in an XML layout file. Android's LayoutInflater calls this with
-     * the Context and AttributeSet from the XML tag.
-     *
-     * @since v3.1.0
+     * Constructeur de layout XML — requis quand l'EditorView est déclarée
+     * dans un fichier de layout XML. Le LayoutInflater d'Android l'appelle
+     * avec le Context et l'AttributeSet du tag XML.
      */
     public EditorView(Context context, android.util.AttributeSet attrs) {
         super(context, attrs);
         this.metrics = new EditorMetrics();
         this.theme = EditorTheme.dark();
         this.gutterView = new GutterView(metrics, theme);
-        // v3.7.2: pass screen density so the diagnostic dot can be sized in dp.
+        // Passe la densité d'écran pour que le point de diagnostic soit
+        // dimensionné en dp.
         this.gutterView.setDensity(getResources().getDisplayMetrics().density);
-        // v3.5.0: wire the gutter's fold-awareness to the session's
-        // isLineFolded() so line numbers stay aligned when folds collapse.
+        // Branche la conscience des plis de la gouttière sur le
+        // isLineFolded() de la session pour que les numéros de ligne
+        // restent alignés quand des plis se replient.
         this.gutterView.setHiddenLineChecker(line -> {
             EditorSession s = session;
-            // v3.35.0: O(log folds) fold-index lookup instead of the
-            // O(folds) session walk (hotspot P3 — the gutter checks every
-            // visible line on every draw).
+            // Recherche dans l'index de plis en O(log plis) au lieu du
+            // parcours de session en O(plis) (la gouttière vérifie chaque
+            // ligne visible à chaque dessin).
             return s != null && isLineFoldedCached(line);
         });
-        // v3.33.5: EditorLayoutManager supprimé (code mort).
         this.session = new EditorSession();
         this.session.setImeListener(imeBridge.listener);
         this.session.setOnLinesShiftedListener(cacheShiftListener);
-        // v3.8.0: instantiate the renderer that owns all draw* methods.
+        // Instancie le renderer qui possède toutes les méthodes draw*.
         this.renderer = new EditorRenderer(this);
         this.inputHandler = new EditorInputHandler(this);
         this.popupManager = new EditorPopupManager(this);
         this.scrollManager = new EditorScrollManager(this);
         this.keyHandler = new EditorKeyHandler(this);
 
-        // Default focusability so the framework routes keys here.
+        // Focalisabilité par défaut pour que le framework route les
+        // touches ici.
         setFocusable(true);
         setFocusableInTouchMode(true);
 
-        // v1.0.7 — Gap 9g: mouse hover triggers quick doc after 500ms
-        // (desktop / ChromeOS / DeX). The hover callback is a no-op on
-        // touch-only devices (HoverEvent isn't dispatched for touches).
-        // ★ v2.38 — parité Sora LspEditorHoverEvent : le dwell est
-        // redémarré à chaque déplacement au-delà du slop (20px) et résout
-        // le symbole sous le POINTEUR (plus sous le caret).
-        setOnHoverListener((v, event) -> {
-            if (getHandler() == null) return false;
-            switch (event.getAction()) {
-                case MotionEvent.ACTION_HOVER_ENTER:
-                case MotionEvent.ACTION_HOVER_MOVE: {
-                    float nx = event.getX(), ny = event.getY();
-                    float dx = nx - hoverX, dy = ny - hoverY;
-                    boolean movedBeyondSlop = !hoverPositionValid
-                            || dx * dx + dy * dy > HOVER_SLOP_PX * HOVER_SLOP_PX;
-                    if (movedBeyondSlop) {
-                        hoverX = nx;
-                        hoverY = ny;
-                        hoverPositionValid = true;
-                        getHandler().removeCallbacks(quickDocHoverAction);
-                        getHandler().postDelayed(quickDocHoverAction,
-                                QUICK_DOC_HOVER_DELAY_MS);
-                    }
-                    break;
-                }
-                case MotionEvent.ACTION_HOVER_EXIT:
-                case MotionEvent.ACTION_CANCEL:
-                    hoverPositionValid = false;
-                    getHandler().removeCallbacks(quickDocHoverAction);
-                    break;
-            }
-            return false; // don't consume — let the framework still dispatch.
-        });
+        // Survol souris → quick doc (desktop / ChromeOS / DeX) : dwell de
+        // 500 ms conscient du slop, possédé par EditorHoverQuickDoc.
+        hoverQuickDoc.attach();
 
-        // Re-apply metrics with the correct density.
+        // Ré-applique les métriques avec la densité correcte.
         metrics.setTextSize(spToPx(BASE_TEXT_SIZE_SP));
     }
 
-    /** Hooks the session up and registers the IME bridge. */
+    /** Branche la session et enregistre le pont IME. */
     public void setSession(EditorSession session) {
-        // Detach from the previous session.
+        // Détache de la session précédente.
         if (this.session != null) {
             this.session.setImeListener(null);
             this.session.setOnLinesShiftedListener(null);
@@ -1339,10 +900,11 @@ public class EditorView extends View {
         this.session.setImeListener(imeBridge.listener);
         this.session.setOnLinesShiftedListener(cacheShiftListener);
         renderCache.clear();
-        // Reset the caret glide so the first draw in the new session snaps.
+        // Réinitialise le glissement du caret pour que le premier dessin
+        // dans la nouvelle session s'affiche d'un coup.
         caretAnim.reset();
-        // v3.33.5: EditorLayoutManager supprimé (code mort).
-        // Reset scroll so a stale offset from the previous document doesn't strand the viewport.
+        // Réinitialise le scroll pour qu'un offset périmé du document
+        // précédent ne laisse pas le viewport échoué.
         vOffset = 0;
         hOffset = 0;
         invalidate();
@@ -1352,570 +914,83 @@ public class EditorView extends View {
 
     public void setTheme(EditorTheme theme) {
         this.theme = theme;
-        // v3.35.0: shaped layouts have theme colors baked into their spans —
-        // a theme swap invalidates every cached StaticLayout.
-        shapedLayoutCache.clear();
+        // Les layouts façonnés ont les couleurs de thème cuites dans leurs
+        // spans — un changement de thème invalide tous les StaticLayout
+        // en cache.
+        shapedCache.clear();
         gutterView.setTheme(theme);
         invalidate();
     }
 
     /**
-     * Sets the {@link Language} that provides all language intelligence
-     * (completion, hover, signature help, diagnostics, etc.).
+     * Définit le {@link Language} qui fournit toute l'intelligence de
+     * langage (complétion, hover, aide de signature, diagnostics, etc.).
      *
-     * <p>v3.0.1 fix: now properly bridges ALL SPI providers to the v1.x
-     * UI rendering paths. When a {@link Language} is set, the editor:
+     * <p>Ponte de TOUS les providers du SPI vers les chemins de rendu UI.
+     * Quand un {@link Language} est défini, l'éditeur :
      * <ul>
-     *   <li>Creates adapter wrappers that delegate each v1.x resolver
+     *   <li>Crée des wrappers adaptateurs qui délèguent chaque résolveur
      *       ({@code completionProvider}, {@code signatureHelpResolver},
      *       {@code quickDocResolver}, {@code codeActionsResolver},
-     *       {@code symbolResolver}) to the corresponding
-     *       {@code language.getXxxProvider()} method</li>
-     *   <li>Resets the analyzer with the current document text</li>
-     *   <li>Invalidates the view to trigger a redraw</li>
+     *       {@code symbolResolver}) vers la méthode
+     *       {@code language.getXxxProvider()} correspondante</li>
+     *   <li>Réinitialise l'analyzer avec le texte du document courant</li>
+     *   <li>Invalide la vue pour déclencher un redraw</li>
      * </ul>
      *
-     * <p>If a provider returns {@code null} (not supported by this language),
-     * the corresponding v1.x resolver is set to {@code null} too — the
-     * feature is simply disabled.
+     * <p>Si un provider retourne {@code null} (non supporté par ce
+     * langage), le résolveur correspondant est mis à {@code null} aussi —
+     * la fonctionnalité est simplement désactivée.
      *
-     * @param language the language, or {@code null} to detach
-     * @since v2.0.0
+     * @param language le langage, ou {@code null} pour détacher
      */
     public void setLanguage(Language language) {
-        if (this.language != null) {
-            this.language.destroy();
-        }
-        // v3.2.0 fix: If language is null, use EmptyLanguage (not null)
-        // so all v1.x resolvers are properly cleared. This prevents stale
-        // resolvers from a previous language (e.g. Java) from firing on
-        // a different file type (e.g. XML). Same pattern as Sora Editor's
-        // EmptyLanguage.
-        if (language == null) {
-            language = new jo.codeeditor.lang.EmptyLanguage();
-        }
-        this.language = language;
-        if (session != null) {
-            // Wire the analyzer.
-            // v3.31.1: attache le StyleReceiver pour que l'analyzer puisse
-            // pousser des mises à jour de style incrémentales depuis un
-            // worker thread. Le receiver poste sur l'UI thread pour
-            // invalider les lignes affectées.
-            try {
-                language.getAnalyzer().setReceiver(styleReceiver);
-            } catch (Throwable t) {
-                // Some analyzers may not support setReceiver (legacy).
-            }
-            language.getAnalyzer().reset(session.getText());
-
-            // ── Bridge SPI providers → v1.x UI rendering paths ──────
-            // Each adapter wraps the SPI provider so the existing draw /
-            // hit-test code in EditorView works unchanged.
-
-            // Completion
-            if (language.getCompletionProvider() != null) {
-                final jo.codeeditor.lang.CompletionProvider spiComp =
-                    language.getCompletionProvider();
-                setCompletionProvider((text, caret, tokenStart, prefix) -> {
-                    java.util.List<jo.codeeditor.completion.CompletionSession.Item> items =
-                        new java.util.ArrayList<>();
-                    jo.codeeditor.lang.CompletionPublisher pub = new CompletionPublisherAdapter(items);
-                    spiComp.complete(text, caret, pub);
-                    return items;
-                });
-            } else {
-                setCompletionProvider(null);
-            }
-
-            // Signature help
-            if (language.getSignatureHelpProvider() != null) {
-                final jo.codeeditor.lang.SignatureHelpProvider spiSig =
-                    language.getSignatureHelpProvider();
-                setSignatureHelpResolver((text, caret) -> {
-                    jo.codeeditor.lang.SignatureHelp help = spiSig.signatureHelp(text, caret);
-                    if (help == null) return null;
-                    // Convert SPI SignatureHelp → v1.x SignatureHelpController.SignatureHelp
-                    java.util.List<jo.codeeditor.completion.SignatureHelpController.Signature> sigs =
-                        new java.util.ArrayList<>();
-                    for (jo.codeeditor.lang.Signature s : help.signatures) {
-                        java.util.List<jo.codeeditor.completion.SignatureHelpController.Parameter> params =
-                            new java.util.ArrayList<>();
-                        for (jo.codeeditor.lang.Parameter p : s.parameters) {
-                            params.add(new jo.codeeditor.completion.SignatureHelpController.Parameter(
-                                p.label, p.documentation));
-                        }
-                        sigs.add(new jo.codeeditor.completion.SignatureHelpController.Signature(
-                            s.label, s.documentation, params, s.activeParameter));
-                    }
-                    return new jo.codeeditor.completion.SignatureHelpController.SignatureHelp(
-                        sigs, help.activeSignature, help.activeParameter);
-                });
-            } else {
-                setSignatureHelpResolver(null);
-            }
-
-            // Hover / quick doc
-            if (language.getHoverProvider() != null) {
-                final jo.codeeditor.lang.HoverProvider spiHover =
-                    language.getHoverProvider();
-                setQuickDocResolver((text, offset) -> {
-                    jo.codeeditor.lang.HoverContent content = spiHover.hover(text, offset);
-                    if (content == null || content.isEmpty()) return null;
-                    // Return as a Javadoc-like string for QuickDoc.parseQuickDoc.
-                    String doc = content.markdown;
-                    if (doc != null && !doc.isEmpty()) {
-                        return "/**\n * " + doc.replace("\n", "\n * ") + "\n */";
-                    }
-                    return content.signature;
-                });
-            } else {
-                setQuickDocResolver(null);
-            }
-
-            // Code actions
-            if (language.getCodeActionsProvider() != null) {
-                final jo.codeeditor.lang.CodeActionsProvider spiActions =
-                    language.getCodeActionsProvider();
-                setCodeActionsResolver((text, line) -> {
-                    java.util.List<CodeAction> out = new java.util.ArrayList<>();
-                    for (jo.codeeditor.lang.CodeAction a : spiActions.codeActions(text, line)) {
-                        out.add(new CodeAction(a.title, a.kind, a.apply));
-                    }
-                    return out;
-                });
-            } else {
-                setCodeActionsResolver(null);
-            }
-
-            // Go-to-symbol
-            if (language.getSymbolProvider() != null) {
-                final jo.codeeditor.lang.SymbolProvider spiSym =
-                    language.getSymbolProvider();
-                setSymbolResolver((text) -> {
-                    java.util.List<NavigationMenu.Symbol> out = new java.util.ArrayList<>();
-                    for (jo.codeeditor.lang.Symbol s : spiSym.symbols(text)) {
-                        out.add(new NavigationMenu.Symbol(s.name, s.offset, s.kind, s.container));
-                    }
-                    return out;
-                });
-            } else {
-                setSymbolResolver(null);
-            }
-
-            // Diagnostics — push to the session if available.
-            // v3.3.10: Store the provider + task so onTextChanged() can
-            // re-run diagnostics (debounced). Previously diagnostics were
-            // only computed ONCE 500ms after setLanguage and never refreshed
-            // — so typing a syntax error didn't show a squiggle.
-            if (language.getDiagnosticsProvider() != null) {
-                diagnosticsProviderSpi = language.getDiagnosticsProvider();
-                diagnosticsTask = () -> {
-                    if (session == null || diagnosticsProviderSpi == null) return;
-                    java.util.List<jo.codeeditor.lang.Diagnostic> diags =
-                        diagnosticsProviderSpi.computeDiagnostics(session.getText());
-                    java.util.List<jo.codeeditor.shift.DiagnosticShift.Diagnostic> legacy =
-                        new java.util.ArrayList<>();
-                    for (jo.codeeditor.lang.Diagnostic d : diags) {
-                        legacy.add(new jo.codeeditor.shift.DiagnosticShift.Diagnostic(
-                            d.start, d.end, d.severity, d.message));
-                    }
-                    session.setDiagnostics(legacy);
-                    // v3.7.1 Bugfix (Bug 6a): push severity-per-line array to
-                    // the GutterView so it can draw the red/yellow diagnostic
-                    // dot in front of the line number.
-                    pushDiagnosticsToGutter();
-                    invalidate();
-                };
-                // Initial run (debounced).
-                scheduleDiagnostics();
-            } else {
-                diagnosticsProviderSpi = null;
-                diagnosticsTask = null;
-                session.setDiagnostics(new java.util.ArrayList<>());
-                // v3.7.1: clear the gutter's diagnostic dots too.
-                pushDiagnosticsToGutter();
-            }
-
-            // ── v3.33.11: Wire the remaining SPI providers ─────────────
-            // These bridge the LSP-backed providers to the editor's UI /
-            // draw paths. Each is conditional on the SPI provider being
-            // non-null — if a server doesn't support a feature, the
-            // resolver is set to null and the corresponding UI element
-            // is simply disabled (matching the v1.x pattern).
-
-            // Definition (go-to-definition)
-            if (language.getDefinitionProvider() != null) {
-                final jo.codeeditor.lang.DefinitionProvider spiDef =
-                    language.getDefinitionProvider();
-                setDefinitionResolver((text, offset) -> spiDef.definitions(text, offset));
-            } else {
-                setDefinitionResolver(null);
-            }
-
-            // ★ v2.36 : type-definition (go-to-type-declaration) — la section
-            // GO TO du menu contextuel unifié (NavMenu port).
-            if (language.getTypeDefinitionProvider() != null) {
-                final jo.codeeditor.lang.TypeDefinitionProvider spiTypeDef =
-                    language.getTypeDefinitionProvider();
-                setTypeDefinitionResolver((text, offset) ->
-                    spiTypeDef.typeDefinitions(text, offset));
-            } else {
-                setTypeDefinitionResolver(null);
-            }
-
-            // ★ v2.37 : implementations (go-to-implementations) et super
-            // (go-to-super) — complètent la section GO TO du menu contextuel
-            // unifié aux QUATRE options de CodeAssist.
-            if (language.getImplementationsProvider() != null) {
-                final jo.codeeditor.lang.ImplementationsProvider spiImpl =
-                    language.getImplementationsProvider();
-                setImplementationsResolver((text, offset) ->
-                    spiImpl.implementations(text, offset));
-            } else {
-                setImplementationsResolver(null);
-            }
-
-            if (language.getSuperDefinitionProvider() != null) {
-                final jo.codeeditor.lang.SuperDefinitionProvider spiSuper =
-                    language.getSuperDefinitionProvider();
-                setSuperResolver((text, offset) ->
-                    spiSuper.superTargets(text, offset));
-            } else {
-                setSuperResolver(null);
-            }
-
-            // References (find-references)
-            if (language.getReferencesProvider() != null) {
-                final jo.codeeditor.lang.ReferencesProvider spiRef =
-                    language.getReferencesProvider();
-                setReferencesResolver((text, offset) -> spiRef.references(text, offset));
-            } else {
-                setReferencesResolver(null);
-            }
-
-            // Document highlights (occurrences)
-            if (language.getDocumentHighlightProvider() != null) {
-                final jo.codeeditor.lang.DocumentHighlightProvider spiHl =
-                    language.getDocumentHighlightProvider();
-                setDocumentHighlightResolver((text, offset) -> {
-                    java.util.List<jo.codeeditor.lang.DocumentHighlight> hls =
-                        spiHl.highlights(text, offset);
-                    java.util.List<int[]> out = new java.util.ArrayList<>();
-                    if (hls != null) {
-                        for (jo.codeeditor.lang.DocumentHighlight h : hls) {
-                            out.add(new int[]{h.start, h.end});
-                        }
-                    }
-                    return out;
-                });
-            } else {
-                setDocumentHighlightResolver(null);
-            }
-
-            // Rename — replaces the substring-matching fallback when the
-            // language server supports LSP rename.
-            if (language.getRenameProvider() != null) {
-                final jo.codeeditor.lang.RenameProvider spiRename =
-                    language.getRenameProvider();
-                setRenameResolver((text, offset, newName) -> {
-                    jo.codeeditor.lang.RenameResult result = spiRename.rename(text, offset, newName);
-                    if (result == null) return null;
-                    // Apply the edits to produce the new full text.
-                    StringBuilder sb = new StringBuilder(text);
-                    // Copy edits into a mutable list, then sort descending
-                    // so earlier offsets stay valid as we replace.
-                    java.util.List<jo.codeeditor.lang.TextEdit> edits =
-                        new java.util.ArrayList<>(result.edits);
-                    edits.sort((a, b) -> Integer.compare(b.start, a.start));
-                    for (jo.codeeditor.lang.TextEdit e : edits) {
-                        if (e.start >= 0 && e.end <= sb.length() && e.start <= e.end) {
-                            sb.replace(e.start, e.end, e.newText);
-                        }
-                    }
-                    return sb.toString();
-                });
-            } else {
-                setRenameResolver(null);
-            }
-
-            // Formatter
-            if (language.getFormatter() != null) {
-                final jo.codeeditor.lang.Formatter spiFmt = language.getFormatter();
-                setFormatterResolver((text) -> spiFmt.format(text, 0, text.length()).toString());
-            } else {
-                setFormatterResolver(null);
-            }
-
-            // Inlay hints — pushed to session.setInlayHints() debounced
-            // after each edit. The renderer's drawCachedInlays() reads
-            // them per-line.
-            if (language.getInlayHintProvider() != null) {
-                inlayHintProviderSpi = language.getInlayHintProvider();
-                inlayHintTask = () -> {
-                    if (session == null || inlayHintProviderSpi == null) return;
-                    EditorDocument doc = session.getDocument();
-                    // v2.32: request the WHOLE document — CodeAssist parity.
-                    // Its engine daemon asks {@code hintsAt(path, text, 0,
-                    // text.length)} for the full buffer, so hints are
-                    // available on every line the user scrolls to. The old
-                    // viewport-only request (visible lines ±4, computed from
-                    // vOffset/getHeight()) was broken in two ways: at
-                    // startup getHeight()==0 so only ~5 lines got hints, and
-                    // nothing re-requested on scroll — hints never appeared
-                    // below the first screenful ("hintlay pas câblé").
-                    // The internal server computes hints for the whole file
-                    // regardless of the requested range, so the full-range
-                    // request costs the same.
-                    int first = 0;
-                    int last = Math.max(0, doc.lineCount() - 1);
-                    // v0.1.0.50 : la requête inlayHint LSP (5 s) quitte le
-                    // thread UI ; livraison latest-wins par génération.
-                    final int gen = ++inlayGeneration;
-                    final CharSequence text = session.getText();
-                    final int fFirst = first;
-                    final int fLast = last;
-                    EditorPopupManager.FEATURE_EXECUTOR.execute(() -> {
-                        java.util.List<jo.codeeditor.lang.InlayHint> spiHints = null;
-                        try {
-                            spiHints = inlayHintProviderSpi.inlayHints(text, fFirst, fLast);
-                        } catch (Exception ignored) {
-                        }
-                        java.util.List<DiagnosticShift.InlayHint> legacy =
-                                new java.util.ArrayList<>();
-                        if (spiHints != null) {
-                            for (jo.codeeditor.lang.InlayHint hint : spiHints) {
-                                legacy.add(new DiagnosticShift.InlayHint(hint.offset, hint.text, true));
-                            }
-                        }
-                        final java.util.List<DiagnosticShift.InlayHint> computed = legacy;
-                        Runnable apply = () -> {
-                            if (gen != inlayGeneration || session == null) return;
-                            session.setInlayHints(computed);
-                            invalidate();
-                        };
-                        android.os.Handler h2 = getHandler();
-                        if (h2 != null) h2.post(apply); else apply.run();
-                    });
-                };
-                // Initial run (debounced).
-                scheduleInlayHints();
-            } else {
-                inlayHintProviderSpi = null;
-                inlayHintTask = null;
-                session.setInlayHints(new java.util.ArrayList<>());
-            }
-
-            // Trigger an initial document-highlights refresh at the current caret.
-            scheduleDocumentHighlights();
-            // v2.32: initial matching-bracket state for the loaded document.
-            updateBracketPair();
-        }
-        invalidate();
+        languageBridge.setLanguage(language);
     }
 
     /**
-     * v3.3.10: Schedules a debounced diagnostics refresh.
-     * Called from {@link #setLanguage} (initial) and {@link #onTextChanged}
-     * (on every edit). Cancels any pending run and re-posts after
-     * {@link #DIAGNOSTICS_DEBOUNCE_MS} ms.
-     */
-    private void scheduleDiagnostics() {
-        if (diagnosticsTask == null) return;
-        if (getHandler() != null) {
-            getHandler().removeCallbacks(diagnosticsTask);
-            getHandler().postDelayed(diagnosticsTask, DIAGNOSTICS_DEBOUNCE_MS);
-        } else {
-            // View not attached — run immediately.
-            diagnosticsTask.run();
-        }
-    }
-
-    // v3.15.0: Debounced code actions refresh — replaces the per-frame
-    // refreshCodeActions call that was blocking the UI thread.
-    private Runnable codeActionsTask;
-    private static final int CODE_ACTIONS_DEBOUNCE_MS = 800;
-    private void scheduleCodeActionsRefresh() {
-        if (codeActionsResolver == null) return;
-        if (codeActionsTask == null) {
-            codeActionsTask = () -> {
-                if (session == null) return;
-                int first = Math.max(0, (int) (vOffset / metrics.getLineHeight()) - 1);
-                int last = Math.min(session.getDocument().lineCount() - 1,
-                    (int) ((vOffset + getHeight()) / metrics.getLineHeight()) + 1);
-                popupManager.refreshCodeActions(first, last);
-                invalidate();
-            };
-        }
-        if (getHandler() != null) {
-            getHandler().removeCallbacks(codeActionsTask);
-            getHandler().postDelayed(codeActionsTask, CODE_ACTIONS_DEBOUNCE_MS);
-        }
-    }
-
-    /**
-     * v3.7.1: Public hook for external diagnostic producers (e.g. the LSP
-     * client in :cel-lsp calling {@code session.setDiagnostics(...)} directly)
-     * to notify the EditorView that diagnostics have changed. The EditorView
-     * then rebuilds the severity-per-line array and pushes it to the GutterView
-     * so the red/yellow diagnostic dots stay in sync.
+     * Hook public pour les producteurs de diagnostics externes (ex. le
+     * client LSP dans :cel-lsp appelant {@code session.setDiagnostics(...)}
+     * directement) pour notifier l'EditorView que les diagnostics ont
+     * changé. L'EditorView reconstruit alors le tableau de sévérité par
+     * ligne et le pousse vers le GutterView pour que les points de
+     * diagnostic rouge/jaune restent synchronisés.
      *
-     * <p><b>Thread-safety (v3.31.1):</b> may be called from any thread
-     * (typically the LSP JSON-RPC reader thread). If the call is not on the
-     * UI thread, the actual work ({@link #pushDiagnosticsToGutter()} +
-     * {@link #invalidate()}) is posted to the view's {@link android.os.Handler}.
-     * This prevents races where the diagnostics list is mutated mid-render.</p>
+     * <p><b>Sûreté de threads :</b> peut être appelé depuis n'importe quel
+     * thread (typiquement le thread lecteur JSON-RPC du LSP). Si l'appel
+     * n'est pas sur le thread UI, le travail réel (poussée vers la
+     * gouttière + {@link #invalidate()}, dans
+     * {@link EditorDiagnosticsPusher}) est posté vers le
+     * {@link android.os.Handler} de la vue. Cela évite les courses où la
+     * liste de diagnostics est mutée en plein rendu.</p>
      *
-     * <p>Internal callers (the {@link #diagnosticsTask} lambda above) already
-     * call {@link #pushDiagnosticsToGutter()} inline, so they don't need to
-     * call this method. External callers (LspEditor) should call this after
+     * <p>Les appelants externes (LspEditor) devraient l'appeler après
      * {@code session.setDiagnostics(...)}.
      */
     public void notifyDiagnosticsChanged() {
-        if (getHandler() != null
-                && Thread.currentThread() != getHandler().getLooper().getThread()) {
-            // Cross-thread call: post to the view's Handler so the gutter
-            // rebuild + invalidate run on the UI thread.
-            getHandler().post(this::pushDiagnosticsToGutterAndInvalidate);
-        } else {
-            pushDiagnosticsToGutterAndInvalidate();
-        }
+        diagnosticsPusher.notifyChanged();
     }
 
-    private void pushDiagnosticsToGutterAndInvalidate() {
-        pushDiagnosticsToGutter();
-        // v0.1.0.50 : notifie l'hôte (onglet Problèmes live du bottom sheet).
-        if (diagnosticsPublishedListener != null && session != null) {
-            try {
-                diagnosticsPublishedListener.onDiagnosticsPublished(
-                        session.getDiagnostics());
-            } catch (Throwable ignored) {
-            }
-        }
-        invalidate();
-    }
-
-    /** v0.1.0.50 : hôte écoutant les publications de diagnostics LSP. */
+    /** Hôte écoutant les publications de diagnostics LSP. */
     public interface OnDiagnosticsPublishedListener {
         void onDiagnosticsPublished(List<jo.codeeditor.shift.DiagnosticShift.Diagnostic> diagnostics);
     }
-    private OnDiagnosticsPublishedListener diagnosticsPublishedListener;
 
     public void setOnDiagnosticsPublishedListener(OnDiagnosticsPublishedListener listener) {
-        this.diagnosticsPublishedListener = listener;
+        diagnosticsPusher.setListener(listener);
     }
 
     /**
-     * v3.7.1 Bugfix (Bug 6a): Builds a severity-per-line array from the
-     * session's diagnostics and pushes it to the GutterView so it can draw
-     * the red/yellow diagnostic dot in front of the line number. If multiple
-     * diagnostics fall on the same line, the highest severity wins (error
-     * beats warning beats info).
-     */
-    private void pushDiagnosticsToGutter() {
-        if (session == null || gutterView == null) {
-            return;
-        }
-        EditorDocument doc = session.getDocument();
-        if (doc == null) {
-            gutterView.setDiagnostics(new int[0]);
-            return;
-        }
-        int lineCount = doc.lineCount();
-        int[] severityPerLine = new int[lineCount];
-        List<DiagnosticShift.Diagnostic> diags = session.getDiagnostics();
-        for (DiagnosticShift.Diagnostic d : diags) {
-            int line = doc.lineForOffset(d.start);
-            if (line < 0 || line >= lineCount) continue;
-            // Max severity wins (3=error > 2=warning > 1=info > 0=none).
-            if (d.severity > severityPerLine[line]) {
-                severityPerLine[line] = d.severity;
-            }
-        }
-        gutterView.setDiagnostics(severityPerLine);
-    }
-
-    /**
-     * Adapter that collects CompletionItems from a
-     * {@link jo.codeeditor.lang.CompletionPublisher} into a list for the
-     * v1.x {@code setCompletionProvider} callback.
-     */
-    private static class CompletionPublisherAdapter implements jo.codeeditor.lang.CompletionPublisher {
-        private final java.util.List<jo.codeeditor.completion.CompletionSession.Item> items;
-        private boolean cancelled = false;
-
-        CompletionPublisherAdapter(java.util.List<jo.codeeditor.completion.CompletionSession.Item> items) {
-            this.items = items;
-        }
-
-        @Override
-        public void addItem(jo.codeeditor.lang.CompletionItem item) {
-            if (cancelled) return;
-            // ★ v2.30 — CORRECTIF de mapping + badge de type :
-            // AVANT : `item.sortPriority` passait dans le champ kind (int)
-            // — le vrai kind LSP n'atteignait JAMAIS le renderer, et le
-            // badge de type était impossible ; `isKeyword` recevait
-            // `!item.isSnippet` (tout candidat non-snippet était marqué
-            // mot-clé, détraquant le reRanked).
-            // APRÈS : le kind LSP numérique (kindCode, avec secours dérivé
-            // de l'icône string historique) arrive jusqu'au renderer pour
-            // le badge ; isKeyword n'est vrai QUE pour un vrai mot-clé.
-            int kindCode = item.kindCode != 0
-                    ? item.kindCode : legacyIconToKind(item.kind);
-            items.add(new jo.codeeditor.completion.CompletionSession.Item(
-                item.label, item.detail, item.insertText, item.kind,
-                kindCode,
-                item.sortPriority,
-                kindCode == 14,   // LSP Keyword
-                item.isSnippet,
-                item.kindTag,
-                item.postApplyAction));
-        }
-
-        /** v2.30 : kind LSP dérivé de l'icône string historique
-         *  (providers v1.x sans kindCode). */
-        private static int legacyIconToKind(String icon) {
-            if (icon == null) return 0;
-            switch (icon) {
-                case "k": return 14; // Keyword
-                case "m": return 2;  // Method
-                case "f": return 5;  // Field
-                case "c": return 7;  // Class
-                case "i": return 8;  // Interface
-                case "e": return 13; // Enum
-                case "p": return 9;  // Module (package)
-                default: return 0;
-            }
-        }
-
-        @Override
-        public void addItems(java.util.List<jo.codeeditor.lang.CompletionItem> items) {
-            for (jo.codeeditor.lang.CompletionItem item : items) addItem(item);
-        }
-
-        @Override
-        public void flush() {}
-
-        @Override
-        public void cancel() { cancelled = true; }
-
-        @Override
-        public boolean isCancelled() { return cancelled; }
-    }
-
-    /**
-     * Returns the current {@link Language}, or {@code null} if none is set.
-     *
-     * @since v2.0.0
+     * Retourne le {@link Language} courant, ou {@code null} si aucun n'est
+     * défini.
      */
     public Language getLanguage() {
         return language;
     }
 
     /**
-     * Returns the {@link PopupCoordinator} that manages z-order and dismissal
-     * of all editor popups.
-     *
-     * @since v2.0.0
+     * Retourne le {@link PopupCoordinator} qui gère le z-order et la
+     * fermeture de tous les popups de l'éditeur.
      */
     public PopupCoordinator getPopupCoordinator() {
         return popupCoordinator;
@@ -1926,7 +1001,7 @@ public class EditorView extends View {
     }
 
     /**
-     * ★ v0.1.0.49-v2.20 — Listener de position de scroll vertical.
+     * Listener de position de scroll vertical.
      *
      * <p>Notifié après chaque mutation du {@code vOffset} : drag doigt,
      * fling, scroll programmatique ({@code scrollToLine/Offset/By}) et
@@ -1953,135 +1028,29 @@ public class EditorView extends View {
             float max = maxV();
             l.onScrollPosition(vOffset, max);
         }
-        // v3.34.0: idle viewport prefetch — re-armed on every scroll so the
-        // task only fires once scrolling has been QUIET for 150 ms (never
-        // during a fling — CodeAssist measured that prefetching mid-fling
-        // just does the next frame's work one frame early, for nothing).
-        scheduleViewportPrefetch();
+        // Préfetch du viewport au repos — ré-armé à chaque scroll pour que
+        // la tâche ne se déclenche qu'après 150 ms de scroll CALME (jamais
+        // pendant un fling — préfetcher en plein fling ne fait que le
+        // travail de la frame suivante une frame trop tôt, pour rien).
+        viewportPrefetcher.schedule();
     }
 
-    // ── v3.34.0 — Idle viewport prefetch (CodeAssist 3.20 backport) ──────
+    // ── Préfetch du viewport au repos ─────────────────────────────
+    // Délégué à EditorViewportPrefetcher (réchauffe le LineRenderCache
+    // autour du viewport après 150 ms de scroll calme).
 
-    /** Quiet period before prefetching lines around the viewport. */
-    private static final int PREFETCH_IDLE_MS = 150;
-    /** Prefetch in chunks of this many lines, pausing between chunks as a
-     *  cancellation point (the task re-checks the scroll offset each chunk). */
-    private static final int PREFETCH_CHUNK = 8;
-    /** Pause between chunks (ms) — keeps the main thread responsive. */
-    private static final int PREFETCH_CHUNK_PAUSE_MS = 4;
-
-    private Runnable viewportPrefetchTask;
-
-    /**
-     * (Re-)arms the idle prefetch. Cheap when called repeatedly during a
-     * fling — one removeCallbacks + one postDelayed.
-     */
-    private void scheduleViewportPrefetch() {
-        if (session == null || getWidth() == 0 || getHeight() == 0) return;
-        if (viewportPrefetchTask == null) {
-            viewportPrefetchTask = () -> runViewportPrefetch();
-        }
-        if (getHandler() != null) {
-            getHandler().removeCallbacks(viewportPrefetchTask);
-            getHandler().postDelayed(viewportPrefetchTask, PREFETCH_IDLE_MS);
-        }
-    }
-
-    /**
-     * Warms the render cache for up to one viewport above and below the
-     * visible range, so landing on cold text after a fling / goto / search
-     * jump doesn't pay the per-line layout cost inside the draw frame
-     * (CodeAssist measured ~3.6 ms + 1.2 MB in a single frame when
-     * arriving on unshaped text — the layout is ~96% of the cost of a
-     * line entering the viewport).
-     *
-     * <p>Order (CodeAssist prefetchOrder): BOTTOM FIRST, alternating
-     * below/above — users read and scroll down, and an interrupted
-     * prefetch leaves both edges half-warm instead of one cold edge.
-     * Lines hidden by collapsed folds are skipped. The task bails out
-     * as soon as the viewport moved (the next scroll re-arms it).
-     */
-    private void runViewportPrefetch() {
-        EditorSession s = session;
-        if (s == null || metrics == null || getWidth() == 0) return;
-        EditorDocument doc = s.getDocument();
-        int lineCount = doc.lineCount();
-        if (lineCount == 0) return;
-        float lineHeight = metrics.getLineHeight();
-        if (lineHeight <= 0) return;
-        int first = Math.max(0, (int) (vOffset / lineHeight) - 1);
-        int last = Math.min(lineCount - 1,
-                (int) ((vOffset + getHeight()) / lineHeight) + 1);
-        int span = Math.max(1, last - first);
-        // Scope: one viewport below + one above (working set ≈ 3 viewports,
-        // can never evict the on-screen entries from the 512-entry LRU).
-        int belowStart = last + 1;
-        int belowEnd = Math.min(lineCount - 1, last + span);
-        int aboveStart = Math.max(0, first - span);
-        int aboveEnd = first - 1;
-
-        // Alternate below/above in chunks of PREFETCH_CHUNK, bottom-first.
-        int bi = belowStart, ai = aboveEnd; // ai walks DOWN from aboveEnd
-        boolean moreBelow = bi <= belowEnd;
-        boolean moreAbove = ai >= aboveStart;
-        while (moreBelow || moreAbove) {
-            // Cancellation point: viewport moved → stop (re-armed by the
-            // scroll itself). Reading vOffset here is fine — same thread.
-            int nowFirst = Math.max(0, (int) (vOffset / lineHeight) - 1);
-            if (Math.abs(nowFirst - first) > span / 2) return;
-
-            if (moreBelow) {
-                for (int n = 0; n < PREFETCH_CHUNK && bi <= belowEnd; n++, bi++) {
-                    prefetchLine(s, doc, bi);
-                }
-                moreBelow = bi <= belowEnd;
-            }
-            if (moreAbove) {
-                for (int n = 0; n < PREFETCH_CHUNK && ai >= aboveStart; n++, ai--) {
-                    prefetchLine(s, doc, ai);
-                }
-                moreAbove = ai >= aboveStart;
-            }
-            if ((moreBelow || moreAbove)
-                    && getHandler() != null) {
-                // Pause between chunks — posts a continuation AFTER pending
-                // input/draw messages, keeping the UI responsive. The
-                // continuation simply re-runs the whole computation from the
-                // CURRENT viewport: already-prefetched lines are cache hits
-                // (one map lookup), so the restart converges instead of
-                // redoing work, and a scroll during the pause naturally
-                // re-targets the prefetch.
-                getHandler().postDelayed(this::runViewportPrefetch,
-                        PREFETCH_CHUNK_PAUSE_MS);
-                return;
-            }
-        }
-    }
-
-    /** Warms the cache for one line if not already cached and not folded. */
-    private void prefetchLine(EditorSession s, EditorDocument doc, int line) {
-        try {
-            if (isLineFoldedCached(line)) return; // hidden by a collapsed fold
-            String text = doc.lineText(line);
-            layoutForLine(line, text);       // populates cache on miss
-        } catch (Exception ignored) {
-            // Stale offset between the range computation and the fetch —
-            // skip, the draw path recomputes authoritatively.
-        }
-    }
-
-    /** v3.4.0: Adds a selection listener WITHOUT replacing the primary. */
+    /** Ajoute un listener de sélection SANS remplacer le primaire. */
     public void addOnSelectionChangedListener(OnSelectionChangedListener l) {
         if (l != null) extraSelectionListeners.add(l);
     }
 
     /**
-     * v3.31.1: Removes a previously-added secondary selection listener.
-     * Useful for BreadcrumbBar / overlay hosts that need to clean up on
-     * detach to avoid leaking the listener (and the host View it captures).
+     * Retire un listener de sélection secondaire précédemment ajouté.
+     * Utile pour BreadcrumbBar / les hôtes d'overlay qui doivent nettoyer
+     * au détachement pour éviter de fuiter le listener (et la vue hôte
+     * qu'il capture).
      *
-     * @param l the listener to remove; null is a no-op
-     * @since v3.31.1
+     * @param l le listener à retirer ; null est un no-op
      */
     public void removeOnSelectionChangedListener(OnSelectionChangedListener l) {
         if (l != null) extraSelectionListeners.remove(l);
@@ -2096,166 +1065,102 @@ public class EditorView extends View {
     @Override
     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         super.onSizeChanged(w, h, oldw, oldh);
-        // Wrap model depends on viewport width — rebuild on size change.
+        // Le modèle de wrap dépend de la largeur du viewport — reconstruit
+        // au changement de taille.
         if (wordWrap) rebuildWrapModel();
-        // Re-clamp scroll to the new max.
+        // Re-borne le scroll au nouveau max.
         vOffset = clamp(vOffset, 0, maxV());
         hOffset = clamp(hOffset, 0, maxH());
-        // v2.39: resize the preview sheet to match the new editor bounds.
-        // The sheet itself is anchored to our window position; we ask it
-        // to re-evaluate its size by re-applying the current mode.
-        if (previewSheet != null && previewMode.isSheet()) {
-            previewSheet.switchMode(previewMode);
-        }
+        // Redimensionne la feuille d'aperçu pour correspondre aux nouvelles
+        // bornes de l'éditeur. La feuille est ancrée à notre position de
+        // fenêtre ; on lui demande de ré-évaluer sa taille en ré-appliquant
+        // le mode courant.
+        preview.handleSizeChanged();
     }
 
     @Override
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
-        // v2.39: dismiss any open preview sheet so we don't leak a popup
-        // pointing at a detached editor (which would crash on touch).
-        if (previewSheet != null) {
-            previewSheet.dismiss();
-            previewSheet = null;
-        }
-        // v3.34.0: full pending-callback cleanup. Before this, a view
-        // detached with runnable callbacks still posted (idle prefetch,
-        // debounced code-actions refresh, tap-hold hover, multi-tap
-        // dismiss) kept running them against a DETACHED view — the view
-        // itself was strongly reachable from its Handler until every
-        // callback had fired, and each callback could touch state the
-        // host had already torn down.
+        // Ferme toute feuille d'aperçu ouverte pour ne pas fuiter un popup
+        // pointant vers un éditeur détaché (ce qui planterait au toucher).
+        preview.onDetachedFromWindow();
+        // Nettoyage complet des callbacks en attente : une vue détachée
+        // avec des callbacks runnables encore postés (préfetch au repos,
+        // rafraîchissement débouncé des code actions, hover tap-hold,
+        // fermeture multi-tap) continuerait à les exécuter contre une vue
+        // DÉTACHÉE — la vue resterait fortement accessible depuis son
+        // Handler jusqu'à ce que chaque callback ait tiré, et chaque
+        // callback pourrait toucher un état que l'hôte a déjà démonté.
         if (getHandler() != null) {
-            if (viewportPrefetchTask != null) {
-                getHandler().removeCallbacks(viewportPrefetchTask);
-            }
-            if (codeActionsTask != null) {
-                getHandler().removeCallbacks(codeActionsTask);
-            }
+            viewportPrefetcher.cancel();
+            languageBridge.cancelPending();
         }
         if (inputHandler != null) {
             inputHandler.cancelPendingCallbacks();
         }
-        // v3.34.0: cancel any in-flight caret glide ValueAnimator — a running
-        // animator on a detached view keeps a postInvalidateOnAnimation loop
-        // alive (and the view reachable) until it finishes. The blink itself
-        // is time-based and driven by the draw path, so it dies with the view.
+        // Annule tout ValueAnimator de glissement du caret en vol — un
+        // animator actif sur une vue détachée garde une boucle
+        // postInvalidateOnAnimation vivante (et la vue accessible) jusqu'à
+        // sa fin. Le clignotement lui-même est basé sur le temps et piloté
+        // par le chemin de dessin, donc il meurt avec la vue.
         caretAnim.cancelGlide();
     }
 
     /**
-     * Returns the Y coordinate (in content space, before vOffset) of the
-     * TOP of the given document line. When word wrap is enabled, this
-     * accounts for the extra rows of preceding wrapped lines.
+     * Retourne la coordonnée Y (espace contenu, avant vOffset) du HAUT de
+     * la ligne doc, consciente du wrap et des plis repliés (délégué à
+     * {@link EditorWrapGeometry}).
      */
     float docLineToY(int docLine) {
-        if (!wordWrap || wrapModel == null) {
-            // v3.5.0: account for collapsed fold regions — hidden lines
-            // occupy no visual row, so every doc line below a collapsed
-            // fold is pulled UP by (count of hidden lines above it) ×
-            // lineHeight. Without this, collapsing a fold left a visual
-            // gap (the hidden lines were skipped by the draw loop, but
-            // the lines after them were still drawn at their original Y).
-            int hiddenAbove = countHiddenLinesAbove(docLine);
-            return metrics.getPadTop() + (docLine - hiddenAbove) * metrics.getLineHeight();
-        }
-        return metrics.getPadTop() + wrapModel.topRow(docLine) * metrics.getLineHeight();
+        return wrapGeometry.docLineToY(docLine);
     }
 
     /**
-     * v3.5.0: Returns the number of document lines ABOVE {@code docLine}
-     * that are currently hidden by a collapsed fold. Used by
-     * {@link #docLineToY(int)} and {@link #docLineForScreenY(float)} to
-     * map between doc-line space and visual-row space when folds are
-     * collapsed.
-     * <p>O(docLine) per call — acceptable for typical editor files
-     * (&lt; 5k lines). A prefix-sum cache could be added if this becomes
-     * a hot path on very large documents.
+     * Retourne le nombre de lignes de document AU-DESSUS de {@code docLine}
+     * actuellement cachées par un pli replié. Utilisé par
+     * {@link #docLineToY(int)} et {@link #docLineForScreenY(float)} pour
+     * faire la correspondance entre l'espace ligne-doc et l'espace
+     * rangée-visuelle quand des plis sont repliés.
+     * <p>Répond en O(log plis) via l'index de plis mémoïsé.
      */
     int countHiddenLinesAbove(int docLine) {
-        // v3.35.0 (hotspot P3): O(log folds) via the memoized FoldIndex
-        // prefix-sum — was O(folds × log lines) per call, paid once per
-        // VISIBLE line in the draw path (docLineToY).
-        return foldIndex().hiddenAbove(docLine);
+        // O(log plis) via les sommes préfixes du FoldIndex mémoïsé — au
+        // lieu de O(plis × log lignes) par appel, payé une fois par ligne
+        // VISIBLE dans le chemin de dessin (docLineToY).
+        return foldIndex.get().hiddenAbove(docLine);
     }
 
     /**
-     * Returns the number of visual rows occupied by the given document line.
-     * Always ≥ 1.
+     * Retourne le nombre de rangées visuelles occupées par la ligne doc
+     * donnée (≥ 1 ; délégué à {@link EditorWrapGeometry}).
      */
     int rowsForDocLine(int docLine) {
-        if (!wordWrap || wrapModel == null) return 1;
-        return wrapModel.rowsOf(docLine);
+        return wrapGeometry.rowsForDocLine(docLine);
     }
 
     /**
-     * Maps a screen Y coordinate back to a document line, accounting for
-     * wrapped rows AND collapsed folds. Used by tap-to-position-caret and
-     * scroll calculations.
+     * Fait correspondre une coordonnée Y écran vers une ligne de document,
+     * en tenant compte des rangées repliées ET des plis repliés
+     * (délégué à {@link EditorWrapGeometry}).
      */
     int docLineForScreenY(float screenY) {
-        float contentY = screenY + vOffset - metrics.getPadTop();
-        float lineHeight = metrics.getLineHeight();
-        int visualRow = (int) (contentY / lineHeight);
-        if (!wordWrap || wrapModel == null) {
-            // v3.5.0: invert the fold-aware Y mapping. v3.35.0 (hotspot P3):
-            // the old implementation walked EVERY doc line (O(docLineCount ×
-            // folds) per tap) — the mapping is now a binary search over
-            // visibleIndex(l) = l - hiddenAbove(l), which is non-decreasing,
-            // plus a skip-forward inside the (at most one) fold straddling
-            // the result. Same semantics as the old walk, including the
-            // final fallback to the last doc line.
-            if (session == null) return Math.max(0, visualRow);
-            EditorDocument doc = session.getDocument();
-            if (doc == null) return Math.max(0, visualRow);
-            FoldIndex idx = foldIndex();
-            int docLineCount = doc.lineCount();
-            if (idx.isEmpty() || docLineCount == 0) {
-                return Math.max(0, visualRow);
-            }
-            // Old walk never matched a negative visualRow — it fell through
-            // to the last line. Preserve that.
-            if (visualRow < 0) return Math.max(0, docLineCount - 1);
-            // Smallest line with visibleIndex >= visualRow.
-            int lo = 0, hi = docLineCount - 1, best = -1;
-            while (lo <= hi) {
-                int mid = (lo + hi) >>> 1;
-                if (mid - idx.hiddenAbove(mid) >= visualRow) {
-                    best = mid;
-                    hi = mid - 1;
-                } else {
-                    lo = mid + 1;
-                }
-            }
-            if (best < 0) return Math.max(0, docLineCount - 1);
-            // `best` may itself be hidden (visibleIndex doesn't increase on
-            // hidden lines) — skip forward to the next VISIBLE line.
-            while (best < docLineCount && idx.isHidden(best)) best++;
-            if (best >= docLineCount) return Math.max(0, docLineCount - 1);
-            return best;
-        }
-        return wrapModel.docLineForRow(visualRow);
+        return wrapGeometry.docLineForScreenY(screenY);
     }
 
     /**
-     * Returns the column within the given doc line for a wrapped row offset.
-     * ★ v2.33 : continuation-aware (les rangées de continuation démarrent à
-     * {@code maxColsPerRow + (r-1)*colsPerCont}) — était
-     * {@code rowInLine * maxColsPerRow} uniforme.
+     * Colonne dans la ligne doc pour un offset de rangée repliée,
+     * consciente des rangées de continuation (délégué à
+     * {@link EditorWrapGeometry}).
      */
     int wrappedColFor(int docLine, int rowInLine, int colInRow) {
-        if (!wordWrap || wrapModel == null) return colInRow;
-        EditorDocument doc = session.getDocument();
-        int lineLen = doc.lineEnd(docLine) - doc.lineStart(docLine);
-        WrapRows wr = wrapRowsFor(docLine, lineLen);
-        return wr.rowStartCol(rowInLine) + colInRow;
+        return wrapGeometry.wrappedColFor(docLine, rowInLine, colInRow);
     }
 
     /**
-     * Sets the find-match highlights drawn in the viewport. Pass an empty
-     * list to clear. {@code currentIndex} is the index (within the list)
-     * of the "current" match — drawn with {@code theme.findCurrent} instead
-     * of {@code theme.findMatch}.
+     * Définit les surlignages d'occurrences de recherche dessinés dans le
+     * viewport. Passer une liste vide pour effacer. {@code currentIndex}
+     * est l'index (dans la liste) de l'occurrence « courante » — dessinée
+     * avec {@code theme.findCurrent} au lieu de {@code theme.findMatch}.
      */
     public void setFindHighlights(List<Match> matches, int currentIndex) {
         findHighlights.clear();
@@ -2265,16 +1170,17 @@ public class EditorView extends View {
     }
 
     /**
-     * Scrolls the editor so the given document offset is visible. Used by
-     * Find/Replace navigation, go-to-def, etc.
+     * Scrolle l'éditeur pour que l'offset de document donné soit visible.
+     * Utilisé par la navigation Rechercher/Remplacer, go-to-def, etc.
      */
     public void scrollToOffset(int offset) {
         scrollManager.scrollToOffset(offset);
     }
 
     /**
-     * Toggles word wrap. When enabled, long lines wrap across multiple visual
-     * rows inside the text area; horizontal scroll is disabled.
+     * Bascule le retour à la ligne. Quand activé, les lignes longues se
+     * replient sur plusieurs rangées visuelles dans la zone de texte ; le
+     * scroll horizontal est désactivé.
      */
     public void setWordWrap(boolean enabled) {
         if (this.wordWrap == enabled) return;
@@ -2291,18 +1197,18 @@ public class EditorView extends View {
     public boolean isWordWrap() { return wordWrap; }
 
     // ════════════════════════════════════════════════════════════════
-    // Minimap (v3.31.1)
+    // Minimap
     // ════════════════════════════════════════════════════════════════
 
     /**
-     * v3.31.1: Enables or disables the minimap — a small preview of the entire
-     * file rendered in a strip on the right edge. The minimap uses the existing
-     * {@link jo.codeeditor.cache.LineRenderCache} to draw each line's
-     * token-colored structure at a tiny scale (2.5 px per doc line, 60 dp wide).
-     * A scrollbar-like rectangle indicates the current viewport.
+     * Active ou désactive la minimap — un petit aperçu du fichier entier
+     * rendu dans une bande sur le bord droit. La minimap réutilise le
+     * {@link jo.codeeditor.cache.LineRenderCache} existant pour dessiner la
+     * structure colorée par token de chaque ligne à une échelle minuscule
+     * (2.5 px par ligne doc, 60 dp de large). Un rectangle façon scrollbar
+     * indique le viewport courant.
      *
-     * @param enabled {@code true} to show the minimap, {@code false} to hide
-     * @since v3.31.1
+     * @param enabled {@code true} pour montrer la minimap, {@code false} pour la cacher
      */
     public void setMinimapEnabled(boolean enabled) {
         if (this.minimapEnabled == enabled) return;
@@ -2310,432 +1216,269 @@ public class EditorView extends View {
         invalidate();
     }
 
-    /** @return {@code true} if the minimap is currently visible. */
+    /** @return {@code true} si la minimap est actuellement visible. */
     public boolean isMinimapEnabled() { return minimapEnabled; }
 
-    /**
-     * Returns the X coordinate where the minimap starts (right edge minus
-     * minimap width). Returns the full width when the minimap is disabled.
-     */
-    int getMinimapLeft() {
-        if (!minimapEnabled) return getWidth();
-        float density = getResources().getDisplayMetrics().density;
-        return (int) (getWidth() - MINIMAP_WIDTH_DP * density);
-    }
-
-    /** Returns the minimap width in pixels (0 when disabled). */
-    int getMinimapWidth() {
-        if (!minimapEnabled) return 0;
-        float density = getResources().getDisplayMetrics().density;
-        return (int) (MINIMAP_WIDTH_DP * density);
-    }
-
     // ════════════════════════════════════════════════════════════════
-    // Preview mode (v3.13.0)
+    // Mode aperçu
     // ════════════════════════════════════════════════════════════════
 
     /**
-     * v3.13.0: Preview mode for Markdown/HTML files. When enabled, the editor
-     * reserves a portion of its width for a preview pane (rendered by the host
-     * via a WebView overlay). The editor draws a divider line and clips its
-     * text to the remaining width.
+     * Mode aperçu pour les fichiers Markdown/HTML. Quand activé, l'éditeur
+     * réserve une portion de sa largeur pour un panneau d'aperçu (rendu par
+     * l'hôte via un overlay WebView). L'éditeur dessine une ligne de
+     * séparation et rogne son texte à la largeur restante.
      *
-     * <p>The host creates a WebView as a sibling view (in a FrameLayout),
-     * positions it at {@link #getPreviewLeft()}, and calls
-     * {@link #getPreviewWidth()} for the width. The host also listens for
-     * {@link OnPreviewModeChangedListener} to know when to show/hide/resize
-     * the WebView.
+     * <p>L'hôte crée un WebView comme vue sœur (dans un FrameLayout), le
+     * positionne à {@link #getPreviewLeft()} et appelle
+     * {@link #getPreviewWidth()} pour la largeur. L'hôte écoute aussi
+     * {@link OnPreviewModeChangedListener} pour savoir quand montrer/
+     * cacher/redimensionner le WebView.
      *
-     * <p>v2.39 adds {@link #SHEET_SPLIT} and {@link #SHEET_FULL}: instead of
-     * reserving inline space, the editor opens a popup sheet overlay
-     * ({@link EditorPreviewSheet}) anchored to the editor view. The editor's
-     * text area stays at full width — the sheet floats on top. This mode is
-     * used for {@code .md}/{@code .html} files where the host provides a
-     * WebView body via {@link EditorPreviewHost#onCreatePreviewView}.
+     * <p>{@link #SHEET_SPLIT} et {@link #SHEET_FULL} : au lieu de réserver
+     * de l'espace inline, l'éditeur ouvre une feuille popup en overlay
+     * ({@link EditorPreviewSheet}) ancrée à la vue éditeur. La zone de
+     * texte de l'éditeur reste pleine largeur — la feuille flotte au-
+     * dessus. Ce mode est utilisé pour les fichiers {@code .md}/
+     * {@code .html} où l'hôte fournit un corps WebView via
+     * {@link EditorPreviewHost#onCreatePreviewView}.
      */
     public enum PreviewMode {
-        /** No preview — editor takes full width. */
+        /** Pas d'aperçu — l'éditeur prend toute la largeur. */
         NONE,
-        /** Split — editor on left, preview on right (each ~50% width). */
+        /** Split — éditeur à gauche, aperçu à droite (~50 % de largeur chacun). */
         SPLIT,
-        /** Full — preview takes full width, editor hidden. */
+        /** Full — l'aperçu prend toute la largeur, éditeur caché. */
         FULL,
         /**
-         * v2.39: Popup sheet docked to the right half — preview overlay,
-         * editor text area remains full-width underneath. Used for
-         * {@code .md}/{@code .html} files where the host provides a View
-         * (typically a WebView) for the sheet body.
+         * Feuille popup arrimée à la moitié droite — overlay d'aperçu,
+         * la zone de texte de l'éditeur reste pleine largeur en dessous.
+         * Utilisé pour les fichiers {@code .md}/{@code .html} où l'hôte
+         * fournit une View (typiquement un WebView) pour le corps de la
+         * feuille.
          */
         SHEET_SPLIT,
         /**
-         * v2.39: Popup sheet covering the full editor area — preview overlay,
-         * editor text area remains full-width underneath. Used for
-         * {@code .md}/{@code .html} files.
+         * Feuille popup couvrant toute la zone éditeur — overlay d'aperçu,
+         * la zone de texte de l'éditeur reste pleine largeur en dessous.
+         * Utilisé pour les fichiers {@code .md}/{@code .html}.
          */
         SHEET_FULL;
 
-        /** v2.39: True for sheet-overlay modes (popup) vs inline modes. */
+        /** Vrai pour les modes feuille-overlay (popup) vs modes inline. */
         public boolean isSheet() {
             return this == SHEET_SPLIT || this == SHEET_FULL;
         }
     }
 
     PreviewMode previewMode = PreviewMode.NONE;
-    private OnPreviewModeChangedListener previewModeListener;
 
-    // v3.17.0: Canvas-drawn preview icons (top-right corner).
-    // When previewable = true, two small icons are drawn:
-    // - split preview icon (left of the pair)
-    // - full preview icon (right of the pair)
-    // Tapping an icon toggles the preview mode.
+    // Icônes d'aperçu dessinées au Canvas (coin haut-droit).
+    // Quand previewable = true, deux petites icônes sont dessinées :
+    // - icône d'aperçu split (à gauche de la paire)
+    // - icône d'aperçu full (à droite de la paire)
+    // Taper une icône bascule le mode aperçu.
     boolean previewable = false;
-    private String currentFileName = "";
-    private static final float PREVIEW_ICON_SIZE_DP = 22f;
-    private static final float PREVIEW_ICON_MARGIN_DP = 8f;
-
-    // v3.31.0: DECOUPLED preview host. The host app provides preview
-    // functionality (XML inflation, Markdown rendering, etc.) via this
-    // interface. The editor library no longer depends on preview modules.
-    private EditorPreviewHost previewHost;
-    /** v2.39: Active popup sheet overlay when previewMode is a SHEET_* mode. */
-    EditorPreviewSheet previewSheet;
-    private final Runnable previewUpdateTask = () -> {
-        updatePreviewContent();
-        invalidate();
-    };
+    // Tout le reste de l'état d'aperçu (hôte, feuille popup, nom de
+    // fichier, listener de mode) vit dans EditorPreviewController ; la
+    // vue ne conserve que des relais publics.
+    final EditorPreviewController preview = new EditorPreviewController(this);
 
     /**
-     * v3.31.0: Registers the preview host that provides preview rendering.
+     * Enregistre le hôte d'aperçu qui fournit le rendu d'aperçu.
      *
-     * <p>Without a host, the editor cannot preview any file. The host is
-     * typically set once in the host Activity's onCreate():
+     * <p>Sans hôte, l'éditeur ne peut prévisualiser aucun fichier. Le hôte
+     * est typiquement défini une fois dans le onCreate() de l'Activity
+     * hôte :
      * <pre>{@code
      * editorView.setPreviewHost(new XmlPreviewHost(this));
      * }</pre>
      *
-     * @param host the preview host, or null to disable preview
-     * @since v3.31.0
+     * @param host le hôte d'aperçu, ou null pour désactiver l'aperçu
      */
     public void setPreviewHost(EditorPreviewHost host) {
-        this.previewHost = host;
+        preview.setHost(host);
     }
 
     public EditorPreviewHost getPreviewHost() {
-        return previewHost;
+        return preview.getHost();
     }
 
     /**
-     * v3.17.0: Sets the current file name so the editor can detect whether
-     * preview is available (.md, .markdown, .html, .htm, .xml layout).
-     * When previewable, the editor draws preview icons in the top-right corner.
+     * Définit le nom de fichier courant pour que l'éditeur puisse détecter
+     * si l'aperçu est disponible (.md, .markdown, .html, .htm, layout .xml).
+     * Quand prévisualisable, l'éditeur dessine les icônes d'aperçu dans le
+     * coin haut-droit.
      */
     public void setFileName(String fileName) {
-        this.currentFileName = fileName != null ? fileName : "";
-        // v3.31.0: Delegate previewability check to the host.
-        this.previewable = (previewHost != null && previewHost.canPreview(this.currentFileName));
-        invalidate();
+        preview.setFileName(fileName);
     }
 
     /**
-     * v2.39: Returns the last file name set via {@link #setFileName(String)},
-     * or the empty string if none was set. Used by the preview sheet to
-     * display the file name in its header.
-     *
-     * @since v2.39
+     * Retourne le dernier nom de fichier défini via {@link #setFileName(String)},
+     * ou la chaîne vide si aucun n'a été défini. Utilisé par la feuille
+     * d'aperçu pour afficher le nom de fichier dans son en-tête.
      */
     public String getFileName() {
-        return currentFileName;
-    }
-
-    private static boolean isPreviewableFile(String fileName) {
-        if (fileName == null) return false;
-        String lower = fileName.toLowerCase(java.util.Locale.ROOT);
-        return lower.endsWith(".md")
-            || lower.endsWith(".markdown")
-            || lower.endsWith(".html")
-            || lower.endsWith(".htm")
-            || lower.endsWith(".xml");
-    }
-
-    private static boolean isXmlLayoutFile(String fileName) {
-        if (fileName == null) return false;
-        return fileName.toLowerCase(java.util.Locale.ROOT).endsWith(".xml");
+        return preview.getFileName();
     }
 
     /**
-     * v3.17.0: Hit-tests the preview icons. Returns:
-     * 0 = no hit
-     * 1 = split preview icon hit
-     * 2 = full preview icon hit
+     * Hit-teste les icônes d'aperçu. Retourne :
+     * 0 = aucun hit
+     * 1 = hit icône d'aperçu split
+     * 2 = hit icône d'aperçu full
      *
-     * <p>v2.39: SHEET_* modes hide the badges (the sheet chrome owns the
-     * close interaction). The sheet itself can switch between SHEET_SPLIT
-     * and SHEET_FULL via its header toggle.
+     * <p>Les modes SHEET_* cachent les badges (le chrome de la feuille
+     * possède l'interaction de fermeture). La feuille elle-même peut
+     * basculer entre SHEET_SPLIT et SHEET_FULL via son toggle d'en-tête.
      */
     int hitTestPreviewIcons(float x, float y) {
-        if (!previewable || previewMode != PreviewMode.NONE) return 0;
-        float density = getResources().getDisplayMetrics().density;
-        float iconSize = PREVIEW_ICON_SIZE_DP * density;
-        float margin = PREVIEW_ICON_MARGIN_DP * density;
-        float iconY = margin;
-        float iconW = iconSize;
-        // v3.20.1: toolbar icons are gone (moved to EditorBarTools), so
-        // preview icons are now at the rightmost edge.
-        float fullX = getWidth() - margin - iconW;
-        float splitX = fullX - iconW - margin * 0.5f;
-        if (y >= iconY && y <= iconY + iconW) {
-            if (x >= splitX && x <= splitX + iconW) return 1;
-            if (x >= fullX && x <= fullX + iconW) return 2;
-        }
-        return 0;
+        return preview.hitTestIcons(x, y);
     }
 
     /**
-     * Listener for preview mode changes. The host implements this to
-     * show/hide/resize its WebView overlay.
+     * Listener des changements de mode d'aperçu. Le hôte l'implémente
+     * pour montrer/cacher/redimensionner son overlay WebView.
      */
     public interface OnPreviewModeChangedListener {
         void onPreviewModeChanged(PreviewMode mode, int previewLeft, int previewWidth);
     }
 
     public void setOnPreviewModeChangedListener(OnPreviewModeChangedListener listener) {
-        this.previewModeListener = listener;
+        preview.setModeListener(listener);
     }
 
     /**
-     * Sets the preview mode. When SPLIT or FULL, the editor reserves space
-     * for the preview pane and notifies the listener with the preview bounds.
+     * Définit le mode d'aperçu. En SPLIT ou FULL, l'éditeur réserve de
+     * l'espace pour le panneau d'aperçu et notifie le listener avec les
+     * bornes de l'aperçu.
      *
-     * <p>v2.39: When mode is {@link PreviewMode#SHEET_SPLIT} or
-     * {@link PreviewMode#SHEET_FULL}, the editor opens a popup sheet overlay
-     * (see {@link EditorPreviewSheet}) instead of reserving inline space.
-     * The text area remains full-width and the sheet floats on top.
+     * <p>Quand le mode est {@link PreviewMode#SHEET_SPLIT} ou
+     * {@link PreviewMode#SHEET_FULL}, l'éditeur ouvre une feuille popup en
+     * overlay (voir {@link EditorPreviewSheet}) au lieu de réserver de
+     * l'espace inline. La zone de texte reste pleine largeur et la feuille
+     * flotte au-dessus.
      */
     public void setPreviewMode(PreviewMode mode) {
-        if (this.previewMode == mode) return;
-        // v2.39: close any existing sheet before switching modes.
-        if (previewSheet != null) {
-            previewSheet.dismiss();
-            previewSheet = null;
-        }
-        this.previewMode = mode;
-        // Rebuild wrap model since the text-area width changed.
-        // (SHEET_* modes do NOT change text width — wrap model stays valid.)
-        if (wordWrap && !mode.isSheet()) rebuildWrapModel();
-        // v3.31.0: Notify the preview host of the mode change.
-        if (previewHost != null) {
-            previewHost.onPreviewModeChanged(previewMode, getPreviewLeft(), getPreviewWidth());
-            // Also push the current content immediately.
-            if (previewMode != PreviewMode.NONE && session != null) {
-                previewHost.onPreviewContentChanged(session.getText());
-            }
-        }
-        // v2.39: open the sheet overlay for SHEET_* modes.
-        if (mode.isSheet() && previewHost != null) {
-            openPreviewSheet(mode);
-        }
-        invalidate();
-        notifyPreviewModeChanged();
+        preview.setPreviewMode(mode);
     }
 
     /**
-     * v2.39: Convenience entry point invoked when the user taps one of the
-     * preview badges drawn by {@link EditorRenderer#drawPreviewIcons}.
+     * Point d'entrée pratique invoqué quand l'utilisateur tape un des
+     * badges d'aperçu dessinés par {@link EditorRenderer#drawPreviewIcons}.
      *
-     * <p>For {@code .md}/{@code .html} files (where the host typically
-     * provides a WebView body via {@link EditorPreviewHost#onCreatePreviewView}),
-     * this opens a popup sheet overlay ({@link PreviewMode#SHEET_SPLIT} or
-     * {@link PreviewMode#SHEET_FULL}) so the editor's text area remains
-     * full-width and the sheet floats on top.
+     * <p>Pour les fichiers {@code .md}/{@code .html} (où le hôte fournit
+     * typiquement un corps WebView via
+     * {@link EditorPreviewHost#onCreatePreviewView}), ceci ouvre une
+     * feuille popup en overlay ({@link PreviewMode#SHEET_SPLIT} ou
+     * {@link PreviewMode#SHEET_FULL}) pour que la zone de texte de
+     * l'éditeur reste pleine largeur et que la feuille flotte au-dessus.
      *
-     * <p>For {@code .xml} layout files (where the host renders via
-     * {@link EditorPreviewHost#drawPreview(Canvas, float, float)} into the
-     * editor canvas), this opens the legacy inline {@link PreviewMode#SPLIT}
-     * or {@link PreviewMode#FULL} mode.
+     * <p>Pour les fichiers de layout {@code .xml} (où le hôte rend via
+     * {@link EditorPreviewHost#drawPreview(Canvas, float, float)} dans le
+     * canvas de l'éditeur), ceci ouvre le mode inline
+     * {@link PreviewMode#SPLIT} ou {@link PreviewMode#FULL}.
      *
-     * @param full true for the full-screen badge, false for the split badge
-     * @since v2.39
+     * @param full true pour le badge plein écran, false pour le badge split
      */
     public void openPreview(boolean full) {
-        if (!previewable || previewHost == null) return;
-        String lower = currentFileName.toLowerCase(java.util.Locale.ROOT);
-        boolean useSheet = lower.endsWith(".md")
-            || lower.endsWith(".markdown")
-            || lower.endsWith(".html")
-            || lower.endsWith(".htm");
-        PreviewMode target = useSheet
-            ? (full ? PreviewMode.SHEET_FULL : PreviewMode.SHEET_SPLIT)
-            : (full ? PreviewMode.FULL : PreviewMode.SPLIT);
-        setPreviewMode(target);
+        preview.openPreview(full);
     }
 
     /**
-     * v2.39: Opens the popup sheet overlay for the given SHEET_* mode.
-     * Package-private — callers go through {@link #setPreviewMode} or
-     * {@link #openPreview}.
-     */
-    void openPreviewSheet(PreviewMode mode) {
-        if (!mode.isSheet()) return;
-        if (previewHost == null) return;
-        if (getWidth() == 0 || getHeight() == 0) {
-            // Defer until laid out — schedule a retry on the next predraw.
-            post(() -> openPreviewSheet(mode));
-            return;
-        }
-        if (previewSheet != null) {
-            previewSheet.dismiss();
-            previewSheet = null;
-        }
-        previewSheet = new EditorPreviewSheet(this, mode);
-        previewSheet.show();
-    }
-
-    /**
-     * v2.39: Closes the active popup sheet (if any) and returns to
-     * {@link PreviewMode#NONE}. Called when the user taps the sheet's
-     * close button, taps outside the sheet, or presses Back.
+     * Ferme la feuille popup active (s'il y en a une) et revient à
+     * {@link PreviewMode#NONE}. Appelé quand l'utilisateur tape le bouton
+     * fermer de la feuille, tape hors de la feuille, ou presse Retour.
      */
     public void closePreviewSheet() {
-        if (previewSheet != null) {
-            previewSheet.dismiss();
-            previewSheet = null;
-        }
-        if (previewMode.isSheet()) {
-            previewMode = PreviewMode.NONE;
-            if (previewHost != null) {
-                previewHost.onPreviewModeChanged(previewMode, getPreviewLeft(), getPreviewWidth());
-            }
-            invalidate();
-            notifyPreviewModeChanged();
-        }
+        preview.closePreviewSheet();
     }
 
     /**
-     * v2.39: Returns the active popup sheet, or null when no SHEET_* mode
-     * is active. Exposed so {@link EditorRenderer} and the test harness can
-     * query sheet state without going through package-private fields.
+     * Retourne la feuille popup active, ou null quand aucun mode SHEET_*
+     * n'est actif. Exposé pour que {@link EditorRenderer} et le harnais de
+     * test puissent interroger l'état de la feuille sans passer par les
+     * champs package-private.
      */
     public EditorPreviewSheet getPreviewSheet() {
-        return previewSheet;
+        return preview.getPreviewSheet();
     }
 
     /**
-     * v3.31.0: Pushes the current editor text to the preview host.
-     * Called (debounced) after text changes when preview is active.
+     * Pousse le texte courant de l'éditeur vers le hôte d'aperçu.
+     * Appelé (débouncé) après les changements de texte quand l'aperçu est
+     * actif.
      *
-     * <p>v2.39: Also pushes content to the popup sheet body (if any) so
-     * the host's WebView can re-render Markdown/HTML live as the user types.
+     * <p>Pousse aussi le contenu vers le corps de la feuille popup (s'il y
+     * en a une) pour que le WebView du hôte puisse re-rendre le Markdown/
+     * HTML en live pendant la frappe.
      */
-    private void updatePreviewContent() {
-        if (previewHost == null || session == null) return;
-        if (previewMode == PreviewMode.NONE) return;
-        previewHost.onPreviewContentChanged(session.getText());
-        // v2.39: the sheet body View is owned by the host — once we've
-        // pushed new content via onPreviewContentChanged, ask the sheet
-        // to invalidate its body so the WebView redraws.
-        if (previewSheet != null) {
-            previewSheet.refreshBody();
-        }
-    }
-
     /**
-     * v3.31.0: Returns true if the preview host has content ready to draw
-     * <em>onto the editor canvas</em> (inline SPLIT/FULL XML layout preview).
+     * Retourne vrai si le hôte d'aperçu a du contenu prêt à dessiner
+     * <em>sur le canvas de l'éditeur</em> (aperçu inline SPLIT/FULL de
+     * layout XML).
      *
-     * <p>v2.39: SHEET_* modes never draw on the editor canvas (the sheet
-     * has its own surface), so this returns false for them.
+     * <p>Les modes SHEET_* ne dessinent jamais sur le canvas de l'éditeur
+     * (la feuille a sa propre surface), donc ceci retourne faux pour eux.
      */
     public boolean isXmlPreviewActive() {
-        if (previewMode.isSheet()) return false;
-        return previewMode != PreviewMode.NONE
-            && previewHost != null
-            && previewHost.hasPreviewContent();
+        return preview.isXmlPreviewActive();
     }
 
     public PreviewMode getPreviewMode() { return previewMode; }
 
     /**
-     * Returns the X coordinate where the preview pane starts.
+     * Retourne la coordonnée X où commence le panneau d'aperçu.
      *
-     * <p>v2.39: SHEET_* modes return the sheet bounds — but the editor
-     * does NOT shrink its text area for sheet modes (the sheet is an
-     * overlay). These values are passed to the host so it knows where
-     * the sheet's body lives.
+     * <p>Les modes SHEET_* retournent les bornes de la feuille — mais
+     * l'éditeur ne rétrécit PAS sa zone de texte pour les modes feuille
+     * (la feuille est un overlay). Ces valeurs sont passées au hôte pour
+     * qu'il sache où vit le corps de la feuille.</p>
      */
     public int getPreviewLeft() {
-        if (previewMode == PreviewMode.NONE) return getWidth();
-        if (previewMode == PreviewMode.FULL || previewMode == PreviewMode.SHEET_FULL) return 0;
-        // SPLIT or SHEET_SPLIT: preview takes the right half.
-        return getWidth() / 2;
+        return preview.previewLeft();
     }
 
     /**
-     * Returns the width of the preview pane.
+     * Retourne la largeur du panneau d'aperçu.
      *
-     * <p>v2.39: For SHEET_* modes, this is the sheet body width — passed
-     * to the host so it knows the canvas dimensions (when using
-     * {@link EditorPreviewHost#drawPreview} as a fallback).
+     * <p>Pour les modes SHEET_*, c'est la largeur du corps de la feuille —
+     * passée au hôte pour qu'il connaisse les dimensions du canvas (quand
+     * {@link EditorPreviewHost#drawPreview} sert de repli).</p>
      */
     public int getPreviewWidth() {
-        if (previewMode == PreviewMode.NONE) return 0;
-        if (previewMode == PreviewMode.FULL || previewMode == PreviewMode.SHEET_FULL) return getWidth();
-        // SPLIT or SHEET_SPLIT.
-        return getWidth() - getWidth() / 2;
+        return preview.previewWidth();
     }
 
     /**
-     * Returns the effective text-area width available for text rendering.
-     * When preview is active, this is reduced to leave room for the preview.
+     * Retourne la largeur effective de la zone de texte disponible pour
+     * le rendu du texte. Quand l'aperçu est actif, elle est réduite pour
+     * laisser place à l'aperçu (délégué à
+     * {@link EditorPreviewController#effectiveTextWidth()}).
      *
-     * <p>v2.39: SHEET_* modes do NOT reduce the text-area width — the sheet
-     * floats on top of the editor, so the text wraps as if no preview
-     * were active (the user can still see and edit the text by dismissing
-     * the sheet).
+     * <p>Les modes SHEET_* ne réduisent PAS la largeur de la zone de
+     * texte — la feuille flotte au-dessus de l'éditeur, donc le texte se
+     * replit comme si aucun aperçu n'était actif (l'utilisateur peut
+     * toujours voir et éditer le texte en fermant la feuille).</p>
      */
     int getEffectiveTextWidth() {
-        int fullWidth = (int) (getWidth() - metrics.getGutterWidth() - metrics.getPadLeft() - metrics.getPadRight());
-        if (previewMode == PreviewMode.NONE || previewMode.isSheet()) return fullWidth;
-        if (previewMode == PreviewMode.FULL) return 0;
-        // SPLIT: text takes the left half.
-        return (int) ((getWidth() / 2) - metrics.getGutterWidth() - metrics.getPadLeft() - metrics.getPadRight());
+        return preview.effectiveTextWidth();
     }
 
-    private void notifyPreviewModeChanged() {
-        if (previewModeListener != null) {
-            previewModeListener.onPreviewModeChanged(previewMode, getPreviewLeft(), getPreviewWidth());
-        }
-    }
-
-    /** v3.17.0: Applies an alpha multiplier to an ARGB color (for preview icons). */
+    /** Applique un multiplicateur d'alpha à une couleur ARGB (pour les icônes d'aperçu). */
     static int applyAlphaToColor(int color, float alpha) {
         int a = (color >>> 24) & 0xFF;
         int newA = (int) (a * alpha);
         return (newA << 24) | (color & 0x00FFFFFF);
     }
 
-    /** Rebuilds the wrap model from the current document + viewport width. */
-    private void rebuildWrapModel() {
-        if (session == null) return;
-        int lineCount = session.getDocument().lineCount();
-        if (wrapModel == null || wrapModel.getLineCount() != lineCount) {
-            wrapModel = new jo.codeeditor.wrap.WrapModel(lineCount);
-        }
-        // v3.13.0: use effective text width (reduced when preview is on).
-        int textAreaW = getEffectiveTextWidth();
-        wrapWidthPx = Math.max(1, textAreaW);
-        // ★ v2.33 : le comptage passe par wrapRowsFor — même formule que le
-        // DÉCOUPAGE du rendu (continuation indentée = rangée plus étroite).
-        // AVANT : ceil(len/maxCols) — les lignes indentées repliées
-        // perdaient leur queue (rangées non dessinées) et les Y des lignes
-        // suivantes étaient trop courts d'autant.
-        EditorDocument doc = session.getDocument();
-        for (int i = 0; i < lineCount; i++) {
-            int lineLen = doc.lineEnd(i) - doc.lineStart(i);
-            wrapModel.setRows(i, wrapRowsFor(i, lineLen).rows);
-        }
+    /** Reconstruit le modèle de wrap depuis le document courant + la largeur du viewport (délégué à {@link EditorWrapGeometry}). */
+    void rebuildWrapModel() {
+        wrapGeometry.rebuildWrapModel();
     }
 
-    /** Public entry point for "show the keyboard now" (toolbar button / FAB). */
+    /** Point d'entrée public « montrer le clavier maintenant » (bouton toolbar / FAB). */
     public void showSoftKeyboard() {
         wantsKeyboard = true;
         requestFocus();
@@ -2745,7 +1488,7 @@ public class EditorView extends View {
         }
     }
 
-    /** Public entry point for "hide the keyboard now". */
+    /** Point d'entrée public « cacher le clavier maintenant ». */
     public void hideSoftKeyboard() {
         wantsKeyboard = false;
         InputMethodManager imm = imm();
@@ -2755,182 +1498,67 @@ public class EditorView extends View {
     }
 
     // ════════════════════════════════════════════════════════════════
-    // Drawing
+    // Dessin
     // ════════════════════════════════════════════════════════════════
 
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
-        // v3.8.0: all drawing is delegated to EditorRenderer.
+        // Tout le dessin est délégué à EditorRenderer.
         renderer.draw(canvas);
     }
-    /** Returns the collapsed fold region that STARTS at {@code docLine}, or null. */
+    /** Retourne la région de pli repliée qui COMMENCE à {@code docLine}, ou null (délégué à {@link EditorLineLayoutResolver}). */
     DiagnosticShift.FoldRegion collapsedFoldStartingAtLine(int docLine) {
-        for (DiagnosticShift.FoldRegion r : session.getFoldRegions()) {
-            if (!r.collapsed) continue;
-            if (session.getDocument().lineForOffset(r.start) == docLine) return r;
-        }
-        return null;
+        return lineLayouts.collapsedFoldStartingAtLine(docLine);
     }
 
     /**
-     * Overlays semantic tokens on top of the lexical syntax-highlight spans.
-     * Semantic tokens come from the language server (method, class, enum, etc.)
-     * and override the lexer's best-guess color when present.
+     * Superpose les tokens sémantiques par-dessus les spans lexicaux de
+     * coloration syntaxique (délégué à
+     * {@link EditorLineLayoutResolver}).
      */
     static jo.codeeditor.highlight.TokenType semanticTypeToTokenType(int semType) {
-        // LSP-style semantic token types: 0=namespace 1=type 2=class 3=enum
-        // 4=interface 5=struct 6=parameter 7=variable 8=property 9=method
-        // 10=function 11=keyword 12=number 13=string 14=comment ...
-        // ★ R3 (v0.1.0.51-v2.22) : couverture élargie aux tokens que le
-        // serveur Java alimente désormais (enums, params, locales, champs)
-        // via la légende canonique de JdtSemanticHighlighter.TOKEN_TYPES.
-        switch (semType) {
-            case 1: case 2: case 3: case 5:
-                return jo.codeeditor.highlight.TokenType.TYPE;
-            case 4:
-                return jo.codeeditor.highlight.TokenType.ANNOTATION;
-            case 6: case 7:
-                return jo.codeeditor.highlight.TokenType.VARIABLE;
-            case 8:
-                return jo.codeeditor.highlight.TokenType.PROPERTY;
-            case 9: case 10: return jo.codeeditor.highlight.TokenType.FUNC;
-            case 11: return jo.codeeditor.highlight.TokenType.KEYWORD;
-            case 12: return jo.codeeditor.highlight.TokenType.NUMBER;
-            case 13: return jo.codeeditor.highlight.TokenType.STRING;
-            case 14: return jo.codeeditor.highlight.TokenType.COMMENT;
-            default: return null;
-        }
+        return EditorLineLayoutResolver.semanticTypeToTokenType(semType);
     }
 
     /**
-     * Returns the cached per-line layout (StyledLine + filtered inlays +
-     * filtered sem spans + raw↔visual column maps). On a cache miss the
-     * filtered lists are computed from the session's global lists and
-     * stored, so subsequent frames for an unchanged line are O(1).
-     *
-     * <p>Triple-stamp validation (text rev + inlay rev + sem rev) means
-     * a single keystroke only invalidates the lines whose text actually
-     * changed — not the whole viewport. LRU-evicted at 512 entries.
+     * Retourne le layout par ligne en cache (StyledLine + inlays filtrés +
+     * spans sémantiques filtrés + tables colonnes brutes↔visuelles),
+     * validé par triple-stamp (délégué à
+     * {@link EditorLineLayoutResolver}).
      */
     LineRenderCache.LineCacheEntry layoutForLine(int lineNum, String lineText) {
-        if (session == null) return null;
-        EditorDocument doc = session.getDocument();
-        if (lineNum < 0 || lineNum >= doc.lineCount()) return null;
-        int textRev = session.getLineTextRevision(lineNum);
-        int inlayRev = session.getInlayHintsRevision();
-        int semRev = session.getSemanticTokensRevision();
-        LineRenderCache.LineCacheEntry entry = renderCache.get(lineNum, textRev, inlayRev, semRev);
-        if (entry != null) return entry;
-        // Cache miss — compute the filtered per-line inlays + sem spans.
-        int lineStart = doc.lineStart(lineNum);
-        int lineEnd = doc.lineEnd(lineNum);
-        // v3.34.0: filter from the session's PER-LINE BUCKETS instead of
-        // iterating the full global lists (and the old getters also made
-        // a defensive copy of the whole list per call — O(hints + tokens)
-        // allocations per missed line, i.e. per scroll). Bucket access is
-        // O(bucket size); the index is memoized on the source list
-        // identity and rebuilt once per setInlayHints/setSemanticTokens
-        // or edit (CodeAssist 3.20 LineOverlay.update() approach).
-        List<DiagnosticShift.InlayHint> lineHints = session.getInlayHintsForLine(lineNum);
-        List<LineRenderCache.InlayPiece> inlays = new ArrayList<>(lineHints.size());
-        for (DiagnosticShift.InlayHint h : lineHints) {
-            int col = h.offset - lineStart;
-            inlays.add(new LineRenderCache.InlayPiece(col, h.text));
-        }
-        // v2.32 bugfix: buildColumnMaps ASSUMES the pieces are sorted by col
-        // (it advances a single index while rawCol grows). The global hint
-        // list is NOT sorted per line — the server appends the var-type
-        // hints AFTER the parameter hints, so a line like
-        // {@code var x = max(a, b);} receives [param@17, param@20, var@7]
-        // and the var hint (col < current index) was silently DROPPED from
-        // the column maps → the hint never rendered and the text after it
-        // wasn't shifted. Sort (stable) fixes the weave.
-        if (inlays.size() > 1) {
-            inlays.sort((a, b) -> Integer.compare(a.col, b.col));
-        }
-        // Filter semantic tokens to those that intersect this line, and
-        // convert them to per-line SemSpans (column-relative + ARGB color).
-        List<DiagnosticShift.SemanticToken> lineTokens = session.getSemanticTokensForLine(lineNum);
-        List<LineRenderCache.SemSpan> semSpans = new ArrayList<>(lineTokens.size());
-        for (DiagnosticShift.SemanticToken t : lineTokens) {
-            int tokEnd = t.start + t.length;
-            if (t.start >= lineEnd || tokEnd <= lineStart) continue;
-            int startCol = clamp(t.start - lineStart, 0, lineText.length());
-            int endCol = clamp(tokEnd - lineStart, 0, lineText.length());
-            if (startCol >= endCol) continue;
-            TokenType ttype = semanticTypeToTokenType(t.type);
-            if (ttype == null) continue;
-            int color = theme.colorForToken(ttype);
-            semSpans.add(new LineRenderCache.SemSpan(startCol, endCol, color));
-        }
-        // Build raw↔visual column maps from the inlays.
-        int[][] maps = LineRenderCache.buildColumnMaps(lineText.length(), inlays);
-        StyledLine styled = null;
-        List<StyledLine> styledLines = session.getStyledLines();
-        if (lineNum < styledLines.size()) {
-            styled = styledLines.get(lineNum);
-        }
-        LineRenderCache.LineCacheEntry newEntry = new LineRenderCache.LineCacheEntry(
-            lineNum, textRev, inlayRev, semRev,
-            inlays, semSpans, maps[0], maps[1], styled);
-        renderCache.put(newEntry);
-        return newEntry;
+        return lineLayouts.layoutForLine(lineNum, lineText);
     }
 
-    /** Returns the cached StyledLine for the given line, or null. */
+    /** Retourne la StyledLine en cache pour la ligne donnée, ou null (délégué à {@link EditorLineLayoutResolver}). */
     private StyledLine cachedStyledFor(int lineNum, String lineText) {
-        LineRenderCache.LineCacheEntry e = layoutForLine(lineNum, lineText);
-        return e != null ? (StyledLine) e.layout : null;
+        return lineLayouts.cachedStyledFor(lineNum, lineText);
     }
 
     // ════════════════════════════════════════════════════════════════
-    // v2.31: Inlay-aware column mapping (CodeAssist rawToVisual/visualToRaw)
+    // Correspondance de colonnes consciente des inlays (rawToVisual/visualToRaw)
     // ════════════════════════════════════════════════════════════════
 
     /**
-     * v2.31: Raw document column → VISUAL (inlay-woven) column for the given
-     * line. A hint anchored AT {@code rawCol} occupies the columns between
-     * {@code rawToVisual[rawCol]} and {@code rawToVisual[rawCol] + hintLen},
-     * so the caret for {@code rawCol} anchors just BEFORE the hint — exactly
-     * CodeAssist's {@code rawToVisual} semantics.
-     *
-     * <p>Falls back to the raw column when the line has no inlays, is a
-     * collapsed-fold composite (hints are never woven there), or the cache
-     * has no entry — so callers can use it unconditionally in draw paths.
+     * Colonne brute du document → colonne VISUELLE (tissée d'inlays)
+     * pour la ligne donnée, avec repli sur l'identité (délégué à
+     * {@link EditorLineLayoutResolver}).
      */
     int visualColFor(int line, int rawCol) {
-        if (session == null) return rawCol;
-        EditorDocument doc = session.getDocument();
-        if (doc == null || line < 0 || line >= doc.lineCount()) return rawCol;
-        LineRenderCache.LineCacheEntry e = layoutForLine(line, doc.lineText(line));
-        if (e == null || e.inlays.isEmpty() || e.rawToVisual == null) return rawCol;
-        if (collapsedFoldStartingAtLine(line) != null) return rawCol; // composite: identity
-        if (rawCol < 0) return 0;
-        if (rawCol >= e.rawToVisual.length) return e.rawToVisual[e.rawToVisual.length - 1];
-        return e.rawToVisual[rawCol];
+        return lineLayouts.visualColFor(line, rawCol);
     }
 
     /**
-     * v2.31: VISUAL (inlay-woven) column → raw document column. A hit inside
-     * a hint snaps to its anchor column (CodeAssist {@code visualToRaw}
-     * semantics) so tapping a hint places the caret at the hinted character.
+     * Colonne VISUELLE (tissée d'inlays) → colonne brute du document
+     * (délégué à {@link EditorLineLayoutResolver}).
      */
     int rawColFor(int line, int visualCol) {
-        if (session == null) return visualCol;
-        EditorDocument doc = session.getDocument();
-        if (doc == null || line < 0 || line >= doc.lineCount()) return visualCol;
-        int lineLen = doc.lineEnd(line) - doc.lineStart(line);
-        LineRenderCache.LineCacheEntry e = layoutForLine(line, doc.lineText(line));
-        if (e == null || e.inlays.isEmpty() || e.visualToRaw == null) return visualCol;
-        if (collapsedFoldStartingAtLine(line) != null) return visualCol;
-        if (visualCol <= 0) return 0;
-        if (visualCol >= e.visualToRaw.length) return lineLen;
-        return e.visualToRaw[visualCol];
+        return lineLayouts.rawColFor(line, visualCol);
     }
 
     // ════════════════════════════════════════════════════════════════
-    // v2.31: Diagnostic sheet / chip geometry (shared by draw + hit-test)
+    // Géométrie feuille / chip de diagnostic (partagée par dessin + hit-test)
     // ════════════════════════════════════════════════════════════════
 
         int countWrappedLines(String msg, float maxW) {
@@ -2949,30 +1577,30 @@ public class EditorView extends View {
 
 
     /**
-     * v3.36.0 (roadmap item 5): opens the grouped diagnostic sheet for
-     * {@code line} (public host API).
+     * Ouvre la feuille de diagnostics groupée pour {@code line} (API
+     * publique hôte).
      */
     public void showDiagnosticListSheet(int line) {
         popupManager.showDiagnosticListSheet(line);
     }
 
-    /** v3.36.0: closes the grouped diagnostic sheet (public host API). */
+    /** Ferme la feuille de diagnostics groupée (API publique hôte). */
     public void dismissDiagnosticListSheet() {
         popupManager.dismissDiagnosticListSheet();
     }
 
-    /** v3.36.0: true while the grouped diagnostic sheet is showing. */
+    /** Vrai pendant que la feuille de diagnostics groupée est affichée. */
     public boolean isDiagnosticListSheetVisible() {
         return diagnosticListSheetLine >= 0;
     }
 
     /**
-     * v3.36.0 (roadmap item 8) — the wired {@code DiagnosticsProvider}
-     * (package access for {@link OpenTabDiagnosticsSweep}), or null when
-     * the current language has none.
+     * Le {@code DiagnosticsProvider} branché (accès package pour
+     * {@link OpenTabDiagnosticsSweep}), ou null quand le langage courant
+     * n'en a pas.
      */
-    jo.codeeditor.lang.DiagnosticsProvider getDiagnosticsProviderSpi() {
-        return diagnosticsProviderSpi;
+    jo.codeeditor.lang.provider.DiagnosticsProvider getDiagnosticsProviderSpi() {
+        return diagnosticsPusher.getProvider();
     }
 
 
@@ -2984,81 +1612,33 @@ public class EditorView extends View {
     
 
     // ════════════════════════════════════════════════════════════════
-    // v2.36 : NavMenu — métriques du menu contextuel unifié
+    // NavMenu — métriques du menu contextuel unifié
     // ════════════════════════════════════════════════════════════════
 
     /**
-     * v2.36 — construit la liste ordonnée des rangées du menu (pattern
-     * NavigationMenu.kt de CodeAssist) : sections en majuscules affichées
+     * Construit la liste ordonnée des rangées du menu (délégué à
+     * {@link EditorNavMenuRows}) : sections en majuscules affichées
      * seulement si non-vides, ou « Nothing found in source. ».
      */
     List<NavMenuRow> navMenuRows() {
-        List<NavMenuRow> rows = new ArrayList<>();
-        if (navMenuResultsMode) {
-            if (navMenuTargets.isEmpty()) {
-                rows.add(new NavMenuRow(NavMenuRow.TYPE_NOTHING, 0, 0, null));
-            } else {
-                for (int i = 0; i < navMenuTargets.size(); i++) {
-                    rows.add(new NavMenuRow(NavMenuRow.TYPE_TARGET, i, 0,
-                            navMenuTargets.get(i)));
-                }
-            }
-            return rows;
-        }
-        boolean empty = navMenuOptions.isEmpty()
-                && navMenuQuickFixes.isEmpty()
-                && navMenuIntentions.isEmpty();
-        if (empty) {
-            rows.add(new NavMenuRow(NavMenuRow.TYPE_NOTHING, 0, 0, null));
-            return rows;
-        }
-        if (!navMenuOptions.isEmpty()) {
-            rows.add(new NavMenuRow(NavMenuRow.TYPE_HEADER, 0,
-                    NavMenuRow.SECTION_GO_TO, "GO TO"));
-            for (int i = 0; i < navMenuOptions.size(); i++) {
-                rows.add(new NavMenuRow(NavMenuRow.TYPE_OPTION, i,
-                        NavMenuRow.SECTION_GO_TO, navMenuOptions.get(i)));
-            }
-        }
-        if (!navMenuQuickFixes.isEmpty()) {
-            rows.add(new NavMenuRow(NavMenuRow.TYPE_HEADER, 0,
-                    NavMenuRow.SECTION_QUICK_FIXES, "QUICK FIXES"));
-            for (int i = 0; i < navMenuQuickFixes.size(); i++) {
-                rows.add(new NavMenuRow(NavMenuRow.TYPE_ACTION, i,
-                        NavMenuRow.SECTION_QUICK_FIXES, navMenuQuickFixes.get(i)));
-            }
-        }
-        if (!navMenuIntentions.isEmpty()) {
-            rows.add(new NavMenuRow(NavMenuRow.TYPE_HEADER, 0,
-                    NavMenuRow.SECTION_INTENTIONS, "INTENTIONS"));
-            for (int i = 0; i < navMenuIntentions.size(); i++) {
-                rows.add(new NavMenuRow(NavMenuRow.TYPE_ACTION, i,
-                        NavMenuRow.SECTION_INTENTIONS, navMenuIntentions.get(i)));
-            }
-        }
-        return rows;
+        return navMenuRowsBuilder.navMenuRows();
     }
 
     /**
-     * v2.36 — l'action d'une rangée TYPE_ACTION, résolue depuis sa section.
+     * L'action d'une rangée TYPE_ACTION, résolue depuis sa section
+     * (délégué à {@link EditorNavMenuRows}).
      */
     CodeAction navMenuActionAt(NavMenuRow row) {
-        return row.ref instanceof CodeAction ? (CodeAction) row.ref : null;
+        return navMenuRowsBuilder.navMenuActionAt(row);
     }
 
     /**
-     * v2.36 — hauteur totale du CONTENU du menu (sans clamp viewport) en
-     * pixels : headers + rangées. Source du clamp de scroll.
+     * Hauteur totale du CONTENU du menu (sans clamp viewport) en pixels :
+     * headers + rangées (délégué à {@link EditorNavMenuRows}). Source du
+     * clamp de scroll.
      */
     float navMenuContentHeight() {
-        float density = getResources().getDisplayMetrics().density;
-        float rowH = NAV_MENU_ROW_HEIGHT_DP * density;
-        float headerH = NAV_MENU_HEADER_HEIGHT_DP * density;
-        float h = 0;
-        for (NavMenuRow r : navMenuRows()) {
-            h += r.type == NavMenuRow.TYPE_HEADER ? headerH : rowH;
-        }
-        return h;
+        return navMenuRowsBuilder.navMenuContentHeight();
     }
 
         float[] navMenuMetrics() {
@@ -3077,28 +1657,20 @@ public class EditorView extends View {
 
 
     /**
-     * v3.36.0 (roadmap item 5): the Error/Warning diagnostics whose start
-     * sits on {@code line}, most-severe-first — the chip's group. Uses
-     * the session's memoized start-line buckets (getDiagnosticsForLine),
-     * so a per-frame call is O(visible lines), not O(total diagnostics).
+     * Les diagnostics Error/Warning dont le début se trouve sur
+     * {@code line}, le plus sévère d'abord — le groupe de la chip
+     * (délégué à {@link EditorDiagnosticsLocator}).
      */
     List<DiagnosticShift.Diagnostic> chipDiagnosticsForLine(int line) {
-        if (session == null) return new ArrayList<>(0);
-        List<DiagnosticShift.Diagnostic> all = session.getDiagnosticsForLine(line);
-        // Buckets are severity-desc sorted, so the Error/Warning prefix is
-        // everything up to the first Info/Hint.
-        int n = 0;
-        while (n < all.size() && all.get(n).severity >= 2) n++;
-        return new ArrayList<>(all.subList(0, n));
+        return diagnosticsLocator.chipDiagnosticsForLine(line);
     }
 
     /**
-     * v3.36.0 (roadmap item 5): a chip hit — the line, its Error/Warning
-     * group (most-severe-first) and the primary diagnostic shown in the
-     * pill. Replaces the single-diagnostic return of
-     * {@link #findDiagnosticChipAt} for the tap flow: a line with several
-     * diagnostics opens the grouped sheet instead of jumping straight to
-     * the most severe one.
+     * Un hit de chip — la ligne, son groupe Error/Warning (le plus sévère
+     * d'abord) et le diagnostic primaire affiché dans la pastille.
+     * Remplace le retour mono-diagnostic de {@link #findDiagnosticChipAt}
+     * pour le flux de tap : une ligne avec plusieurs diagnostics ouvre la
+     * feuille groupée au lieu de sauter directement au plus sévère.
      */
     static final class DiagnosticChipHit {
         final int line;
@@ -3109,66 +1681,49 @@ public class EditorView extends View {
             this.diagnostics = diagnostics;
         }
 
-        /** The most severe diagnostic of the group (never null when built). */
+        /** Le diagnostic le plus sévère du groupe (jamais null une fois construit). */
         DiagnosticShift.Diagnostic primary() {
             return diagnostics.get(0);
         }
     }
 
     /**
-     * v3.36.0: The diagnostic chip (with its group) under the screen point
-     * (x, y), or null — drives the chip tap → grouped sheet → detail
-     * popup interaction (CodeAssist v3.20 parity).
+     * La chip de diagnostic (avec son groupe) sous le point écran (x, y),
+     * ou null — pilote l'interaction tap chip → feuille groupée → popup
+     * de détail (délégué à {@link EditorDiagnosticsLocator}).
      */
     DiagnosticChipHit findDiagnosticChipHitAt(float x, float y) {
-        if (!diagnosticChipsEnabled || session == null) return null;
-        EditorDocument doc = session.getDocument();
-        int line = docLineForScreenY(y);
-        if (line < 0 || line >= doc.lineCount()) return null;
-        if (isLineFoldedCached(line)) return null;
-        List<DiagnosticShift.Diagnostic> group = chipDiagnosticsForLine(line);
-        if (group.isEmpty()) return null;
-        float[] m = diagnosticChipMetrics(group.get(0), line, group.size());
-        if (m == null) return null;
-        if (x >= m[0] && x <= m[0] + m[2] && y >= m[1] && y <= m[1] + m[3]) {
-            return new DiagnosticChipHit(line, group);
-        }
-        return null;
+        return diagnosticsLocator.findDiagnosticChipHitAt(x, y);
     }
 
 
         /**
-     * v2.31: The most severe Error/Warning diagnostic whose start sits on
-     * {@code line} — the one that gets a chip (CodeAssist parity: Info/Hint
-     * stay squiggle+gutter only). Exposed for the chip hit-test.
+     * Le diagnostic Error/Warning le plus sévère dont le début se trouve
+     * sur {@code line} — celui qui a une chip (délégué à
+     * {@link EditorDiagnosticsLocator}).
      */
     DiagnosticShift.Diagnostic chipDiagnosticForLine(int line) {
-        if (session == null) return null;
-        EditorDocument doc = session.getDocument();
-        if (doc == null || line < 0 || line >= doc.lineCount()) return null;
-        List<DiagnosticShift.Diagnostic> group = chipDiagnosticsForLine(line);
-        return group.isEmpty() ? null : group.get(0);
+        return diagnosticsLocator.chipDiagnosticForLine(line);
     }
 
 
         /**
-     * v2.31: The diagnostic chip under the screen point (x, y), or null —
-     * drives the chip tap → sheet interaction (CodeAssist
-     * DiagnosticChipsLayer's {@code onClick = onOpenSheet}).
+     * La chip de diagnostic sous le point écran (x, y), ou null — pilote
+     * l'interaction tap chip → feuille (délégué à
+     * {@link EditorDiagnosticsLocator}).
      *
-     * <p>v3.36.0: kept for compatibility (tests + single-diagnostic fast
-     * path) — the tap flow now uses {@link #findDiagnosticChipHitAt}
-     * which carries the whole group.</p>
+     * <p>Conservé pour compatibilité (tests + chemin rapide
+     * mono-diagnostic) — le flux de tap utilise désormais
+     * {@link #findDiagnosticChipHitAt} qui porte tout le groupe.</p>
      */
     DiagnosticShift.Diagnostic findDiagnosticChipAt(float x, float y) {
-        DiagnosticChipHit hit = findDiagnosticChipHitAt(x, y);
-        return hit != null ? hit.primary() : null;
+        return diagnosticsLocator.findDiagnosticChipAt(x, y);
     }
 
 
     /**
-     * v3.33.10: Helper kept for callers that previously went through
-     * EditorView (EditorScrollManager, etc.). Delegates to
+     * Aide conservée pour les appelants qui passaient auparavant par
+     * EditorView (EditorScrollManager, etc.). Délègue à
      * {@link CaretAnimator#cancelGlide()}.
      */
     void cancelCaretAnimation() {
@@ -3176,7 +1731,7 @@ public class EditorView extends View {
     }
 
     // ════════════════════════════════════════════════════════════════
-    // IME integration
+    // Intégration IME
     // ════════════════════════════════════════════════════════════════
 
     @Override
@@ -3193,9 +1748,9 @@ public class EditorView extends View {
     public void onWindowFocusChanged(boolean hasWindowFocus) {
         super.onWindowFocusChanged(hasWindowFocus);
         if (!hasWindowFocus) {
-            // Don't pop the keyboard back up if the user switched away.
-            // We keep wantsKeyboard armed so on resume we can re-show,
-            // but we don't actively grab focus.
+            // Ne fait pas remonter le clavier si l'utilisateur est parti
+            // ailleurs. On garde wantsKeyboard armé pour pouvoir re-montrer
+            // au retour, mais on ne prend pas activement le focus.
         }
     }
 
@@ -3203,13 +1758,12 @@ public class EditorView extends View {
     protected void onFocusChanged(boolean gainFocus, int direction, Rect previouslyFocusedRect) {
         super.onFocusChanged(gainFocus, direction, previouslyFocusedRect);
         if (!gainFocus) {
-            // Losing focus clears the explicit-keyboard-request flag — a
-            // passive refocus (sheet closing, returning from another
-            // screen) stays silent.
+            // La perte de focus efface le flag de demande explicite de
+            // clavier — un refocus passif (fermeture de feuille, retour
+            // d'un autre écran) reste silencieux.
             wantsKeyboard = false;
             hideSoftKeyboard();
-            // v2.38 — parité Sora EditorFocusChangeEvent : la perte de
-            // focus referme le hover/quick doc.
+            // La perte de focus referme le hover/quick doc.
             if (quickDocVisible) dismissQuickDoc();
         } else if (wantsKeyboard) {
             InputMethodManager imm = imm();
@@ -3218,79 +1772,65 @@ public class EditorView extends View {
     }
 
     /**
-     * Public hook for the host to signal that a programmatic edit was
-     * applied to the session (e.g. via {@link EditorSession#replaceRange}
-     * outside the IME path). Refreshes the caret blink, scroll-into-view,
-     * completion popup, and signature help — the same bookkeeping the IME
-     * path does automatically.
-     *
-     * @since v1.0.8
+     * Hook public pour que le hôte signale qu'une édition programmatique
+     * a été appliquée à la session (ex. via {@link EditorSession#replaceRange}
+     * hors du chemin IME). Rafraîchit le clignotement du caret, le
+     * scroll-en-vue, le popup de complétion et l'aide de signature — la
+     * même comptabilité que le chemin IME fait automatiquement.
      */
     public void notifyTextChanged() {
         onTextChanged();
-        // v3.20.1: Invalidate parent EditorBarTools so undo/redo button
-        // enabled/disabled states update after every edit.
-        android.view.ViewParent p = getParent();
-        if (p instanceof android.view.ViewGroup) {
-            android.view.ViewGroup parent = (android.view.ViewGroup) p;
-            for (int i = 0; i < parent.getChildCount(); i++) {
-                if (parent.getChildAt(i) instanceof EditorBarTools) {
-                    EditorBarTools bar = (EditorBarTools) parent.getChildAt(i);
-                    for (int j = 0; j < bar.getChildCount(); j++) {
-                        bar.getChildAt(j).invalidate();
-                    }
-                }
-            }
-        }
+        // Invalide le EditorBarTools parent pour que les états
+        // activé/désactivé des boutons undo/redo se mettent à jour après
+        // chaque édition.
+        EditorBarTools.invalidateButtonsIn(getParent());
     }
 
-    /** Called by the InputConnection after every edit so we can refresh
-     *  the caret solid timer and scroll the caret into view. Also refreshes
-     *  the completion popup (if visible). */
+    /** Appelé par l'InputConnection après chaque édition pour rafraîchir
+     *  le timer plein du caret et scroller le caret en vue. Rafraîchit
+     *  aussi le popup de complétion (si visible). */
     void onTextChanged() {
-        // v3.33.10: Single entry point — CaretAnimator.onEditOrMove() updates
-        // lastEditTime, resets the blink toggle, makes the caret visible, and
-        // cancels any in-flight glide. (cancelCaretAnimation() below is now
-        // redundant but kept for clarity — onEditOrMove() already cancels.)
+        // Point d'entrée unique — CaretAnimator.onEditOrMove() met à jour
+        // lastEditTime, réinitialise la bascule de clignotement, rend le
+        // caret visible et annule tout glissement en vol.
         caretAnim.onEditOrMove();
-        // Rebuild the wrap model — the document's line count or content may
-        // have changed, and that affects per-line wrap-row counts.
+        // Reconstruit le modèle de wrap — le nombre de lignes ou le contenu
+        // du document a pu changer, ce qui affecte les comptes de rangées
+        // de wrap par ligne.
         if (wordWrap) rebuildWrapModel();
         scrollManager.scrollCaretIntoView();
         refreshCompletion();
         refreshSignatureHelp();
-        // v3.3.10: Re-run diagnostics (debounced) so squiggles update as
-        // the user types. Previously diagnostics were only computed ONCE
-        // 500ms after setLanguage and never refreshed.
-        scheduleDiagnostics();
-        // v3.15.0: Refresh code actions (debounced) — was previously called
-        // every frame from the draw path, blocking the UI on LSP calls.
-        scheduleCodeActionsRefresh();
-        // v3.33.11: Refresh inlay hints (debounced) — type annotations may
-        // change as the user types (e.g. var x = ...).
-        scheduleInlayHints();
-        // v3.33.11: Refresh document highlights (debounced) — occurrences of
-        // the symbol under the caret may have changed.
+        // Relance les diagnostics (débouncés) pour que les soulignés se
+        // mettent à jour pendant la frappe.
+        diagnosticsPusher.schedule();
+        // Rafraîchit les code actions (débouncées) — un appel depuis le
+        // chemin de dessin à chaque frame bloquerait l'UI sur les appels
+        // LSP.
+        languageBridge.scheduleCodeActionsRefresh();
+        // Rafraîchit les inlay hints (débouncés) — les annotations de type
+        // peuvent changer pendant la frappe (ex. var x = ...).
+        languageBridge.scheduleInlayHints();
+        // Rafraîchit les document highlights (débouncés) — les occurrences
+        // du symbole sous le caret ont pu changer.
         scheduleDocumentHighlights();
-        // v2.32: matching-bracket highlight — the edit may have added or
-        // removed the bracket at the caret, recompute synchronously.
+        // Surlignage d'appariement de parenthèses — l'édition a pu
+        // ajouter ou retirer la parenthèse au caret, recalcul synchrone.
         updateBracketPair();
-        // v3.31.0: Update preview content (debounced via postDelayed).
-        if (previewMode != PreviewMode.NONE && previewHost != null) {
-            getHandler().removeCallbacks(previewUpdateTask);
-            getHandler().postDelayed(previewUpdateTask, 200);
-        }
-        // Quick doc + code actions + selection toolbar dismiss on edit.
+        // Met à jour le contenu d'aperçu (débouncé via postDelayed).
+        preview.scheduleContentUpdate();
+        // Quick doc + code actions + toolbar de sélection se ferment à
+        // l'édition.
         if (quickDocVisible) dismissQuickDoc();
         if (codeActionsPopupVisible) dismissCodeActions();
         if (diagnosticPopupVisible) dismissDiagnosticPopup();
-        // v2.36 : le menu contextuel unifié referme aussi sur édition.
+        // Le menu contextuel unifié se referme aussi sur édition.
         if (navMenuVisible) dismissNavMenu();
-        // v1.0.8 bugfix (Bug 5): dismiss the selection toolbar on edit —
-        // the selection may have moved or been replaced.
-        // v2.34 : reset aussi l'item pressé (feedback) + les poignées.
-        // v2.35 : cancel aussi le tap-dismiss différé — committer un caret
-        // tapé AVANT l'édition déplacerait le caret après l'insert.
+        // Referme la toolbar de sélection à l'édition — la sélection a pu
+        // bouger ou être remplacée. Réinitialise aussi l'item pressé
+        // (feedback) + les poignées, et annule le tap-dismiss différé —
+        // committer un caret tapé AVANT l'édition déplacerait le caret
+        // après l'insert.
         selectionToolbarVisible = false;
         selectionToolbarPressedIdx = -1;
         handlesVisible = false;
@@ -3299,7 +1839,7 @@ public class EditorView extends View {
     }
 
     // ════════════════════════════════════════════════════════════════
-    // Touch & gestures
+    // Toucher & gestes
     // ════════════════════════════════════════════════════════════════
 
     @Override
@@ -3319,12 +1859,11 @@ public class EditorView extends View {
     }
 
     /**
-     * G9h: Right-click (secondary mouse button) opens a context menu with
-     * Copy / Cut / Paste / Select All / Undo / Redo. Desktop / ChromeOS / DeX
-     * dispatch right-clicks as {@code ACTION_BUTTON_PRESS} with
+     * G9h : le clic droit (bouton secondaire de la souris) ouvre un menu
+     * contextuel avec Copier / Couper / Coller / Sélectionner tout /
+     * Annuler / Rétablir. Desktop / ChromeOS / DeX distribuent les clics
+     * droits comme {@code ACTION_BUTTON_PRESS} avec
      * {@code getActionButton() == BUTTON_SECONDARY}.
-     *
-     * @since v1.0.9 (G9h)
      */
     @Override
     public boolean onGenericMotionEvent(MotionEvent event) {
@@ -3333,209 +1872,35 @@ public class EditorView extends View {
     }
 
     /**
-     * Builds and shows an Android {@link android.widget.PopupMenu} with the
-     * standard editor actions. Used by G9h (right-click) and can be called
-     * directly by the host for a hardware menu key.
-     *
-     * @since v1.0.9 (G9h)
+     * Construit et montre un {@link android.widget.PopupMenu} Android avec
+     * les actions standard de l'éditeur. Utilisé par G9h (clic droit) et
+     * peut être appelé directement par le hôte pour une touche menu
+     * matérielle.
      */
     public void showEditorContextMenu(float anchorX, float anchorY) {
         inputHandler.showEditorContextMenu(anchorX, anchorY);
     }
 
     /**
-     * Returns the screen-space coordinates of the given offset's caret, used
-     * to position selection handles.
+     * Retourne les coordonnées écran du caret de l'offset donné,
+     * utilisées pour positionner les poignées de sélection (délégué à
+     * {@link EditorHitMapper}).
      */
     float[] caretScreenPos(int offset) {
-        EditorDocument doc = session.getDocument();
-        int line = clamp(doc.lineForOffset(offset), 0, doc.lineCount() - 1);
-        int col = offset - doc.lineStart(line);
-        float charWidth = metrics.getCharWidth();
-        float x;
-        float y = docLineToY(line) - vOffset;
-        if (wordWrap && wrapModel != null) {
-            // ★ v2.33 — mapping rangée/colonne via wrapRowsFor (les rangées de
-            // continuation sont PLUS ÉTROITES que la première — l'ancien
-            // col/maxColsPerRow plaçait le caret une rangée trop haut dès
-            // que l'indent de continuation > 0).
-            WrapRows wr = wrapRowsFor(line, doc.lineEnd(line) - doc.lineStart(line));
-            int rowInLine = wr.rowForCol(col);
-            int colInRow = col - wr.rowStartCol(rowInLine);
-            y += rowInLine * metrics.getLineHeight();
-            x = metrics.getGutterWidth() + metrics.getPadLeft()
-                    + (rowInLine > 0 ? wr.wrapIndentCols * charWidth : 0)
-                    + colInRow * charWidth;
-        } else {
-            // v3.7.1 Bugfix (Bug 4): fold-aware caret X. Default to the
-            // standard col*charWidth computation; if the caret lands on a
-            // fold-start line past the prefix, or on a fold-end line suffix,
-            // override x with the visible-position computation.
-            // v2.31: inlay-aware — the caret anchors at the VISUAL (woven)
-            // column, i.e. just BEFORE a hint anchored at its raw column
-            // (CodeAssist rawToVisual semantics).
-            x = metrics.getGutterWidth() + metrics.getPadLeft()
-                + visualColFor(line, col) * charWidth - hOffset;
-
-            // Fold-start line: caret past the prefix snaps to the right edge
-            // of the prefix (just before the {...} chip) so the caret isn't
-            // drawn on top of the chip.
-            DiagnosticShift.FoldRegion fold = collapsedFoldStartingAtLine(line);
-            if (fold != null) {
-                int startLine = doc.lineForOffset(fold.start);
-                int prefixEndCol = fold.start - doc.lineStart(startLine);
-                if (col > prefixEndCol) {
-                    x = metrics.getGutterWidth() + metrics.getPadLeft()
-                        + prefixEndCol * charWidth - hOffset;
-                }
-            } else if (session != null) {
-                // Fold-end line: if col is in the suffix region, remap X to
-                // prefixW + placeholderW + colInSuffix*charWidth so the caret
-                // renders at the correct visible position on the composite line.
-                for (DiagnosticShift.FoldRegion r : session.getFoldRegions()) {
-                    if (!r.collapsed) continue;
-                    int eLine = doc.lineForOffset(r.end);
-                    if (eLine != line) continue;
-                    int sLine = doc.lineForOffset(r.start);
-                    String firstLine = doc.lineText(sLine);
-                    String lastLine = line < doc.lineCount() ? doc.lineText(line) : "";
-                    int prefixEnd = clamp(r.start - doc.lineStart(sLine), 0, firstLine.length());
-                    int suffixStart = clamp(r.end - doc.lineStart(line), 0, lastLine.length());
-                    int suffixLen = lastLine.length() - suffixStart;
-                    if (col >= suffixStart && col <= suffixStart + suffixLen) {
-                        int colInSuffix = col - suffixStart;
-                        x = metrics.getGutterWidth() + metrics.getPadLeft()
-                            + (prefixEnd + r.placeholder.length() + colInSuffix) * charWidth - hOffset;
-                    }
-                    break; // Only one fold can end on a given line.
-                }
-            }
-        }
-        return new float[]{x, y};
+        return hitMapper.caretScreenPos(offset);
     }
 
-    /** Draws the selection handles as filled circles below the anchor lines. */
-    /** Maps a screen (x, y) to a document offset, clamped to the line's end.
-     *  v1.0.8 bugfix: the previous code double-subtracted padLeft+gutterWidth
-     *  (once in offsetAt, once inside xToCol), which shifted every tap to the
-     *  left by ~5.5 chars. Now we compute col directly from the text-area
-     *  relative X — no delegation to xToCol.
-     *
-     *  <p>v3.7.1 bugfix (Bug 4): when the tapped line is a fold-START line
-     *  (i.e. has a collapsed fold region like {@code public int add(int a, int b) {...}}),
-     *  the visible text is only {@code prefix + placeholder + suffix} (e.g.
-     *  {@code public int add(int a, int b) {...}}). The previous code clamped
-     *  col to the FULL doc-line length, which meant tapping past the visible
-     *  end placed the caret on a hidden column (inside the {@code {...}} body
-     *  that the user can't see). Now we clamp to the composite visible length
-     *  so the caret can only land on visible positions: either inside the
-     *  prefix, on the placeholder chip, or inside the suffix. We also support
-     *  the user wanting to place the caret RIGHT AFTER the {@code {...}} chip
-     *  (on the suffix, e.g. the closing {@code }}) — that's a valid visible
-     *  position and should be reachable. */
+    /**
+     * Mappe un point écran (x, y) en offset document, borné à la fin de
+     * ligne, conscient du wrap, des plis repliés et des inlays (délégué
+     * à {@link EditorHitMapper}).
+     */
     int offsetAt(float x, float y) {
-        EditorDocument doc = session.getDocument();
-        int line;
-        int col;
-        float charWidth = metrics.getCharWidth();
-        float textAreaLeft = metrics.getGutterWidth() + metrics.getPadLeft();
-        if (wordWrap && wrapModel != null) {
-            // Wrap mode: figure out which doc line + which row in that line.
-            line = clamp(docLineForScreenY(y), 0, doc.lineCount() - 1);
-            float lineTopY = docLineToY(line);
-            int lineLen = doc.lineEnd(line) - doc.lineStart(line);
-            WrapRows wr = wrapRowsFor(line, lineLen);
-            int rowInLine = (int) ((y + vOffset - lineTopY) / metrics.getLineHeight());
-            rowInLine = clamp(rowInLine, 0, wr.rows - 1);
-            // ★ v2.33 : inversion fidèle de la géométrie de pliage — la
-            // rangée de continuation est indentée et plus étroite ; le tap
-            // y atterrit sur la BONNE colonne (l'ancien col*maxColsPerRow
-            // décalait le caret vers la droite sur les rangées indentées).
-            float rowX = rowInLine > 0
-                    ? textAreaLeft + wr.wrapIndentCols * charWidth : textAreaLeft;
-            int colInRow = (int) ((x - rowX) / charWidth + 0.5f);
-            int rowCap = rowInLine == 0 ? wr.maxColsPerRow : wr.colsPerCont;
-            colInRow = clamp(colInRow, 0, rowCap);
-            col = wr.rowStartCol(rowInLine) + colInRow;
-            col = clamp(col, 0, lineLen);
-        } else {
-            // v3.7.0 Bugfix (Bug 1 CRITIQUE): Non-wrap path used raw
-            // (contentY - padTop) / lineHeight to compute the doc line, which
-            // is NOT fold-aware — when folds above the tap point are collapsed,
-            // the returned line was shifted UP by the number of hidden lines,
-            // causing text insertion INSIDE the collapsed region (caret landed
-            // on a hidden line, typed text was invisible until the fold was
-            // expanded). Now route through the same fold-aware mapper that the
-            // wrap branch and handleTap fold-strip path already use.
-            line = clamp(docLineForScreenY(y), 0, doc.lineCount() - 1);
-            // Column from text-area-relative X (account for horizontal scroll).
-            // textAreaLeft is where col 0 is drawn on screen (minus hOffset).
-            float colScreenX = textAreaLeft - hOffset;
-            int visualCol = (int) ((x - colScreenX) / charWidth + 0.5f);
-            // v2.31: inlay-aware — map the tapped VISUAL column back to the
-            // raw document column; a hit inside a hint snaps to its anchor
-            // (CodeAssist visualToRaw semantics).
-            col = rawColFor(line, visualCol);
-
-            // v3.7.1 Bugfix (Bug 4): if this line has a collapsed fold, clamp
-            // col to the COMPOSITE visible length (prefix + placeholder + suffix),
-            // not the full doc-line length. This lets the user tap right after
-            // the {...} chip — the caret lands at the start of the suffix
-            // (e.g. on the closing }) instead of disappearing into the hidden
-            // body of the fold.
-            DiagnosticShift.FoldRegion fold = collapsedFoldStartingAtLine(line);
-            if (fold != null) {
-                int startLine = doc.lineForOffset(fold.start);
-                int endLine = doc.lineForOffset(fold.end);
-                String firstLine = doc.lineText(startLine);
-                String lastLine = endLine < doc.lineCount() ? doc.lineText(endLine) : "";
-                int prefixEndCol = clamp(fold.start - doc.lineStart(startLine), 0, firstLine.length());
-                int suffixStartCol = clamp(fold.end - doc.lineStart(endLine), 0, lastLine.length());
-                int suffixLen = lastLine.length() - suffixStartCol;
-                int compositeLen = prefixEndCol + fold.placeholder.length() + suffixLen;
-                // Clamp the tapped col to the composite visible length.
-                col = clamp(col, 0, compositeLen);
-                // Now remap the visible col to a doc offset:
-                // - col ∈ [0, prefixEndCol] → doc col = col (prefix region)
-                // - col ∈ [prefixEndCol, prefixEndCol + placeholder.length()] →
-                //   snap to fold.end (just before the suffix, i.e. on the }).
-                //   This is the "right after the {...}" position the user wants.
-                // - col ∈ [prefixEndCol + placeholder.length(), compositeLen] →
-                //   doc col = suffixStartCol + (col - prefixEndCol - placeholder.length())
-                //   (somewhere inside the suffix)
-                if (col <= prefixEndCol) {
-                    // Prefix region — col is already the doc col.
-                } else if (col <= prefixEndCol + fold.placeholder.length()) {
-                    // v3.17.0: Tapped on the placeholder chip — place the caret
-                    // AFTER the chip (at the start of the suffix, i.e. on the }).
-                    // Previously snapped to prefixEndCol (before the chip) which
-                    // made the caret invisible to the user.
-                    // Map to the END line's suffix start.
-                    int endLineStart = doc.lineStart(endLine);
-                    int endLineEnd = doc.lineEnd(endLine);
-                    return Math.min(endLineStart + suffixStartCol, endLineEnd);
-                } else {
-                    // Tapped past the placeholder — map to the suffix on the
-                    // END line. Return an offset on the endLine so the caret
-                    // renders at the correct X (suffixX + colInSuffix*charWidth).
-                    int colInSuffix = col - prefixEndCol - fold.placeholder.length();
-                    int endLineDocCol = suffixStartCol + colInSuffix;
-                    int endLineStart = doc.lineStart(endLine);
-                    int endLineEnd = doc.lineEnd(endLine);
-                    return Math.min(endLineStart + endLineDocCol, endLineEnd);
-                }
-            } else {
-                int lineLen = doc.lineEnd(line) - doc.lineStart(line);
-                col = clamp(col, 0, lineLen);
-            }
-        }
-        int lineStart = doc.lineStart(line);
-        int lineEnd = doc.lineEnd(line);
-        return Math.min(lineStart + col, lineEnd);
+        return hitMapper.offsetAt(x, y);
     }
 
     // ════════════════════════════════════════════════════════════════
-    // Hardware keys
+    // Touches matérielles
     // ════════════════════════════════════════════════════════════════
 
     @Override
@@ -3546,59 +1911,29 @@ public class EditorView extends View {
     }
 
     // ════════════════════════════════════════════════════════════════
-    // Clipboard
+    // Presse-papiers
     // ════════════════════════════════════════════════════════════════
 
-    /** Copies the current selection (or does nothing if cursor). */
+    /** Copie la sélection courante (ne fait rien en mode curseur). */
     public void copy() {
-        String sel = session.selectedText();
-        if (sel == null || sel.isEmpty()) return;
-        setClipboard(sel);
+        clipboard.copy();
     }
 
-    /** Cuts the current selection to the clipboard (does nothing if cursor). */
+    /** Coupe la sélection courante vers le presse-papiers (ne fait rien en mode curseur). */
     public void cut() {
-        String sel = session.selectedText();
-        if (sel == null || sel.isEmpty()) return;
-        setClipboard(sel);
-        // Delete the selection.
-        int start = Math.min(session.getSelection().start, session.getSelection().end);
-        int end = Math.max(session.getSelection().start, session.getSelection().end);
-        session.replaceRange(start, end, "");
-        onTextChanged();
+        clipboard.cut();
     }
 
-    /** Pastes the clipboard at the caret (replacing any selection). */
+    /** Colle le presse-papiers au caret (en remplaçant la sélection). */
     public void paste() {
-        ClipboardManager cm = (ClipboardManager) getContext().getSystemService(Context.CLIPBOARD_SERVICE);
-        if (cm == null || !cm.hasPrimaryClip()) return;
-        ClipData.Item item = cm.getPrimaryClip() == null ? null : cm.getPrimaryClip().getItemAt(0);
-        if (item == null) return;
-        CharSequence text = item.getText();
-        if (text == null) return;
-        String s = text.toString();
-        if (s.length() > MAX_CLIPBOARD_CHARS) s = s.substring(0, MAX_CLIPBOARD_CHARS);
-        session.commitText(s);
-        onTextChanged();
-    }
-
-    private void setClipboard(String text) {
-        // v2.34: keep the TAIL (CodeAssist clipForClipboard) — the useful
-        // part of an oversized selection is its end (logs, generated code).
-        if (text.length() > MAX_CLIPBOARD_CHARS) {
-            text = text.substring(text.length() - MAX_CLIPBOARD_CHARS);
-        }
-        ClipboardManager cm = (ClipboardManager) getContext().getSystemService(Context.CLIPBOARD_SERVICE);
-        if (cm != null) {
-            cm.setPrimaryClip(ClipData.newPlainText("Code Editor", text));
-        }
+        clipboard.paste();
     }
 
     // ════════════════════════════════════════════════════════════════
-    // Scrolling
+    // Défilement
     // ════════════════════════════════════════════════════════════════
 
-    /** Scrolls the caret into view after every edit / caret move. */
+    /** Fait défiler pour rendre le caret visible après chaque édition / déplacement du caret. */
     void scrollCaretIntoView() {
         scrollManager.scrollCaretIntoView();
     }
@@ -3615,12 +1950,12 @@ public class EditorView extends View {
         scrollManager.scrollHorizontallyBy(dx);
     }
 
-    /** Max vertical scroll: content height minus viewport height, at least 0. */
+    /** Défilement vertical max : hauteur du contenu moins hauteur du viewport, au moins 0. */
     float maxV() {
         return scrollManager.maxV();
     }
 
-    /** Max horizontal scroll: longest line's width minus text-area width, at least 0. */
+    /** Défilement horizontal max : largeur de la ligne la plus longue moins largeur de la zone de texte, au moins 0. */
     float maxH() {
         return scrollManager.maxH();
     }
@@ -3639,7 +1974,7 @@ public class EditorView extends View {
     }
 
 
-    // v3.18.0: Convenience methods for font size +/- from Canvas icons.
+    // Méthodes de commodité pour la taille de police +/- depuis les icônes Canvas.
         public void increaseFontSize() {
         zoom.increaseFontSize();
     }
@@ -3649,15 +1984,15 @@ public class EditorView extends View {
     }
 
 
-    // v3.18.0: Non-printable characters toggle.
+    // Bascule d'affichage des caractères non imprimables.
     public void setShowNonPrintable(boolean show) {
         this.showNonPrintable = show;
         invalidate();
     }
     public boolean isShowNonPrintable() { return showNonPrintable; }
 
-    // ★ v2.59 — Caret visibility toggle. Default true (visible).
-    // Cache ou affiche le caret blinking indépendamment de EditorSession.readOnly.
+    // ★ Bascule de visibilité du caret. Défaut : true (visible).
+    // Cache ou affiche le caret clignotant indépendamment de EditorSession.readOnly.
     // Sert aux surfaces en lecture-seule qui veulent quand même muter le
     // document programmatiquement (ex : ConsoleLogView.appendLine) sans
     // montrer de point d'insertion à l'utilisateur.
@@ -3670,7 +2005,7 @@ public class EditorView extends View {
     }
     public boolean isCaretVisible() { return caretVisible; }
 
-    // v3.19.0: Font ligatures toggle.
+    // Bascule des ligatures de police.
     public void setFontLigatures(boolean enabled) {
         this.fontLigatures = enabled;
         invalidate();
@@ -3678,50 +2013,31 @@ public class EditorView extends View {
     public boolean isFontLigatures() { return fontLigatures; }
 
     /**
-     * v2.39: Tap-and-hold hover toggle (parité Sora "alwaysShowOnTouchHover").
+     * Bascule du survol par appui long maintenu (parité Sora
+     * "alwaysShowOnTouchHover").
      *
-     * <p>When enabled, a 500ms dwell without movement/lift shows the
-     * quick doc popup at the touched offset — WITHOUT triggering the
-     * classic long-press selection (no handles, no toolbar, no caret
-     * move). The classic long-press (400ms → selection + handles +
-     * toolbar + quick doc) is mutually exclusive with this mode: when
-     * touchHover is on, the GestureDetector's long-press is suppressed
-     * for the duration of each gesture.</p>
+     * <p>Activé, un maintien de 500 ms sans mouvement ni relâchement affiche
+     * le popup quick doc à l'offset touché — SANS déclencher la sélection
+     * classique de l'appui long (pas de poignées, pas de toolbar, pas de
+     * déplacement du caret). L'appui long classique (400 ms → sélection +
+     * poignées + toolbar + quick doc) est mutuellement exclusif avec ce
+     * mode : quand touchHover est actif, le long-press du GestureDetector
+     * est supprimé pour la durée de chaque geste.</p>
      *
-     * <p>Default: {@code false} (preserves legacy v2.31-v2.38 behavior
-     * where long-press fires both selection and quick doc).</p>
+     * <p>Défaut : {@code false} (conserve le comportement historique où
+     * l'appui long déclenche à la fois sélection et quick doc).</p>
      *
-     * @param enabled true to enable tap-and-hold hover, false for classic long-press
-     * @since v2.39
+     * @param enabled true pour activer le survol par appui maintenu, false pour l'appui long classique
      */
     public void setTouchHoverEnabled(boolean enabled) {
         this.touchHoverEnabled = enabled;
     }
-    /** v2.39: Returns whether tap-and-hold hover is enabled. */
+    /** Indique si le survol par appui maintenu est activé. */
     public boolean isTouchHoverEnabled() { return touchHoverEnabled; }
     boolean touchHoverEnabled = false;
 
-    // v3.18.0: Hit-tests the toolbar icons (A+, A-, ¶, lig) in the top-right corner.
-    // Returns: 0=no hit, 1=A+, 2=A-, 3=¶ (non-printable), 4=lig (ligatures)
-    int hitTestToolbarIcons(float x, float y) {
-        float density = getResources().getDisplayMetrics().density;
-        float iconSize = PREVIEW_ICON_SIZE_DP * density;
-        float margin = PREVIEW_ICON_MARGIN_DP * density;
-        float iconY = margin;
-        // Layout right-to-left: [lig] [¶] [A-] [A+]
-        float startX = getWidth() - margin;
-        float ligX = startX - iconSize;
-        float npX = ligX - iconSize - margin * 0.5f;
-        float aMinusX = npX - iconSize - margin * 0.5f;
-        float aPlusX = aMinusX - iconSize - margin * 0.5f;
-        if (y >= iconY && y <= iconY + iconSize) {
-            if (x >= aPlusX && x <= aPlusX + iconSize) return 1;
-            if (x >= aMinusX && x <= aMinusX + iconSize) return 2;
-            if (x >= npX && x <= npX + iconSize) return 3;
-            if (x >= ligX && x <= ligX + iconSize) return 4;
-        }
-        return 0;
-    }
+    // Hit-test des icônes de toolbar (A+, A-, ¶, lig) en haut à droite —
+    // possédé par EditorPopupAnchors (appelé par EditorTapResolver).
 
         static float clampFontScale(float s) {
         return EditorZoomController.clampFontScale(s);
@@ -3729,7 +2045,7 @@ public class EditorView extends View {
 
 
     // ════════════════════════════════════════════════════════════════
-    // Helpers
+    // Utilitaires
     // ════════════════════════════════════════════════════════════════
 
     InputMethodManager imm() {
@@ -3765,32 +2081,33 @@ public class EditorView extends View {
         return n;
     }
 
-    /** Optional listener for the host Activity to react to Ctrl+F. */
+    /** Listener optionnel pour que l'Activity hôte réagisse à Ctrl+F. */
     public interface OnFindRequestedListener {
         void onFindRequested();
     }
 
-    /** Optional listener for the host Activity to react to Ctrl+S. */
+    /** Listener optionnel pour que l'Activity hôte réagisse à Ctrl+S. */
     public interface OnSaveRequestedListener {
         void onSaveRequested();
     }
 
     // ════════════════════════════════════════════════════════════════
-    // Completion popup
+    // Popup de complétion
     // ════════════════════════════════════════════════════════════════
 
     /**
-     * Optional completion provider — the host plugs one in to feed
-     * language-aware completions. Without a provider, the view falls back
-     * to built-in keyword completion for java/kotlin/xml/markdown.
+     * Fournisseur de complétion optionnel — l'hôte en branche un pour
+     * alimenter des complétions conscientes du langage. Sans fournisseur,
+     * la vue retombe sur la complétion par mots-clés intégrée pour
+     * java/kotlin/xml/markdown.
      */
     public interface CompletionProvider {
         /**
-         * @param text     the full document text
-         * @param caret    the caret offset
-         * @param tokenStart the offset where the identifier being typed began
-         * @param prefix   the typed prefix so far (may be empty)
-         * @return a list of completion items (empty list if no completions)
+         * @param text     le texte complet du document
+         * @param caret    l'offset du caret
+         * @param tokenStart l'offset où l'identifiant en cours de saisie a commencé
+         * @param prefix   le préfixe tapé jusqu'ici (peut être vide)
+         * @return une liste d'items de complétion (liste vide si aucune complétion)
          */
         List<jo.codeeditor.completion.CompletionSession.Item> provide(
             String text, int caret, int tokenStart, String prefix);
@@ -3801,9 +2118,9 @@ public class EditorView extends View {
     }
 
     /**
-     * Plugs in a signature-help resolver. Without one, the popup falls
-     * back to a synthetic "function(…) param N" hint derived from local
-     * call-context scanning.
+     * Branche un resolver d'aide de signature. Sans resolver, le popup
+     * retombe sur un indice synthétique « function(…) param N » dérivé d'un
+     * scan local du contexte d'appel.
      */
     public void setSignatureHelpResolver(SignatureHelpResolver resolver) {
         this.signatureHelpResolver = resolver;
@@ -3813,30 +2130,31 @@ public class EditorView extends View {
     }
 
     /**
-     * Public entry point so the host can trigger signature help explicitly
-     * (e.g. a "Sig" button in the toolbar or the user pressing Ctrl+P).
+     * Point d'entrée public pour que l'hôte déclenche explicitement l'aide
+     * de signature (ex. bouton « Sig » dans la toolbar ou Ctrl+P).
      */
     public void refreshSignatureHelpFromHost() {
         popupManager.refreshSignatureHelpFromHost();
     }
 
-    /** Hides the signature help popup. */
+    /** Masque le popup d'aide de signature. */
     public void dismissSignatureHelp() {
         popupManager.dismissSignatureHelp();
     }
 
     /**
-     * v2.39: Cycles the active signature (overload) by {@code +1} (Down)
-     * or {@code -1} (Up), wrapping around. Called by the keyboard handler
-     * when the user presses Up/Down while the signature help popup is open.
+     * Fait défiler la signature active (surcharge) de {@code +1} (Bas)
+     * ou {@code -1} (Haut), avec bouclage. Appelé par le gestionnaire clavier
+     * quand l'utilisateur presse Haut/Bas pendant que le popup d'aide de
+     * signature est ouvert.
      *
-     * <p>The chosen overload persists across {@link #refreshSignatureHelp}
-     * refreshes within the same call, so the user can keep typing
-     * arguments and the popup stays on the chosen signature. When the
-     * caret moves to a different call, the override is cleared.
+     * <p>La surcharge choisie persiste à travers les rafraîchissements de
+     * {@link #refreshSignatureHelp} au sein du même appel — l'utilisateur
+     * peut continuer à taper des arguments et le popup reste sur la
+     * signature choisie. Quand le caret passe à un autre appel, la priorité
+     * manuelle est effacée.
      *
-     * @param direction {@code +1} for next overload, {@code -1} for previous
-     * @since v2.39
+     * @param direction {@code +1} pour la surcharge suivante, {@code -1} pour la précédente
      */
     public void cycleSignatureHelp(int direction) {
         int newIdx = signatureHelpController.cycleActiveSignature(direction);
@@ -3846,91 +2164,81 @@ public class EditorView extends View {
     }
 
     /**
-     * v2.39: Returns the effective active signature index, taking into
-     * account the user's override (set via {@link #cycleSignatureHelp}).
-     * Renderers should read this instead of {@code signatureHelpData.activeSignature}
-     * so Up/Down keyboard navigation is reflected in the popup.
+     * Retourne l'index de signature active effectif, en tenant compte de la
+     * priorité utilisateur (définie via {@link #cycleSignatureHelp}). Les
+     * renderers doivent lire ceci plutôt que {@code signatureHelpData.activeSignature}
+     * pour que la navigation clavier Haut/Bas soit reflétée dans le popup.
      *
-     * @return the active signature index, or {@code -1} if no help is available
-     * @since v2.39
+     * @return l'index de signature active, ou {@code -1} si aucune aide n'est disponible
      */
     public int getEffectiveActiveSignature() {
         return signatureHelpController.getEffectiveActiveSignature();
     }
 
     /**
-     * Triggers signature help at the current caret. Called on selection
-     * changes and after edits — the controller internally decides
-     * whether to keep the popup open (caret still inside the same call)
-     * or hide it (caret left the call or the user dismissed).
+     * Déclenche l'aide de signature au caret courant. Appelé sur changements
+     * de sélection et après édition — le contrôleur décide en interne de
+     * garder le popup ouvert (caret toujours dans le même appel) ou de le
+     * masquer (caret sorti de l'appel ou rejeté par l'utilisateur).
      */
     void refreshSignatureHelp() {
         popupManager.refreshSignatureHelp();
     }
 
-    /** Explicit Ctrl+P trigger — clears dismissed state and re-resolves. */
+    /** Déclencheur explicite Ctrl+P — efface l'état « rejeté » et re-résout. */
     void triggerSignatureHelp() {
         popupManager.triggerSignatureHelp();
     }
 
     // ════════════════════════════════════════════════════════════════
-    // Quick doc popup (Gap 4)
+    // Popup quick doc
     // ════════════════════════════════════════════════════════════════
 
-    /** Plugs in a quick-doc resolver. */
+    /** Branche un resolver quick doc. */
     public void setQuickDocResolver(QuickDocResolver resolver) {
         this.quickDocResolver = resolver;
     }
 
     /**
-     * Shows the quick-doc popup for the symbol at the given offset.
-     * If a resolver is plugged in, calls it to get the raw doc text;
-     * otherwise the popup is a no-op.
+     * Affiche le popup quick doc pour le symbole à l'offset donné. Si un
+     * resolver est branché, l'appelle pour obtenir le texte brut de la
+     * doc ; sinon le popup ne fait rien.
      */
     public void showQuickDoc(int offset) {
         popupManager.showQuickDoc(offset);
     }
 
-    /** Hides the quick-doc popup. */
+    /** Masque le popup quick doc. */
     public void dismissQuickDoc() {
         popupManager.dismissQuickDoc();
     }
 
-    /** Word-wraps {@code text} to fit {@code maxWidth} (px). */
     // ════════════════════════════════════════════════════════════════
-    // Code actions lightbulb (Gap 5)
+    // Ampoule des actions de code
     // ════════════════════════════════════════════════════════════════
 
-    /** Plugs in a code-actions resolver. */
+    /** Branche un resolver d'actions de code. */
     public void setCodeActionsResolver(CodeActionsResolver resolver) {
         this.codeActionsResolver = resolver;
     }
 
     /**
-     * Refreshes the per-line code-action cache. Called from {@link #onTextChanged}
-     * and after big selection moves. Walks the visible line range, calls the
-     * resolver for each, and stores the result in {@link #codeActionsByLine}.
+     * Rafraîchit le cache d'actions de code par ligne. Appelé depuis
+     * {@link #onTextChanged} et après les grands déplacements de sélection.
+     * Parcourt la plage de lignes visibles, appelle le resolver pour chacune
+     * et stocke le résultat dans {@link #codeActionsByLine}.
      */
     void refreshCodeActions(int firstVisible, int lastVisible) {
         popupManager.refreshCodeActions(firstVisible, lastVisible);
     }
 
-    /**
-     * Draws a lightbulb 💡 in the fold strip for every visible line that has
-     * code actions. Tapping the bulb opens the actions popup.
-     *
-     * <p>v1.0.9 redesign: the bulb is now drawn as a proper lightbulb glyph
-     * (a filled circle + a small base rectangle, in amber) centered in the
-     * fold strip column — no more "B" letter. It no longer overlaps line
-     * numbers because the fold strip is a dedicated column (v1.0.8 fix).
-     *
-    /** Opens the code-actions popup for the given line. */
+    /** Ouvre le popup d'actions de code pour la ligne donnée. */
     public void showCodeActions(int line) {
         popupManager.showCodeActions(line);
     }
 
     // ════════════════════════════════════════════════════════════════
-    // v2.36 : menu contextuel unifié (portage NavMenu de CodeAssist)
+    // Menu contextuel unifié (portage NavMenu de CodeAssist)
     // ════════════════════════════════════════════════════════════════
 
     /** Branche le resolver go-to-type-declaration. */
@@ -3938,20 +2246,20 @@ public class EditorView extends View {
         this.typeDefinitionResolver = resolver;
     }
 
-    /** v2.37 — branche le resolver go-to-implementations. */
+    /** Branche le resolver go-to-implementations. */
     public void setImplementationsResolver(ImplementationsResolver resolver) {
         this.implementationsResolver = resolver;
     }
 
-    /** v2.37 — branche le resolver go-to-super. */
+    /** Branche le resolver go-to-super. */
     public void setSuperResolver(SuperResolver resolver) {
         this.superResolver = resolver;
     }
 
     /**
-     * v2.36 — ouvre le menu contextuel unifié (le bouton Actions ⋯ de la
-     * toolbar de sélection) : sections GO TO / QUICK FIXES / INTENTIONS.
-     * La résolution (definition + typeDefinition + quick-fixes de la ligne)
+     * Ouvre le menu contextuel unifié (le bouton Actions ⋯ de la toolbar
+     * de sélection) : sections GO TO / QUICK FIXES / INTENTIONS. La
+     * résolution (definition + typeDefinition + quick-fixes de la ligne)
      * est asynchrone — le menu apparaît quand le contenu est prêt.
      *
      * @param line   la ligne d'ancrage (celle du caret)
@@ -3967,96 +2275,60 @@ public class EditorView extends View {
     }
 
     /**
-     * Returns true if the given line has an Error/Warning diagnostic.
-     * Used by the lightbulb draw + hit-test to gate the bulb on diagnostic
-     * lines only (matching CodeAssist's behavior).
+     * Retourne true si la ligne donnée porte un diagnostic Error/Warning
+     * (délégué à {@link EditorDiagnosticsLocator}). Utilisé par le dessin
+     * de l'ampoule + le hit-test pour réserver l'ampoule aux lignes de
+     * diagnostic uniquement (comportement aligné sur CodeAssist).
      */
     boolean lineHasDiagnostic(int line) {
-        if (session == null) return false;
-        for (DiagnosticShift.Diagnostic d : session.getDiagnostics()) {
-            if (d.severity != 3 && d.severity != 2) continue; // only error/warning
-            int ln = session.getDocument().lineForOffset(d.start);
-            if (ln == line) return true;
-        }
-        return false;
+        return diagnosticsLocator.lineHasDiagnostic(line);
     }
 
-    /** Dismisses the code-actions popup. */
+    /** Referme le popup d'actions de code. */
     public void dismissCodeActions() {
         popupManager.dismissCodeActions();
     }
 
-    /** Applies the currently-selected code action. */
+    /** Applique l'action de code actuellement sélectionnée. */
     public boolean applySelectedCodeAction() {
         return popupManager.applySelectedCodeAction();
     }
 
     // ════════════════════════════════════════════════════════════════
-    // Go-to-symbol popup (Gap 6)
+    // Popup go-to-symbol
     // ════════════════════════════════════════════════════════════════
 
-    /** Plugs in a symbol resolver. */
+    /** Branche un resolver de symboles. */
     public void setSymbolResolver(SymbolResolver resolver) {
         this.symbolResolver = resolver;
     }
 
     // ════════════════════════════════════════════════════════════════
-    // v3.33.11: Definition / References / DocumentHighlight / Rename / Formatter
+    // Definition / References / DocumentHighlight / Rename / Formatter
     // ════════════════════════════════════════════════════════════════
 
-    /** Plugs in a definition resolver for go-to-definition. */
+    /** Branche un resolver de définition pour le go-to-definition. */
     public void setDefinitionResolver(DefinitionResolver resolver) {
         this.definitionResolver = resolver;
     }
 
     /**
-     * Triggers go-to-definition at the current caret. If the resolver
-     * returns a single target in the SAME file, navigates to it directly.
-     * If multiple targets or cross-file, returns the list via the
-     * {@link OnDefinitionRequestedListener} (host decides how to display).
+     * Déclenche le go-to-definition au caret courant. Si le resolver
+     * retourne une cible unique dans le MÊME fichier, y navigue directement.
+     * Si cibles multiples ou inter-fichiers, retourne la liste via le
+     * {@link OnDefinitionRequestedListener} (l'hôte décide de l'affichage).
      *
-     * <p>v0.1.0.50 : la résolution LSP quitte le thread UI — l'hôte peut
-     * afficher un feedback « recherche… » immédiat et le résultat est
-     * appliqué dès qu'il arrive.</p>
+     * <p>La résolution LSP quitte le thread UI — l'hôte peut afficher un
+     * feedback « recherche… » immédiat et le résultat est appliqué dès
+     * qu'il arrive.</p>
      */
     public void jumpToDefinition() {
-        if (definitionResolver == null || session == null) return;
-        final Selection sel = session.getSelection();
-        final String text = session.getText().toString();
-        EditorPopupManager.FEATURE_EXECUTOR.execute(() -> {
-            List<jo.codeeditor.lang.DefinitionLocation> targets = null;
-            try {
-                targets = definitionResolver.resolve(text, sel.start);
-            } catch (Exception ignored) {
-            }
-            final List<jo.codeeditor.lang.DefinitionLocation> resolved = targets;
-            Runnable apply = () -> {
-                if (session == null) return;
-                if (resolved == null || resolved.isEmpty()) return;
-                if (resolved.size() == 1) {
-                    jo.codeeditor.lang.DefinitionLocation loc = resolved.get(0);
-                    if (loc.path == null || loc.path.isEmpty()
-                        || loc.path.equals(currentFilePath)
-                        || loc.path.equals("file:///" + currentFilePath)) {
-                        // Same file — jump directly.
-                        session.setSelection(loc.offset);
-                        scrollManager.scrollCaretIntoView();
-                        invalidate();
-                    } else if (definitionListener != null) {
-                        definitionListener.onDefinitionRequested(resolved);
-                    }
-                } else if (definitionListener != null) {
-                    definitionListener.onDefinitionRequested(resolved);
-                }
-            };
-            android.os.Handler h = getHandler();
-            if (h != null) h.post(apply); else apply.run();
-        });
+        documentActions.jumpToDefinition();
     }
 
-    /** Listener invoked when go-to-definition produces multiple targets or a cross-file target. */
+    /** Listener invoqué quand le go-to-definition produit des cibles multiples ou une cible inter-fichiers. */
     public interface OnDefinitionRequestedListener {
-        void onDefinitionRequested(List<jo.codeeditor.lang.DefinitionLocation> targets);
+        void onDefinitionRequested(List<jo.codeeditor.lang.model.DefinitionLocation> targets);
     }
     OnDefinitionRequestedListener definitionListener;
     public void setOnDefinitionRequestedListener(OnDefinitionRequestedListener l) {
@@ -4064,69 +2336,37 @@ public class EditorView extends View {
     }
 
     /**
-     * Optional: the host sets this so jumpToDefinition can recognise same-file URIs.
-     * v2.36 : package-private — navMenuNavigate (EditorPopupManager) teste le même-fichier.
+     * Optionnel : l'hôte définit ce chemin pour que jumpToDefinition
+     * reconnaisse les URI du même fichier.
+     * Package-private — navMenuNavigate (EditorPopupManager) teste le même-fichier.
      */
     String currentFilePath = "";
     public void setCurrentFilePath(String path) {
         this.currentFilePath = path != null ? path : "";
     }
 
-    /** Plugs in a references resolver for find-references. */
+    /** Branche un resolver de références pour le find-references. */
     public void setReferencesResolver(ReferencesResolver resolver) {
-        this.referencesResolver = resolver;
+        referencesController.setResolver(resolver);
     }
 
     /**
-     * Triggers find-references at the current caret. Calls the resolver
-     * and shows the results in a popup (reuses the go-to-symbol UI layout).
+     * Déclenche le find-references au caret courant. Appelle le resolver
+     * et affiche les résultats dans un popup (réutilise la mise en page du
+     * go-to-symbol).
      *
-     * <p>v0.1.0.50 : résolution LSP (15 s !) déportée hors du thread UI,
+     * <p>La résolution LSP (jusqu'à 15 s !) est déportée hors du thread UI,
      * annulable par génération.</p>
      */
     public void showReferences() {
-        if (referencesResolver == null || session == null) return;
-        final Selection sel = session.getSelection();
-        final String text = session.getText().toString();
-        final int gen = ++referencesGeneration;
-        EditorPopupManager.FEATURE_EXECUTOR.execute(() -> {
-            List<jo.codeeditor.lang.DefinitionLocation> targets = null;
-            try {
-                targets = referencesResolver.resolve(text, sel.start);
-            } catch (Exception ignored) {
-            }
-            final List<jo.codeeditor.lang.DefinitionLocation> resolved = targets;
-            Runnable apply = () -> {
-                if (gen != referencesGeneration || session == null) return;
-                if (resolved == null || resolved.isEmpty()) return;
-                // Convert to NavigationMenu.Symbol so we can reuse the symbol popup UI.
-                referencesAll.clear();
-                for (jo.codeeditor.lang.DefinitionLocation loc : resolved) {
-                    String label = loc.displayName != null && !loc.displayName.isEmpty()
-                        ? loc.displayName : loc.path;
-                    referencesAll.add(new NavigationMenu.Symbol(label, loc.offset, "reference", loc.path));
-                }
-                referencesFilter = "";
-                referencesFiltered.clear();
-                referencesFiltered.addAll(referencesAll);
-                referencesSelected = 0;
-                referencesScrollOffset = 0;
-                referencesPopupVisible = true;
-                invalidate();
-            };
-            android.os.Handler h = getHandler();
-            if (h != null) h.post(apply); else apply.run();
-        });
+        referencesController.show();
     }
 
-    /** v0.1.0.50 : génération de la recherche de références. */
-    private volatile int referencesGeneration = 0;
-
     /**
-     * v0.1.0.50 : navigation inter-fichiers. L'hôte (ProjectActivity)
-     * branche ce listener pour ouvrir le fichier cible à l'offset donné.
-     * Utilisé par {@link #referencesAccept()} quand l'usage sélectionné se
-     * trouve dans un autre fichier.
+     * Navigation inter-fichiers. L'hôte (ProjectActivity) branche ce
+     * listener pour ouvrir le fichier cible à l'offset donné. Utilisé par
+     * {@link #referencesAccept()} quand l'usage sélectionné se trouve dans
+     * un autre fichier.
      */
     public interface OnNavigateToFileListener {
         void navigateToFile(String pathOrUri, int offset);
@@ -4137,113 +2377,54 @@ public class EditorView extends View {
         this.navigateToFileListener = listener;
     }
 
-    /** Dismisses the references popup. */
+    /** Referme le popup de références. */
     public void dismissReferences() {
-        referencesPopupVisible = false;
-        invalidate();
+        referencesController.dismiss();
     }
 
-    public boolean isReferencesVisible() { return referencesPopupVisible; }
+    public boolean isReferencesVisible() { return referencesController.isVisible(); }
 
-    /** Moves the references popup selection by delta. */
+    /** Déplace la sélection du popup de références de delta. */
     public boolean referencesSelect(int delta) {
-        if (!referencesPopupVisible || referencesFiltered.isEmpty()) return false;
-        referencesSelected = Math.max(0,
-            Math.min(referencesFiltered.size() - 1, referencesSelected + delta));
-        invalidate();
-        return true;
+        return referencesController.select(delta);
     }
 
-    /** Accepts the currently-selected reference and navigates to it. */
+    /** Accepte la référence sélectionnée et y navigue. */
     public boolean referencesAccept() {
-        if (!referencesPopupVisible || referencesFiltered.isEmpty()) return false;
-        NavigationMenu.Symbol s = referencesFiltered.get(referencesSelected);
-        // v0.1.0.50 : si l'usage pointe vers un AUTRE fichier, on délègue
-        // la navigation inter-fichiers à l'hôte (ouverture du fichier cible
-        // au bon offset). Sinon saut direct dans le fichier courant.
-        dismissReferences();
-        String container = s.container;
-        boolean sameFile = container == null || container.isEmpty()
-            || container.equals(currentFilePath)
-            || container.equals("file:///" + currentFilePath)
-            || container.equals("file://" + currentFilePath);
-        if (!sameFile && navigateToFileListener != null) {
-            navigateToFileListener.navigateToFile(container, s.offset);
-        } else {
-            session.expandFoldAt(s.offset);
-            session.setSelection(s.offset);
-            scrollManager.scrollCaretIntoView();
-        }
-        invalidate();
-        return true;
+        return referencesController.accept();
     }
 
-    /** Updates the references popup filter (re-uses NavigationMenu.filter). */
+    /** Met à jour le filtre du popup de références (réutilise NavigationMenu.filter). */
     public void setReferencesFilter(String filter) {
-        referencesFilter = filter != null ? filter : "";
-        referencesFiltered.clear();
-        referencesFiltered.addAll(NavigationMenu.filter(referencesAll, referencesFilter));
-        if (referencesSelected >= referencesFiltered.size()) {
-            referencesSelected = Math.max(0, referencesFiltered.size() - 1);
-        }
-        invalidate();
+        referencesController.setFilter(filter);
     }
 
-    /** Plugs in a document-highlight resolver. */
+    /** Branche un resolver de surlignage document (document-highlight). */
     public void setDocumentHighlightResolver(DocumentHighlightResolver resolver) {
         this.documentHighlightResolver = resolver;
     }
 
-    /** Plugs in a rename resolver (replaces the substring-matching fallback). */
+    /** Branche un resolver de renommage (remplace le fallback par correspondance de sous-chaîne). */
     public void setRenameResolver(RenameResolver resolver) {
         this.renameResolver = resolver;
     }
 
-    /** Plugs in a formatter resolver. */
+    /** Branche un resolver de formatage. */
     public void setFormatterResolver(FormatterResolver resolver) {
         this.formatterResolver = resolver;
     }
 
     /**
-     * Formats the entire document via the plugged-in formatter resolver.
-     * v0.1.0.50 : la requête LSP formatting (5 s) quitte le thread UI ; le
-     * résultat est appliqué en un seul step d'undo quand il arrive.
+     * Formate tout le document via le resolver de formatage branché.
+     * La requête LSP formatting quitte le thread UI ; le résultat est
+     * appliqué en un seul step d'undo quand il arrive.
      *
      * @param callback exécuté sur le thread UI après application :
      *                 {@code Boolean.TRUE} si le texte a changé, FALSE sinon,
      *                 null si aucun formatteur. Peut être null.
      */
     public void formatDocument(java.util.function.Consumer<Boolean> callback) {
-        if (formatterResolver == null || session == null) {
-            if (callback != null) callback.accept(null);
-            return;
-        }
-        final String current = session.getText().toString();
-        EditorPopupManager.FEATURE_EXECUTOR.execute(() -> {
-            String formatted = null;
-            try {
-                formatted = formatterResolver.format(current);
-            } catch (Exception e) {
-            }
-            final String result = formatted;
-            Runnable apply = () -> {
-                boolean changed = false;
-                if (result != null && !result.equals(current) && session != null) {
-                    try {
-                        int caret = session.getSelection().start;
-                        session.replaceRange(0, session.getDocument().length(), result);
-                        int newCaret = Math.min(caret, result.length());
-                        session.setSelection(newCaret);
-                        invalidate();
-                        changed = true;
-                    } catch (Exception ignored) {
-                    }
-                }
-                if (callback != null) callback.accept(changed);
-            };
-            android.os.Handler h = getHandler();
-            if (h != null) h.post(apply); else apply.run();
-        });
+        documentActions.formatDocument(callback);
     }
 
     /** Ancienne API synchrone conservée pour compatibilité — retourne
@@ -4253,102 +2434,51 @@ public class EditorView extends View {
     }
 
     /**
-     * Opens the go-to-symbol popup. Calls the resolver to get the full
-     * symbol list, then filters by the current filter text.
+     * Ouvre le popup go-to-symbol. Appelle le resolver pour obtenir la
+     * liste complète des symboles, puis filtre selon le texte de filtre
+     * courant.
      */
     public void showGoToSymbol() {
         popupManager.showGoToSymbol();
     }
 
     /**
-     * v0.1.0.50 : exécute l'action « source.organizeImports » via le
-     * fournisseur d'actions LSP (l'action est reconstruite par le serveur
-     * à la demande et applique son WorkspaceEdit localement). Résout en
-     * arrière-plan — le thread UI n'attend jamais.
+     * Exécute l'action « source.organizeImports » via le fournisseur
+     * d'actions LSP (l'action est reconstruite par le serveur à la demande
+     * et applique son WorkspaceEdit localement). Résout en arrière-plan —
+     * le thread UI n'attend jamais.
      *
      * @param callback thread UI : TRUE si une action a été trouvée+exécutée,
      *                 FALSE sinon (aucun provider / action absente).
      */
     public void performOrganizeImports(java.util.function.Consumer<Boolean> callback) {
-        jo.codeeditor.lang.CodeActionsProvider provider =
-                language != null ? language.getCodeActionsProvider() : null;
-        if (provider == null || session == null) {
-            if (callback != null) callback.accept(false);
-            return;
-        }
-        final int caretLine;
-        try {
-            caretLine = session.getDocument().lineForOffset(session.getSelection().start);
-        } catch (Throwable t) {
-            if (callback != null) callback.accept(false);
-            return;
-        }
-        final String text = session.getText();
-        final jo.codeeditor.lang.CodeActionsProvider fProvider = provider;
-        EditorPopupManager.FEATURE_EXECUTOR.execute(() -> {
-            // Le serveur propose « Organiser les imports » quelle que soit
-            // la ligne demandée ; on sonde autour du curseur par sécurité.
-            EditorDocument doc = session != null ? session.getDocument() : null;
-            int max = doc != null ? doc.lineCount() - 1 : caretLine;
-            List<jo.codeeditor.lang.CodeAction> found = new java.util.ArrayList<>();
-            int[] probes = {caretLine, 0};
-            for (int probe : probes) {
-                if (!found.isEmpty()) break;
-                if (probe < 0 || probe > max) continue;
-                try {
-                    for (jo.codeeditor.lang.CodeAction a : fProvider.codeActions(text, probe)) {
-                        String kind = a.kind == null ? "" : a.kind;
-                        if (kind.contains("source") && !found.contains(a)) found.add(a);
-                    }
-                } catch (Throwable ignored) {
-                }
-            }
-            final boolean anySourceAction = !found.isEmpty();
-            Runnable apply = () -> {
-                boolean applied = false;
-                if (anySourceAction && session != null) {
-                    try {
-                        for (jo.codeeditor.lang.CodeAction a : found) {
-                            a.apply.run();
-                            applied = true;
-                            break; // une seule action source suffit
-                        }
-                    } catch (Throwable ignored) {
-                        applied = false;
-                    }
-                }
-                if (callback != null) callback.accept(applied);
-            };
-            android.os.Handler h = getHandler();
-            if (h != null) h.post(apply); else apply.run();
-        });
+        documentActions.performOrganizeImports(callback);
     }
 
-    /** Dismisses the go-to-symbol popup. */
+    /** Referme le popup go-to-symbol. */
     public void dismissGoToSymbol() {
         popupManager.dismissGoToSymbol();
     }
 
     /**
-     * Updates the filter text and re-filters the symbol list. Called
-     * by the host on every keystroke in the popup's filter field.
+     * Met à jour le texte de filtre et re-filtre la liste de symboles.
+     * Appelé par l'hôte à chaque frappe dans le champ de filtre du popup.
      */
     public void setGoToSymbolFilter(String filter) {
         popupManager.setGoToSymbolFilter(filter);
     }
 
-    /** Moves the go-to-symbol selection by the given delta. */
+    /** Déplace la sélection go-to-symbol du delta donné. */
     public boolean goToSymbolSelect(int delta) {
         return popupManager.goToSymbolSelect(delta);
     }
 
-    /** Accepts the currently-selected symbol and navigates to it. */
+    /** Accepte le symbole sélectionné et y navigue. */
     public boolean goToSymbolAccept() {
         return popupManager.goToSymbolAccept();
     }
 
-    /** Draws the go-to-symbol popup: filter field + scrollable list. */
-    /** Public entry for an external completion source (e.g. CompletionController). */
+    /** Entrée publique pour une source de complétion externe (ex. CompletionController). */
     public void setCompletionItems(List<jo.codeeditor.completion.CompletionSession.Item> items,
                                     int tokenStart, String prefix) {
         popupManager.setCompletionItems(items, tokenStart, prefix);
@@ -4360,38 +2490,40 @@ public class EditorView extends View {
         popupManager.dismissCompletion();
     }
 
-    /** Move selection up in the completion popup. Returns true if handled. */
+    /** Monte la sélection dans le popup de complétion. Retourne true si traité. */
     public boolean completionSelectUp() {
         return popupManager.completionSelectUp();
     }
 
-    /** Move selection down in the completion popup. Returns true if handled. */
+    /** Descend la sélection dans le popup de complétion. Retourne true si traité. */
     public boolean completionSelectDown() {
         return popupManager.completionSelectDown();
     }
 
-    /** Accept the currently selected completion. Returns true if a completion was accepted. */
+    /** Accepte la complétion sélectionnée. Retourne true si une complétion a été acceptée. */
     public boolean completionAccept() {
         return popupManager.completionAccept();
     }
 
     /**
-     * v3.3.5: Refresh the completion popup based on the current caret context.
-     * <p>Uses client-side filtering (CodeAssist pattern):
+     * Rafraîchit le popup de complétion selon le contexte courant du caret.
+     * <p>Utilise un filtrage côté client (motif CodeAssist) :
      * <ol>
-     *   <li>If the caret is still on the SAME token as the cached base set,
-     *       filter the cached set by prefix (case-insensitive + fuzzy
-     *       subsequence) — NO provider round-trip. This keeps the popup
-     *       responsive on every keystroke even with a slow LSP server.</li>
-     *   <li>If the caret moved to a NEW token (or there's no cache), query
-     *       the provider and cache the result as the new base set.</li>
+     *   <li>Si le caret est toujours sur le MÊME token que l'ensemble de
+     *       base en cache, filtre le cache par préfixe (insensible à la
+     *       casse + sous-séquence floue) — AUCUN aller-retour provider.
+     *       Le popup reste réactif à chaque frappe même avec un serveur
+     *       LSP lent.</li>
+     *   <li>Si le caret a bougé vers un NOUVEAU token (ou pas de cache),
+     *       interroge le provider et met le résultat en cache comme
+     *       nouvel ensemble de base.</li>
      * </ol>
-     * <p>The cache is invalidated when:
+     * <p>Le cache est invalidé quand :
      * <ul>
-     *   <li>The caret moves to a different token (prefix doesn't start at
-     *       the same offset)</li>
-     *   <li>The prefix becomes empty (token ended)</li>
-     *   <li>The user accepts or dismisses the popup</li>
+     *   <li>Le caret passe à un token différent (le préfixe ne commence
+     *       pas au même offset)</li>
+     *   <li>Le préfixe devient vide (token terminé)</li>
+     *   <li>L'utilisateur accepte ou referme le popup</li>
      * </ul>
      */
     void refreshCompletion() {
@@ -4399,24 +2531,25 @@ public class EditorView extends View {
     }
 
     /**
-     * Public entry point so the host can trigger completion explicitly
-     * (e.g. a "Cmplt" button in the toolbar).
+     * Point d'entrée public pour que l'hôte déclenche explicitement la
+     * complétion (ex. bouton « Cmplt » dans la toolbar).
      */
     public void refreshCompletionFromHost() {
         popupManager.refreshCompletionFromHost();
     }
 
     /**
-     * Computes the completion popup's anchor (top-left) in screen coordinates.
-     * Shared by {@link #drawCompletionPopup} and {@link #hitTestCompletionPopup}
-     * so they always agree on the popup's position.
+     * Calcule l'ancre (haut-gauche) du popup de complétion en coordonnées
+     * écran. Partagé par {@link #drawCompletionPopup} et
+     * {@link #hitTestCompletionPopup} pour qu'ils soient toujours d'accord
+     * sur la position du popup.
      */
     float[] completionPopupAnchor() {
         return popupManager.completionPopupAnchor();
     }
 
     /**
-     * v2.38 — Géométrie du popup quick doc : {anchorX, anchorY, popupW,
+     * Géométrie du popup quick doc : {anchorX, anchorY, popupW,
      * popupH, contentH, rowH} ou null. Source unique rendu (renderer) /
      * hit-test (input handler) — le popup suit le texte au scroll.
      */
@@ -4426,16 +2559,14 @@ public class EditorView extends View {
 
 
     // ════════════════════════════════════════════════════════════════
-    // Block editor mode (v1.0.7 — Gap 7) + EditorOverlayLayers (Gap 8)
+    // Mode éditeur par blocs + EditorOverlayLayers
     // ════════════════════════════════════════════════════════════════
 
-    // v3.33.5: setBlockMode, isBlockMode, getBlockEditor supprimés (BlockEditor = code mort).
-
     // ════════════════════════════════════════════════════════════════
-    // EditorOverlayLayers (v1.0.7 — Gap 8)
+    // EditorOverlayLayers
     // ════════════════════════════════════════════════════════════════
 
-    /** Toggles inline diagnostic chips (Gap 8). */
+    /** Bascule les chips de diagnostic en ligne. */
     public void setDiagnosticChipsEnabled(boolean enabled) {
         this.diagnosticChipsEnabled = enabled;
         invalidate();
@@ -4444,17 +2575,17 @@ public class EditorView extends View {
     public boolean isDiagnosticChipsEnabled() { return diagnosticChipsEnabled; }
 
     /**
-     * Opens the go-to-line popup (Gap 8). v1.0.9: uses a real Android
-     * {@link android.widget.PopupWindow} with an {@link android.widget.EditText}
-     * so the user can type a line number with the IME. Accepts
-     * {@code line} or {@code line:column} (1-based). Enter navigates,
-     * Esc cancels.
+     * Ouvre le popup go-to-line. Utilise un vrai
+     * {@link android.widget.PopupWindow} Android avec un
+     * {@link android.widget.EditText} pour que l'utilisateur puisse saisir
+     * un numéro de ligne via l'IME. Accepte {@code line} ou
+     * {@code line:column} (base 1). Entrée navigue, Échap annule.
      */
     public void showGoToLine() {
         popupManager.showGoToLine();
     }
 
-    /** Parses "line" or "line:col" (1-based) and navigates. */
+    /** Analyse « line » ou « line:col » (base 1) et navigue. */
     void acceptGoToLineInput(String input) {
         popupManager.acceptGoToLineInput(input);
     }
@@ -4465,29 +2596,29 @@ public class EditorView extends View {
 
     public boolean isGoToLineVisible() { return popupManager.isGoToLineVisible(); }
 
-    /** @deprecated Use the popup-based {@link #showGoToLine()} instead. */
+    /** @deprecated Utiliser plutôt le {@link #showGoToLine()} basé popup. */
     @Deprecated
     public void setGoToLineText(String text) {
         popupManager.setGoToLineText(text);
     }
 
-    /** @deprecated Use the popup-based {@link #showGoToLine()} instead. */
+    /** @deprecated Utiliser plutôt le {@link #showGoToLine()} basé popup. */
     @Deprecated
     public boolean acceptGoToLine() {
         return popupManager.acceptGoToLine();
     }
 
     /**
-     * Opens the rename popup (Gap 8). v1.0.9: uses a real Android
-     * {@link android.widget.PopupWindow} with an {@link android.widget.EditText}
-     * pre-filled with the identifier at the caret. Enter renames all
-     * occurrences, Esc cancels.
+     * Ouvre le popup de renommage. Utilise un vrai
+     * {@link android.widget.PopupWindow} Android avec un
+     * {@link android.widget.EditText} pré-rempli avec l'identifiant au
+     * caret. Entrée renomme toutes les occurrences, Échap annule.
      */
     public void showRename() {
         popupManager.showRename();
     }
 
-    /** Applies the rename: replaces all identifier-equal occurrences. */
+    /** Applique le renommage : remplace toutes les occurrences identiques de l'identifiant. */
     boolean acceptRenameInput(String newName) {
         return popupManager.acceptRenameInput(newName);
     }
@@ -4498,19 +2629,19 @@ public class EditorView extends View {
 
     public boolean isRenameVisible() { return popupManager.isRenameVisible(); }
 
-    /** @deprecated Use the popup-based {@link #showRename()} instead. */
+    /** @deprecated Utiliser plutôt le {@link #showRename()} basé popup. */
     @Deprecated
     public void setRenameText(String text) {
         popupManager.setRenameText(text);
     }
 
-    /** @deprecated Use the popup-based {@link #showRename()} instead. */
+    /** @deprecated Utiliser plutôt le {@link #showRename()} basé popup. */
     @Deprecated
     public boolean acceptRename() {
         return popupManager.acceptRename();
     }
 
-    /** Opens the diagnostic sheet (Gap 8) — a bottom sheet listing all diagnostics. */
+    /** Ouvre la feuille de diagnostics — une bottom sheet listant tous les diagnostics. */
     public void showDiagnosticSheet() {
         popupManager.showDiagnosticSheet();
     }
@@ -4521,19 +2652,15 @@ public class EditorView extends View {
 
     public boolean isDiagnosticSheetVisible() { return popupManager.isDiagnosticSheetVisible(); }
 
-    /** v2.31: True when the per-diagnostic sheet (CodeAssist style) is up. */
+    /** True quand la feuille par-diagnostic (style CodeAssist) est ouverte. */
     public boolean isDiagnosticPopupVisible() { return diagnosticPopupVisible; }
 
     /**
-     * Draws the selection toolbar (Gap 8) — a floating row of Copy/Cut/Paste/
-     * Select All buttons above the start of the selection.
+     * Affiche la toolbar flottante de sélection (Copier/Couper/Coller/Tout
+     * sélectionner) — une pastille dépolie ancrée au-dessus de l'extrémité
+     * ACTIVE de la sélection (UX CodeAssist : la toolbar suit le doigt
+     * jusqu'à l'endroit où l'utilisateur a fini de sélectionner).
      */
-    /**
-     * Draws the floating selection toolbar — a frosted pill anchored above
-     * the ACTIVE end of the selection (matching CodeAssist's UX where the
-     * toolbar follows the finger to where the user finished selecting).
-     *
-    /** Shows the floating selection toolbar (Copy/Cut/Paste/Select All). */
     public void showSelectionToolbar() {
         inputHandler.showSelectionToolbar();
     }
@@ -4543,84 +2670,54 @@ public class EditorView extends View {
     }
 
     /**
-     * Handles a tap on the selection toolbar. Returns true if the tap
-     * was consumed. v1.0.9: matches the new pill layout — measures each
-     * button's actual width instead of assuming equal button sizes.
+     * Gère un tap sur la toolbar de sélection. Retourne true si le tap a
+     * été consommé. Conforme à la mise en page en pastille — mesure la
+     * largeur réelle de chaque bouton au lieu de supposer des tailles
+     * égales.
      */
     public boolean handleSelectionToolbarTap(float x, float y) {
         return inputHandler.handleSelectionToolbarTap(x, y);
     }
 
-    // v1.0.9: drawGoToLinePopup and drawRenamePopup removed — go-to-line
-    // and rename now use real Android PopupWindow + EditText (see
-    // showGoToLine / showRename) so they can receive keyboard input.
-
-    /** Converts dp to px. */
+    /** Convertit dp en px. */
     int dp(int dp) {
         return (int) (dp * getResources().getDisplayMetrics().density + 0.5f);
     }
 
     /**
-     * v3.4.0: Finds the diagnostic at the given offset, or null.
-     * v2.32: no longer used by handleTap — the squiggle is not tappable
-     * (CodeAssist parity: only the chip and the gutter dot open the sheet).
-     * Kept for tests and potential long-press/quick-doc integrations.
+     * Trouve le diagnostic à l'offset donné, ou null (délégué à
+     * {@link EditorDiagnosticsLocator}). N'est plus utilisé par handleTap —
+     * le soulignement ondulé n'est pas tapable (parité CodeAssist : seule
+     * la chip et le point de gouttière ouvrent la feuille). Conservé pour
+     * les tests et d'éventuelles intégrations appui long / quick doc.
      */
     DiagnosticShift.Diagnostic findDiagnosticAt(int offset) {
-        if (session == null) return null;
-        List<DiagnosticShift.Diagnostic> diags = session.getDiagnostics();
-        for (DiagnosticShift.Diagnostic d : diags) {
-            if (offset >= d.start && offset <= d.end) {
-                return d;
-            }
-        }
-        return null;
+        return diagnosticsLocator.findDiagnosticAt(offset);
     }
 
     /**
-     * v3.7.1 Bugfix (Bug 6b): Finds the first diagnostic that STARTS on the
-     * given document line, or null. Used by handleTap to open the diagnostic
-     * popup when the user taps anywhere on a line that has a diagnostic
-     * (not just on the squiggle range itself). Mirrors the existing
-     * {@link #lineHasDiagnostic(int)} gate but returns the Diagnostic
-     * object instead of a boolean.
-     *
-     * <p>Errors (severity 3) are preferred over warnings (severity 2),
-     * which are preferred over info (severity 1) — if a line has both an
-     * error and a warning, the popup shows the error first.
+     * Trouve le premier diagnostic qui COMMENCE sur la ligne document
+     * donnée, ou null (délégué à {@link EditorDiagnosticsLocator}).
+     * Utilisé par handleTap pour ouvrir le popup de diagnostic quand
+     * l'utilisateur tape n'importe où sur une ligne qui porte un diagnostic
+     * (pas seulement sur la plage du soulignement).
      */
     DiagnosticShift.Diagnostic findDiagnosticAtLine(int line) {
-        if (session == null) return null;
-        EditorDocument doc = session.getDocument();
-        if (doc == null || line < 0 || line >= doc.lineCount()) return null;
-        int lineStart = doc.lineStart(line);
-        int lineEnd = doc.lineEnd(line);
-        List<DiagnosticShift.Diagnostic> diags = session.getDiagnostics();
-        DiagnosticShift.Diagnostic best = null;
-        for (DiagnosticShift.Diagnostic d : diags) {
-            // Diagnostic starts on this line if its start offset is in
-            // [lineStart, lineEnd].
-            if (d.start < lineStart || d.start > lineEnd) continue;
-            if (best == null || d.severity > best.severity) {
-                best = d;
-            }
-        }
-        return best;
+        return diagnosticsLocator.findDiagnosticAtLine(line);
     }
 
     /**
-     * v3.4.0: Shows a per-diagnostic popup (CodeAssist DiagnosticSheet pattern).
-     * Displays the FULL diagnostic message + any quick-fixes from the code
-     * actions resolver. Anchored above the diagnostic's line.
+     * Affiche un popup par diagnostic (motif DiagnosticSheet de CodeAssist).
+     * Montre le message COMPLET du diagnostic + les éventuelles quick-fixes
+     * du resolver d'actions de code. Ancré au-dessus de la ligne du diagnostic.
      */
     void showDiagnosticPopup(DiagnosticShift.Diagnostic diag, int offset) {
         popupManager.showDiagnosticPopup(diag, offset);
     }
 
-    /** v3.4.0: Dismisses the per-diagnostic popup. */
+    /** Referme le popup par-diagnostic. */
     public void dismissDiagnosticPopup() {
         popupManager.dismissDiagnosticPopup();
     }
 
-    /** Draws the diagnostic sheet (bottom sheet listing all diagnostics — Gap 8). */
 }

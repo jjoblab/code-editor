@@ -16,40 +16,39 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * v3.36.0 — Tests du registre de langages contribuables (roadmap item 7,
- * portage {@code EditorLanguageRegistry} de CodeAssist v3.20).
+ * Tests du registre de langages contribuables.
  *
  * <p>Couvrent : les lookups (nom canonique, alias, casse, extensions), la
- * table intégrée (familles + mots-clés identiques à v3.35.0), le routage
- * tokenizer du highlighter via la famille (y compris les corrections
- * d'alias py/md/svg/htm/ini/kt/rs), la résolution des commentaires, et le
- * comportement contribuable : register/unregister/override + listeners.</p>
- *
- * @since v3.36.0
+ * table intégrée (familles + mots-clés), le routage tokenizer du highlighter
+ * via la famille (y compris les corrections d'alias py/md/svg/htm/ini/kt/rs),
+ * la résolution des commentaires, et le comportement contribuable :
+ * register/unregister/override + listeners.</p>
  */
 public class LanguageRegistryTest {
 
     @AfterEach
     void cleanup() {
-        // Reinstall the pristine built-in table — some tests override
-        // built-ins (register replaces mappings in place).
+        // Réinstaller la table intégrée d'origine — certains tests
+        // surchargent les entrées intégrées (register remplace les mappings
+        // en place).
         LanguageRegistry.resetToBuiltins();
     }
 
-    // ── Lookups ───────────────────────────────────────────────────
+    // ── Lookups ─────────────────────────────────────────────────
 
     @Test
     public void forName_resolvesCanonicalAndAliases() {
         assertNotNull(LanguageRegistry.forName("python"));
         assertNotNull(LanguageRegistry.forName("py"));
-        assertNotNull(LanguageRegistry.forName("PYTHON"));   // case-insensitive
-        assertNotNull(LanguageRegistry.forName("  Kotlin ")); // trimmed
+        assertNotNull(LanguageRegistry.forName("PYTHON"));   // insensible à la casse
+        assertNotNull(LanguageRegistry.forName("  Kotlin ")); // après trim
         assertNotNull(LanguageRegistry.forName("kt"));
         assertNotNull(LanguageRegistry.forName("rs"));
         assertNotNull(LanguageRegistry.forName("gradle"));
         assertNotNull(LanguageRegistry.forName("md"));
         assertNotNull(LanguageRegistry.forName("htm"));
-        // Unknown ids resolve to nothing — callers keep their fallback.
+        // Les identifiants inconnus ne résolvent rien — les appelants
+        // gardent leur fallback.
         assertNull(LanguageRegistry.forName("pascal"));
         assertNull(LanguageRegistry.forName(""));
         assertNull(LanguageRegistry.forName(null));
@@ -77,14 +76,15 @@ public class LanguageRegistryTest {
         assertEquals(SyntaxFamily.C_LIKE, LanguageRegistry.forName("kotlin").family);
         assertEquals(SyntaxFamily.SHELL, LanguageRegistry.forName("bash").family);
 
-        // Keyword sets are the v3.35.0 tables (moved verbatim).
+        // Les ensembles de mots-clés sont les tables de référence
+        // (déplacées à l'identique).
         assertTrue(LanguageRegistry.forName("java").keywords.contains("instanceof"));
         assertTrue(LanguageRegistry.forName("kotlin").keywords.contains("fun"));
         assertTrue(LanguageRegistry.forName("rust").keywords.contains("fn"));
         assertFalse(LanguageRegistry.forName("java").keywords.contains("fn"));
-        // Scala kept its historical Java-keyword fallback (v3.35.0 behavior).
+        // Scala conserve son fallback historique vers les mots-clés Java.
         assertTrue(LanguageRegistry.forName("scala").keywords.contains("instanceof"));
-        // Hash languages still have their keyword sets.
+        // Les langages à # conservent leurs ensembles de mots-clés.
         assertTrue(LanguageRegistry.forName("python").keywords.contains("def"));
         assertTrue(LanguageRegistry.forName("shell").keywords.contains("esac"));
     }
@@ -101,30 +101,30 @@ public class LanguageRegistryTest {
         assertTrue(names.contains("scala"));
         assertTrue(names.contains("log"));
         assertTrue(names.contains("css"));
-        // Aliases are NOT canonical names.
+        // Les alias ne sont PAS des noms canoniques.
         assertFalse(names.contains("py"));
         assertFalse(names.contains("js"));
     }
 
-    // ── Highlighter routing through the registry ──────────────────
+    // ── Routage du highlighter via le registre ──────────────────
 
     @Test
     public void highlighter_familyRouting_coversAliases() {
         SyntaxHighlighter hl = new SyntaxHighlighter();
 
-        // "py" now reaches the PYTHON tokenizer: '#' is a comment.
+        // "py" atteint le tokenizer PYTHON : '#' est un commentaire.
         StyledLine py = hl.styleLine("x = 1  # note", 0, "py");
         assertTrue(hasToken(py, TokenType.COMMENT), "'py' alias must use the Python tokenizer (# comment)");
 
-        // "md" now reaches the Markdown tokenizer (heading recognized).
+        // "md" atteint le tokenizer Markdown (titre reconnu).
         StyledLine md = hl.styleLine("# Title", 0, "md");
         assertTrue(!tokens(md).isEmpty(), "'md' alias must use the Markdown tokenizer");
 
-        // "svg"/"htm" now reach the XML tokenizer: '<' starts a tag.
+        // "svg"/"htm" atteignent le tokenizer XML : '<' ouvre une balise.
         StyledLine svg = hl.styleLine("<shape/>", 0, "svg");
         assertTrue(!tokens(svg).isEmpty(), "'svg' alias must use the XML tokenizer");
 
-        // Canonical names unchanged.
+        // Les noms canoniques ne changent pas.
         StyledLine java = hl.styleLine("int x = 42;", 0, "java");
         assertTrue(hasToken(java, TokenType.KEYWORD));
         StyledLine unknown = hl.styleLine("int x = 42;", 0, "pascal");
@@ -135,42 +135,42 @@ public class LanguageRegistryTest {
     @Test
     public void highlighter_keywordsForAliases() {
         SyntaxHighlighter hl = new SyntaxHighlighter();
-        // "kt" now resolves Kotlin keywords (v3.35.0: fell back to Java's).
+        // "kt" résout les mots-clés Kotlin.
         StyledLine kt = hl.styleLine("fun main() {}", 0, "kt");
         assertTrue(hasToken(kt, TokenType.KEYWORD), "'kt' must use Kotlin keywords");
-        // "rs" resolves Rust keywords.
+        // "rs" résout les mots-clés Rust.
         StyledLine rs = hl.styleLine("fn main() {}", 0, "rs");
         assertTrue(hasToken(rs, TokenType.KEYWORD), "'rs' must use Rust keywords");
     }
 
-    // ── Comment syntax resolution through the registry ────────────
+    // ── Résolution de la syntaxe de commentaires via le registre ──
 
     @Test
     public void commentSyntax_tableMatchesV3350Behavior() {
-        // Hash languages
+        // Langages à #
         for (String id : new String[]{"python", "py", "ruby", "rb", "shell", "bash",
                 "sh", "toml", "properties", "ini", "smali", "yaml", "yml"}) {
             CommentSyntax cs = CommentSyntax.forLanguage(id);
             assertEquals("#", cs.lineComment, id + " keeps its # line comment");
             assertFalse(cs.hasBlock(), id + " has no block comment");
         }
-        // XML family: block only
+        // Famille XML : bloc uniquement
         for (String id : new String[]{"xml", "html", "htm", "svg", "markdown", "md"}) {
             CommentSyntax cs = CommentSyntax.forLanguage(id);
             assertFalse(cs.hasLine(), id + " has no line comment");
             assertEquals("<!--", cs.blockStart, id + " keeps its XML block comment");
             assertEquals("-->", cs.blockEnd);
         }
-        // JSON: no comments at all
+        // JSON : aucun commentaire du tout
         assertSame(CommentSyntax.NONE, CommentSyntax.forLanguage("json"));
-        // Lua / SQL specifics
+        // Spécificités Lua / SQL
         assertEquals("--", CommentSyntax.forLanguage("lua").lineComment);
         assertEquals("--[[", CommentSyntax.forLanguage("lua").blockStart);
         assertEquals("]]", CommentSyntax.forLanguage("lua").blockEnd);
         assertEquals("--", CommentSyntax.forLanguage("sql").lineComment);
         assertEquals("/*", CommentSyntax.forLanguage("sql").blockStart);
         assertEquals("*/", CommentSyntax.forLanguage("sql").blockEnd);
-        // C-family + unknown
+        // Famille C + inconnus
         assertSame(CommentSyntax.C_STYLE, CommentSyntax.forLanguage("java"));
         assertSame(CommentSyntax.C_STYLE, CommentSyntax.forLanguage("kotlin"));
         assertSame(CommentSyntax.C_STYLE, CommentSyntax.forLanguage("css"));
@@ -180,7 +180,7 @@ public class LanguageRegistryTest {
         assertSame(CommentSyntax.C_STYLE, CommentSyntax.forLanguage("  "));
     }
 
-    // ── Contributable: register / unregister / override / listeners ──
+    // ── Contribuabilité : register / unregister / override / listeners ──
 
     @Test
     public void register_customLanguage_isUsedByHighlighterAndComments() {
@@ -193,17 +193,17 @@ public class LanguageRegistryTest {
                 .build();
         LanguageRegistry.register(mylang);
 
-        // Lookup by name and alias.
+        // Recherche par nom et par alias.
         assertSame(mylang, LanguageRegistry.forName("mylang"));
         assertSame(mylang, LanguageRegistry.forName("ml"));
         assertSame(mylang, LanguageRegistry.forExtension("ml"));
 
-        // The highlighter honors the custom keyword set.
+        // Le highlighter honore l'ensemble de mots-clés personnalisé.
         SyntaxHighlighter hl = new SyntaxHighlighter();
         StyledLine line = hl.styleLine("repeat x = 1", 0, "mylang");
         assertTrue(hasToken(line, TokenType.KEYWORD), "custom keywords must highlight");
 
-        // The comment toggle honors the custom syntax.
+        // La bascule de commentaire honore la syntaxe personnalisée.
         assertEquals("#", CommentSyntax.forLanguage("mylang").lineComment);
         assertEquals("#", CommentSyntax.forLanguage("ml").lineComment);
     }
@@ -241,11 +241,11 @@ public class LanguageRegistryTest {
         assertSame(overridden, LanguageRegistry.forName("sql"));
         assertTrue(LanguageRegistry.forName("sql").keywords.contains("SELECT2"));
 
-        // restore the built-in for the other tests
+        // restaurer l'intégré pour les autres tests
         LanguageRegistry.unregister("sql");
-        // The override REPLACED the built-in mapping — unregistering drops
-        // "sql" entirely until the built-in table is reinstalled (the
-        // @AfterEach resetToBuiltins does exactly that).
+        // L'override a REMPLACÉ le mapping intégré — le unregister fait
+        // disparaître "sql" entièrement jusqu'à réinstallation de la table
+        // intégrée (le @AfterEach resetToBuiltins fait exactement cela).
         assertNull(LanguageRegistry.forName("sql"));
     }
 
@@ -260,7 +260,7 @@ public class LanguageRegistryTest {
         assertNull(LanguageRegistry.forName("mylang"));
         assertNull(LanguageRegistry.forName("ml"));
         assertNull(LanguageRegistry.forExtension("ml"));
-        assertFalse(LanguageRegistry.unregister("mylang")); // already gone
+        assertFalse(LanguageRegistry.unregister("mylang")); // déjà supprimé
         assertFalse(LanguageRegistry.unregister("never-registered"));
     }
 
@@ -289,7 +289,7 @@ public class LanguageRegistryTest {
         } finally {
             LanguageRegistry.removeListener(l);
         }
-        // After removal, no more notifications.
+        // Après retrait du listener, plus aucune notification.
         LanguageRegistry.register(LanguageProfile.builder("mylang").build());
         assertEquals(1, added.get());
         LanguageRegistry.unregister("mylang");
@@ -309,15 +309,15 @@ public class LanguageRegistryTest {
         assertTrue(p.answersTo("MYLANG"));
         assertTrue(p.answersTo("ml"));
         assertFalse(p.answersTo("other"));
-        // Default family + comment syntax
+        // Famille + syntaxe de commentaire par défaut
         assertEquals(SyntaxFamily.C_LIKE, p.family);
         assertSame(CommentSyntax.C_STYLE, p.commentSyntax);
-        // null / empty name rejected
+        // nom null / vide rejeté
         assertThrows(IllegalArgumentException.class, () -> LanguageProfile.builder(null));
         assertThrows(IllegalArgumentException.class, () -> LanguageProfile.builder("  "));
     }
 
-    // ── helpers ───────────────────────────────────────────────────
+    // ── utilitaires ─────────────────────────────────────────────
 
     private static List<LineSpan> tokens(StyledLine line) {
         return line != null && line.spans != null ? line.spans : new ArrayList<>();

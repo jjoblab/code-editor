@@ -1,11 +1,8 @@
 package jo.codeeditor.find;
 
 /**
- * Options for find/replace operations.
- 
- *
- * @since v1.0.0
-*/
+ * Options des opérations de recherche/remplacement.
+ */
 public final class FindOptions {
     public final boolean caseSensitive;
     public final boolean wholeWord;

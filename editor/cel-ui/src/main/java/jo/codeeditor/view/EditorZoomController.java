@@ -1,19 +1,16 @@
 package jo.codeeditor.view;
 
 /**
- * v3.36.0 — Zoom state extracted from EditorView (roadmap item 11:
- * "extraire metrics/scroll-state/popup-anchors vers les managers" —
- * this is the metrics/zoom half).
+ * État de zoom extrait d'EditorView (volet métriques/zoom de la
+ * délégation vers les gestionnaires dédiés).
  *
- * <p>Owns the font scale and every way to change it: direct
- * {@link #setFontScale(float)}, caret-anchored pinch
- * {@link #applyPinchScale(float)} (v2.58 port — the caret stays visually
- * fixed while the viewport virtually scrolls under it), and the
- * {@code increaseFontSize}/{@code decreaseFontSize} helpers (v3.18). The
- * bodies are verbatim moves from EditorView; EditorView keeps delegating
- * wrappers with the historical public signatures.</p>
- *
- * @since v3.36.0
+ * <p>Possède l'échelle de police et tous les moyens de la modifier :
+ * {@link #setFontScale(float)} direct, pincement ancré sur le caret
+ * {@link #applyPinchScale(float)} (le caret reste visuellement fixe
+ * pendant que le viewport défile virtuellement sous lui), et les aides
+ * {@code increaseFontSize}/{@code decreaseFontSize}. Les corps proviennent
+ * tels quels d'EditorView, qui conserve des délégués avec les signatures
+ * publiques historiques.</p>
  */
 final class EditorZoomController {
 
@@ -22,25 +19,25 @@ final class EditorZoomController {
 
     private final EditorView view;
 
-    /** Current font scale (1 = base). */
+    /** Échelle de police courante (1 = base). */
     float fontScale = 1.0f;
 
     EditorZoomController(EditorView view) {
         this.view = view;
     }
 
-    /** Clamps the scale to [0.6, 2.6]. */
+    /** Borne l'échelle à [0.6, 2.6]. */
     static float clampFontScale(float s) {
         if (s < MIN_FONT_SCALE) return MIN_FONT_SCALE;
         if (s > MAX_FONT_SCALE) return MAX_FONT_SCALE;
         return s;
     }
 
-    /** Sets the font scale directly (clamped to [0.6, 2.6]). */
+    /** Définit directement l'échelle de police (bornée à [0.6, 2.6]). */
     void setFontScale(float scale) {
         fontScale = clampFontScale(scale);
         view.metrics.setTextSize(view.spToPx(EditorView.BASE_TEXT_SIZE_SP) * fontScale);
-        // Re-clamp scroll offsets — content size changed.
+        // Re-borne les offsets de défilement — la taille du contenu a changé.
         view.vOffset = EditorView.clamp(view.vOffset, 0, view.maxV());
         view.hOffset = EditorView.clamp(view.hOffset, 0, view.maxH());
         view.requestLayout();
@@ -49,9 +46,9 @@ final class EditorZoomController {
 
 public void applyPinchScale(float scaleFactor) {
         float newScale = clampFontScale(fontScale * scaleFactor);
-        if (newScale == fontScale) return; // no-op (clamp saturé)
+        if (newScale == fontScale) return; // no-op (borne saturée)
 
-        // (1) Capture caret's CURRENT screen position (old metrics).
+        // (1) Capture la position ÉCRAN courante du caret (anciennes métriques).
         float cx = 0f, cy = 0f;
         boolean hasCaret = (view.session != null && !view.session.isReadOnly());
         if (hasCaret) {
@@ -61,19 +58,19 @@ public void applyPinchScale(float scaleFactor) {
             cy = pos[1];
         }
 
-        // (2) Apply the new scale (mirrors setFontScale's body but without
-        // requestLayout — pinch fires continuously, requestLayout would
-        // thrash the framework. EditorView's onMeasure will be re-run by
-        // the next invalidate anyway).
+        // (2) Applique la nouvelle échelle (reflète le corps de setFontScale
+        // mais sans requestLayout — le pincement se déclenche en continu,
+        // requestLayout martèlerait le framework. Le onMeasure d'EditorView
+        // sera de toute façon relancé par le prochain invalidate).
         fontScale = newScale;
         view.metrics.setTextSize(view.spToPx(EditorView.BASE_TEXT_SIZE_SP) * fontScale);
 
-        // (3) If we had a caret, adjust offsets to keep it anchored.
+        // (3) S'il y avait un caret, ajuste les offsets pour le maintenir ancré.
         if (hasCaret) {
-            // Recompute caret position with the NEW metrics and the OLD
-            // offsets — caretScreenPos reads vOffset/hOffset live, so
-            // this returns where the caret WOULD land if we didn't touch
-            // the offsets.
+            // Recalcule la position du caret avec les NOUVELLES métriques et
+            // les ANCIENS offsets — caretScreenPos lit vOffset/hOffset en
+            // direct, ceci renvoie donc là où le caret ATTEINDRAIT si on ne
+            // touchait pas les offsets.
             //
             // Math : on veut newPos_after == (cx, cy) (caret ancré).
             //   pos = anchor(line, col, metrics) - offset
@@ -102,12 +99,12 @@ public void applyPinchScale(float scaleFactor) {
             view.vOffset += dy;
         }
 
-        // (4) Clamp to valid scroll range (post-scale).
+        // (4) Borne à la plage de défilement valide (après changement d'échelle).
         view.vOffset = EditorView.clamp(view.vOffset, 0, view.maxV());
         view.hOffset = EditorView.clamp(view.hOffset, 0, view.maxH());
 
-        // (5) Cancel any in-flight caret glide — the caret is anchored
-        // by our offset adjustment, a glide would override it.
+        // (5) Annule tout glissement de caret en cours — le caret est ancré
+        // par notre ajustement d'offset, un glissement le surchargerait.
         if (view.caretAnim != null) {
             view.caretAnim.onEditOrMove();
         }
@@ -116,7 +113,7 @@ public void applyPinchScale(float scaleFactor) {
     }
 
 
-    // v3.18.0: Convenience methods for font size +/- from Canvas icons.
+    // Méthodes de commodité pour la taille de police +/- depuis les icônes Canvas.
     void increaseFontSize() {
         setFontScale(clampFontScale(fontScale * 1.15f));
     }

@@ -5,7 +5,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Tests for the line-indexed document model.
+ * Tests du modèle de document indexé par ligne.
  */
 class EditorDocumentTest {
 
@@ -76,15 +76,15 @@ class EditorDocumentTest {
     @Test
     void lineEnd_multiLine() {
         EditorDocument doc = EditorDocument.of("abc\ndef\nghi");
-        assertEquals(3, doc.lineEnd(0));   // 'c' at index 2, newline at 3
-        assertEquals(7, doc.lineEnd(1));   // 'f' at index 6, newline at 7
-        assertEquals(11, doc.lineEnd(2));  // 'i' at index 10, end = 11
+        assertEquals(3, doc.lineEnd(0));   // 'c' à l'index 2, saut de ligne à 3
+        assertEquals(7, doc.lineEnd(1));   // 'f' à l'index 6, saut de ligne à 7
+        assertEquals(11, doc.lineEnd(2));  // 'i' à l'index 10, fin = 11
     }
 
     @Test
     void lineStart_clamped() {
         EditorDocument doc = EditorDocument.of("hello");
-        // Clamped to valid range
+        // Borné à la plage valide
         assertEquals(0, doc.lineStart(-5));
         assertEquals(0, doc.lineStart(100));
     }
@@ -152,7 +152,7 @@ class EditorDocumentTest {
     @Test
     void replace_multiLineInsert() {
         EditorDocument doc = EditorDocument.of("line1\nline3");
-        // Insert "line2\n" right after the existing \n (at offset 6)
+        // Insère "line2\n" juste après le \n existant (à l'offset 6)
         EditorDocument doc2 = doc.replace(6, 6, "line2\n");
         assertEquals("line1\nline2\nline3", doc2.getText());
         assertEquals(3, doc2.lineCount());
@@ -199,7 +199,7 @@ class EditorDocumentTest {
         assertEquals('w', doc2.charAt(6));
     }
 
-    // ── Edge cases ────────────────────────────────────────────────
+    // ── Cas limites ────────────────────────────────────────────────
 
     @Test
     void replace_entireDocument() {
@@ -220,12 +220,12 @@ class EditorDocumentTest {
     @Test
     void multipleReplaces_maintainConsistency() {
         EditorDocument doc = EditorDocument.of("line1\nline2\nline3");
-        doc = doc.replace(0, 0, "// ");  // comment line 1
+        doc = doc.replace(0, 0, "// ");  // commente la ligne 1
         assertEquals("// line1\nline2\nline3", doc.getText());
         assertEquals(3, doc.lineCount());
 
-        // "// line1\n" is 9 chars, so line 2 starts at 9
-        doc = doc.replace(9, 9, "// ");  // comment line 2
+        // "// line1\n" fait 9 caractères, donc la ligne 2 commence à 9
+        doc = doc.replace(9, 9, "// ");  // commente la ligne 2
         assertEquals("// line1\n// line2\nline3", doc.getText());
         assertEquals(3, doc.lineCount());
     }

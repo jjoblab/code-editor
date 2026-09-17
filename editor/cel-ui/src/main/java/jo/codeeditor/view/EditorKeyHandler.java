@@ -9,55 +9,56 @@ import java.util.List;
 import java.util.function.LongSupplier;
 
 /**
- * v3.12.0: Extracted from EditorView — handles all hardware keyboard input:
- * {@code onKeyDown} with its full switch cascade (popup navigation,
- * Ctrl+shortcuts, movement/editing keys, printable character fall-through).
+ * Gestionnaire du clavier physique, extrait d'EditorView — traite toute
+ * l'entrée clavier matérielle : {@code onKeyDown} avec sa cascade complète
+ * de switch (navigation popup, raccourcis Ctrl, touches de
+ * déplacement/édition, repli sur caractère imprimable).
  *
- * <p><b>v3.36.0 (roadmap item 6) — data-driven keymap:</b> the
- * Ctrl+shortcut and movement/editing cascades were replaced by a
- * {@link EditorKeymap} lookup (port of CodeAssist v3.20's
- * {@code EditorKeymap}/{@code EditorCommands}). The key event is resolved
- * to a command id ({@link EditorCommands}) and dispatched by
- * {@link #executeCommand}; hosts rebind commands via
- * {@code EditorView.setKeymap(EditorKeymap)}. The default table reproduces
- * the pre-v3.36.0 behavior, and the state-dependent popup interceptors
- * (completion / signature help / code actions / go-to-symbol navigation
- * while visible) run BEFORE the keymap so they keep priority.</p>
+ * <p><b>Keymap piloté par les données :</b> les cascades de raccourcis
+ * Ctrl et de déplacement/édition ont été remplacées par une recherche
+ * dans {@link EditorKeymap} (portage des {@code EditorKeymap}/
+ * {@code EditorCommands} de CodeAssist). L'événement touche est résolu
+ * en un identifiant de commande ({@link EditorCommands}) et distribué
+ * par {@link #executeCommand} ; les hôtes rebindent les commandes via
+ * {@code EditorView.setKeymap(EditorKeymap)}. La table par défaut
+ * reproduit le comportement historique, et les intercepteurs de popup
+ * dépendants de l'état (navigation complétion / aide de signature /
+ * actions de code / aller-au-symbole quand visibles) s'exécutent AVANT
+ * le keymap pour garder la priorité.</p>
  *
- * <p>EditorView delegates {@code onKeyDown} to this class. The key handler
- * calls back into EditorView's public/package-private API for:
+ * <p>EditorView délègue {@code onKeyDown} à cette classe. Le gestionnaire
+ * de touches rappelle l'API publique/package-private d'EditorView pour :
  * <ul>
- *   <li>Popup navigation: {@code completionSelectUp/Down/Accept},
+ *   <li>Navigation popup : {@code completionSelectUp/Down/Accept},
  *       {@code goToSymbolSelect/Accept}, {@code applySelectedCodeAction},
  *       {@code dismiss*}</li>
- *   <li>Editing: {@code session.backspace/commitText/moveHorizontal/...},
+ *   <li>Édition : {@code session.backspace/commitText/moveHorizontal/...},
  *       {@code onTextChanged}</li>
- *   <li>Clipboard: {@code copy/cut/paste}</li>
- *   <li>Zoom: {@code setFontScale/clampFontScale}</li>
- *   <li>Triggers: {@code refreshCompletion/triggerSignatureHelp/showQuickDoc/
+ *   <li>Presse-papiers : {@code copy/cut/paste}</li>
+ *   <li>Zoom : {@code setFontScale/clampFontScale}</li>
+ *   <li>Déclencheurs : {@code refreshCompletion/triggerSignatureHelp/showQuickDoc/
  *       showRename/showGoToLine/showGoToSymbol/showCodeActions}</li>
  * </ul>
- *
- * @since v3.12.0
  */
 class EditorKeyHandler {
 
     private final EditorView view;
 
     /**
-     * v3.37.0 — chord pending state (port of CodeAssist v3.20's
-     * {@code Outcome.Pending}). When non-null, the next key event is
-     * matched against the chords' second strokes; the state silently
-     * expires {@link #CHORD_TIMEOUT_MS} after it was armed (checked
-     * against {@link #clock} on the next event — no Handler, no leak).
+     * État de séquence (chord) en attente (portage du
+     * {@code Outcome.Pending} de CodeAssist). Quand non-null, le prochain
+     * événement touche est comparé aux secondes frappes des chords ; l'état
+     * expire silencieusement {@link #CHORD_TIMEOUT_MS} après son armement
+     * (contrôlé via {@link #clock} au prochain événement — pas de Handler,
+     * pas de fuite).
      */
     private EditorKeymap.KeyStroke pendingChord;
     private long pendingChordDeadline;
 
-    /** Pending-chord lifetime (VS Code uses ~2 s). */
+    /** Durée de vie d'un chord en attente (VS Code utilise ~2 s). */
     private static final long CHORD_TIMEOUT_MS = 2000;
 
-    /** Injectable clock (tests freeze/advance time deterministically). */
+    /** Horloge injectable (les tests figent/avancent le temps de façon déterministe). */
     LongSupplier clock = SystemClock::uptimeMillis;
 
     EditorKeyHandler(EditorView view) {
@@ -69,7 +70,7 @@ class EditorKeyHandler {
         boolean shift = event.isShiftPressed();
         boolean ctrl = event.isCtrlPressed();
 
-        // ── Completion popup navigation (when visible) ─────────────
+        // ── Navigation popup de complétion (quand visible) ─────────────
         if (view.completionVisible && !ctrl) {
             switch (keyCode) {
                 case KeyEvent.KEYCODE_DPAD_UP:
@@ -88,11 +89,12 @@ class EditorKeyHandler {
                     return true;
             }
         }
-        // ── Signature help popup navigation (v2.39) ───────────────
-        // Up/Down cycles between overloads (activeSignature) when there
-        // is more than one signature. Esc dismisses. When only one
-        // signature is available, Up/Down fall through to caret movement
-        // (so the user can still navigate inside the call arguments).
+        // ── Navigation popup d'aide de signature ───────────────
+        // Haut/Bas fait défiler les surcharges (activeSignature) quand
+        // il y a plus d'une signature. Échap ferme. Quand une seule
+        // signature est disponible, Haut/Bas retombent sur le déplacement
+        // du caret (pour que l'utilisateur puisse quand même naviguer
+        // dans les arguments de l'appel).
         if (view.signatureHelpVisible && !ctrl) {
             if (keyCode == KeyEvent.KEYCODE_ESCAPE) {
                 view.dismissSignatureHelp();
@@ -111,22 +113,22 @@ class EditorKeyHandler {
                 }
             }
         }
-        // ── Quick doc popup dismissal (Esc) ──────────────────────
+        // ── Fermeture du popup de doc rapide (Échap) ──────────────────────
         if (view.quickDocVisible && keyCode == KeyEvent.KEYCODE_ESCAPE) {
             view.dismissQuickDoc();
             return true;
         }
-        // ── v3.36.0: grouped diagnostic list sheet dismissal (Esc) ──
+        // ── Fermeture de la fiche de liste des diagnostics groupés (Échap) ──
         if (view.diagnosticListSheetLine >= 0 && keyCode == KeyEvent.KEYCODE_ESCAPE) {
             view.dismissDiagnosticListSheet();
             return true;
         }
-        // ── v3.36.0: diagnostic detail popup dismissal (Esc) ──────
+        // ── Fermeture du popup de détail de diagnostic (Échap) ──────
         if (view.diagnosticPopupVisible && keyCode == KeyEvent.KEYCODE_ESCAPE) {
             view.dismissDiagnosticPopup();
             return true;
         }
-        // ── Code actions popup navigation (when visible) ─────────
+        // ── Navigation popup d'actions de code (quand visible) ─────────
         if (view.codeActionsPopupVisible && !ctrl) {
             switch (keyCode) {
                 case KeyEvent.KEYCODE_DPAD_UP:
@@ -153,7 +155,7 @@ class EditorKeyHandler {
                     return true;
             }
         }
-        // ── Go-to-symbol popup navigation (when visible) ─────────
+        // ── Navigation popup aller-au-symbole (quand visible) ─────────
         if (view.goToSymbolVisible && !ctrl) {
             switch (keyCode) {
                 case KeyEvent.KEYCODE_DPAD_UP:
@@ -172,17 +174,17 @@ class EditorKeyHandler {
             }
         }
 
-        // ── v3.37.0 (chords): pending sequence resolution ──
-        // Runs AFTER the popup interceptors (an open popup keeps
-        // priority) and BEFORE the single-key dispatch: while a chord
-        // is pending, the current key either completes the sequence or
-        // is processed as a fresh keystroke.
+        // ── Résolution de séquence (chord) en attente ──
+        // S'exécute APRÈS les intercepteurs de popup (un popup ouvert
+        // garde la priorité) et AVANT la distribution mono-touche :
+        // pendant qu'un chord est en attente, la touche courante
+        // complète la séquence ou est traitée comme une frappe fraîche.
         if (pendingChord != null) {
             if (clock.getAsLong() > pendingChordDeadline) {
-                // Expired — drop the pending state, process normally.
+                // Expiré — abandonne l'état en attente, traitement normal.
                 pendingChord = null;
             } else if (keyCode == KeyEvent.KEYCODE_ESCAPE) {
-                // Escape cancels a pending chord (consumed).
+                // Échap annule un chord en attente (consommé).
                 pendingChord = null;
                 return true;
             } else {
@@ -192,32 +194,34 @@ class EditorKeyHandler {
                 if (chord != null) {
                     return executeCommand(chord.command);
                 }
-                // Not a chord second stroke — fall through: the key is
-                // processed as a fresh keystroke (it may itself start a
-                // new chord, checked below).
+                // Pas une seconde frappe de chord — repli : la touche est
+                // traitée comme une frappe fraîche (elle peut elle-même
+                // démarrer un nouveau chord, contrôlé ci-dessous).
             }
         }
 
-        // ── v3.36.0 (roadmap item 6): data-driven command dispatch ──
-        // The keymap (rebindable via EditorView.setKeymap) resolves the
-        // event to a command; the default table is a verbatim port of the
-        // pre-v3.36.0 Ctrl+shortcut and movement/editing switch cascades.
+        // ── Distribution de commandes pilotée par les données ──
+        // Le keymap (rebindable via EditorView.setKeymap) résout
+        // l'événement en une commande ; la table par défaut est un
+        // portage verbatim des cascades de switch historiques
+        // (raccourcis Ctrl et déplacement/édition).
         EditorKeymap.Binding binding = view.keymap.resolve(keyCode, ctrl, shift);
         if (binding != null) {
             return executeCommand(binding.command);
         }
 
-        // ── v3.37.0 (chords): does this key START a chord? ──
-        // Only reached when no single-key binding resolved, so chords
-        // never steal keys from the (chord-free) default table.
+        // ── Cette touche DÉMARRE-t-elle un chord ? ──
+        // Atteint seulement quand aucune liaison mono-touche n'a résolu,
+        // ainsi les chords ne volent jamais de touches à la table par
+        // défaut (sans chord).
         EditorKeymap.KeyStroke start = view.keymap.resolveChordStart(keyCode, ctrl, shift);
         if (start != null) {
             pendingChord = start;
             pendingChordDeadline = clock.getAsLong() + CHORD_TIMEOUT_MS;
-            return true; // consumed — waiting for the second stroke
+            return true; // consommé — attente de la seconde frappe
         }
 
-        // Printable character fall-through: respect Shift / AltGr via unicodeChar.
+        // Repli sur caractère imprimable : respecte Shift / AltGr via unicodeChar.
         if (!event.isCtrlPressed() && !event.isMetaPressed()) {
             int cp = event.getUnicodeChar(event.getMetaState());
             if (cp >= 32 && cp != 127) {
@@ -230,20 +234,20 @@ class EditorKeyHandler {
     }
 
     /**
-     * v3.36.0 — Executes one {@link EditorCommands} id. Returns true when
-     * the key was consumed. {@link EditorCommands#CODE_ACTIONS} returns
-     * false when the caret's line has no actions (the key then falls
-     * through, exactly like the pre-v3.36.0 {@code if (ctrl)} cascade).
+     * Exécute un identifiant {@link EditorCommands}. Renvoie vrai quand la
+     * touche a été consommée. {@link EditorCommands#CODE_ACTIONS} renvoie
+     * faux quand la ligne du caret n'a pas d'actions (la touche retombe
+     * alors, exactement comme la cascade historique {@code if (ctrl)}).
      */
     private boolean executeCommand(String command) {
         switch (command) {
-            // ── History ───────────────────────────────────────────
+            // ── Historique ───────────────────────────────────────
             case EditorCommands.UNDO:
                 view.session.undo(); view.onTextChanged(); return true;
             case EditorCommands.REDO:
                 view.session.redo(); view.onTextChanged(); return true;
 
-            // ── Selection / clipboard ─────────────────────────────
+            // ── Sélection / presse-papiers ─────────────────────────
             case EditorCommands.SELECT_ALL:
                 view.session.selectAll(); view.invalidate(); return true;
             case EditorCommands.COPY:
@@ -255,7 +259,7 @@ class EditorKeyHandler {
             case EditorCommands.DUPLICATE:
                 view.session.duplicateSelection(); view.onTextChanged(); return true;
 
-            // ── File / host actions ───────────────────────────────
+            // ── Fichier / actions hôte ───────────────────────────
             case EditorCommands.FIND:
                 if (view.selectionListener instanceof EditorView.OnFindRequestedListener) {
                     ((EditorView.OnFindRequestedListener) view.selectionListener).onFindRequested();
@@ -267,7 +271,7 @@ class EditorKeyHandler {
                 }
                 return true;
 
-            // ── Language intelligence ─────────────────────────────
+            // ── Intelligence du langage ─────────────────────────
             case EditorCommands.TRIGGER_COMPLETION:
                 view.refreshCompletion();
                 return true;
@@ -275,8 +279,8 @@ class EditorKeyHandler {
                 view.triggerSignatureHelp();
                 return true;
             case EditorCommands.CODE_ACTIONS:
-                // Ctrl+. — only consumed when the caret's line has actions
-                // (LSP convention; pre-v3.36.0 behavior preserved).
+                // Ctrl+. — consommé seulement quand la ligne du caret a des
+                // actions (convention LSP ; comportement historique préservé).
                 if (view.session != null) {
                     EditorDocument doc = view.session.getDocument();
                     int line = EditorView.clamp(doc.lineForOffset(view.session.getSelection().start),
@@ -288,8 +292,9 @@ class EditorKeyHandler {
                 }
                 return false;
             case EditorCommands.CODE_ACTIONS_AT_CARET:
-                // Ctrl+Shift+L — unlike Ctrl+., always opens (empty state
-                // shows "no actions"), an alternative for soft keyboards.
+                // Ctrl+Shift+L — contrairement à Ctrl+., ouvre toujours
+                // (l'état vide affiche « no actions »), une alternative
+                // pour les claviers logiciels.
                 if (view.session != null) {
                     EditorDocument doc = view.session.getDocument();
                     int line = EditorView.clamp(doc.lineForOffset(view.session.getSelection().start),
@@ -329,7 +334,7 @@ class EditorKeyHandler {
             case EditorCommands.ZOOM_RESET:
                 view.setFontScale(1f); return true;
 
-            // ── Editing ───────────────────────────────────────────
+            // ── Édition ─────────────────────────────────────────
             case EditorCommands.BACKSPACE:
                 view.session.backspace(); view.onTextChanged(); return true;
             case EditorCommands.DELETE_FORWARD:
@@ -347,7 +352,7 @@ class EditorKeyHandler {
             case EditorCommands.TOGGLE_BLOCK_COMMENT:
                 view.session.toggleBlockComment(); view.onTextChanged(); return true;
 
-            // ── Caret movement (Shift = extend) ───────────────────
+            // ── Déplacement du caret (Shift = étendre) ───────────
             case EditorCommands.MOVE_LEFT:
                 view.session.moveHorizontal(-1, false); view.invalidate(); return true;
             case EditorCommands.EXTEND_LEFT:

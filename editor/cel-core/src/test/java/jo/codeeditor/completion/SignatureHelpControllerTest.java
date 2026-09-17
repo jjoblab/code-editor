@@ -5,11 +5,10 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Pure-JVM tests for {@link SignatureHelpController}'s static helpers
- * (call detection + active-parameter counting). These power the popup's
- * "are we inside a function call?" gate without needing a language server.
- *
- * <p>v1.0.7 — Gap 2.
+ * Tests JVM pur pour les assistants statiques de {@link SignatureHelpController}
+ * (détection d'appel + comptage du paramètre actif). Ils alimentent le
+ * verrou « sommes-nous dans un appel de fonction ? » du popup sans avoir
+ * besoin d'un serveur de langage.
  */
 class SignatureHelpControllerTest {
 
@@ -22,9 +21,9 @@ class SignatureHelpControllerTest {
 
     @Test
     void caretInsideCall_nestedCalls() {
-        // Outer call still open
+        // L'appel externe est encore ouvert
         assertTrue(SignatureHelpController.caretInsideCall("foo(bar(x), ", 12));
-        // Inside inner call but outer is also open
+        // À l'intérieur de l'appel interne, mais l'externe est aussi ouvert
         assertTrue(SignatureHelpController.caretInsideCall("foo(bar(x", 9));
     }
 
@@ -38,19 +37,19 @@ class SignatureHelpControllerTest {
 
     @Test
     void caretInsideCall_closedBySameLineStatementBoundary() {
-        // After `foo();`, the `;` breaks the scan — caret after the `;` is
-        // NOT inside the previous call.
+        // Après `foo();`, le `;` interrompt le balayage — un caret placé après
+        // le `;` n'est PAS dans l'appel précédent.
         assertFalse(SignatureHelpController.caretInsideCall("foo(); ", 7));
-        // But `bar(` IS an open call — the caret at the end is inside it.
+        // Mais `bar(` EST un appel ouvert — le caret en fin de ligne y est.
         assertTrue(SignatureHelpController.caretInsideCall("foo(); bar(", 11));
     }
 
     @Test
     void caretInsideCall_stringIgnored() {
-        // The current implementation does NOT skip strings — that's a known
-        // limitation documented in FIX_NOTES. A '(' inside a string DOES
-        // count as a call open. The `;` after the string breaks the scan,
-        // so caret after the `;` is NOT inside a call.
+        // L'implémentation actuelle n'ignore PAS les chaînes — c'est une limite
+        // connue documentée dans FIX_NOTES. Une '(' dans une chaîne compte
+        // comme ouverture d'appel. Le `;` après la chaîne interrompt le
+        // balayage, donc un caret après le `;` n'est PAS dans un appel.
         assertFalse(SignatureHelpController.caretInsideCall("x = \"(\"; ", 9));
     }
 
@@ -68,7 +67,7 @@ class SignatureHelpControllerTest {
 
     @Test
     void findCallOpen_skipsNestedParens() {
-        // foo(bar()) — caret after the inner ')' should still find the outer '('
+        // foo(bar()) — un caret après la ')' interne doit quand même trouver la '(' externe
         assertEquals(3, SignatureHelpController.findCallOpen("foo(bar())", 9));
     }
 
@@ -96,11 +95,11 @@ class SignatureHelpControllerTest {
 
     @Test
     void activeParameterIndex_nestedCommasDontCount() {
-        // foo(bar(a, b), — the comma inside bar() doesn't increment foo's index
+        // foo(bar(a, b), — la virgule interne à bar() n'incrémente pas l'index de foo
         assertEquals(1, SignatureHelpController.activeParameterIndex("foo(bar(a, b), ", 3, 15));
     }
 
-    // ── Resolver / trigger behavior ───────────────────────────────
+    // ── Comportement du résolveur / déclencheur ───────────────────────────────
 
     @Test
     void resolver_returnsNullWhenNotInsideCall() {
@@ -147,17 +146,17 @@ class SignatureHelpControllerTest {
             return new SignatureHelpController.SignatureHelp(
                 java.util.Collections.emptyList(), 0, 0);
         });
-        // Use a realistic single document so callOpen differs between calls.
+        // Utilise un document unique réaliste pour que callOpen diffère entre les appels.
         String text = "foo(a); bar(b, ";
-        // Caret inside foo( — callOpen=3.
+        // Caret dans foo( — callOpen=3.
         controller.resolve(text, 5);
         assertTrue(resolveCalled[0]);
         resolveCalled[0] = false;
         controller.dismiss();
-        // Same call (foo), different caret — dismissed should stick.
+        // Même appel (foo), caret différent — l'état rejeté doit persister.
         controller.resolve(text, 6);
         assertFalse(resolveCalled[0]);
-        // Different call (bar — callOpen=10) — dismissed resets, resolver fires.
+        // Appel différent (bar — callOpen=10) — le rejet est réinitialisé, le résolveur se déclenche.
         controller.resolve(text, 15);
         assertTrue(resolveCalled[0]);
     }
@@ -174,11 +173,11 @@ class SignatureHelpControllerTest {
         assertFalse(controller.isDismissed());
     }
 
-    // ── v2.39: Up/Down keyboard navigation between overloads ─────
+    // ── Navigation clavier Haut/Bas entre surcharges ─────
 
     /**
-     * Helper: builds a SignatureHelp with N trivial signatures.
-     * activeSignature defaults to 0 (server's choice).
+     * Assistant : construit une SignatureHelp avec N signatures triviales.
+     * activeSignature vaut 0 par défaut (choix du serveur).
      */
     private static SignatureHelpController.SignatureHelp buildOverloads(int n) {
         var sigs = new java.util.ArrayList<SignatureHelpController.Signature>();
@@ -196,15 +195,15 @@ class SignatureHelpControllerTest {
     void cycleActiveSignature_downAdvancesAndWraps() {
         var controller = new SignatureHelpController((o, c) -> buildOverloads(3));
         controller.resolve("foo(", 4);
-        // No override initially → effective = server's 0.
+        // Pas de surcharge utilisateur au départ → effectif = 0 (choix du serveur).
         assertEquals(0, controller.getEffectiveActiveSignature());
-        // Down → 1.
+        // Bas → 1.
         assertEquals(1, controller.cycleActiveSignature(1));
         assertEquals(1, controller.getEffectiveActiveSignature());
-        // Down → 2.
+        // Bas → 2.
         assertEquals(2, controller.cycleActiveSignature(1));
         assertEquals(2, controller.getEffectiveActiveSignature());
-        // Down at the end → wrap to 0.
+        // Bas en fin de liste → bouclage vers 0.
         assertEquals(0, controller.cycleActiveSignature(1));
         assertEquals(0, controller.getEffectiveActiveSignature());
     }
@@ -214,10 +213,10 @@ class SignatureHelpControllerTest {
         var controller = new SignatureHelpController((o, c) -> buildOverloads(3));
         controller.resolve("foo(", 4);
         assertEquals(0, controller.getEffectiveActiveSignature());
-        // Up at 0 → wrap to 2.
+        // Haut sur 0 → bouclage vers 2.
         assertEquals(2, controller.cycleActiveSignature(-1));
         assertEquals(2, controller.getEffectiveActiveSignature());
-        // Up → 1.
+        // Haut → 1.
         assertEquals(1, controller.cycleActiveSignature(-1));
         assertEquals(1, controller.getEffectiveActiveSignature());
     }
@@ -226,27 +225,27 @@ class SignatureHelpControllerTest {
     void cycleActiveSignature_singleOverload_isNoOp() {
         var controller = new SignatureHelpController((o, c) -> buildOverloads(1));
         controller.resolve("foo(", 4);
-        // Only one signature → cycle returns 0 (no change).
+        // Une seule signature → cycle renvoie 0 (aucun changement).
         assertEquals(0, controller.cycleActiveSignature(1));
         assertEquals(0, controller.getEffectiveActiveSignature());
-        // Override is NOT set for single-sig case (cycle returns 0 but
-        // doesn't bother writing the override — it's a no-op).
+        // La surcharge utilisateur n'est PAS posée dans le cas d'une signature unique
+        // (cycle renvoie 0 mais n'écrit pas la surcharge — c'est un no-op).
         assertEquals(-1, controller.getUserOverrideActiveSignature());
     }
 
     @Test
     void cycleActiveSignature_overridePersistsAcrossResolveWithinSameCall() {
-        // Server returns 3 overloads and always says activeSignature=0
-        // (its own "best guess" — but the user has cycled to 1).
+        // Le serveur renvoie 3 surcharges et dit toujours activeSignature=0
+        // (sa « meilleure estimation » — mais l'utilisateur a cyclé jusqu'à 1).
         var controller = new SignatureHelpController((o, c) -> buildOverloads(3));
         controller.resolve("foo(", 4);
-        // User presses Down once → override = 1.
+        // L'utilisateur appuie une fois sur Bas → surcharge = 1.
         controller.cycleActiveSignature(1);
         assertEquals(1, controller.getEffectiveActiveSignature());
-        // User types another character → resolve fires again within
-        // the same call (callOpen stays the same).
+        // L'utilisateur saisit un autre caractère → resolve se redéclenche dans
+        // le même appel (callOpen reste identique).
         controller.resolve("foo(a", 5);
-        // Override persists — the popup stays on overload 1.
+        // La surcharge persiste — le popup reste sur la surcharge 1.
         assertEquals(1, controller.getEffectiveActiveSignature());
         assertEquals(1, controller.getUserOverrideActiveSignature());
     }
@@ -254,13 +253,13 @@ class SignatureHelpControllerTest {
     @Test
     void cycleActiveSignature_overrideClearsWhenMovingToDifferentCall() {
         var controller = new SignatureHelpController((o, c) -> buildOverloads(3));
-        // First call at callOpen=3.
+        // Premier appel à callOpen=3.
         controller.resolve("foo(", 4);
         controller.cycleActiveSignature(1);
         assertEquals(1, controller.getEffectiveActiveSignature());
-        // Move to a different call (bar — callOpen=8).
+        // Passe à un appel différent (bar — callOpen=8).
         controller.resolve("foo(); bar(", 12);
-        // Override is cleared — server's 0 takes over again.
+        // La surcharge est effacée — le 0 du serveur reprend la main.
         assertEquals(-1, controller.getUserOverrideActiveSignature());
         assertEquals(0, controller.getEffectiveActiveSignature());
     }
@@ -269,11 +268,11 @@ class SignatureHelpControllerTest {
     void cycleActiveSignature_overrideClearsWhenLeavingCall() {
         var controller = new SignatureHelpController((o, c) -> buildOverloads(3));
         controller.resolve("foo(", 4);
-        controller.cycleActiveSignature(2); // jump to last overload
+        controller.cycleActiveSignature(2); // saute à la dernière surcharge
         assertEquals(2, controller.getEffectiveActiveSignature());
-        // Move caret out of any call.
+        // Déplace le caret hors de tout appel.
         controller.resolve("foo(); ", 7);
-        // No help → effective returns -1, override cleared.
+        // Plus d'aide → l'effectif renvoie -1, surcharge effacée.
         assertNull(controller.getHelp());
         assertEquals(-1, controller.getEffectiveActiveSignature());
         assertEquals(-1, controller.getUserOverrideActiveSignature());
@@ -285,10 +284,10 @@ class SignatureHelpControllerTest {
         controller.resolve("foo(", 4);
         controller.setUserActiveSignature(2);
         assertEquals(2, controller.getEffectiveActiveSignature());
-        // -1 clears the override.
+        // -1 efface la surcharge.
         controller.setUserActiveSignature(-1);
         assertEquals(0, controller.getEffectiveActiveSignature());
-        // Negative values clamp to -1.
+        // Les valeurs négatives sont ramenées à -1.
         controller.setUserActiveSignature(-5);
         assertEquals(-1, controller.getUserOverrideActiveSignature());
     }

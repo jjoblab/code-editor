@@ -9,20 +9,21 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * v3.36.0 — Immutable description of a language (roadmap item 7, port of
- * CodeAssist v3.20's {@code EditorLanguageProfile}).
+ * Description immuable d'un langage (portage du
+ * {@code EditorLanguageProfile} de CodeAssist).
  *
- * <p>A profile bundles everything the editor needs to know about a language
- * beyond the intelligence SPI ({@code jo.codeeditor.lang.Language}): the
- * ids it answers to (canonical name + aliases), the file extensions it
- * covers, its keyword set, its lexical {@link SyntaxFamily} (which selects
- * the built-in tokenizer) and its {@link CommentSyntax} (which drives
- * {@code toggleLineComment}/{@code toggleBlockComment}).</p>
+ * <p>Un profil regroupe tout ce que l'éditeur doit savoir d'un langage
+ * au-delà du SPI d'intelligence ({@code jo.codeeditor.lang.Language}) :
+ * les ids auxquels il répond (nom canonique + alias), les extensions de
+ * fichiers couvertes, son ensemble de mots-clés, sa {@link SyntaxFamily}
+ * lexicale (qui sélectionne le tokenizer intégré) et sa
+ * {@link CommentSyntax} (qui pilote {@code toggleLineComment}/
+ * {@code toggleBlockComment}).</p>
  *
- * <p>Profiles are registered in the {@link LanguageRegistry}. Hosts can
- * register their own languages — including languages the editor has never
- * heard of — and the highlighter + comment toggles pick them up
- * automatically:</p>
+ * <p>Les profils sont enregistrés dans le {@link LanguageRegistry}. Les
+ * hôtes peuvent enregistrer leurs propres langages — y compris des
+ * langages inconnus de l'éditeur — et le highlighter + les bascules de
+ * commentaire les prennent en compte automatiquement :</p>
  *
  * <pre>{@code
  * LanguageProfile custom = LanguageProfile.builder("mylang")
@@ -36,23 +37,21 @@ import java.util.Set;
  * editorSession.setLanguage("mylang");
  * }</pre>
  *
- * <p>Instances are immutable and thread-safe.</p>
- *
- * @since v3.36.0
+ * <p>Les instances sont immuables et thread-safe.</p>
  */
 public final class LanguageProfile {
 
-    /** Canonical, lowercase id (e.g. {@code "python"}). */
+    /** Id canonique en minuscules (ex. {@code "python"}). */
     public final String name;
-    /** Which built-in tokenizer handles this language. */
+    /** Tokenizer intégré qui gère ce langage. */
     public final SyntaxFamily family;
-    /** Additional lowercase ids this profile answers to (e.g. {@code "py"}). */
+    /** Ids minuscules supplémentaires auxquels ce profil répond (ex. {@code "py"}). */
     public final Set<String> aliases;
-    /** Lowercase file extensions without the dot (e.g. {@code "py"}). */
+    /** Extensions de fichiers en minuscules sans le point (ex. {@code "py"}). */
     public final Set<String> extensions;
-    /** Keyword set consumed by the C-like tokenizer (may be empty). */
+    /** Ensemble de mots-clés consommé par le tokenizer C-like (peut être vide). */
     public final Set<String> keywords;
-    /** Comment syntax used by the comment toggles (never null). */
+    /** Syntaxe de commentaire utilisée par les bascules de commentaire (jamais null). */
     public final CommentSyntax commentSyntax;
 
     private LanguageProfile(String name, SyntaxFamily family,
@@ -66,12 +65,12 @@ public final class LanguageProfile {
         this.commentSyntax = commentSyntax;
     }
 
-    /** Fluent builder — see the class javadoc for a usage example. */
+    /** Builder fluent — voir la javadoc de la classe pour un exemple d'utilisation. */
     public static Builder builder(String name) {
         return new Builder(name);
     }
 
-    /** True when {@code id} is the canonical name or one of the aliases. */
+    /** true quand {@code id} est le nom canonique ou un des alias. */
     public boolean answersTo(String id) {
         if (id == null) return false;
         String norm = id.trim().toLowerCase(Locale.ROOT);
@@ -96,7 +95,7 @@ public final class LanguageProfile {
                 + ", aliases=" + aliases + ")";
     }
 
-    /** Builder for {@link LanguageProfile}. */
+    /** Builder pour {@link LanguageProfile}. */
     public static final class Builder {
         private final String name;
         private final Set<String> aliases = new HashSet<>();
@@ -126,7 +125,7 @@ public final class LanguageProfile {
             for (String v : exts) {
                 if (v == null) continue;
                 String n = v.trim().toLowerCase(Locale.ROOT);
-                if (n.startsWith(".")) n = n.substring(1); // tolerate dotted input
+                if (n.startsWith(".")) n = n.substring(1); // tolère une entrée avec point
                 if (!n.isEmpty()) extensions.add(n);
             }
             return this;

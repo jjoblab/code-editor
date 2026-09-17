@@ -6,49 +6,47 @@ import jo.codeeditor.shift.DiagnosticShift;
 import java.util.List;
 
 /**
- * v3.36.0 — Popup anchor geometry extracted from EditorView (roadmap item
- * 11: "poursuite du démantèlement d'EditorView — extraire
- * metrics/scroll-state/popup-anchors vers les managers").
+ * Géométrie d'ancrage des popups, extraite d'EditorView.
  *
- * <p>This class owns every PURE GEOMETRY computation for the editor's
- * canvas-drawn popups — the shared "single source of truth" consumed by
- * BOTH the draw pass ({@code EditorRenderer}) and the tap hit-tests
- * ({@code EditorInputHandler}):</p>
+ * <p>Cette classe possède toutes les computations de GÉOMÉTRIE PURE pour
+ * les popups dessinés sur le canvas de l'éditeur — la « source de vérité »
+ * unique partagée par la passe de dessin ({@code EditorRenderer}) ET les
+ * tests de touche ({@code EditorInputHandler}) :</p>
  * <ul>
- *   <li>{@link #diagnosticSheetMetrics(EditorView)} — the per-diagnostic
- *       detail sheet (v2.31);</li>
- *   <li>{@link #diagnosticListSheetMetrics(EditorView)} — the grouped
- *       per-line sheet (v3.36.0, roadmap item 5);</li>
+ *   <li>{@link #diagnosticSheetMetrics(EditorView)} — la fiche détaillée
+ *       par diagnostic ;</li>
+ *   <li>{@link #diagnosticListSheetMetrics(EditorView)} — la fiche groupée
+ *       par ligne ;</li>
  *   <li>{@link #diagnosticChipMetrics(EditorView, DiagnosticShift.Diagnostic, int, int)}
- *       — the diagnostic chip pill (+ count badge);</li>
- *   <li>{@link #selectionToolbarMetrics(EditorView)} — the floating
- *       selection toolbar (v2.34);</li>
- *   <li>{@link #navMenuMetrics(EditorView)} — the unified context menu
- *       (v2.36);</li>
- *   <li>{@link #countWrappedLines(EditorView, String, float)} — shared
- *       word-wrap line counter.</li>
+ *       — la pill de diagnostic (+ badge de comptage) ;</li>
+ *   <li>{@link #selectionToolbarMetrics(EditorView)} — la toolbar flottante
+ *       de sélection ;</li>
+ *   <li>{@link #navMenuMetrics(EditorView)} — le menu contextuel unifié ;</li>
+ *   <li>{@link #hitTestToolbarIcons(EditorView, float, float)} — le hit-test
+ *       des icônes de toolbar (A+, A−, ¶, lig) ;</li>
+ *   <li>{@link #countWrappedLines(EditorView, String, float)} — compteur
+ *       partagé de retour à la ligne.</li>
  * </ul>
  *
- * <p>EditorView keeps thin delegating wrappers with the historical
- * signatures (renderer, input handler and tests are unchanged); the
- * bodies now live here. All methods are static and read the view's
- * package-private state through the {@code view} reference — same access
- * pattern as the other v3.x manager classes.</p>
- *
- * @since v3.36.0
+ * <p>EditorView conserve de fins wrappers délégants avec les signatures
+ * historiques (renderer, input handler et tests inchangés) ; les corps
+ * vivent désormais ici. Toutes les méthodes sont statiques et lisent l'état
+ * package-private de la vue via la référence {@code view} — même motif
+ * d'accès que les autres classes manager.</p>
  */
 final class EditorPopupAnchors {
 
     private EditorPopupAnchors() {}
 
     // ════════════════════════════════════════════════════════════════
-    // Shared word-wrap counter
+    // Compteur de retour à la ligne partagé
     // ════════════════════════════════════════════════════════════════
 
     /**
-     * v2.31: Word-wraps {@code msg} with the diagnostic-sheet text paint and
-     * returns the number of visual lines (min 1). Used by BOTH the draw pass
-     * and the hit-test so they always agree on the panel height.
+     * Effectue le retour à la ligne automatique de {@code msg} avec le paint
+     * texte de la fiche de diagnostic et renvoie le nombre de lignes visuelles
+     * (min 1). Utilisé par la passe de dessin ET le hit-test afin qu'ils
+     * s'accordent toujours sur la hauteur du panneau.
      */
     static int countWrappedLines(EditorView view, String msg, float maxW) {
         if (msg == null || msg.isEmpty()) return 1;
@@ -67,13 +65,13 @@ final class EditorPopupAnchors {
     }
 
     // ════════════════════════════════════════════════════════════════
-    // Diagnostic detail sheet (v2.31)
+    // Fiche détaillée de diagnostic
     // ════════════════════════════════════════════════════════════════
 
     /**
-     * v2.31: Shared geometry of the diagnostic sheet (the CodeAssist
-     * DiagnosticSheet port). Returns {@code null} when nothing is showing,
-     * else {@code [panelTop, panelBottom, actionStartY, actionRowH,
+     * Géométrie partagée de la fiche de diagnostic (portage du DiagnosticSheet
+     * de CodeAssist). Renvoie {@code null} quand rien n'est affiché, sinon
+     * {@code [panelTop, panelBottom, actionStartY, actionRowH,
      * closeCx, closeCy, closeR]}.
      */
     static float[] diagnosticSheetMetrics(EditorView view) {
@@ -108,13 +106,13 @@ final class EditorPopupAnchors {
     }
 
     // ════════════════════════════════════════════════════════════════
-    // Grouped diagnostic list sheet (v3.36.0, roadmap item 5)
+    // Fiche de liste des diagnostics groupés par ligne
     // ════════════════════════════════════════════════════════════════
 
     /**
-     * v3.36.0 (roadmap item 5): shared geometry of the GROUPED diagnostic
-     * sheet. Returns null when hidden or its line has no diagnostics left,
-     * else {@code [panelTop, panelBottom, headerH, rowH, rowCount, moreRow,
+     * Géométrie partagée de la fiche des diagnostics GROUPÉS. Renvoie null
+     * quand elle est masquée ou que sa ligne n'a plus de diagnostics, sinon
+     * {@code [panelTop, panelBottom, headerH, rowH, rowCount, moreRow,
      * closeCx, closeCy, closeR]}.
      */
     static float[] diagnosticListSheetMetrics(EditorView view) {
@@ -136,19 +134,19 @@ final class EditorPopupAnchors {
     }
 
     // ════════════════════════════════════════════════════════════════
-    // Diagnostic chip (v2.31 + v3.36.0 count badge)
+    // Chip de diagnostic (+ badge de comptage)
     // ════════════════════════════════════════════════════════════════
 
     /**
-     * v2.31: The diagnostic CHIP pill geometry for {@code d} on {@code line}
-     * (CodeAssist DiagnosticChip port). Returns {@code [x, y, w, h, iconR,
-     * iconGap, padX, badgeD, badgeGap]} or null when the pill would be fully
-     * off-screen. Single source of truth for the draw pass and the tap
-     * hit-test.
+     * Géométrie de la pill (chip) de diagnostic pour {@code d} sur
+     * {@code line} (portage du DiagnosticChip de CodeAssist). Renvoie
+     * {@code [x, y, w, h, iconR, iconGap, padX, badgeD, badgeGap]} ou null
+     * quand la pill serait entièrement hors écran. Source unique de vérité
+     * pour la passe de dessin et le hit-test.
      *
-     * <p>v3.36.0 (roadmap item 5): {@code badgeCount > 1} appends a count
-     * badge at the right end of the pill — its width is included in
-     * {@code w} so the hit-test matches what is drawn.</p>
+     * <p>Quand {@code badgeCount > 1}, un badge de comptage est ajouté à
+     * l'extrémité droite de la pill — sa largeur est incluse dans {@code w}
+     * afin que le hit-test corresponde à ce qui est dessiné.</p>
      */
     static float[] diagnosticChipMetrics(EditorView view,
             DiagnosticShift.Diagnostic d, int line, int badgeCount) {
@@ -162,7 +160,7 @@ final class EditorPopupAnchors {
         float chipX;
         float y;
         if (view.wordWrap && view.wrapModel != null) {
-            // ★ v2.33 — CodeAssist DiagnosticChipsLayer : la chip se place
+            // ★ CodeAssist DiagnosticChipsLayer : la chip se place
             // après la FIN de la DERNIÈRE rangée repliée (lastSub), pas sur
             // la première ni à la longueur NON repliée.
             EditorView.WrapRows wr = view.wrapRowsFor(line, lineLen);
@@ -182,7 +180,8 @@ final class EditorPopupAnchors {
             }
             y = view.docLineToY(line) + lastRow * lineHeight - view.vOffset;
         } else {
-            // Inlay-aware visual line length so the chip never covers a hint.
+            // Longueur visuelle tenant compte des inlays pour que la chip
+            // ne recouvre jamais un hint.
             int visualLen = view.visualColFor(line, lineLen);
             chipX = view.metrics.getGutterWidth() + view.metrics.getPadLeft()
                     + visualLen * charWidth - view.hOffset
@@ -190,16 +189,18 @@ final class EditorPopupAnchors {
             y = view.docLineToY(line) - view.vOffset;
         }
         if (y + lineHeight < 0 || y > view.getHeight()) return null;
-        // Content-sized pill height (~1.24em, CodeAssist) centred in the row.
+        // Hauteur de pill dimensionnée au contenu (~1.24em, CodeAssist)
+        // centrée dans la rangée.
         float pillH = view.metrics.getTextSize() * 1.25f;
         float pillY = y + (lineHeight - pillH) * 0.5f;
-        // v3.36.0 — count badge geometry (roadmap item 5): filled circle of
-        // pill height × 0.82 + 4dp gap, only when the line carries more
-        // than one Error/Warning.
+        // Géométrie du badge de comptage : cercle plein de hauteur pill
+        // × 0.82 + écart de 4dp, uniquement quand la ligne porte plus d'un
+        // Error/Warning.
         boolean badge = badgeCount > 1;
         float badgeD = badge ? pillH * 0.82f : 0f;
         float badgeGap = badge ? 4 * density : 0f;
-        // Message truncated with an ellipsis so the pill fits the viewport.
+        // Message tronqué avec une ellipse pour que la pill tienne dans le
+        // viewport.
         view.textPaint.setTypeface(view.metrics.getTypeface());
         view.textPaint.setTextSize(view.metrics.getTextSize());
         view.textPaint.setFakeBoldText(true);
@@ -219,23 +220,23 @@ final class EditorPopupAnchors {
         float textW = view.textPaint.measureText(label);
         float pillW = padX + iconR * 2 + iconGap + textW
                 + (badge ? badgeGap + badgeD : 0f) + padX;
-        if (chipX + pillW < view.metrics.getGutterWidth()) return null; // fully under the gutter
+        if (chipX + pillW < view.metrics.getGutterWidth()) return null; // entièrement sous le gutter
         return new float[]{chipX, pillY, pillW, pillH, iconR, iconGap, padX, badgeD, badgeGap};
     }
 
-    /** v2.31 signature (no badge) — kept for existing callers and tests. */
+    /** Signature historique sans badge — conservée pour les appelants et tests existants. */
     static float[] diagnosticChipMetrics(EditorView view,
             DiagnosticShift.Diagnostic d, int line) {
         return diagnosticChipMetrics(view, d, line, 0);
     }
 
     // ════════════════════════════════════════════════════════════════
-    // Selection toolbar (v2.34)
+    // Toolbar de sélection
     // ════════════════════════════════════════════════════════════════
 
     /**
-     * v2.34 — géométrie partagée + liste d'actions de la toolbar flottante
-     * de sélection (portage {@code SelectionToolbar} de CodeAssist). SOURCE
+     * Géométrie partagée + liste d'actions de la toolbar flottante de
+     * sélection (portage {@code SelectionToolbar} de CodeAssist). SOURCE
      * UNIQUE de vérité pour le rendu ET le hit-test.
      */
     static SelectionToolbarMetrics selectionToolbarMetrics(EditorView view) {
@@ -258,7 +259,7 @@ final class EditorPopupAnchors {
         m.btnGap = 2 * density;
         m.h = 14 * density + 2 * m.padY;
         m.radius = m.h * 0.5f;
-        float iconW = 32 * density; // 16dp icon + 2×8dp padding
+        float iconW = 32 * density; // icône 16dp + padding 2×8dp
 
         if (hasSelection) {
             m.addText(EditorView.SEL_ACT_COPY, "Copy", view.textPaint.measureText("Copy"));
@@ -309,9 +310,9 @@ final class EditorPopupAnchors {
     }
 
     /**
-     * v2.34 — géométrie de la toolbar de sélection : la pill + les items
-     * actionnables (texte ou icône) + les positions des dividers. Consommée
-     * par le rendu et le hit-test (une seule source de layout).
+     * Géométrie de la toolbar de sélection : la pill + les items actionnables
+     * (texte ou icône) + les positions des dividers. Consommée par le rendu et
+     * le hit-test (une seule source de layout).
      */
     static final class SelectionToolbarMetrics {
         float x, y;                       // coin haut-gauche de la pill
@@ -360,7 +361,7 @@ final class EditorPopupAnchors {
             }
         }
 
-        /** True si (x, y) est dans la pill (le geste y est englouti). */
+        /** Vrai si (x, y) est dans la pill (le geste y est englouti). */
         boolean contains(float px, float py) {
             return px >= x && px <= x + w && py >= y && py <= y + h;
         }
@@ -385,10 +386,10 @@ final class EditorPopupAnchors {
     }
 
     // ════════════════════════════════════════════════════════════════
-    // NavMenu (v2.36)
+    // Menu contextuel unifié (NavMenu)
     // ════════════════════════════════════════════════════════════════
 
-    /** v2.36 — géométrie du menu contextuel unifié : {@code [x, y, w, h]}. */
+    /** Géométrie du menu contextuel unifié : {@code [x, y, w, h]}. */
     static float[] navMenuMetrics(EditorView view) {
         if (!view.navMenuVisible || view.navMenuLine < 0) return null;
         float density = view.getResources().getDisplayMetrics().density;
@@ -418,5 +419,34 @@ final class EditorPopupAnchors {
         }
         if (y < EditorView.NAV_MENU_MARGIN_DP * density) y = EditorView.NAV_MENU_MARGIN_DP * density;
         return new float[]{x, y, w, h};
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    // Icônes de toolbar (A+, A−, ¶, lig)
+    // ════════════════════════════════════════════════════════════════
+
+    /**
+     * Test de toucher des icônes de toolbar (A+, A-, ¶, lig) en haut à
+     * droite. Retourne : 0=aucun toucher, 1=A+, 2=A-, 3=¶ (non
+     * imprimables), 4=lig (ligatures).
+     */
+    static int hitTestToolbarIcons(EditorView view, float x, float y) {
+        float density = view.getResources().getDisplayMetrics().density;
+        float iconSize = EditorPreviewController.PREVIEW_ICON_SIZE_DP * density;
+        float margin = EditorPreviewController.PREVIEW_ICON_MARGIN_DP * density;
+        float iconY = margin;
+        // Disposition de droite à gauche : [lig] [¶] [A-] [A+]
+        float startX = view.getWidth() - margin;
+        float ligX = startX - iconSize;
+        float npX = ligX - iconSize - margin * 0.5f;
+        float aMinusX = npX - iconSize - margin * 0.5f;
+        float aPlusX = aMinusX - iconSize - margin * 0.5f;
+        if (y >= iconY && y <= iconY + iconSize) {
+            if (x >= aPlusX && x <= aPlusX + iconSize) return 1;
+            if (x >= aMinusX && x <= aMinusX + iconSize) return 2;
+            if (x >= npX && x <= npX + iconSize) return 3;
+            if (x >= ligX && x <= ligX + iconSize) return 4;
+        }
+        return 0;
     }
 }

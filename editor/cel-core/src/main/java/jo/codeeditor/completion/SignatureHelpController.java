@@ -3,20 +3,18 @@ package jo.codeeditor.completion;
 import java.util.*;
 
 /**
- * Parameter info popup controller.
- * Shows function signature help when the caret is inside a function call.
- * Supports explicit trigger (Ctrl+P), automatic resolution on caret move,
- * and dismissal per call.
- * Ported from CodeAssist SignatureHelpController.kt.
- 
- *
- * @since v1.0.7
-*/
+ * Contrôleur du popup d'info paramètres.
+ * Affiche l'aide de signature de fonction quand le caret est à
+ * l'intérieur d'un appel de fonction. Gère le déclenchement explicite
+ * (Ctrl+P), la résolution automatique au déplacement du caret, et le
+ * rejet par appel.
+ * Reprend le design du {@code SignatureHelpController.kt} de CodeAssist.
+ */
 public class SignatureHelpController {
 
-    // ── Data types ────────────────────────────────────────────────
+    // ── Types de données ──────────────────────────────────────────
 
-    /** A single parameter in a signature. */
+    /** Un paramètre d'une signature. */
     public static final class Parameter {
         public final String label;
         public final String documentation;
@@ -32,7 +30,7 @@ public class SignatureHelpController {
         }
     }
 
-    /** A function signature with its parameters. */
+    /** Une signature de fonction avec ses paramètres. */
     public static final class Signature {
         public final String label;
         public final String documentation;
@@ -52,7 +50,7 @@ public class SignatureHelpController {
         }
     }
 
-    /** Full signature help response. */
+    /** Réponse complète d'aide de signature. */
     public static final class SignatureHelp {
         public final List<Signature> signatures;
         public final int activeSignature;
@@ -64,7 +62,7 @@ public class SignatureHelpController {
             this.activeParameter = activeParameter;
         }
 
-        /** Returns the currently active signature. */
+        /** Renvoie la signature active courante. */
         public Signature getActiveSignature() {
             if (signatures.isEmpty()) return null;
             int idx = Math.min(activeSignature, signatures.size() - 1);
@@ -77,53 +75,55 @@ public class SignatureHelpController {
         }
     }
 
-    // ── State ─────────────────────────────────────────────────────
+    // ── État ───────────────────────────────────────────────────────
 
-    /** Current signature help or null. */
+    /** Aide de signature courante ou null. */
     private SignatureHelp help;
 
-    /** Whether the user dismissed the popup for the current call. */
+    /** Indique si l'utilisateur a rejeté le popup pour l'appel courant. */
     private boolean dismissed = false;
 
     /**
-     * v2.39: User-chosen active signature override. When {@code >= 0},
-     * the renderer uses this index instead of {@link SignatureHelp#activeSignature}.
+     * Override de la signature active choisie par l'utilisateur.
+     * Quand {@code >= 0}, le renderer utilise cet index au lieu de
+     * {@link SignatureHelp#activeSignature}.
      *
-     * <p>This is what makes Up/Down keyboard navigation between overloads
-     * work: the LSP server returns its "best guess" activeSignature in
-     * each response, but the user can switch overloads manually. We
-     * persist the override across {@link #resolve(CharSequence, int)}
-     * refreshes within the same call so the chosen overload doesn't
-     * "snap back" to the server's preference while the user is typing.
+     * <p>C'est ce qui permet la navigation clavier Haut/Bas entre les
+     * surcharges : le serveur LSP renvoie son « meilleur guess »
+     * d'activeSignature dans chaque réponse, mais l'utilisateur peut
+     * changer de surcharge manuellement. L'override est conservé à
+     * travers les rafraîchissements de {@link #resolve(CharSequence, int)}
+     * au sein du même appel, pour que la surcharge choisie ne « retombe »
+     * pas sur la préférence du serveur pendant que l'utilisateur tape.
      *
-     * <p>Reset to {@code -1} when the call boundary changes (new
-     * opening paren) or in {@link #reset()}.
+     * <p>Remis à {@code -1} quand la frontière de l'appel change
+     * (nouvelle parenthèse ouvrante) ou dans {@link #reset()}.
      */
     private int userOverrideActiveSignature = -1;
 
-    /** Epoch counter to avoid stale results. */
+    /** Compteur d'époque pour éviter les résultats périmés. */
     private long epoch = 0;
 
-    /** Listener for resolving signature help. */
+    /** Listener de résolution de l'aide de signature. */
     private Resolver listener;
 
-    /** Last known call open position (for tracking which call we're in). */
+    /** Dernière position connue de la parenthèse ouvrante de l'appel (pour suivre l'appel courant). */
     private int lastCallOpenPos = -1;
 
     /**
-     * Interface for resolving signature help from the language server.
+     * Interface de résolution de l'aide de signature depuis le serveur de langage.
      */
     public interface Resolver {
         /**
-         * Resolve signature help at the given offset.
-         * @param offset caret offset
-         * @param callOpenPos offset of the opening '('
-         * @return signature help, or null
+         * Résout l'aide de signature à l'offset donné.
+         * @param offset offset du caret
+         * @param callOpenPos offset de la '(' ouvrante
+         * @return l'aide de signature, ou null
          */
         SignatureHelp resolve(int offset, int callOpenPos);
     }
 
-    // ── Constructors ──────────────────────────────────────────────
+    // ── Constructeurs ─────────────────────────────────────────────
 
     public SignatureHelpController() {
         this(null);
@@ -133,7 +133,7 @@ public class SignatureHelpController {
         this.listener = listener;
     }
 
-    // ── Accessors ─────────────────────────────────────────────────
+    // ── Accesseurs ────────────────────────────────────────────────
 
     public SignatureHelp getHelp() { return help; }
     public boolean isDismissed() { return dismissed; }
@@ -142,16 +142,16 @@ public class SignatureHelpController {
     public void setListener(Resolver listener) { this.listener = listener; }
 
     /**
-     * v2.39: Returns the effective active signature index — the user's
-     * override if set and in range, otherwise the LSP server's
-     * {@link SignatureHelp#activeSignature}.
+     * Renvoie l'index de signature active effectif — l'override de
+     * l'utilisateur s'il est défini et dans les bornes, sinon le
+     * {@link SignatureHelp#activeSignature} du serveur LSP.
      *
-     * <p>Renderers should read this instead of {@code help.activeSignature}
-     * so Up/Down keyboard navigation (see {@link #cycleActiveSignature})
-     * is reflected in the popup.
+     * <p>Les renderers doivent lire ceci au lieu de
+     * {@code help.activeSignature} afin que la navigation clavier
+     * Haut/Bas (voir {@link #cycleActiveSignature}) soit reflétée dans
+     * le popup.
      *
-     * @return the active signature index, or {@code -1} if no help is available
-     * @since v2.39
+     * @return l'index de signature active, ou {@code -1} si aucune aide n'est disponible
      */
     public int getEffectiveActiveSignature() {
         if (help == null || help.signatures.isEmpty()) return -1;
@@ -163,32 +163,32 @@ public class SignatureHelpController {
     }
 
     /**
-     * v2.39: Returns the user-chosen active signature, or {@code -1} if
-     * the user hasn't overridden the server's choice. Useful for tests.
-     *
-     * @since v2.39
+     * Renvoie la signature active choisie par l'utilisateur, ou
+     * {@code -1} si l'utilisateur n'a pas surchargé le choix du serveur.
+     * Utile pour les tests.
      */
     public int getUserOverrideActiveSignature() {
         return userOverrideActiveSignature;
     }
 
     /**
-     * v2.39: Cycles the active signature by {@code +1} or {@code -1},
-     * wrapping around. Used by Up/Down keyboard navigation in the
-     * signature help popup.
+     * Fait cycler la signature active de {@code +1} ou {@code -1},
+     * avec bouclage. Utilisé par la navigation clavier Haut/Bas dans
+     * le popup d'aide de signature.
      *
-     * <p>The override persists across {@link #resolve} refreshes within
-     * the same call (so the chosen overload stays selected while the
-     * user types more arguments) and is reset to {@code -1} when the
-     * caret moves to a different call.
+     * <p>L'override persiste à travers les rafraîchissements de
+     * {@link #resolve} au sein du même appel (la surcharge choisie
+     * reste sélectionnée pendant que l'utilisateur tape d'autres
+     * arguments) et est remis à {@code -1} quand le caret passe à un
+     * autre appel.
      *
-     * <p>No-op if no help is available or only one signature exists.
+     * <p>Sans effet si aucune aide n'est disponible ou s'il n'existe
+     * qu'une seule signature.
      *
-     * @param direction {@code +1} for next overload (Down), {@code -1}
-     *                  for previous overload (Up)
-     * @return the new effective active signature index, or {@code -1}
-     *         if no cycling happened
-     * @since v2.39
+     * @param direction {@code +1} pour la surcharge suivante (Bas),
+     *                  {@code -1} pour la précédente (Haut)
+     * @return le nouvel index de signature active effectif, ou {@code -1}
+     *         si aucun cyclage n'a eu lieu
      */
     public int cycleActiveSignature(int direction) {
         if (help == null || help.signatures.isEmpty()) return -1;
@@ -196,33 +196,33 @@ public class SignatureHelpController {
         if (n == 1) return 0;
         int current = getEffectiveActiveSignature();
         if (current < 0) current = 0;
-        // Wrap around: ((current + direction) % n + n) % n
+        // Bouclage : ((current + direction) % n + n) % n
         int next = ((current + direction) % n + n) % n;
         userOverrideActiveSignature = next;
         return next;
     }
 
     /**
-     * v2.39: Explicitly sets the user's chosen overload index. Used by
-     * tests and programmatic clients (e.g. a "1/3" tab UI in the popup).
+     * Définit explicitement l'index de surcharge choisi par
+     * l'utilisateur. Utilisé par les tests et les clients programmatiques
+     * (ex. une UI d'onglets « 1/3 » dans le popup).
      *
-     * @param idx 0-based signature index, or {@code -1} to clear the
-     *            override and fall back to the server's choice
-     * @since v2.39
+     * @param idx index de signature (base 0), ou {@code -1} pour
+     *            effacer l'override et revenir au choix du serveur
      */
     public void setUserActiveSignature(int idx) {
         if (idx < -1) idx = -1;
         userOverrideActiveSignature = idx;
     }
 
-    // ── Trigger ───────────────────────────────────────────────────
+    // ── Déclenchement ─────────────────────────────────────────────
 
     /**
-     * Force show signature help (Ctrl+P or explicit trigger).
-     * Resets dismissed state and increments epoch.
+     * Force l'affichage de l'aide de signature (Ctrl+P ou déclenchement
+     * explicite). Réinitialise l'état « rejeté » et incrémente l'époque.
      *
-     * @param text   document text
-     * @param caret  current caret offset
+     * @param text   texte du document
+     * @param caret  offset courant du caret
      */
     public void triggerExplicit(CharSequence text, int caret) {
         dismissed = false;
@@ -231,9 +231,9 @@ public class SignatureHelpController {
     }
 
     /**
-     * Dismiss signature help for the current call.
-     * Sets dismissed flag so it won't reappear until the caret
-     * moves to a different call.
+     * Rejette l'aide de signature pour l'appel courant. Positionne le
+     * drapeau « rejeté » pour qu'elle ne réapparaisse pas tant que le
+     * caret ne passe pas à un autre appel.
      */
     public void dismiss() {
         dismissed = true;
@@ -241,42 +241,43 @@ public class SignatureHelpController {
     }
 
     /**
-     * Re-resolve signature help when caret moves.
-     * Only resolves if caret is inside a call and not dismissed
-     * for the current call.
+     * Re-résout l'aide de signature au déplacement du caret.
+     * Ne résout que si le caret est à l'intérieur d'un appel et que le
+     * popup n'a pas été rejeté pour l'appel courant.
      *
-     * <p>v2.39: when the caret moves to a different call (the opening
-     * paren position changes), the user's chosen overload override is
-     * reset so the popup shows the new call's default active signature.
+     * <p>Quand le caret passe à un autre appel (la position de la
+     * parenthèse ouvrante change), l'override de surcharge choisi par
+     * l'utilisateur est réinitialisé pour que le popup affiche la
+     * signature active par défaut du nouvel appel.
      *
-     * @param text   document text
-     * @param caret  current caret offset
+     * @param text   texte du document
+     * @param caret  offset courant du caret
      */
     public void resolve(CharSequence text, int caret) {
-        // Find the enclosing open paren FIRST — even if dismissed, we
-        // need to know whether the caret moved to a different call so
-        // we can reset the dismissed flag.
+        // Trouve la parenthèse ouvrante englobante EN PREMIER — même
+        // rejeté, il faut savoir si le caret est passé à un autre appel
+        // pour pouvoir réinitialiser le drapeau « rejeté ».
         int callOpen = findCallOpen(text, caret);
         if (callOpen < 0) {
             help = null;
             lastCallOpenPos = -1;
-            // v2.39: leaving the call entirely → reset override too.
+            // Quitter complètement l'appel → réinitialise aussi l'override.
             userOverrideActiveSignature = -1;
             return;
         }
 
-        // If we moved to a different call, reset dismissed so the popup
-        // can reappear for the new call.
+        // Si on est passé à un autre appel, réinitialise « rejeté » pour
+        // que le popup puisse réapparaître pour le nouvel appel.
         if (callOpen != lastCallOpenPos) {
             dismissed = false;
             lastCallOpenPos = callOpen;
-            // v2.39: new call → forget the user's previous overload choice.
+            // Nouvel appel → oublie le choix de surcharge précédent de l'utilisateur.
             userOverrideActiveSignature = -1;
         }
 
         if (dismissed) return;
 
-        // Resolve
+        // Résolution
         if (listener != null) {
             epoch++;
             help = listener.resolve(caret, callOpen);
@@ -284,20 +285,20 @@ public class SignatureHelpController {
     }
 
     /**
-     * Cheap gate check: is the caret inside a function call?
-     * Scans backward for an unmatched '('.
+     * Test rapide : le caret est-il à l'intérieur d'un appel de fonction ?
+     * Scanne en arrière une '(' non appariée.
      *
-     * @param chars document text
-     * @param caret current caret offset
-     * @return true if caret is inside a call
+     * @param chars texte du document
+     * @param caret offset courant du caret
+     * @return true si le caret est dans un appel
      */
     public static boolean caretInsideCall(CharSequence chars, int caret) {
         return findCallOpen(chars, caret) >= 0;
     }
 
     /**
-     * Find the position of the unmatched '(' before the caret.
-     * Returns -1 if not inside a call.
+     * Trouve la position de la '(' non appariée avant le caret.
+     * Renvoie -1 si le caret n'est pas dans un appel.
      */
     public static int findCallOpen(CharSequence chars, int caret) {
         int depth = 0;
@@ -309,7 +310,7 @@ public class SignatureHelpController {
                 if (depth == 0) return i;
                 depth--;
             } else if (ch == ';' || ch == '{') {
-                // Stop scanning at statement/block boundaries
+                // Arrête le scan aux frontières d'instruction/bloc
                 break;
             }
         }
@@ -317,13 +318,13 @@ public class SignatureHelpController {
     }
 
     /**
-     * Count the number of commas between the open paren and the caret
-     * to determine the active parameter index.
+     * Compte le nombre de virgules entre la parenthèse ouvrante et le
+     * caret pour déterminer l'index du paramètre actif.
      *
-     * @param chars    document text
-     * @param callOpen position of the '('
-     * @param caret    current caret offset
-     * @return parameter index (0-based)
+     * @param chars    texte du document
+     * @param callOpen position de la '('
+     * @param caret    offset courant du caret
+     * @return index du paramètre (base 0)
      */
     public static int activeParameterIndex(CharSequence chars, int callOpen, int caret) {
         if (callOpen < 0 || caret <= callOpen) return 0;
@@ -340,18 +341,19 @@ public class SignatureHelpController {
         return commas;
     }
 
-    // ── Reset ─────────────────────────────────────────────────────
+    // ── Réinitialisation ──────────────────────────────────────────
 
     /**
-     * Resets all controller state: help, dismissed flag, epoch,
-     * last-call-open position, and (v2.39) the user's overload override.
+     * Réinitialise tout l'état du contrôleur : aide, drapeau « rejeté »,
+     * époque, position de la parenthèse ouvrante du dernier appel, et
+     * l'override de surcharge de l'utilisateur.
      */
     public void reset() {
         help = null;
         dismissed = false;
         epoch = 0;
         lastCallOpenPos = -1;
-        // v2.39: clear the overload override too.
+        // Efface aussi l'override de surcharge.
         userOverrideActiveSignature = -1;
     }
 }

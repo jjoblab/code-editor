@@ -3,35 +3,34 @@ package jo.codeeditor.shift;
 import java.util.*;
 
 /**
- * Shifts diagnostic offsets, semantic tokens, fold regions, and inlay hints
- * across text edits. Ported from CodeAssist DiagnosticShift.kt.
+ * Décale les offsets de diagnostics, jetons sémantiques, régions pliables
+ * et inlay hints à travers les éditions de texte. Reprend le design du
+ * {@code DiagnosticShift.kt} de CodeAssist.
  * <p>
- * Uses right-gravity for starts (they move with the edit) and left-gravity
- * for ends (they stay put when at the edit boundary).
- 
- *
- * @since v1.0.0
-*/
+ * Utilise la gravité droite pour les débuts (ils suivent l'édition) et la
+ * gravité gauche pour les fins (ils restent en place à la frontière de
+ * l'édition).
+ */
 public final class DiagnosticShift {
 
     private DiagnosticShift() {}
 
     /**
-     * Recover a minimal EditSpan by comparing old and new text.
-     * Uses common prefix/suffix.
+     * Retrouve un EditSpan minimal en comparant ancien et nouveau texte.
+     * Utilise préfixe/suffixe communs.
      */
     public static EditSpan diffEdit(CharSequence oldText, CharSequence newText) {
         int oldLen = oldText.length();
         int newLen = newText.length();
 
-        // Common prefix
+        // Préfixe commun
         int prefix = 0;
         int maxPrefix = Math.min(oldLen, newLen);
         while (prefix < maxPrefix && oldText.charAt(prefix) == newText.charAt(prefix)) {
             prefix++;
         }
 
-        // Common suffix (not overlapping with prefix)
+        // Suffixe commun (sans chevaucher le préfixe)
         int suffix = 0;
         int maxSuffix = Math.min(oldLen - prefix, newLen - prefix);
         while (suffix < maxSuffix
@@ -46,8 +45,8 @@ public final class DiagnosticShift {
     }
 
     /**
-     * Map a start offset through an edit span (right-gravity).
-     * If offset is at the edit start, it moves with the edit.
+     * Mappe un offset de début à travers un EditSpan (gravité droite).
+     * Si l'offset est au début de l'édition, il suit l'édition.
      */
     public static int mapStart(int offset, EditSpan span) {
         if (offset <= span.start) return offset;
@@ -56,8 +55,8 @@ public final class DiagnosticShift {
     }
 
     /**
-     * Map an end offset through an edit span (left-gravity).
-     * If offset is at the edit end, it stays.
+     * Mappe un offset de fin à travers un EditSpan (gravité gauche).
+     * Si l'offset est à la fin de l'édition, il reste en place.
      */
     public static int mapEnd(int offset, EditSpan span) {
         if (offset < span.start) return offset;
@@ -66,7 +65,7 @@ public final class DiagnosticShift {
     }
 
     /**
-     * Diagnostic with offset info to be shifted.
+     * Diagnostic avec offsets à décaler.
      */
     public static final class Diagnostic {
         public int start;
@@ -83,8 +82,8 @@ public final class DiagnosticShift {
     }
 
     /**
-     * Shift a list of diagnostics across an edit.
-     * Removes diagnostics that collapse to zero length.
+     * Décale une liste de diagnostics à travers une édition.
+     * Supprime les diagnostics réduits à longueur nulle.
      */
     public static List<Diagnostic> shiftDiagnostics(List<Diagnostic> diagnostics, EditSpan span) {
         List<Diagnostic> result = new ArrayList<>();
@@ -99,7 +98,7 @@ public final class DiagnosticShift {
     }
 
     /**
-     * Semantic token with offset info.
+     * Jeton sémantique avec offsets.
      */
     public static final class SemanticToken {
         public int start;
@@ -116,7 +115,7 @@ public final class DiagnosticShift {
     }
 
     /**
-     * Shift semantic tokens across an edit.
+     * Décale les jetons sémantiques à travers une édition.
      */
     public static List<SemanticToken> shiftSemanticTokens(List<SemanticToken> tokens, EditSpan span) {
         List<SemanticToken> result = new ArrayList<>();
@@ -132,18 +131,18 @@ public final class DiagnosticShift {
     }
 
     /**
-     * Fold region with offset info.
+     * Région pliable avec offsets.
      */
     public static final class FoldRegion {
         public int start;
         public int end;
         public final String placeholder;
-        /** Fold kind: "block", "comment", "imports", "region"… (purely informational). */
+        /** Kind de pli : « block », « comment », « imports », « region »… (purement informatif). */
         public final String kind;
-        /** True when the fold is currently collapsed (hidden). */
+        /** true quand le pli est actuellement réduit (masqué). */
         public final boolean collapsed;
         /**
-         * ★ v2.33 — repliée PAR DÉFAUT (CodeAssist {@code collapsedByDefault}) :
+         * Repliée PAR DÉFAUT (CodeAssist {@code collapsedByDefault}) :
          * appliquée UNE SEULE FOIS par document (imports) puis l'état
          * utilisateur l'emporte — cf. {@code EditorSession.applyCodeFolds}.
          */
@@ -158,7 +157,7 @@ public final class DiagnosticShift {
         }
 
         /**
-         * ★ v2.33 — variante complète (collapsedByDefault pour le pliage
+         * Variante complète (collapsedByDefault pour le pliage
          * serveur : groupe d'imports replié à l'ouverture comme
          * CodeAssist/IntelliJ).
          */
@@ -174,7 +173,7 @@ public final class DiagnosticShift {
     }
 
     /**
-     * Shift fold regions across an edit.
+     * Décale les régions pliables à travers une édition.
      */
     public static List<FoldRegion> shiftFoldRegions(List<FoldRegion> regions, EditSpan span) {
         List<FoldRegion> result = new ArrayList<>();
@@ -189,7 +188,7 @@ public final class DiagnosticShift {
     }
 
     /**
-     * Inlay hint with offset info.
+     * Inlay hint avec offset.
      */
     public static final class InlayHint {
         public int offset;
@@ -204,7 +203,7 @@ public final class DiagnosticShift {
     }
 
     /**
-     * Shift inlay hints across an edit.
+     * Décale les inlay hints à travers une édition.
      */
     public static List<InlayHint> shiftInlayHints(List<InlayHint> hints, EditSpan span) {
         List<InlayHint> result = new ArrayList<>();

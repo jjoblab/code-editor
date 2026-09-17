@@ -1,14 +1,11 @@
 package jo.codeeditor.document;
 
 /**
- * Represents a text selection with start and end offsets.
+ * Représente une sélection de texte avec offsets de début et de fin.
  * <p>
- * When start == end, the selection is a cursor (caret) with no selected text.
- * Start is always &lt;= end (normalized).
- 
- *
- * @since v1.0.0
-*/
+ * Quand start == end, la sélection est un curseur (caret) sans texte
+ * sélectionné. Start est toujours &lt;= end (normalisé).
+ */
 public final class Selection {
     public final int start;
     public final int end;
@@ -21,38 +18,38 @@ public final class Selection {
         this.end = Math.max(start, end);
     }
 
-    /** Creates a cursor (no selection) at the given offset. */
+    /** Crée un curseur (sans sélection) à l'offset donné. */
     public static Selection cursor(int offset) {
         return new Selection(offset, offset);
     }
 
-    /** Creates a selection covering [start, end). */
+    /** Crée une sélection couvrant [start, end). */
     public static Selection range(int start, int end) {
         return new Selection(start, end);
     }
 
-    /** Returns true if this is a cursor (no selected text). */
+    /** Renvoie true si c'est un curseur (aucun texte sélectionné). */
     public boolean isCursor() {
         return start == end;
     }
 
-    /** Returns the length of the selection. */
+    /** Renvoie la longueur de la sélection. */
     public int length() {
         return end - start;
     }
 
-    /** Returns a new selection shifted by the given delta. */
+    /** Renvoie une nouvelle sélection décalée du delta donné. */
     public Selection shift(int delta) {
         return new Selection(start + delta, end + delta);
     }
 
     /**
-     * Adjusts this selection after a text replacement.
+     * Ajuste cette sélection après un remplacement de texte.
      *
-     * @param editStart  where the edit began
-     * @param removedLen how many chars were removed
-     * @param insertedLen how many chars were inserted
-     * @return adjusted selection
+     * @param editStart  où l'édition a commencé
+     * @param removedLen nombre de caractères supprimés
+     * @param insertedLen nombre de caractères insérés
+     * @return sélection ajustée
      */
     public Selection adjustForEdit(int editStart, int removedLen, int insertedLen) {
         int delta = insertedLen - removedLen;
@@ -66,7 +63,7 @@ public final class Selection {
             return offset;
         }
         if (offset <= editStart + removedLen) {
-            // Inside the removed range — collapse to edit point
+            // À l'intérieur de la plage supprimée — replié sur le point d'édition
             return editStart + insertedLen;
         }
         return offset + delta;

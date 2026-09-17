@@ -4,18 +4,16 @@ import java.util.*;
 import java.util.regex.*;
 
 /**
- * Find/replace operations supporting case-insensitive, whole-word, and regex modes.
- * Ported from CodeAssist FindReplace.kt.
- 
- *
- * @since v1.0.0
-*/
+ * Opérations de recherche/remplacement gérant les modes insensible à la
+ * casse, mot entier et regex.
+ * Reprend le design du {@code FindReplace.kt} de CodeAssist.
+ */
 public final class FindReplace {
 
     private FindReplace() {}
 
     /**
-     * Find all matches of query in text.
+     * Trouve toutes les occurrences de la requête dans le texte.
      */
     public static List<Match> findMatches(CharSequence text, String query, FindOptions opts) {
         if (query == null || query.isEmpty()) return Collections.emptyList();
@@ -60,7 +58,7 @@ public final class FindReplace {
         while (from <= haystack.length() - needle.length()) {
             int idx = haystack.indexOf(needle, from);
             if (idx < 0) break;
-            // Check word boundaries
+            // Vérifie les frontières de mot
             boolean leftBound = idx == 0 || !Character.isLetterOrDigit(haystack.charAt(idx - 1));
             boolean rightBound = idx + needle.length() >= haystack.length()
                 || !Character.isLetterOrDigit(haystack.charAt(idx + needle.length()));
@@ -81,21 +79,22 @@ public final class FindReplace {
                 out.add(new Match(matcher.start(), matcher.end()));
             }
         } catch (PatternSyntaxException e) {
-            // Invalid regex: return no matches
+            // Regex invalide : aucune correspondance renvoyée
         }
     }
 
     /**
-     * Find the index of the match at or after the given caret position.
-     * Wraps around if no match is found after caret.
+     * Trouve l'index de la correspondance à ou après la position du caret
+     * donnée. Boucle au début si aucune correspondance n'est trouvée après
+     * le caret.
      *
-     * @return match index, or -1 if no matches
+     * @return index de correspondance, ou -1 si aucune
      */
     public static int matchIndexFrom(List<Match> matches, int caret) {
         if (matches.isEmpty()) return -1;
         for (int i = 0; i < matches.size(); i++) {
             if (matches.get(i).start >= caret) return i;
         }
-        return 0; // wrap around
+        return 0; // bouclage
     }
 }

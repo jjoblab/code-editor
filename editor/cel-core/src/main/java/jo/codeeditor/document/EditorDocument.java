@@ -8,16 +8,14 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Line-indexed text model backed by a Rope.
+ * Modèle de texte indexé par ligne, adossé à une Rope.
  * <p>
- * Maintains a parallel array of line start offsets for O(log n) line lookups.
- * The replace() method splices the line index incrementally: reuses the
- * unchanged prefix, scans breaks in the replacement, and shifts the suffix
- * by the edit delta.
- 
- *
- * @since v1.0.0
-*/
+ * Maintient un tableau parallèle d'offsets de début de ligne pour des
+ * recherches de ligne en O(log n). La méthode replace() splice
+ * l'index de lignes de façon incrémentale : réutilise le préfixe
+ * inchangé, scanne les retours à la ligne dans le remplacement, et
+ * décale le suffixe du delta d'édition.
+ */
 public final class EditorDocument {
 
     private Rope rope;
@@ -33,7 +31,7 @@ public final class EditorDocument {
     }
 
     /**
-     * Creates a new EditorDocument from the given text.
+     * Crée un nouvel EditorDocument à partir du texte donné.
      */
     public static EditorDocument of(String text) {
         if (text == null) text = "";
@@ -43,8 +41,8 @@ public final class EditorDocument {
     }
 
     /**
-     * Computes line start offsets for the given text.
-     * lineStarts[0] = 0, and each subsequent entry is the offset after a '\n'.
+     * Calcule les offsets de début de ligne pour le texte donné.
+     * lineStarts[0] = 0, et chaque entrée suivante est l'offset après un '\n'.
      */
     private static int[] computeLineStarts(String text) {
         if (text.isEmpty()) return new int[]{0};
@@ -62,9 +60,9 @@ public final class EditorDocument {
         return result;
     }
 
-    // ── Accessors ─────────────────────────────────────────────────
+    // ── Accesseurs ────────────────────────────────────────────────
 
-    /** Returns the full document text (cached per revision). */
+    /** Renvoie le texte complet du document (mis en cache par révision). */
     public String getText() {
         if (cachedRevision != revision) {
             cachedText = rope.toString();
@@ -73,31 +71,31 @@ public final class EditorDocument {
         return cachedText;
     }
 
-    /** Returns the total number of characters. */
+    /** Renvoie le nombre total de caractères. */
     public int length() {
         return rope.length();
     }
 
-    /** Returns the number of lines. */
+    /** Renvoie le nombre de lignes. */
     public int lineCount() {
         return lineStarts.length;
     }
 
-    /** Returns the character at the given offset. */
+    /** Renvoie le caractère à l'offset donné. */
     public char charAt(int offset) {
         return rope.charAt(offset);
     }
 
-    /** Returns the current revision number. */
+    /** Renvoie le numéro de révision courant. */
     public int getRevision() {
         return revision;
     }
 
-    // ── Line queries ──────────────────────────────────────────────
+    // ── Requêtes de ligne ─────────────────────────────────────────
 
     /**
-     * Returns the line number for the given character offset.
-     * Uses binary search on lineStarts.
+     * Renvoie le numéro de ligne pour l'offset de caractère donné.
+     * Utilise une recherche binaire sur lineStarts.
      */
     public int lineForOffset(int offset) {
         if (offset < 0) return 0;
@@ -116,7 +114,7 @@ public final class EditorDocument {
     }
 
     /**
-     * Returns the start offset of the given line (0-indexed, clamped).
+     * Renvoie l'offset de début de la ligne donnée (index 0, borné).
      */
     public int lineStart(int line) {
         line = clampLine(line);
@@ -124,21 +122,22 @@ public final class EditorDocument {
     }
 
     /**
-     * Returns the end offset of the given line (exclusive, clamped).
-     * This is the offset of the newline character, or the document length
-     * for the last line.
+     * Renvoie l'offset de fin de la ligne donnée (exclusif, borné).
+     * C'est l'offset du caractère de retour à la ligne, ou la longueur
+     * du document pour la dernière ligne.
      */
     public int lineEnd(int line) {
         line = clampLine(line);
         if (line + 1 < lineStarts.length) {
-            // End is just before the next line's start (the '\n')
+            // La fin est juste avant le début de la ligne suivante (le '\n')
             return lineStarts[line + 1] - 1;
         }
         return rope.length();
     }
 
     /**
-     * Returns the text content of the given line (without the trailing newline).
+     * Renvoie le contenu texte de la ligne donnée (sans le retour à la
+     * ligne final).
      */
     public String lineText(int line) {
         int start = lineStart(line);
@@ -154,13 +153,14 @@ public final class EditorDocument {
     // ── Mutation ──────────────────────────────────────────────────
 
     /**
-     * Replaces the text in [start, end) with the given insertion.
-     * Returns a new EditorDocument with the line index spliced incrementally.
+     * Remplace le texte dans [start, end) par l'insertion donnée.
+     * Renvoie un nouvel EditorDocument avec l'index de lignes splice-é
+     * de façon incrémentale.
      *
-     * @param start     start offset (inclusive)
-     * @param end       end offset (exclusive)
-     * @param insertion the replacement text
-     * @return new EditorDocument with the edit applied
+     * @param start     offset de début (inclusif)
+     * @param end       offset de fin (exclusif)
+     * @param insertion le texte de remplacement
+     * @return nouvel EditorDocument avec l'édition appliquée
      */
     public EditorDocument replace(int start, int end, String insertion) {
         if (start < 0 || end > rope.length() || start > end) {
@@ -169,16 +169,16 @@ public final class EditorDocument {
         }
         if (start == end && insertion.isEmpty()) return this;
 
-        // Apply to rope
+        // Applique à la rope
         Rope newRope = rope.replace(start, end, insertion);
 
-        // Incremental line index splice (matches CodeAssist algorithm exactly)
+        // Splice incrémental de l'index de lignes (algorithme identique à CodeAssist)
         int delta = insertion.length() - (end - start);
 
         int firstLine = lineForOffset(start);
         int lastLine = (end > start) ? lineForOffset(end) : firstLine;
 
-        // Count newlines in the replacement
+        // Compte les retours à la ligne dans le remplacement
         int breaks = 0;
         for (int i = 0; i < insertion.length(); i++) {
             if (insertion.charAt(i) == '\n') breaks++;
@@ -187,10 +187,10 @@ public final class EditorDocument {
         int tailCount = lineStarts.length - 1 - lastLine;
         int[] newLineStarts = new int[firstLine + 1 + breaks + tailCount];
 
-        // Unchanged prefix: lineStarts[0..firstLine]
+        // Préfixe inchangé : lineStarts[0..firstLine]
         System.arraycopy(lineStarts, 0, newLineStarts, 0, firstLine + 1);
 
-        // Starts created inside the replacement
+        // Débuts créés à l'intérieur du remplacement
         int w = firstLine + 1;
         for (int i = 0; i < insertion.length(); i++) {
             if (insertion.charAt(i) == '\n') {
@@ -198,7 +198,7 @@ public final class EditorDocument {
             }
         }
 
-        // Shifted suffix: lines after lastLine
+        // Suffixe décalé : lignes après lastLine
         for (int r = lastLine + 1; r < lineStarts.length; r++) {
             newLineStarts[w++] = lineStarts[r] + delta;
         }
@@ -211,14 +211,14 @@ public final class EditorDocument {
         return "EditorDocument(lines=" + lineCount() + ", len=" + length() + ", rev=" + revision + ")";
     }
 
-    // ── Large document check ─────────────────────────────────────
+    // ── Vérification gros document ────────────────────────────────
 
     private static final int CHAR_LIMIT = 2_500_000;
     private static final int LINE_LIMIT = 50_000;
 
     /**
-     * Returns true if this document exceeds the "large" thresholds:
-     * 2.5M characters or 50K lines.
+     * Renvoie true si ce document dépasse les seuils « gros document » :
+     * 2,5 M de caractères ou 50 k lignes.
      */
     public boolean isLarge() {
         return rope.length() > CHAR_LIMIT || lineStarts.length > LINE_LIMIT;

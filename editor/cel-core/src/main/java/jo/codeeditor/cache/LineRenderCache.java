@@ -3,33 +3,30 @@ package jo.codeeditor.cache;
 import java.util.*;
 
 /**
- * Per-line layout/render cache with revision-based invalidation.
- * Supports inlay pieces (phantom text) and semantic spans.
- * Ported from CodeAssist LineRenderCache.kt.
+ * Cache par ligne de layout/rendu avec invalidation par révision.
+ * Gère les inlays (texte fantôme) et les plages sémantiques.
+ * Reprend le design du {@code LineRenderCache.kt} de CodeAssist.
  *
- * <p>v1.0.7 — extended with triple-stamp validation ({@code rev} +
- * {@code inlayRev} + {@code semRev}), an opaque {@code layout} payload
- * (typed by the caller — typically a {@code StyledLine} or a wrapper
- * holding the per-line filtered inlays/sem spans + column maps), a
- * {@code lastUsed} monotonic stamp for LRU, and a hard cap of 512
- * entries with LRU eviction.
+ * <p>Validation par triple tampon ({@code rev} + {@code inlayRev} +
+ * {@code semRev}), payload {@code layout} opaque (typé par l'appelant —
+ * typiquement un {@code StyledLine} ou un wrapper contenant les inlays/
+ * plages sem filtrés par ligne + les maps de colonnes), tampon
+ * {@code lastUsed} monotone pour le LRU, et plafond dur de 512 entrées
+ * avec éviction LRU.
  *
- * <p>Per-line revision stamps (Gap 9b) — a global revision counter
- * would invalidate every cached line on every edit, defeating the
- * cache. The caller bumps a per-line stamp only for the lines that
- * were actually re-tokenized, and the cache validates the entry
- * against the triple (rev, inlayRev, semRev) it was stored with.
- 
- *
- * @since v1.0.7
-*/
+ * <p>Tampons de révision par ligne : un compteur de révision global
+ * invaliderait toutes les lignes en cache à chaque édition, ruinant le
+ * cache. L'appelant n'incrémente le tampon que des lignes réellement
+ * re-tokenisées, et le cache valide l'entrée par rapport au triple
+ * (rev, inlayRev, semRev) avec lequel elle a été stockée.
+ */
 public class LineRenderCache {
 
-    /** Hard cap on cached entries. LRU eviction kicks in above this. */
+    /** Plafond dur du nombre d'entrées en cache. L'éviction LRU s'applique au-delà. */
     public static final int MAX_ENTRIES = 512;
 
     /**
-     * A piece of phantom/inlay text inserted at a column.
+     * Un morceau de texte fantôme/inlay inséré à une colonne.
      */
     public static final class InlayPiece {
         public final int col;
@@ -47,7 +44,7 @@ public class LineRenderCache {
     }
 
     /**
-     * A semantic highlight span.
+     * Une plage de coloration sémantique.
      */
     public static final class SemSpan {
         public final int start;
@@ -67,15 +64,16 @@ public class LineRenderCache {
     }
 
     /**
-     * Cached layout data for a single line.
+     * Données de layout mises en cache pour une ligne.
      *
-     * <p>{@code revision} is the per-line text revision stamp at the time
-     * of caching. {@code inlayRev} / {@code semRev} are the global inlay
-     * hint / semantic token revision stamps at the time of caching.
-     * {@code layout} is an opaque payload set by the caller (e.g. the
-     * view's per-line filtered layout). {@code lastUsed} is bumped on
-     * every {@link #get} hit so the LRU eviction in {@link #put} can
-     * pick the least-recently-used entry.
+     * <p>{@code revision} est le tampon de révision texte de la ligne au
+     * moment de la mise en cache. {@code inlayRev} / {@code semRev} sont
+     * les tampons de révision globaux (hints d'inlay / jetons sémantiques)
+     * au moment de la mise en cache. {@code layout} est un payload opaque
+     * défini par l'appelant (ex. le layout filtré par ligne de la vue).
+     * {@code lastUsed} est incrémenté à chaque hit de {@link #get} afin
+     * que l'éviction LRU de {@link #put} puisse choisir l'entrée la moins
+     * récemment utilisée.
      */
     public static final class LineCacheEntry {
         public final int line;
@@ -84,18 +82,18 @@ public class LineRenderCache {
         public final int semRev;
         public final List<InlayPiece> inlays;
         public final List<SemSpan> semSpans;
-        /** Maps raw column to visual column (accounting for inlays before it). */
+        /** Mappe colonne brute → colonne visuelle (inlays précédents inclus). */
         public final int[] rawToVisual;
-        /** Maps visual column back to raw column. */
+        /** Mappe colonne visuelle → colonne brute. */
         public final int[] visualToRaw;
-        /** Opaque caller-typed payload (e.g. a StyledLine or a wrapper). */
+        /** Payload opaque typé par l'appelant (ex. un StyledLine ou un wrapper). */
         public Object layout;
-        /** Monotonic stamp bumped on every cache hit, used for LRU eviction. */
+        /** Tampon monotone incrémenté à chaque hit de cache, utilisé pour l'éviction LRU. */
         public long lastUsed;
 
         /**
-         * Backward-compatible constructor (v1.0.6) — single text revision,
-         * no inlay/sem stamps, no layout payload.
+         * Constructeur de compatibilité — validation par simple tampon
+         * (révision texte seule), sans tampons inlay/sem ni payload layout.
          */
         public LineCacheEntry(int line, int revision, List<InlayPiece> inlays,
                               List<SemSpan> semSpans, int[] rawToVisual, int[] visualToRaw) {
@@ -103,7 +101,7 @@ public class LineRenderCache {
         }
 
         /**
-         * Full constructor (v1.0.7) — triple-stamp validation + layout payload.
+         * Constructeur complet — validation par triple tampon + payload layout.
          */
         public LineCacheEntry(int line, int revision, int inlayRev, int semRev,
                               List<InlayPiece> inlays, List<SemSpan> semSpans,
@@ -128,26 +126,25 @@ public class LineRenderCache {
         }
     };
     /**
-     * v3.34.0 — Per-line revision stamps stored in PARALLEL PRIMITIVE
-     * ARRAYS instead of {@code HashMap<Integer, Integer>}.
+     * Tampons de révision par ligne stockés dans des TABLEAUX PRIMITIFS
+     * PARALLÈLES plutôt que dans un {@code HashMap<Integer, Integer>}.
      *
-     * <p>Port of the CodeAssist v3.20 {@code LineOverlay<T>} fix (commit
-     * 62f7b7a00): the old implementation re-keyed the maps with
-     * {@code mapKeys{}}-style rebuilds — one full HashMap reallocation
-     * plus Integer boxing for EVERY line — on every line splice, i.e.
-     * on every Enter keypress. CodeAssist measured 0.309 ms + 426 KB of
-     * allocations per newline on a 4000-line file (1 GC every 8 newlines)
-     * and brought it to 0.031 ms / 4.3 KB with two {@code copyInto}
-     * region moves; this port uses {@code System.arraycopy} the same way.
+     * <p>Une réindexation de map (réallocation complète du HashMap + boxing
+     * d'{@code Integer} pour CHAQUE ligne) à chaque splice de lignes —
+     * c.-à-d. à chaque appui sur Entrée — coûterait ~0,31 ms et 426 Ko
+     * d'allocations par nouvelle ligne sur un fichier de 4 000 lignes
+     * (1 GC toutes les 8 lignes), contre ~0,03 ms / 4,3 Ko avec deux
+     * déplacements de région {@code System.arraycopy} comme ici.
      *
-     * <p>Dense-by-line arrays are the right trade here: line numbers are
-     * the index domain, the arrays grow geometrically, and 50k lines of
-     * {@code int[]} is ~400 KB vs several MB of boxed HashMap entries.
+     * <p>Les tableaux denses indexés par ligne sont le bon compromis :
+     * le numéro de ligne est le domaine d'index, la croissance est
+     * géométrique, et 50k lignes d'{@code int[]} occupent ~400 Ko contre
+     * plusieurs Mo d'entrées HashMap boxées.
      */
     private static final class LineOverlay {
-        /** Sentinel for "no revision recorded for this line" — matches the
-         *  old HashMap#getOrDefault(line, -1) semantics for lines that were
-         *  spliced into existence without ever being written. */
+        /** Sentinelle « aucune révision enregistrée pour cette ligne » —
+         *  même sémantique que {@code HashMap#getOrDefault(line, -1)} pour
+         *  les lignes apparues par splice sans jamais avoir été écrites. */
         private static final int ABSENT = Integer.MIN_VALUE;
 
         int[] values = new int[16];
@@ -198,19 +195,20 @@ public class LineRenderCache {
         }
     }
 
-    /** Per-line revision stamps for inlay invalidation (v3.34.0: array-backed). */
+    /** Tampons de révision par ligne pour l'invalidation des inlays (stockés en tableaux primitifs). */
     private final LineOverlay inlayRevisions = new LineOverlay();
-    /** Per-line revision stamps for semantic span invalidation (v3.34.0: array-backed). */
+    /** Tampons de révision par ligne pour l'invalidation des plages sémantiques (stockés en tableaux primitifs). */
     private final LineOverlay semRevisions = new LineOverlay();
-    /** Monotonic counter — every {@link #get} hit bumps this and assigns it
-     *  to the entry's {@code lastUsed}. Used by {@link #evictLru(int)} when
-     *  the {@link LinkedHashMap} hasn't collected the stale entry yet. */
+    /** Compteur monotone — chaque hit de {@link #get} l'incrémente et
+     *  l'affecte au {@code lastUsed} de l'entrée. Utilisé par
+     *  {@link #evictLru(int)} quand la {@link LinkedHashMap} n'a pas
+     *  encore évincé l'entrée périmée. */
     private long clock = 0;
 
     /**
-     * Get a cached line entry, or null if stale/missing. Single-stamp
-     * validation (text revision only) — kept for backward compatibility
-     * with v1.0.6 callers and tests.
+     * Récupère une entrée de ligne en cache, ou null si périmée/absente.
+     * Validation par simple tampon (révision texte seule) — conservée
+     * pour la compatibilité avec les appelants et tests existants.
      */
     public LineCacheEntry get(int line, int currentRevision) {
         LineCacheEntry entry = cache.get(line);
@@ -222,10 +220,11 @@ public class LineRenderCache {
     }
 
     /**
-     * Get a cached line entry, or null if stale/missing. Triple-stamp
-     * validation (text + inlay + sem). Use this in the draw path so a
-     * global inlay/sem update doesn't invalidate every cached line —
-     * only lines whose inlay/sem rev actually changed miss.
+     * Récupère une entrée de ligne en cache, ou null si périmée/absente.
+     * Validation par triple tampon (texte + inlay + sem). À utiliser dans
+     * le chemin de dessin : une mise à jour globale inlay/sem n'invalide
+     * pas toutes les lignes en cache — seules les lignes dont la révision
+     * inlay/sem a réellement changé produisent un miss.
      */
     public LineCacheEntry get(int line, int rev, int inlayRev, int semRev) {
         LineCacheEntry entry = cache.get(line);
@@ -240,28 +239,29 @@ public class LineRenderCache {
     }
 
     /**
-     * Store a line cache entry. Evicts the least-recently-used entry
-     * when the cache exceeds {@link #MAX_ENTRIES}.
+     * Stocke une entrée de cache de ligne. Évict l'entrée la moins
+     * récemment utilisée quand le cache dépasse {@link #MAX_ENTRIES}.
      */
     public void put(LineCacheEntry entry) {
         entry.lastUsed = ++clock;
         cache.put(entry.line, entry);
-        // Defensive eviction — the LinkedHashMap's removeEldestEntry already
-        // caps the size, but LRU semantics depend on access-order which is
-        // only refreshed by get/put. If many entries are inserted without
-        // being read, the eldest is evicted automatically.
+        // Éviction défensive — removeEldestEntry de la LinkedHashMap plafonne
+        // déjà la taille, mais la sémantique LRU repose sur l'ordre d'accès,
+        // rafraîchi uniquement par get/put. Si de nombreuses entrées sont
+        // insérées sans être lues, la plus ancienne est évictée automatiquement.
         if (cache.size() > MAX_ENTRIES) {
             evictLru(MAX_ENTRIES);
         }
     }
 
     /**
-     * Manually evict the oldest entries until the cache fits in {@code cap}.
-     * Public so the host can force a shrink on memory pressure.
+     * Évict manuellement les entrées les plus anciennes jusqu'à ce que le
+     * cache tienne dans {@code cap}. Public pour permettre à l'hôte de
+     * forcer une réduction sous pression mémoire.
      */
     public void evictLru(int cap) {
         if (cache.size() <= cap) return;
-        // Build a list of (line, lastUsed) and sort by lastUsed ascending.
+        // Construit une liste de (line, lastUsed) et trie par lastUsed croissant.
         List<long[]> stamps = new ArrayList<>(cache.size());
         for (Map.Entry<Integer, LineCacheEntry> e : cache.entrySet()) {
             stamps.add(new long[]{e.getKey(), e.getValue().lastUsed});
@@ -274,7 +274,7 @@ public class LineRenderCache {
     }
 
     /**
-     * Invalidate all cached entries from the given line onward.
+     * Invalide toutes les entrées en cache à partir de la ligne donnée.
      */
     public void invalidateFrom(int line) {
         cache.entrySet().removeIf(e -> e.getKey() >= line);
@@ -283,11 +283,11 @@ public class LineRenderCache {
     }
 
     /**
-     * Shift cache keys after a line splice (insertion/deletion).
-     * v3.34.0: the two revision overlays now SPLICE in place via
-     * System.arraycopy (CodeAssist LineOverlay) instead of rebuilding
-     * HashMaps; the bounded 512-entry layout cache still re-keys (a
-     * map cannot splice) but into a pre-sized replacement.
+     * Décale les clés du cache après un splice de lignes (insertion/suppression).
+     * Les deux overlays de révision sont splice-és en place via
+     * System.arraycopy plutôt que reconstruits ; le cache de layout borné
+     * à 512 entrées doit encore être re-clavé (une map ne peut pas se
+     * splicer), mais dans un remplacement pré-dimensionné.
      */
     public void shiftKeys(int fromLine, int delta) {
         if (delta == 0) return;
@@ -306,16 +306,17 @@ public class LineRenderCache {
         cache.clear();
         cache.putAll(newCache);
 
-        // Shift the revision overlays — O(spliced region), zero boxing.
+        // Décale les overlays de révision — O(région splice-ée), zéro boxing.
         inlayRevisions.splice(fromLine, delta);
         semRevisions.splice(fromLine, delta);
     }
 
     /**
-     * Build raw-to-visual and visual-to-raw column maps from inlay pieces.
+     * Construit les maps de colonnes brutes→visuelles et visuelles→brutes
+     * à partir des inlays.
      *
-     * @param lineLength the raw line length
-     * @param inlays     inlay pieces sorted by col
+     * @param lineLength la longueur brute de la ligne
+     * @param inlays     inlays triés par col
      * @return [rawToVisual, visualToRaw]
      */
     public static int[][] buildColumnMaps(int lineLength, List<InlayPiece> inlays) {
@@ -331,12 +332,12 @@ public class LineRenderCache {
             rawToVisual[rawCol] = visCol;
             visualToRaw[visCol] = rawCol;
 
-            // Insert any inlays at this raw col
+            // Insère les inlays éventuels à cette colonne brute
             while (inlayIdx < inlays.size() && inlays.get(inlayIdx).col == rawCol) {
                 for (int j = 0; j < inlays.get(inlayIdx).text.length(); j++) {
                     visCol++;
                     if (visCol < visualToRaw.length) {
-                        visualToRaw[visCol] = rawCol; // maps back to the raw col
+                        visualToRaw[visCol] = rawCol; // remappe vers la colonne brute
                     }
                 }
                 inlayIdx++;
@@ -361,35 +362,35 @@ public class LineRenderCache {
     }
 
     /**
-     * Update the inlay revision for a line.
+     * Met à jour la révision des inlays d'une ligne.
      */
     public void setInlayRevision(int line, int revision) {
         inlayRevisions.put(line, revision);
     }
 
     /**
-     * Get the inlay revision for a line.
+     * Renvoie la révision des inlays d'une ligne.
      */
     public int getInlayRevision(int line) {
         return inlayRevisions.get(line, -1);
     }
 
     /**
-     * Update the semantic spans revision for a line.
+     * Met à jour la révision des plages sémantiques d'une ligne.
      */
     public void setSemRevision(int line, int revision) {
         semRevisions.put(line, revision);
     }
 
     /**
-     * Get the semantic spans revision for a line.
+     * Renvoie la révision des plages sémantiques d'une ligne.
      */
     public int getSemRevision(int line) {
         return semRevisions.get(line, -1);
     }
 
     /**
-     * Clear the entire cache.
+     * Vide tout le cache.
      */
     public void clear() {
         cache.clear();
@@ -398,7 +399,7 @@ public class LineRenderCache {
     }
 
     /**
-     * Returns the number of cached entries.
+     * Renvoie le nombre d'entrées en cache.
      */
     public int size() {
         return cache.size();

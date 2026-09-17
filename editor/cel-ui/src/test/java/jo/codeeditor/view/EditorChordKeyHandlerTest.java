@@ -16,7 +16,7 @@ import java.lang.reflect.Field;
 import static org.junit.Assert.*;
 
 /**
- * v3.37.0 — Tests des chords (séquences à deux touches) dans le
+ * Tests des chords (séquences à deux touches) dans le
  * {@link EditorKeyHandler} : armement du pending, complétion, annulation
  * par Escape, expiration après 2 s, et repli de la touche non-chord sur
  * le dispatch single-key normal.
@@ -28,8 +28,6 @@ import static org.junit.Assert.*;
  *
  * <p>Robolectric est requis pour instancier {@link EditorView} ; les
  * KeyEvent sont construites avec {@link KeyEvent#META_CTRL_ON}.</p>
- *
- * @since v3.37.0
  */
 @RunWith(RobolectricTestRunner.class)
 public class EditorChordKeyHandlerTest {
@@ -45,7 +43,7 @@ public class EditorChordKeyHandlerTest {
         view.setSession(session);
         view.measure(1080, 1920);
         view.layout(0, 0, 1080, 1920);
-        // Inject the deterministic clock into the (private) key handler.
+        // Injecte l'horloge déterministe dans le key handler (privé).
         Field f = EditorView.class.getDeclaredField("keyHandler");
         f.setAccessible(true);
         EditorKeyHandler handler = (EditorKeyHandler) f.get(view);
@@ -61,7 +59,7 @@ public class EditorChordKeyHandlerTest {
         return new KeyEvent(KeyEvent.ACTION_DOWN, keyCode);
     }
 
-    /** Ctrl+K → Ctrl+C = TOGGLE_LINE_COMMENT (IntelliJ convention). */
+    /** Ctrl+K → Ctrl+C = TOGGLE_LINE_COMMENT (convention IntelliJ). */
     private static void bindCommentChord(EditorView view) {
         EditorKeymap km = EditorKeymap.defaults()
             .bindChord(EditorCommands.TOGGLE_LINE_COMMENT,
@@ -74,13 +72,13 @@ public class EditorChordKeyHandlerTest {
     public void chordSequence_executesCommand() throws Exception {
         EditorView view = newView();
         bindCommentChord(view);
-        // First stroke: consumed, arms the pending state, text untouched.
+        // Première frappe : consommée, arme l'état pending, texte intact.
         assertTrue(view.onKeyDown(KeyEvent.KEYCODE_K, ctrl(KeyEvent.KEYCODE_K)));
         assertEquals("hello world", view.getSession().getText());
-        // Second stroke: completes the chord → line comment toggled.
+        // Deuxième frappe : complète le chord → commentaire de ligne basculé.
         assertTrue(view.onKeyDown(KeyEvent.KEYCODE_C, ctrl(KeyEvent.KEYCODE_C)));
         assertEquals("// hello world", view.getSession().getText());
-        // Round-trip: replaying the chord uncomments.
+        // Aller-retour : rejouer le chord décommente.
         assertTrue(view.onKeyDown(KeyEvent.KEYCODE_K, ctrl(KeyEvent.KEYCODE_K)));
         assertTrue(view.onKeyDown(KeyEvent.KEYCODE_C, ctrl(KeyEvent.KEYCODE_C)));
         assertEquals("hello world", view.getSession().getText());
@@ -91,10 +89,10 @@ public class EditorChordKeyHandlerTest {
         EditorView view = newView();
         bindCommentChord(view);
         assertTrue(view.onKeyDown(KeyEvent.KEYCODE_K, ctrl(KeyEvent.KEYCODE_K)));
-        // Escape cancels the pending chord (consumed).
+        // Escape annule le chord pending (consommé).
         assertTrue(view.onKeyDown(KeyEvent.KEYCODE_ESCAPE, plain(KeyEvent.KEYCODE_ESCAPE)));
         assertEquals("hello world", view.getSession().getText());
-        // Ctrl+C is now a plain COPY again — the text must NOT change.
+        // Ctrl+C redevient un simple COPY — le texte ne doit PAS changer.
         assertTrue(view.onKeyDown(KeyEvent.KEYCODE_C, ctrl(KeyEvent.KEYCODE_C)));
         assertEquals("hello world", view.getSession().getText());
     }
@@ -104,9 +102,9 @@ public class EditorChordKeyHandlerTest {
         EditorView view = newView();
         bindCommentChord(view);
         assertTrue(view.onKeyDown(KeyEvent.KEYCODE_K, ctrl(KeyEvent.KEYCODE_K)));
-        // Advance past the 2 s pending lifetime.
+        // Avance au-delà de la durée de vie de 2 s du pending.
         fakeTime += 3_000;
-        // The pending state expired: Ctrl+C resolves as plain COPY.
+        // L'état pending a expiré : Ctrl+C se résout en simple COPY.
         assertTrue(view.onKeyDown(KeyEvent.KEYCODE_C, ctrl(KeyEvent.KEYCODE_C)));
         assertEquals("hello world", view.getSession().getText());
     }
@@ -116,12 +114,12 @@ public class EditorChordKeyHandlerTest {
         EditorView view = newView();
         bindCommentChord(view);
         assertTrue(view.onKeyDown(KeyEvent.KEYCODE_K, ctrl(KeyEvent.KEYCODE_K)));
-        // Ctrl+A is not this chord's second stroke — it must be processed
-        // as a fresh keystroke: SELECT_ALL runs.
+        // Ctrl+A n'est pas la deuxième frappe de ce chord — il doit être
+        // traité comme une frappe neuve : SELECT_ALL s'exécute.
         assertTrue(view.onKeyDown(KeyEvent.KEYCODE_A, ctrl(KeyEvent.KEYCODE_A)));
         assertEquals(0, view.getSession().getSelection().start);
         assertEquals("hello world".length(), view.getSession().getSelection().end);
-        // And the text is untouched (no comment, no copy side effect).
+        // Et le texte est intact (ni commentaire, ni effet de bord du copy).
         assertEquals("hello world", view.getSession().getText());
     }
 
@@ -130,19 +128,20 @@ public class EditorChordKeyHandlerTest {
         EditorView view = newView();
         bindCommentChord(view);
         assertTrue(view.onKeyDown(KeyEvent.KEYCODE_K, ctrl(KeyEvent.KEYCODE_K)));
-        // K is not a second stroke of (Ctrl+K → Ctrl+C) — it falls through
-        // to the fresh-key path, where it STARTS the chord again.
+        // K n'est pas une deuxième frappe de (Ctrl+K → Ctrl+C) — il
+        // retombe sur le chemin des frappes neuves, où il (RE)DÉMARRE le
+        // chord.
         assertTrue(view.onKeyDown(KeyEvent.KEYCODE_K, ctrl(KeyEvent.KEYCODE_K)));
         assertEquals("hello world", view.getSession().getText());
-        // The re-armed chord still completes on Ctrl+C.
+        // Le chord ré-armé se complète toujours sur Ctrl+C.
         assertTrue(view.onKeyDown(KeyEvent.KEYCODE_C, ctrl(KeyEvent.KEYCODE_C)));
         assertEquals("// hello world", view.getSession().getText());
     }
 
     @Test
     public void noChordBound_defaultBehaviourUnchanged() throws Exception {
-        // Default keymap (chord-free): Ctrl+K resolves to nothing (no
-        // binding, no chord) and is simply not consumed as a command.
+        // Keymap par défaut (sans chord) : Ctrl+K ne se résout en rien (ni
+        // binding, ni chord) et n'est simplement pas consommé comme commande.
         EditorView view = newView();
         assertFalse(view.onKeyDown(KeyEvent.KEYCODE_K, ctrl(KeyEvent.KEYCODE_K)));
         assertEquals("hello world", view.getSession().getText());

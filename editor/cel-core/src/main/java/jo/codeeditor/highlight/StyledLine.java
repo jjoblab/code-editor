@@ -4,12 +4,9 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * A tokenized line with syntax highlighting spans and the exit state
- * for cross-line parsing (e.g., multi-line comments).
- 
- *
- * @since v1.0.0
-*/
+ * Ligne tokénisée avec ses portions de coloration syntaxique et l'état
+ * de sortie pour l'analyse inter-lignes (ex. commentaires multi-lignes).
+ */
 public final class StyledLine {
     public final List<LineSpan> spans;
     public final int entryState;
