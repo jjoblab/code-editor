@@ -289,7 +289,11 @@ final class ImeBridge {
         } else {
             newCaret = regionStart + newCursorPosition;
         }
-        newCaret = Math.max(0, Math.min(session.doc.length() + text.length(), newCaret));
+        // Borné à la longueur FINALE du document (la plage remplacée est
+        // soustraite) : la rétro-correction d'un long passage par un texte
+        // court ne doit pas laisser le caret hors bornes.
+        int finalLength = session.doc.length() - (regionEnd - regionStart) + text.length();
+        newCaret = Math.max(0, Math.min(finalLength, newCaret));
         session.replaceRangeWithCaret(regionStart, regionEnd, text, newCaret);
     }
 
