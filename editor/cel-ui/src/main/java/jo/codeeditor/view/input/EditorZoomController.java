@@ -42,6 +42,10 @@ public final class EditorZoomController {
     public void setFontScale(float scale) {
         fontScale = clampFontScale(scale);
         view.metrics.setTextSize(view.spToPx(EditorView.BASE_TEXT_SIZE_SP) * fontScale);
+        // La largeur de colonne a changé : reconstruire le modèle de wrap,
+        // sinon les rangées restent calculées pour l'ancienne taille
+        // (lignes débordant à droite, Y des lignes suivants faux).
+        if (view.wordWrap) view.rebuildWrapModel();
         // Re-borne les offsets de défilement — la taille du contenu a changé.
         view.vOffset = EditorView.clamp(view.vOffset, 0, view.maxV());
         view.hOffset = EditorView.clamp(view.hOffset, 0, view.maxH());
@@ -69,6 +73,9 @@ public void applyPinchScale(float scaleFactor) {
         // sera de toute façon relancé par le prochain invalidate).
         fontScale = newScale;
         view.metrics.setTextSize(view.spToPx(EditorView.BASE_TEXT_SIZE_SP) * fontScale);
+        // Largeur de colonne changée : reconstruire le modèle de wrap pour
+        // que les rangées reflètent la nouvelle taille (comme setFontScale).
+        if (view.wordWrap) view.rebuildWrapModel();
 
         // (3) S'il y avait un caret, ajuste les offsets pour le maintenir ancré.
         if (hasCaret) {

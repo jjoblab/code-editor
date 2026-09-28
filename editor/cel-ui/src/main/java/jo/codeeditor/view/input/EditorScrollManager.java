@@ -138,8 +138,14 @@ public class EditorScrollManager {
                 + view.wrapModel.totalRows() * view.metrics.getLineHeight()
                 + view.metrics.getPadBottom();
         } else {
+            // Les lignes masquées par les plis repliés n'occupent AUCUNE
+            // rangée visuelle (le rendu les saute et docLineToY les
+            // remonte) : sans cette soustraction, on pouvait scroller
+            // ~n×lineHeight dans le vide sous la dernière ligne visible.
+            int visibleLines = view.session.getDocument().lineCount()
+                    - view.totalHiddenLines();
             contentH = view.metrics.getPadTop()
-                + view.session.getDocument().lineCount() * view.metrics.getLineHeight()
+                + visibleLines * view.metrics.getLineHeight()
                 + view.metrics.getPadBottom();
         }
         return Math.max(0, contentH - view.getHeight());
