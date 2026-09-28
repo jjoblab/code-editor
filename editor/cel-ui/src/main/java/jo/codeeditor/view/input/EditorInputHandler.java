@@ -58,6 +58,12 @@ public class EditorInputHandler {
     // ── État tactile ────────────────────────────────────────────────
     private boolean isDragging = false;
     private boolean isScrolling = false;
+    /** Drag-select ARMÉ par un tap (armDragSelect) et pas encore
+     *  consommé : survit au DOWN du geste suivant (c'est le geste
+     *  tap-puis-glissement-court qui étend la sélection depuis le caret
+     *  posé par le tap). Toute terminaison de geste (UP/CANCEL) ferme la
+     *  fenêtre d'armement — un tap ultérieur la rouvre. */
+    private boolean dragSelectArmed = false;
     private float lastTouchX = 0;
     private float lastTouchY = 0;
     private float touchStartX = 0;
@@ -373,7 +379,14 @@ public class EditorInputHandler {
                         // l'utilisateur a commencé à défiler, pas à
                         // survoler.
                         touchHover.cancel();
-                    } else if (isDragging) {
+                    } else if (isDragging || dragSelectArmed) {
+                        // Drag-select au doigt : armé par le tap précédent
+                        // (dragSelectArmed) ou déjà engagé (isDragging). Le
+                        // premier MOVE consomme l'armement et engage le
+                        // geste, ce qui neutralise aussi la résolution du
+                        // tap au UP (un tap ne doit pas écraser la
+                        // sélection du drag).
+                        isDragging = true;
                         selectionGestures.handleTouchDrag(event);
                     }
                     lastTouchX = x;
@@ -389,6 +402,9 @@ public class EditorInputHandler {
                 // fermer d'un tap séparé ailleurs.
                 touchHover.cancel();
                 view.invalidate();
+                // Toute terminaison de geste ferme la fenêtre d'armement
+                // du drag-select (un tap ultérieur la rouvre).
+                dragSelectArmed = false;
                 if (sheetGesture) {
                     // Fiche de diagnostic modale — résout le tap (applique
                     // une quick-fix, tape ×, ou ferme sur le scrim).
@@ -474,7 +490,16 @@ public class EditorInputHandler {
                     view.performClick();
                     return true;
                 }
-                if (!isScrolling && !longPressTriggered) {
+                // Réinitialise l'état de drag AVANT la résolution du tap :
+                // handleTap arme le drag-select (armDragSelect) pour le
+                // geste SUIVANT — le désarmer après l'aurait immédiatement
+                // écrasé (le drag-select au doigt était inopérant).
+                // wasDragging garde la trace d'un drag-select ENGAGÉ dans
+                // CE geste : son UP ne doit pas résoudre un tap (qui
+                // reposerait le caret et écraserait la sélection du drag).
+                boolean wasDragging = isDragging;
+                isDragging = false;
+                if (!isScrolling && !longPressTriggered && !wasDragging) {
                     tapResolver.handleTap(x, y);
                 } else if (isScrolling) {
                     // Un relâchement sans mouvement dans le gutter des
@@ -493,7 +518,6 @@ public class EditorInputHandler {
                     }
                 }
                 isScrolling = false;
-                isDragging = false;
                 downInLineNumberArea = false;
                 scrollerCtl.recycleTracker();
                 view.performClick();
@@ -581,9 +605,15 @@ public class EditorInputHandler {
         isScrolling = false;
     }
 
-    /** Arme le drag-select après un simple tap (écrit par EditorTapResolver). */
+    /** Arme le drag-select après un simple tap (écrit par EditorTapResolver).
+     *  L'armement SURVIT au DOWN du geste suivant (dragSelectArmed) :
+     *  l'UP du tap et le DOWN du geste suivant désarmaient tous deux
+     *  isDragging, ce qui rendait le drag-select au doigt inopérant. */
     void armDragSelect() {
-        isDragging = true;
+        dragSelectArmed = true;
+        // Fige l'ancre du drag-select sur le caret posé par le tap : le
+        // glissement étend/rétrécit TOUJOURS depuis ce point de départ.
+        selectionGestures.beginTouchDrag();
     }
 
     /** Position tactile courante du dispatcher (lue au vol par EditorTouchHoverController). */

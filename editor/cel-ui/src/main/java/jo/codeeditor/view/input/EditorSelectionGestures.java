@@ -30,6 +30,12 @@ public class EditorSelectionGestures {
      *  doigt au MOVE suivant). */
     private int handleDragAnchor = -1;
 
+    /** Ancre du drag-select au doigt, figée à l'ARMEMENT (position du
+     *  caret posé par le tap). Relire min(start,end) à chaque MOVE
+     *  empêchait de rétrécir la sélection en revenant en arrière et
+     *  perdait le sens de la sélection. MIN_VALUE = pas encore figée. */
+    private int touchDragAnchor = Integer.MIN_VALUE;
+
     EditorSelectionGestures(EditorView view, EditorInputHandler input) {
         this.view = view;
         this.input = input;
@@ -63,10 +69,28 @@ public class EditorSelectionGestures {
         view.invalidate();
     }
 
+    /** À appeler à l'armement du drag-select : fige l'ancre (position du
+     *  caret posé par le tap) pour que le glissement étende ou rétrécisse
+     *  TOUJOURS la sélection depuis ce point de départ, jamais depuis le
+     *  minimum courant de la sélection. */
+    void beginTouchDrag() {
+        if (view.session == null) { touchDragAnchor = Integer.MIN_VALUE; return; }
+        Selection sel = view.session.getSelection();
+        touchDragAnchor = sel.isCursor() ? sel.start : Math.min(sel.start, sel.end);
+    }
+
     void handleTouchDrag(MotionEvent event) {
         int offset = view.offsetAt(event.getX(), event.getY());
-        int selStart = Math.min(view.session.getSelection().start, view.session.getSelection().end);
-        view.session.setSelection(Selection.range(Math.min(selStart, offset), Math.max(selStart, offset)));
+        // Ancre figée à l'armement : le drag étend/rétrécit depuis le
+        // point de départ. Défensif : si l'armement n'a pas figé l'ancre,
+        // la figer maintenant (premier MOVE) plutôt que de relire
+        // min(start,end) à chaque MOVE.
+        if (touchDragAnchor == Integer.MIN_VALUE) {
+            Selection sel = view.session.getSelection();
+            touchDragAnchor = Math.min(sel.start, sel.end);
+        }
+        view.session.setSelection(Selection.range(
+            Math.min(touchDragAnchor, offset), Math.max(touchDragAnchor, offset)));
         view.invalidate();
     }
 
