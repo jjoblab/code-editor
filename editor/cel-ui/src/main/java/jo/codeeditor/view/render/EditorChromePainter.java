@@ -295,18 +295,21 @@ public class EditorChromePainter {
         if (!view.magnifierActive) return;
         float density = view.getResources().getDisplayMetrics().density;
         float magRadius = 60f * density; // rayon de la loupe
-        float magCx = view.magnifierX;
-        // Positionner la loupe AU-DESSUS du doigt pour ne pas couvrir le contenu.
-        float magCy = view.magnifierY - magRadius * 1.8f;
-        // Borner pour ne pas sortir de l'écran.
-        magCy = Math.max(magRadius, magCy);
+        float viewW = view.getWidth();
+        float viewH = view.getHeight();
+        // Borner le centre pour que la bulle ne soit JAMAIS coupée par les
+        // bords de la vue : au-dessus du doigt si la place suffit, sinon
+        // sous le doigt, sinon dans ce qui reste de la vue.
+        float magCx = clampMagnifierCx(view.magnifierX, viewW, magRadius);
+        float magCy = resolveMagnifierCy(view.magnifierY, viewH, magRadius);
 
         // Sauvegarder l'état du canvas.
         canvas.save();
-        // Cliper en cercle.
-        android.graphics.Path clipPath = new android.graphics.Path();
-        clipPath.addCircle(magCx, magCy, magRadius, android.graphics.Path.Direction.CW);
-        canvas.clipPath(clipPath);
+        // Cliper en cercle (chemin de travail réutilisé — pas d'allocation
+        // par frame).
+        scratchPath.reset();
+        scratchPath.addCircle(magCx, magCy, magRadius, android.graphics.Path.Direction.CW);
+        canvas.clipPath(scratchPath);
 
         // Dessiner le fond de la loupe.
         view.bgPaint.setColor(view.theme.editorBg);
@@ -365,6 +368,27 @@ public class EditorChromePainter {
         view.selPaint.setStrokeWidth(1f * density);
         view.selPaint.setColor(view.applyAlphaToColor(view.theme.gutterText, 0.2f));
         canvas.drawCircle(magCx, magCy, magRadius - 2f * density, view.selPaint);
+    }
+
+    /** Centre X de la loupe borné dans la largeur de la vue : la bulle
+     *  (rayon donné) ne doit jamais être coupée par un bord horizontal. */
+    static float clampMagnifierCx(float fingerX, float viewWidth, float radius) {
+        if (viewWidth <= 2 * radius) return viewWidth / 2f;
+        return Math.max(radius, Math.min(fingerX, viewWidth - radius));
+    }
+
+    /** Centre Y de la loupe : AU-DESSUS du doigt si la place suffit,
+     *  SINON sous le doigt si la place y suffit, SINON borné dans ce qui
+     *  reste de la vue (vue plus petite que la bulle : centre de la vue).
+     *  La bulle reste ainsi entièrement visible quel que soit le bord
+     *  approché. */
+    static float resolveMagnifierCy(float fingerY, float viewHeight, float radius) {
+        if (viewHeight <= 2 * radius) return viewHeight / 2f;
+        float above = fingerY - radius * 1.8f;
+        if (above >= radius) return above;
+        float below = fingerY + radius * 1.8f;
+        if (below <= viewHeight - radius) return below;
+        return Math.min(viewHeight - radius, Math.max(radius, fingerY));
     }
 
     // ════════════════════════════════════════════════════════════════

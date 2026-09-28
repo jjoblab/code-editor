@@ -368,7 +368,8 @@ public class EditorRenderer {
             chrome.drawXmlPreview(canvas);
         }
         // Les icônes de toolbar (A+, A-, ¶, ==) vivent dans la vue EditorBarTools.
-        // Dessiner la loupe si active (actuellement désactivée).
+        // Dessiner la loupe de sélection (active pendant le drag d'une
+        // poignée — voir EditorSelectionGestures.dragHandle).
         chrome.drawMagnifier(canvas);
 
         // Dessiner la minimap sur le bord droit.
