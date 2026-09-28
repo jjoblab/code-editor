@@ -538,6 +538,24 @@ public class EditorSession {
      * sa charge utile de callback.
      */
     EditSpan doReplaceRange(int start, int end, String insertion, int caretAfter) {
+        return doReplaceRange(start, end, insertion, caretAfter, true);
+    }
+
+    /**
+     * Mutation interne. Effectue l'épissure réelle de doc/styles/diagnostics/etc.
+     * et décale la région de composition. Ne déclenche PAS onTextChanged ni
+     * onSelectionChanged — les appelants (qui savent s'ils étaient en
+     * composition ou non) en sont responsables.
+     * <p>
+     * {@code recordUndo = false} applique l'édition SANS l'enregistrer sur
+     * la pile d'annulation : c'est le chemin d'application des undo/redo
+     * (l'étape a déjà été dépilée de la pile correspondante).
+     * <p>
+     * Retourne l'{@link EditSpan} pour que l'appelant puisse l'inclure dans
+     * sa charge utile de callback.
+     */
+    EditSpan doReplaceRange(int start, int end, String insertion, int caretAfter,
+                            boolean recordUndo) {
         if (insertion == null) insertion = "";
 
         // Borner les offsets au document — un offset périmé issu d'une race
@@ -560,8 +578,11 @@ public class EditorSession {
         EditOp op = new EditOp(start, removed, insertion);
         int selBefore = selection.start;
 
-        // Enregistrer l'annulation
-        recorder.record(op, selBefore, caretAfter);
+        // Enregistrer l'annulation (sauf application d'un undo/redo —
+        // l'étape est déjà sur la pile correspondante).
+        if (recordUndo) {
+            recorder.record(op, selBefore, caretAfter);
+        }
 
         // Calculer la plage de lignes pour l'épissure de styles
         int firstLine = doc.lineForOffset(start);
@@ -1054,47 +1075,70 @@ public class EditorSession {
     // ── Undo / Redo ───────────────────────────────────────────────
 
     public boolean undo() {
+        // Lecture-seule : l'annulation ne doit RIEN modifier (et ne pas
+        // consommer la pile — l'étape reste disponible si l'hôte déverrouille).
+        if (readOnly) return false;
         UndoStep step = recorder.manager().undo();
         if (step == null) return false;
+        boolean wasComposing = ime.isComposing();
+        // Appliquer les opérations inverses dans l'ORDRE INVERSE via le
+        // pipeline commun (épissure des styles, décalage des
+        // diagnostics/plis/composition) SANS réenregistrer sur la pile.
+        // L'ancien chemin mutait doc directement : diagnostics, tokens
+        // sémantiques, inlays et régions de pliage gardaient des offsets
+        // périmés, la garde lecture-seule était contournée et les
+        // listeners d'édition (pont LSP) n'étaient pas notifiés.
         for (int i = step.edits.size() - 1; i >= 0; i--) {
-            EditOp op = step.edits.get(i);
-            EditOp inv = op.inverse();
-            doc = doc.replace(inv.start, inv.start + inv.removed.length(), inv.inserted);
+            EditOp op = step.edits.get(i).inverse();
+            EditSpan span = doReplaceRange(op.start, op.start + op.removed.length(),
+                    op.inserted, op.start + op.inserted.length(), false);
+            notifyTextEditListeners(span, op.inserted);
         }
         selection = Selection.cursor(step.selBefore);
-        // Restyle asynchrone pour l'undo : un restyleAll() synchrone pouvait
-        // bloquer l'UI 200 ms+ sur un gros fichier lors d'un Ctrl+Z. En
-        // asynchrone : le snapshot du doc est le nouveau doc (post-undo) car
-        // la mutation doc = doc.replace(...) est faite juste au-dessus, donc
-        // le docAtStart capturé dans restyleAllAsync == ce nouveau doc, et le
-        // contrôle doc != docAtStart renvoie faux → le restyle n'est pas
-        // jeté.
         restyleAllAsync();
-        // Notifier le listener IME pour que la vue sache que le caret a bougé
-        // et que le texte a changé — sans cela, l'undo/redo laissait le caret
-        // figé (pas de redémarrage du clignotement, pas de scroll-into-view).
-        if (ime.listener() != null) {
-            ime.onTextChanged(new EditSpan(0, 0, 0));
-            ime.notifySelectionChanged(selection.start, selection.end);
-        }
+        notifyImeAfterUndoRedo(wasComposing);
         return true;
     }
 
     public boolean redo() {
+        // Lecture-seule : symétrique d'undo.
+        if (readOnly) return false;
         UndoStep step = recorder.manager().redo();
         if (step == null) return false;
+        boolean wasComposing = ime.isComposing();
+        // Réappliquer les opérations dans l'ordre via le pipeline commun
+        // (mêmes invariants qu'undo).
         for (EditOp op : step.edits) {
-            doc = doc.replace(op.start, op.start + op.removed.length(), op.inserted);
+            EditSpan span = doReplaceRange(op.start, op.start + op.removed.length(),
+                    op.inserted, op.start + op.inserted.length(), false);
+            notifyTextEditListeners(span, op.inserted);
         }
         selection = Selection.cursor(step.selAfter);
-        // Restyle asynchrone pour le redo (même logique que l'undo).
         restyleAllAsync();
-        // Comme l'undo : notifier le listener.
-        if (ime.listener() != null) {
-            ime.onTextChanged(new EditSpan(0, 0, 0));
-            ime.notifySelectionChanged(selection.start, selection.end);
-        }
+        notifyImeAfterUndoRedo(wasComposing);
         return true;
+    }
+
+    /** Notifie les listeners d'édition chaînés (pont LSP) d'une édition
+     *  appliquée par undo/redo. */
+    private void notifyTextEditListeners(EditSpan span, String insertion) {
+        if (onTextEditListeners.isEmpty()) return;
+        int s = span.start, e = span.start + span.removed;
+        for (OnTextEditListener l : onTextEditListeners) {
+            l.onTextEdit(s, e, insertion);
+        }
+    }
+
+    /** Pousse l'état de sélection vers le listener IME après un
+     *  undo/redo. Un undo multi-opérations peut toucher des plages non
+     *  contiguës : le texte extrait est rafraîchi en entier. */
+    private void notifyImeAfterUndoRedo(boolean wasComposing) {
+        if (ime.listener() == null) return;
+        ime.onTextChanged(new EditSpan(0, 0, 0));
+        ime.notifySelectionChanged(selection.start, selection.end);
+        if (wasComposing && !ime.listener().isSyncingExtractedText()) {
+            ime.listener().onRestartInput();
+        }
     }
 
     // ── Pont IME (délégué à ImeBridge) ─────────────────────
