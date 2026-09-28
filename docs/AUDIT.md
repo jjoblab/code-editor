@@ -372,3 +372,49 @@ avertissement préexistant : **toute régression future sera le fait de nos chan
 
 **Conclusion de phase 1** : la cause racine du bug signalé est établie par lecture
 croisée **et** démontrée par test exécuté. Le plan 1D peut être appliqué.
+
+---
+
+## Suivi d'exécution de la phase 2 (ajouté en fin de mission)
+
+### Appliqué (13 correctifs + docs, tous avec tests verts avant commit)
+
+| Bugs | Correctif (commit) |
+|---|---|
+| B1 | `fix(render)` — cache de layouts indépendant de la couleur du paint partagé (tests repro (a)+(b) : échouaient avant) |
+| B1 (hygiène) | `fix(render)` — la loupe n'écrit plus jamais dans le textPaint partagé (paint dédié) |
+| B2 | `fix(selection)` — ancre du drag de poignée figée au DOWN (franchissement testé dans les 2 sens) |
+| B3 + découvertes | `fix(selection)` — drag-select au doigt réparé : armement qui survit au DOWN (il était désarmé à l'UP du tap ET au DOWN suivant), ancre figée à l'armement, l'UP d'un drag ne résout plus de tap |
+| B4 + B5 | `fix(render)` — bornage de la loupe (au-dessus/sous le doigt, jamais coupée), chemin de clip réutilisé, commentaire périmé corrigé, retombées sur perte de focus / setSession / detach |
+| B6 | `fix(session)` — undo/redo par le pipeline commun (décalage annotations/plis/composition, garde lecture-seule, notification des listeners LSP) |
+| B7 | `fix(session)` — coalescence des frappes réellement déclenchée (amorçage de la chaîne) |
+| B8 | `perf(wrap)` — reconstruction du modèle de wrap en O(n) (mode en masse) |
+| B10 + B13 | `fix(scroll, zoom)` — maxV conscient des plis, wrap reconstruit au zoom |
+| B14 | `fix(theme)` — setTheme purge aussi le LineRenderCache (SemSpan aux couleurs cuites) |
+| B18 | `fix(ime)` — caret borné à la longueur FINALE du document (doReplaceRange + replaceText IME) |
+| — | `chore(credits)` — phase 3 : plus aucune mention dans editor/ (grep = 0) |
+| — | `feat(release)` — v3.38.0 : publish.yml automatique sur tag + garde-fou + tests avant publication, AGENT.md, docs |
+
+### Restant (priorisé, chaque item a son plan au §1D)
+
+- **B9** (passes de rendu non sensibles aux plis : utiliser des plages de
+  lignes document via `docLineForScreenY`) — majeur visuel ;
+- **B11 + B20** (gutter : conscience du wrap + départ de boucle O(visible)) ;
+- **B12** (docLineToY/docLineForScreenY mode wrap × plis repliés) ;
+- **B15 + B16** (popups go-to-line/rename non fermés au detach ;
+  génération references non bumpée à la fermeture) ;
+- **B17** (onSaveInstanceState minimal : scroll/zoom/wrap) ;
+- **B19** (matérialisations getText() par frappe) et les ports de
+  performance du lot 3 (scans de rope feuille par feuille, début de token
+  de complétion sur la rope, filtre mémoïsé, traces IME conditionnelles,
+  occurrences posées) ;
+- **Lot 4 fonctionnel** : scheme de couleurs modifiable par l'utilisateur
+  (l'approche complète est décrite au §1A — `ab3e7d5d0`), distinctions de
+  tokens fines (`b8cd18824`), expand selection (`94cd8e9bb`), Magnifier
+  natif API 28+ avec repli (recommandé, décision propriétaire) ;
+- **B21 mineurs** (a, b, c, d, e, f, g, i, j) selon validation par test.
+
+Raison de l'arrêt : budget de la session consacré en priorité aux bugs du
+brief (sélection/loupe), aux correctifs critiques/majeurs démontrés, aux
+phases 3-4 contractuelles (nettoyage, publication, archive). Le plan 1D
+reste le contrat d'exécution pour la suite.
