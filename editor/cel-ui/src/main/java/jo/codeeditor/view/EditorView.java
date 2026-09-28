@@ -1054,6 +1054,11 @@ public class EditorView extends View {
 
     /** Branche la session et enregistre le pont IME. */
     public void setSession(EditorSession session) {
+        // Changement de fichier/onglet : la loupe et le drag de poignée en
+        // cours n'ont plus de sens — les faire retomber pour ne pas
+        // laisser une bulle figée sur le nouveau document.
+        magnifierActive = false;
+        handleDragMode = 0;
         // Détache de la session précédente.
         if (this.session != null) {
             this.session.setImeListener(null);
@@ -1245,6 +1250,8 @@ public class EditorView extends View {
     @Override
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
+        // La loupe ne doit pas survivre au détachement de la vue.
+        magnifierActive = false;
         // Ferme toute feuille d'aperçu ouverte pour ne pas fuiter un popup
         // pointant vers un éditeur détaché (ce qui planterait au toucher).
         preview.onDetachedFromWindow();
@@ -1947,6 +1954,9 @@ public class EditorView extends View {
             // d'un autre écran) reste silencieux.
             wantsKeyboard = false;
             hideSoftKeyboard();
+            // La perte de focus éteint aussi la loupe (un drag interrompu
+            // par un vol de focus ne doit pas laisser la bulle affichée).
+            magnifierActive = false;
             // La perte de focus referme le hover/quick doc.
             if (quickDocVisible) dismissQuickDoc();
         } else if (wantsKeyboard) {
