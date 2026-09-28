@@ -7,7 +7,7 @@ import java.util.*;
  * wrap par ligne du document. Utilise une somme préfixe de rangées
  * visuelles pour un mapping ligne→rangée en O(1). Conscient des plis :
  * peut superposer les lignes visuelles du modèle de pliage. Reprend le
- * design du {@code WrapModel.kt} de CodeAssist.
+ * design d'un modèle de wrap par somme préfixe.
  */
 public class WrapModel {
 

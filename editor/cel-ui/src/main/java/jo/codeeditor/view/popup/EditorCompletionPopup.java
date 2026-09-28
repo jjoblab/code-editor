@@ -27,7 +27,7 @@ public class EditorCompletionPopup {
         this.popups = popups;
     }
 
-    // ── Exécuteurs dédiés (modèle CodeAssist) ─────────────────────
+    // ── Exécuteurs dédiés (un par popup) ─────────────────────
     /**
      * Lane « interactive » côté éditeur : la complétion possède son propre
      * worker mono-thread daemon — AUCUN autre consommateur (hover,
@@ -218,7 +218,7 @@ public class EditorCompletionPopup {
     /**
      * Rafraîchit le popup de complétion — version ASYNCHRONE.
      *
-     * <p>Modèle CodeAssist appliqué :</p>
+     * <p>Modèle appliqué :</p>
      * <ol>
      *   <li><b>Chemin rapide idem-token</b> (Étendre) : filtre local du cache
      *       base, zéro aller-retour, inchangé.</li>

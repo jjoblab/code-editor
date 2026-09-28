@@ -12,7 +12,7 @@ import android.widget.TextView;
 /**
  * Carte flottante « liquid glass » commune aux popups à champ texte
  * (aller-à-la-ligne, renommage) — portage RenamePopup/GoToLinePopup de
- * CodeAssist. Corps déplacés d'EditorPopupManager à l'identique,
+ * l'éditeur. Corps déplacés d'EditorPopupManager à l'identique,
  * constructeur statique paramétré par la vue.
  */
 @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
@@ -22,7 +22,7 @@ public final class EditorGlassCards {
 
     /**
      * Carte flottante « liquid glass » (portage RenamePopup /
-     * GoToLinePopup de CodeAssist) : 320dp de large, fond glassThick
+     * GoToLinePopup) : 320dp de large, fond glassThick
      * (theme.glassBg) coins 18dp, bordure 1dp glassEdge, padding 16dp,
      * titre bodySmall semibold, champ fond surfaceContainerHigh coins 12dp,
      * hint labelSmall sous le champ. Construite en code (GradientDrawable)

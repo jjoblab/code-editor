@@ -10,7 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Menu contextuel unifié (portage NavMenu de CodeAssist) : résolution
+ * Menu contextuel unifié : résolution
  * des options GO TO hors thread UI (Declaration, Implementations, Type
  * declaration, Super), tri quick-fixes/intentions de la ligne du
  * caret, navigation directe ou via picker en mode RESULTS. Corps
@@ -27,7 +27,7 @@ public class EditorNavMenuPopup {
     }
 
     // ════════════════════════════════════════════════════════════════
-    // Menu contextuel unifié (portage NavMenu de CodeAssist)
+    // Menu contextuel unifié
     // ════════════════════════════════════════════════════════════════
 
     /** Génération du menu contextuel unifié (annulation async). */
@@ -35,9 +35,9 @@ public class EditorNavMenuPopup {
 
     /**
      * Ouvre le menu contextuel unifié (toolbar de sélection → Actions ⋯).
-     * Portage du {@code openNavMenu} de CodeAssist : les options GO TO
+     * Le menu contextuel : les options GO TO
      * applicables au caret sont résolues HORS thread UI dans l'ordre des
-     * {@code NavKind} de CodeAssist — Declaration (definitionResolver),
+     * les types d'entrée — Declaration (definitionResolver),
      * Implementations (implementationsResolver), Type declaration
      * (typeDefinitionResolver), Super (superResolver) — puis les
      * quick-fixes/intentions viennent du cache {@code codeActionsByLine}
@@ -222,7 +222,7 @@ public class EditorNavMenuPopup {
     /**
      * Navigue vers une cible : même fichier → saut du caret +
      * scroll ; autre fichier → {@code definitionListener} (l'hôte ouvre le
-     * fichier — parité jumpToDefinition / openNavMenu de CodeAssist).
+     * fichier — via le resolver de définitions).
      */
     private void navMenuNavigate(NavigationMenu.NavTarget target) {
         dismissNavMenu();

@@ -3,7 +3,7 @@ package jo.codeeditor.completion;
 /**
  * Badge de type pour le popup de complétion.
  *
- * <p>Portage Java du {@code KindBadge} de CodeAssist
+ * <p>Badge de genre d'entrée de complétion
  * ({@code ide-ui/.../components/Badges.kt}) : chaque suggestion porte un
  * glyphe (lettre ou symbole) dans un carré arrondi teinté par la nature du
  * candidat — « K » violet pour un mot-clé, « C » doré pour une classe,
@@ -13,9 +13,9 @@ package jo.codeeditor.completion;
  * « # » pour une constante d'enum, « T » pour un paramètre de type.</p>
  *
  * <p>La couleur du badge « M » (méthode/constructeur) est laissée à
- * l'appelant (couleur d'accent du thème de l'éditeur — CodeAssist utilise
+ * l'appelant (couleur d'accent du thème de l'éditeur — la palette de
  * {@code MaterialTheme.colorScheme.primary}). Les autres couleurs sont la
- * palette fixe de CodeAssist, assombries automatiquement pour les thèmes
+ * référence est assombrie automatiquement pour les thèmes
  * clairs (elles ont été calibrées pour un fond glass sombre).</p>
  *
  * <p>Classe pure (aucune dépendance Android) : le glyphe et la couleur
@@ -38,7 +38,7 @@ public final class CompletionKindBadge {
         }
     }
 
-    // ── Palette CodeAssist (Badges.kt) — calibrée fond sombre ──────────
+    // ── Palette par genre — calibrée fond sombre ──────────
     private static final int GOLD = 0xFFE6C178;      // Class, Record, Annotation, TypeParameter
     private static final int INTERFACE = 0xFF57B6C2; // Interface
     private static final int ENUM = 0xFFD9A066;      // Enum, EnumConstant
@@ -49,7 +49,7 @@ public final class CompletionKindBadge {
     private static final int SNIPPET = 0xFF98C97A;   // Snippet
 
     /**
-     * Assombrit une couleur pour un thème clair (la palette CodeAssist est
+     * Assombrit une couleur pour un thème clair (la palette est
      * calibrée pour un fond glass sombre ; sur fond blanc les teintes
      * moyennes manquent de contraste). Mélange vers le noir à 38 %.
      */
@@ -71,7 +71,7 @@ public final class CompletionKindBadge {
      * @param darkTheme true pour un thème sombre (palette telle quelle),
      *                  false pour un thème clair (palette assombrie)
      * @param methodAccent couleur d'accent du thème pour le badge « M »
-     *                     (méthode/constructeur) — CodeAssist y met sa
+     *                     (méthode/constructeur) — palette de
      *                     couleur primaire
      */
     public static Meta meta(int lspKind, String kindTag, String iconFallback,

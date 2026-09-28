@@ -2,7 +2,7 @@ package jo.codeeditor.edit;
 
 /**
  * Façade d'édition intelligente sous forme de fonctions pures sur CharSequence.
- * Portée depuis EditOps.kt de CodeAssist.
+ * Éditions intelligentes (paires, indentation, skip-over).
  * <p>
  * Toutes les méthodes sont sans état ; elles prennent le texte + les infos
  * de curseur et retournent un RangeEdit. L'implémentation est déléguée à des

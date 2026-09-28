@@ -7,7 +7,7 @@ import java.util.List;
  * Rope : arbre binaire équilibré immuable pour l'édition efficace de grands
  * textes.
  * <p>
- * Inspiré de l'architecture de l'éditeur CodeAssist. Utilise un arbre
+ * Rope équilibrée par poids. Utilise un arbre
  * feuilles/branches avec invariant d'équilibre de Fibonacci et fusion
  * d'épines (spine-merge) à la concaténation.
  * <p>

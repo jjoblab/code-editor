@@ -160,7 +160,7 @@ public class EditorScrollManager {
      * <p>★ L'étendue tient compte des inlay hints tissés au-delà de la fin
      * de ligne (longueur VISUELLE) ET du débordement des chips diagnostics
      * ({@code chipExtentContentX}, mesuré au draw pass — pattern
-     * {@code contentWidth()} de CodeAssist EditorGeometry) : un hint/chip
+     * un contentWidth() mesuré au draw pass) : un hint/chip
      * qui dépasse la ligne la plus longue est ATTEIGNABLE au défilement
      * horizontal.</p>
      *

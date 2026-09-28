@@ -76,7 +76,7 @@ public class EditorPopupManager {
         this.diagnostics = new EditorDiagnosticPopups(view, this);
     }
 
-    // ── Exécuteurs dédiés (modèle CodeAssist) ─────────────────────
+    // ── Exécuteurs dédiés (un par popup) ─────────────────────
 
     /**
      * Lane « features » : signature help, quick doc… Isolée de la lane

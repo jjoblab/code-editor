@@ -172,7 +172,7 @@ public final class EditorDocument {
         // Applique à la rope
         Rope newRope = rope.replace(start, end, insertion);
 
-        // Splice incrémental de l'index de lignes (algorithme identique à CodeAssist)
+        // Splice incrémental de l'index de lignes
         int delta = insertion.length() - (end - start);
 
         int firstLine = lineForOffset(start);

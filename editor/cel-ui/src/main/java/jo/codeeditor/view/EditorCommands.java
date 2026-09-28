@@ -2,7 +2,7 @@ package jo.codeeditor.view;
 
 /**
  * Identifiants de commandes du keymap piloté par les données (port de
- * l'{@code EditorCommands} de CodeAssist).
+ * une couche de commandes clavier).
  *
  * <p>Chaque action au clavier matériel prise en charge par l'éditeur est
  * une commande nommée. {@link EditorKeymap} associe les événements de

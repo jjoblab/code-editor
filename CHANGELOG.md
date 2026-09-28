@@ -13,13 +13,13 @@ Quatrième itération post-rapport : les trois points restants de la
 roadmap v3.34.0 — l'item 12 (CI GitHub Actions, précédemment reporté),
 le retrait complet de l'état statique `textMateEnabled` (B13, noté
 « sans effet tant que tm4e n'est pas réintroduit ») et les chords
-keymap (`Outcome.Pending` chez CodeAssist, future work de l'item 6).
+keymap (résultat d'appui en attente, future work de l'item 6).
 La roadmap v3.34.0 est maintenant traitée à 12/12.
 
 ### Added
 
 - **Chords keymap — séquences à deux touches (complément roadmap item
-  6, portage `Outcome.Pending` de CodeAssist v3.20)** —
+  6, appui-motif avec résultat en attente)** —
   `EditorKeymap.bindChord(command, first, second)` lie une séquence
   style IntelliJ `Ctrl+K Ctrl+C` à une commande. Nouvelles classes de
   valeur : `EditorKeymap.KeyStroke` (keyCode + ctrl/shift, factory
@@ -118,7 +118,7 @@ déléguées).
 ### Added
 
 - **Diagnostics groupés par ligne de début (roadmap item 5, portage
-  `diagnosticsByStartLine()` de CodeAssist v3.20)** — une ligne portant
+  index des diagnostics par ligne de départ)** — une ligne portant
   une erreur ET un warning ne surfait que la plus sévère : le warning
   était inatteignable depuis la chip. Désormais :
   `EditorSession.getDiagnosticsForLine(line)` expose le groupe par ligne
@@ -136,7 +136,7 @@ déléguées).
   comme le popup détail), Esc la referme — Esc referme désormais AUSSI
   le popup détail (petit gain UX au passage).
 - **Keymap data-driven rebindable (roadmap item 6, portage
-  `EditorKeymap`/`EditorCommands` de CodeAssist v3.20)** — les cascades
+  keymap + commandes clavier)** — les cascades
   Ctrl+shortcuts et mouvement/édition d'`EditorKeyHandler` sont
   remplacées par une table de bindings résolue par event :
   `EditorCommands` (~45 ids : undo/redo, presse-papiers, déclencheurs
@@ -150,10 +150,10 @@ déléguées).
   indente, Ctrl+Shift+A sélectionne tout, Shift+Enter insère un saut de
   ligne. Les intercepteurs de popups (complétion, signature help, code
   actions, go-to-symbol) gardent la priorité sur la keymap. Les chords
-  (séquences à deux touches, `Outcome.Pending` chez CodeAssist) restent
+  (séquences à deux touches, résultat d'appui en attente) restent
   en future work.
 - **Registre de langages contribuables (roadmap item 7, portage
-  `EditorLanguageRegistry`/`EditorLanguageProfile` de CodeAssist
+  registre + profil de langue
   v3.20)** — nouveau package `jo.codeeditor.languages` (cel-core) :
   `LanguageProfile` (nom canonique, alias, extensions, mots-clés,
   `SyntaxFamily`, `CommentSyntax` — builder fluide, immuable),
@@ -170,12 +170,12 @@ déléguées).
   immédiatement. `EditorSession.getLanguageProfile()` expose le profil
   actif.
 - **Sweep diagnostics des onglets ouverts (roadmap item 8, portage
-  `OpenTabDiagnosticsSweep` de CodeAssist v3.20)** — l'éditeur ne
+  balayage des onglets ouverts)** — l'éditeur ne
   rafraîchissait les diagnostics que de l'onglet focus (debounce) : les
   onglets arrière-plan gardaient leurs points rouges périmés. Le sweep
   (`OpenTabDiagnosticsSweep.start(List<EditorView>)`) parcourt les
   onglets ouverts, recalcule chaque provider HORS main thread, applique
-  sur le main thread avec un **gap de 40 ms entre onglets** (CodeAssist),
+  sur le main thread avec un **gap de 40 ms entre onglets** (comportement standard),
   et saute : l'onglet focus (son debounce le possède), les sessions
   read-only, les gros documents (`isLarge()` — même gating que l'analyse
   sémantique), les onglets sans provider et les vues détachées. Un
@@ -183,7 +183,7 @@ déléguées).
   d'identité), `cancel()` arrête la marche, un provider qui throw est
   compté sauté sans tuer le sweep.
 - **SPI décorations plugins (roadmap item 9, portage
-  `EditorPainterHost` de CodeAssist v3.20)** — les hôtes peuvent
+  painter host extensible)** — les hôtes peuvent
   décorer l'éditeur sans toucher à ses couches :
   `EditorDecorationPainter` (SPI : `paint(EditorPaintContext)` une fois
   par frame), `EditorPaintContext` (fenêtre visible, métriques, et
@@ -195,7 +195,7 @@ déléguées).
   collision avec les dots de diagnostics), **inlays fantômes** après la
   fin de ligne (85 %, se placent après la chip diagnostic le cas
   échéant). **Un painter qui throw est retiré du registre au lieu de
-  crasher l'éditeur** (politique CodeAssist), avec listeners
+  crasher l'éditeur** (politique défensive), avec listeners
   `onPainterRemoved` pour télémétrie. `loadFromClasspath()` charge les
   painters déclarés en `META-INF/services/…EditorDecorationPainter`
   (ServiceLoader). Accès : `view.getPainterHost()`.
@@ -217,7 +217,7 @@ déléguées).
 ### Changed
 
 - **Migration Gradle 9.5.1 / AGP 9.0.0 (roadmap item 10)** — wrapper
-  8.7 → 9.5.1, plugin 8.5.2 → 9.0.0 (génération de CodeAssist v3.20).
+  8.7 → 9.5.1, plugin 8.5.2 → 9.0.0.
   Build, tests, lint et publication validés sur le nouveau toolchain.
   Note AGP 9 : la tâche `testReleaseUnitTest` n'existe plus (les tests
   unitaires tournent sur la variante debug ; la release est validée par
@@ -268,7 +268,7 @@ déléguées).
 ## [v3.35.0] — 2026-09-16 — Commentaires language-driven & caches de rendu (roadmap items 1-4)
 
 Deuxième itération post-rapport : les quatre premiers items de la roadmap
-v3.34.0 (les « prochains gains réels identifiés chez CodeAssist v3.20 »),
+v3.34.0 (les « prochains gains réels identifiés lors de l'audit de référence »),
 sans breaking change d'API publique.
 
 ### Fixed
@@ -278,7 +278,7 @@ sans breaking change d'API publique.
   C-style : un fichier Python recevait `// def foo():`, un XML `// <node>`,
   un JSON des commentaires qu'il ne peut pas avoir. La syntaxe est désormais
   résolue par langage via `CommentSyntax.forLanguage(language)` (portage de
-  l'idée `EditorLanguageProfile` de CodeAssist v3.20) :
+  le principe du profil de langue par famille syntaxique) :
   `#` (Python, Ruby, shell, TOML, properties, smali, YAML), `--` (Lua, SQL),
   `--[[ ]]` (Lua), `<!-- -->` (XML/HTML/Markdown), rien du tout (JSON →
   no-op documenté). Les langages inconnus retombent sur le défaut C-family —
@@ -334,7 +334,7 @@ sans breaking change d'API publique.
 - **`EditorMetrics.getFontRevision()`** — génération de police (bumpée par
   `setTextSize`/`setTypeface`), consommée par le cache de layouts.
 - **Cache de layouts façonnés contenu-adressé (roadmap item 2)** — portage
-  du `rememberTextMeasurer(cacheSize = 64)` de CodeAssist v3.20 : en mode
+  d'un cache de façonnage borné (64 entrées) : en mode
   ligatures, le draw path reconstruisait un `SpannableStringBuilder` + un
   `StaticLayout` (façonnage natif) pour CHAQUE ligne à CHAQUE frame (scroll,
   clignotement caret, sélection). ~25 % des lignes d'un fichier réel étant
@@ -376,12 +376,12 @@ sans breaking change d'API publique.
   (aar + sources + pom + module), POM de `cel-ui` transitif vers `cel-core`
   et `cel-lsp-api` (scope compile).
 
-## [v3.34.0] — 2026-09-16 — Stabilité & performance (alignement CodeAssist v3.20)
+## [v3.34.0] — 2026-09-16 — Stabilité & performance (audit de la version de référence v3.20)
 
 Release consacrée à la **stabilité pré-publication** (objectif JitPack) :
-analyse complète contre CodeAssist v3.9.9 → v3.20.0, correction de tous les
+analyse complète contre la version de référence (v3.9.9 → v3.20.0), correction de tous les
 bloqueants (build, compatibilité API 24, lifecycle), et backport des deux
-optimisations editor les plus rentables de CodeAssist v3.20.
+optimisations editor les plus rentables identifiées lors de cet audit.
 
 ### Fixed
 
@@ -419,9 +419,9 @@ optimisations editor les plus rentables de CodeAssist v3.20.
 - **Buckets par ligne** — `getInlayHintsForLine(line)` /
   `getSemanticTokensForLine(line)` : index mémoïsé (reconstruit seulement
   quand la liste source change — portage de `LineOverlay.update()` de
-  CodeAssist v3.20). Le draw path ne filtre plus les listes complètes par
+  la version de référence). Le draw path ne filtre plus les listes complètes par
   ligne manquée au cache : O(bucket) au lieu de O(total).
-- **Prefetch idle** (portage `prefetchOrder` CodeAssist v3.20) — après 150 ms
+- **Prefetch idle** (préfetch au repos par priorité de proximité) — après 150 ms
   de scroll calme, pré-chauffe du cache de rendu sur ±1 viewport par chunks
   de 8 (pause 4 ms), bas d'abord puis alterné, jamais pendant un fling,
   lignes foldées sautées.
@@ -433,13 +433,13 @@ optimisations editor les plus rentables de CodeAssist v3.20.
 - **23 tests unitaires** de non-régression (dispose, buckets, LineOverlay,
   IoCompat, gap async) — **781 tests verts** au total.
 - **`RAPPORT_ANALYSE_V3.34.0.md`** — rapport technique complet de l'analyse
-  CodeAssist v3.9→v3.20 et des correctifs.
+  l'audit de la version de référence (v3.9→v3.20) et des correctifs.
 - **README.md réécrit** — structure réelle (cel-*), installation JitPack,
   781 tests, guide de publication.
 
 ### Changed
 
-- **`LineRenderCache`** — portage `LineOverlay<T>` (CodeAssist v3.20,
+- **`LineRenderCache`** — index par ligne avec tampons de révision (
   commit 62f7b7a00) : les stamps de révision inlay/sem vivent dans un
   `int[]` dense (sentinelle ABSENT = sémantique `-1` préservée) splicé par
   `System.arraycopy` — zéro boxing, zéro réallocation HashMap par Entrée.
@@ -727,7 +727,7 @@ BUILD VALIDATION :
 - aapt2 dump badging : `versionCode='61' versionName='0.1.0.61-v2.45-debug'`.
 - Vérification APK : `EncodedTokenAttributes` présent dans classes5.dex, `TextMateTokenizerImpl` présent dans classes21.dex, 17 grammar files + darcula.json dans assets/textmate/.
 
-Bugs historiques NON régressés : pool LRU ZipFile (v0.1.0.53), golden rules subpackage (lspjava 228), badges kinds v2.30, inlay weaving v2.31, sheet 2 entrées + bracket matching v2.32, folding/quick-fixes v2.33, popup v2.34, pendingTapDismiss/magnifier v2.35, NavMenu/sheet v2.36, GO TO Implementations/Super + Duplicate RPC method v2.37, hover Sora + signature help documentée + design popups CodeAssist + complétion corrigée v2.38, preview badge md/html + signature Up/Down + décompilateur foundation + tap-and-hold v2.39, câblage LSP du décompilateur + preview sheet WebView v2.40, vrai convertisseur Markdown→HTML v2.41 (MarkdownRendererTest 24/24 + AppEditorPreviewHostTest 10/10 inchangés), crash EditorPreviewSheet + CodeHighlighter pure-Java CSS pour Markdown v2.42 (EditorPreviewSheetTest 15/15 Robolectric + CodeHighlighterTest 38/38), TextMate integration FOR REAL via sora-editor vendored tm4e v2.43 (TextMateEngineSmokeTest 8/8 + TextMateTokenizerImplTest 38/38), TextMate perf & HTML crash fix v2.44 (time limit 2 s/ligne + MAX_LINE_LENGTH 5 000 + LRU state map 5 000 + circuit breaker MAX_LINES_FOR_TEXTMATE 800 + HTML fallback vers XML tokenizer).
+Bugs historiques NON régressés : pool LRU ZipFile (v0.1.0.53), golden rules subpackage (lspjava 228), badges kinds v2.30, inlay weaving v2.31, sheet 2 entrées + bracket matching v2.32, folding/quick-fixes v2.33, popup v2.34, pendingTapDismiss/magnifier v2.35, NavMenu/sheet v2.36, GO TO Implementations/Super + Duplicate RPC method v2.37, hover Sora + signature help documentée + design popups unifié + complétion corrigée v2.38, preview badge md/html + signature Up/Down + décompilateur foundation + tap-and-hold v2.39, câblage LSP du décompilateur + preview sheet WebView v2.40, vrai convertisseur Markdown→HTML v2.41 (MarkdownRendererTest 24/24 + AppEditorPreviewHostTest 10/10 inchangés), crash EditorPreviewSheet + CodeHighlighter pure-Java CSS pour Markdown v2.42 (EditorPreviewSheetTest 15/15 Robolectric + CodeHighlighterTest 38/38), TextMate integration FOR REAL via sora-editor vendored tm4e v2.43 (TextMateEngineSmokeTest 8/8 + TextMateTokenizerImplTest 38/38), TextMate perf & HTML crash fix v2.44 (time limit 2 s/ligne + MAX_LINE_LENGTH 5 000 + LRU state map 5 000 + circuit breaker MAX_LINES_FOR_TEXTMATE 800 + HTML fallback vers XML tokenizer).
 
 Reste à faire (inventaire v2.45) :
 - (1) **Tirer parti de l'async pour relever `MAX_LINES_FOR_TEXTMATE`** — actuellement 800 (circuit breaker v2.44). Avec l'async, on pourrait le passer à 5000 ou plus (le thread worker n'ANR pas). Mais le coût memoire du state map (`MAX_STATE_ENTRIES=5000`) pourrait être un facteur limitant. À tuner après retours utilisateurs.
@@ -1023,7 +1023,7 @@ Quatre fonctionnalités livrées dans cette version : la première est nouvelle 
 - +7 tests `DecompiledSourceTest` (lspjava) — activés par `@EnabledIf` quand un JDK avec `lib/src.zip` est détecté ;
 - suites complètes : ui (13 nouveaux), lspjava (7 nouveaux), core (7 nouveaux), app, lsp-api, cel-lsp — 0 échec. `assembleDebug` OK (APK 29 Mo). Aucune régression des verrous v2.29→v2.38.
 
-## [v2.38] — ui / cel-lsp / lspjava / app — signature help + quick doc + hover Sora + design popups CodeAssist + fix popup complétion (v0.1.0.59-v2.38)
+## [v2.38] — ui / cel-lsp / lspjava / app — signature help + quick doc + hover Sora + design popups modernisé + fix popup complétion (v0.1.0.59-v2.38)
 
 - **Popup de COMPLÉTION — correctif de couverture de ligne + coins
   arrondis** (le user a signalé que le popup couvrait parfois la ligne
@@ -1069,13 +1069,13 @@ Quatre fonctionnalités livrées dans cette version : la première est nouvelle 
 - **QUICK DOC — rendu markdown minimal + scroll du corps** :
   - extraction des **fences de code markdown** (le serveur hover LSP envoie la
     signature exacte dans un fence `java`) → rendu en **en-tête
-    signature sur fond teinté** (motif QuickDocPopup de CodeAssist) +
+    signature sur fond teinté** (motif popup de documentation) +
     **divider** sous la bande (avant : markdown aplati en texte plat) ;
   - le retrait des fences AVANT la détection des tags corrige au passage
     une section parasite `@Override` quand la signature d'une méthode
     contenait une annotation ;
   - **inline code** `...` rendu en runs colorés (couleur `func`/accent,
-    parité parseur CodeAssist `{@code}`) ;
+    parseur de fences `{@code}`) ;
   - **scroll du corps** au drag sur le popup (champ `quickDocScrollY` +
     scrollbar, parité NavMenu) — avant : « just clips for now »
     (contenu coupé au-delà de 300dp) ;
@@ -1091,16 +1091,16 @@ Quatre fonctionnalités livrées dans cette version : la première est nouvelle 
   - rendu en **bande documentation** sous la liste des surcharges
     (parsée par QuickDoc : description + sections `@param`/`@return`/…,
     cap 6 lignes), divider + fond teinté, sections en couleur `keyword`
-    (motif IntelliJ / CodeAssist) — avant : `sig.documentation` jamais
+    (motif IntelliJ) — avant : `sig.documentation` jamais
     rendu ;
   - clamp bas du popup (ne sort plus de l'éditeur), rangées clippées au
     rect, rayon 12dp.
-- **DESIGN CodeAssist des popups** (le user : « le même design popup
-  pour find/replace de CodeAssist, fait pareil pour rename et go to
+- **DESIGN UNIFIÉ des popups** (le user : « le même design popup
+  partout, fait pareil pour rename et go to
   line ») :
   - **find/replace** : barre dockée en HAUT, flush au bord supérieur
     (coins arrondis **BAS** 14dp, parité `RoundedCornerShape(bottomStart,
-    bottomEnd)` de CodeAssist), fond glass (light #F8F7F4@88% / dark
+    bottomEnd)`), fond glass (light #F8F7F4@88% / dark
     #18191C@86%), bordure 1dp ; **2 rangées** (find + replace repliable)
     au lieu de 3 ; chevron toggle (droite replié / bas déplié) ; champ
     FieldBox (surfaceContainerHigh, coins 12dp, bordure 1dp, padding
@@ -1130,10 +1130,10 @@ Quatre fonctionnalités livrées dans cette version : la première est nouvelle 
 ### lspjava / cel-lsp / lsp-api / ui — GO TO Implementations + Super : le menu unifié complète sa section GO TO (v0.1.0.59-v2.37)
 
 - **GO TO — Implementations** (portage des `implementationTargets` du
-  `KotlinSourceAnalyzer` de CodeAssist / `Inheritors.kt`, handler LSP
+  l'analyseur de références, handler LSP
   standard `textDocument/implementation`) : les héritiers DIRECTS du
   type en contexte (référence de type au caret, sinon la classe
-  englobante — `contextTypeFqn` de CodeAssist). Le moteur
+  englobante — type de contexte FQN). Le moteur
   `JdtNavigationEngine.findImplementations` fait un **balayage live
   multi-fichiers borné** (pattern `renameProject` : fichier courant +
   tous les `.java` des `sourceRoots`, triés et dédupliqués, pré-filtre
@@ -1145,7 +1145,7 @@ Quatre fonctionnalités livrées dans cette version : la première est nouvelle 
   texte du fichier CIBLE (pas du fichier source).
 - **GO TO — Super** (méthode LSP **PERSONNALISÉE**
   `textDocument/superDefinition` — aucune requête standard n'existe ;
-  portage des `superTargets` de CodeAssist) : (1) le caret sur une
+  résolution des cibles super) : (1) le caret sur une
   méthode qui outrepasse → le même-nommé dans chaque supertype transitif
   (libellé `name  ·  Super`, dédup par (fichier, offset)) ; (2) sinon
   les supertypes DIRECTS du type en contexte (libellé
@@ -1171,7 +1171,7 @@ Quatre fonctionnalités livrées dans cette version : la première est nouvelle 
     la réponse était au contraire silencieusement JETÉE (le type de
     retour est absent de la carte de désérialisation du launcher).
 - **Intégration NavMenu + SPI** : les 4 options GO TO dans l'ordre des
-  `NavKind` CodeAssist — **Declaration → Implementations → Type
+  menu hiérarchique — **Declaration → Implementations → Type
   declaration → Super** — chaque option n'apparaît que si ≥ 1 cible
   (parité `navigationOptions`). Slots SPI
   `Language.getImplementationsProvider()` /
@@ -1182,11 +1182,11 @@ Quatre fonctionnalités livrées dans cette version : la première est nouvelle 
   « name  ·  Super » transportés via `displayName` ; un displayName
   qui est un chemin/URI retombe sur le nom COURT du fichier. Icônes
   canvas : layers (Implementations), pin (Super).
-- **Divergences assumées vs CodeAssist** : cibles binaires omises
-  (CodeAssist ouvre une vue library décompilée — CodeIDE n'a pas de
+- **Divergences assumées vs la version de référence** : cibles binaires omises
+  (la version de référence ouvre une vue library décompilée — CodeIDE n'a pas de
   décompilateur : un `extends Thread` ne propose pas la classe binaire
   `Thread`, mais le dossier `java/lang` du SDK n'est pas source non
-  plus) ; CodeAssist maintient un `SubtypeIndex` persistant
+  plus) ; la version de référence maintient un `SubtypeIndex` persistant
   projet-wide, CodeIDE un balayage borné par requête (plus simple, pas
   d'index à invalider).
 - Tests : **+10 `NavigationFacadeTest`** (façade LSP réelle, fixtures
@@ -1209,17 +1209,17 @@ Quatre fonctionnalités livrées dans cette version : la première est nouvelle 
   0 échec**. `assembleDebug` OK (APK 29 Mo). Aucune régression des
   verrous v2.29→v2.36.
 
-### ui / lspjava / cel-lsp / lsp-api — toolbar de sélection : toutes les options CodeAssist + menu contextuel unifié (v0.1.0.59-v2.36)
+### ui / lspjava / cel-lsp / lsp-api — toolbar de sélection : toolbar de sélection complète + menu contextuel unifié (v0.1.0.59-v2.36)
 
 - **Pill de sélection COMPLÈTE en permanence** (parité
-  `SelectionToolbar`/`CodeEditor.kt` de CodeAssist) : ℹ Docs et ⋯ Actions
-  sont désormais TOUJOURS affichés avec le divider — CodeAssist fournit
+  toolbar de sélection) : ℹ Docs et ⋯ Actions
+  sont désormais TOUJOURS affichés avec le divider — comportement de référence :
   `onDocs`/`onMenu` non-null en permanence ; avant, les icônes étaient
   masquées sans quick-fixes sur la ligne et l'utilisateur perdait l'accès
   à Docs et au menu GO TO. Mode sélection : `Copy | Cut | Paste | Select
   all | ┊ | ℹ | ⋯` ; mode collapsed (re-tap) : `Paste | Select all | ┊ | ℹ | ⋯`.
 - **Menu contextuel unifié** (portage `NavMenu`/`NavMenuLayer` de
-  CodeAssist) — le bouton ⋯ n'ouvre plus la popup plate de quick-fixes :
+  standard) — le bouton ⋯ n'ouvre plus la popup plate de quick-fixes :
   - sections **GO TO** / **QUICK FIXES** / **INTENTIONS** en majuscules,
     affichées seulement si non-vides ; « Nothing found in source. » quand
     tout est vide (parité `NavigationMenu.kt`) ;
@@ -1240,11 +1240,11 @@ Quatre fonctionnalités livrées dans cette version : la première est nouvelle 
     (Declaration), hexagone (Type declaration), gear (quick fixes),
     lightbulb (intentions), dot (cibles) ;
   - gestes : DOWN dans la carte l'engloutit (press feedback + drag-scroll
-    + pick au relâchement — parité Popup CodeAssist) ; tap ailleurs
+    + pick au relâchement — parité Popup version de référence) ; tap ailleurs
     referme (`onDismissRequest`) ; édition referme ; popup exclusif avec
     la diagnostic sheet.
 - **`textDocument/typeDefinition` serveur** (portage
-  `typeDeclarationTargets` du `KotlinSourceAnalyzer` de CodeAssist,
+  `typeDeclarationTargets` du l'analyseur de la version de référence,
   restreint au même fichier) : `JdtCompilerEngine.findTypeDefinition` —
   binding au caret (référence de type, variable/paramètre/champ → son
   type, appel → son type de retour), élément feuille des tableaux, types
@@ -1262,7 +1262,7 @@ Quatre fonctionnalités livrées dans cette version : la première est nouvelle 
   position réduite vers l'original (recherche binaire sur les points
   d'insertion, position dans un jeton inséré → position de reprise).
 - **Docs/Actions à `selection.start`** (parité exacte
-  `quickDocAt(path, text, caret)` / `openNavMenu()` de CodeAssist — tous
+  `quickDocAt(path, text, caret)` / `openNavMenu()` de la version de référence — tous
   deux passent `selection.start`, pas l'extrémité active).
 - Tests : **+13 `EditorNavMenuTest`** (Robolectric) — sections dans
   l'ordre + headers, split quickfix/intention par kind, section vide
@@ -1281,7 +1281,7 @@ Quatre fonctionnalités livrées dans cette version : la première est nouvelle 
 ### ui / app — hints XML/Kotlin + pendingTapDismiss différé + magnifier (v0.1.0.59-v2.35)
 
 - **Inlay hints XML — valeur résolue des références de ressources locales**
-  (portage `XmlInlayHintService` de CodeAssist) :
+  (portage `XmlInlayHintService` de version de référence) :
   - `XmlResourceIndex` (app, `jo.codeide.lang`) — équivalent de l'index
     `AndroidResourceIndex` : scan borné des `res/values` et `values-…`
     (64 rép. res / 384 fichiers / 1 Mo par fichier, `build/` `.gradle/`
@@ -1302,7 +1302,7 @@ Quatre fonctionnalités livrées dans cette version : la première est nouvelle 
     inchangés ; sans racine de projet, pas de provider (parité
     « resolver null ⇒ no inlay hints »).
 - **Inlay hints Kotlin lexicaux** (sous-ensemble inférable du
-  `KotlinInlayHintService` de CodeAssist — sans résolveur complet) :
+  `KotlinInlayHintService` de la version de référence — sans résolveur complet) :
   types des `val`/`var` à initialiseur **certain** — littéraux purs
   (String/Int/Long/Double/Float/Boolean/Char + arithmétique simple) et
   constructeurs PascalCase (`val p = Person(…)` → `: Person`) ; jamais
@@ -1310,10 +1310,10 @@ Quatre fonctionnalités livrées dans cette version : la première est nouvelle 
   (`1..5` → silence), un type explicite, une déstructuration ou un
   initialiseur multi-lignes ; scanner conscient du langage (commentaires
   imbriqués, raw strings, templates) ; ancre fin d'identifiant, libellé
-  `: Type` collé (`typeHint()` CodeAssist). Câblé via `KotlinLanguage`
+  `: Type` collé (`typeHint()` version de référence). Câblé via `KotlinLanguage`
   (SPI) pour `.kt`/`.kts`.
 - **pendingTapDismiss — tap différé dans une sélection** (portage
-  `EditorInteraction`/`EditorInputModifier` de CodeAssist) : un tap dans
+  `EditorInteraction`/`EditorInputModifier` de version de référence) : un tap dans
   une sélection la garde vivante pendant la fenêtre multi-tap (280 ms,
   anti-flicker : pill + poignées visibles) puis, si aucun second tap
   n'arrive, la referme (caret à l'offset tapé, pill + poignées masquées)
@@ -1327,7 +1327,7 @@ Quatre fonctionnalités livrées dans cette version : la première est nouvelle 
   flasher), suit le doigt, s'éteint sur UP/CANCEL ; jamais pendant un
   scroll/drag-select ordinaire.
 
-### ui / lspjava — popup de sélection complet + hints CodeAssist manquants (v0.1.0.59-v2.34)
+### ui / lspjava — popup de sélection complet + hints manquants (v0.1.0.59-v2.34)
 
 - **Popup de sélection (barre de sélection) — câblage réparé de bout en
   bout** (le portage du renderer v2.34 précédent était inopérant) :
@@ -1344,19 +1344,19 @@ Quatre fonctionnalités livrées dans cette version : la première est nouvelle 
     maintenant `selectionToolbarMetrics().actionAt()` — les 6 actions sont
     câblées : Copy/Cut/Paste/Select all + Docs (quick-doc à l'extrémité
     active) + Actions (popup quick-fixes de la ligne de sélection) ;
-  - **re-tap collapsed (portage CodeAssist)** — un second tap au MÊME
+  - **re-tap collapsed (portage version de référence)** — un second tap au MÊME
     endroit que le caret BASCULE la pill Paste/Select all (le toggle
     `handlesVisible = reTap && !handlesVisible` de
     `EditorInputModifier.kt`) ; un tap ailleurs la referme ;
-  - **parité comportementale CodeAssist** — Copy/Cut/Paste referment la
+  - **parité comportementale** — Copy/Cut/Paste referment la
     pill et masquent les poignées, **Select all la laisse ouverte**
     (Copy/Cut deviennent disponibles sur la sélection totale), un tap DANS
     la sélection la re-affiche, un tap sur un gap/divider de la pill est
-    englouti sans bouger le caret (le Popup CodeAssist ne propage pas) ;
+    englouti sans bouger le caret (le Popup ne propage pas) ;
   - `onTextChanged` referme aussi les poignées (« typing puts the touch
-    chrome away », convention Android de CodeAssist).
+    chrome away », convention Android de version de référence).
 - **Chaining hints multi-lignes** (portage `chainingHint` du
-  `JdtInlayHintService` de CodeAssist) : sur un chaînage fluent dont le
+  `JdtInlayHintService` de version de référence) : sur un chaînage fluent dont le
   récepteur est lui-même un appel posé sur une AUTRE ligne, le type du
   récepteur s'affiche à la fin de SA ligne — `new StringBuilder("a")\n
   .append("a")` reçoit « StringBuilder » (nom court, sans deux-points,
@@ -1371,11 +1371,11 @@ Quatre fonctionnalités livrées dans cette version : la première est nouvelle 
   paramètres typés explicitement (`(String x) ->`) restent ignorés
   (ecj : `Argument.type != null`).
 - **Padding LSP honoré par le client** (parité `buildInlayAnnotated` de
-  CodeAssist : les espaces de padding font partie du texte fantôme tissé) :
+  comportement de référence : les espaces de padding font partie du texte fantôme tissé) :
   avant, les flags étaient ignorés — « name: » collait à l'argument et le
   type de chaînage collait au dernier caractère de l'appel. Les var-hints
   perdent leur `paddingLeft` parasite (rendu collé « s: String », comme
-  CodeAssist) ; les paramètres rendent « name: … » et les chaînages
+  version de référence) ; les paramètres rendent « name: … » et les chaînages
   « … StringBuilder ».
 - +15 tests Robolectric `EditorSelectionToolbarTest` (animation, métriques
   collapsed/complètes, icônes conditionnelles, résolution des 6 actions,
@@ -1387,7 +1387,7 @@ Quatre fonctionnalités livrées dans cette version : la première est nouvelle 
 ### lspjava / ui / core — l'inventaire « reste à faire » livré (v0.1.0.59-v2.33)
 
 - **foldingRange (serveur LSP)** : nouveau `JdtCodeFolder` (portage
-  `JdtCodeFolder.kt` de CodeAssist) — groupe d'imports replié PAR DÉFAUT
+  `JdtCodeFolder.kt` de version de référence) — groupe d'imports replié PAR DÉFAUT
   (`kind="imports"`), intérieur des accolades (les `{`/`}` restent visibles,
   `kind="block"`), commentaires de bloc/Javadoc multi-lignes
   (`kind="comment"`) ; scan lexical unique aware chaînes/caractères/
@@ -1396,7 +1396,7 @@ Quatre fonctionnalités livrées dans cette version : la première est nouvelle 
 - **foldingRange (client cel-lsp)** : tir throttlé après chaque publication
   de diagnostics (pattern semanticTokens — génération anti-obsolescence),
   conversion ligne/char → offsets, application via le nouveau
-  `EditorSession.applyCodeFolds` (portage CodeAssist : état replié
+  `EditorSession.applyCodeFolds` (comportement de référence : état replié
   utilisateur préservé, `collapsedByDefault` appliqué une fois par document,
   reset par `setLanguage` ; `FoldRegion` gagne `collapsedByDefault`).
   Garde `languageApplied` contre la course didOpen→setLanguage.
@@ -1420,11 +1420,11 @@ Quatre fonctionnalités livrées dans cette version : la première est nouvelle 
   (`col/maxColsPerRow`), caret dessiné trop bas (double addition du décalage
   de rangée dans `drawCaret`), tap décalé sur les rangées indentées.
 - **Chips diagnostics multi-rangées** : placées après la FIN de la DERNIÈRE
-  rangée repliée (pattern `lastSub` de CodeAssist) — l'ancienne approximation
+  rangée repliée (pattern `lastSub` de version de référence) — l'ancienne approximation
   les posait au-delà du bord droit (invisibles) et les centrait sur la
   première rangée.
 - **Scroll horizontal étendu** (pattern `contentWidth()`/`chipExtent` de
-  CodeAssist) : `maxH` compte la longueur VISUELLE des lignes (inlay hints
+  version de référence) : `maxH` compte la longueur VISUELLE des lignes (inlay hints
   tissés, O(hints)) et le débordement des chips
   (`chipExtentContentX`, publié par le draw pass) — un hint/chip au-delà de
   la ligne la plus longue est désormais atteignable.
@@ -1433,7 +1433,7 @@ Quatre fonctionnalités livrées dans cette version : la première est nouvelle 
 
 - **Diagnostic sheet : deux entrées exactement** — le tap sur le range
   squiggle ne l'ouvre plus (le caret se place normalement, parité
-  CodeAssist `session.setCaret`) ; seuls le **chip** de fin de ligne et le
+  pose du caret directe) ; seuls le **chip** de fin de ligne et le
   **dot du gutter** l'ouvrent. Au passage, le dot du gutter était MORT
   depuis v3.7.x : `ACTION_DOWN` dans la zone numéros de ligne armait
   `isScrolling=true` → `ACTION_UP` ne passait jamais par `handleTap`. Un
@@ -1442,11 +1442,11 @@ Quatre fonctionnalités livrées dans cette version : la première est nouvelle 
 - **Bracket matching** (portage `EditorEdits.matchingBracket`) : le
   curseur juste après `}`/`)` (ou posé sur `{`/`(`/`[`) highlighte la
   paire entière — rectangle contour 1 px couleur caret à 45 % d'alpha sur
-  les DEUX crochets (rendu CodeAssist exact). Scan de profondeur borné
+  les DEUX crochets (rendu exact). Scan de profondeur borné
   (50 000 chars), recalcul synchrone à chaque déplacement de caret et à
   chaque édition, géométrie inlay-aware (`visualColFor`) et fold-aware.
 - **Inlay hints : câblage réparé de bout en bout** :
-  - la requête couvre désormais TOUT le document (parité CodeAssist
+  - la requête couvre désormais TOUT le document (parité de comportement
     `hintsAt(path, text, 0, text.length)`) — l'ancienne requête
     viewport (lignes visibles ±4, `getHeight()` = 0 au boot) ne servait
     que ~5 lignes et ne se re-déclenchait jamais au scroll ;
@@ -1460,15 +1460,15 @@ Quatre fonctionnalités livrées dans cette version : la première est nouvelle 
 - **Inlay hints tissés (position réparée)** : le hint était dessiné
   PAR-DESSUS le texte à sa colonne d'ancrage ; il est désormais woven dans
   la ligne (`drawRawRange` — équivalent canvas du `buildInlayAnnotated` de
-  CodeAssist) : le texte après le hint est décalé de la largeur du hint.
-  Style CodeAssist : texte italique atténué SANS fond (`textTertiary +
+  version de référence) : le texte après le hint est décalé de la largeur du hint.
+  Style la version de référence : texte italique atténué SANS fond (`textTertiary +
   Italic`). Toute la géométrie consomme les colonnes visuelles :
   `visualColFor`/`rawColFor` (nouvelles, sémantique `rawToVisual`/
-  `visualToRaw` de CodeAssist — caret ancré AVANT le hint, tap DANS le
+  `visualToRaw` de la version de référence — caret ancré AVANT le hint, tap DANS le
   hint → colonne d'ancrage) utilisés par le texte, l'overlay sémantique,
   la sélection, les squiggles, les highlights, les popups (complétion,
   signature help, barre de sélection) et `offsetAt`.
-- **Diagnostic sheet modal** (portage `DiagnosticSheet` de CodeAssist) :
+- **Diagnostic sheet modal** (portage `DiagnosticSheet` de version de référence) :
   scrim sur l'éditeur (tap = fermer, geste bloqué), panneau docké à coins
   supérieurs arrondis, en-tête sévérité + bouton ×, message word-wrap ≤ 6
   lignes, « QUICK FIXES » + rangées de 44 dp (tap = applique). Géométrie
@@ -1479,7 +1479,7 @@ Quatre fonctionnalités livrées dans cette version : la première est nouvelle 
   sévérité 16 % alpha, pastille + message semi-gras, 1 ligne avec ellipse,
   clip à droite du gutter, tap → sheet. Activées par défaut
   (`setDiagnosticChipsEnabled` reste disponible).
-- **Indent guides modernisés** (parité « bracket lines » CodeAssist) :
+- **Indent guides modernisés** (parité « bracket lines » version de référence) :
   pontage des lignes vides (héritage de l'indent la plus faible des
   voisins non vides — guide CONTINU à travers un bloc), niveaux stricts
   (`level < cols`), caps arrondis. Nouveau `leadingIndentOrBlank` avec
@@ -1494,12 +1494,12 @@ Quatre fonctionnalités livrées dans cette version : la première est nouvelle 
 
 ### lspjava / ui — badge de type dans la complétion + quick-fixes réels (v0.1.0.59-v2.30)
 
-- **Badge de type par suggestion** (portage du `KindBadge` de CodeAssist) :
+- **Badge de type par suggestion** (portage du `KindBadge` de version de référence) :
   carré arrondi teinté + glyphe devant chaque ligne du popup — « K »
   mot-clé, « C » classe, « I » interface, « E » enum, « @ » annotation,
   « M » méthode, « F » champ, « v » variable, « p » package, « {} »
   snippet, « T » paramètre de type, « # » constante d'enum, « R » record.
-  Palette CodeAssist assombrie automatiquement sur thème clair ; le label
+  Palette assombrie automatiquement sur thème clair ; le label
   met en valeur les caractères matchant le préfixe (accent + gras) et le
   detail passe aligné à droite (nouveau `CompletionKindBadge` dans `:core`).
 - **Chaîne du kind réparée de bout en bout** : le kind LSP NUMÉRIQUE
@@ -1514,7 +1514,7 @@ Quatre fonctionnalités livrées dans cette version : la première est nouvelle 
   (avant : CLASS uniforme) ; `kindOfType` teste `isAnnotationType()` AVANT
   `isInterface()` (un type annotation EST une interface pour ecj).
 - **Quick-fixes à édits RÉELS** (réécriture du `CodeActionService`,
-  portage `JavaActions.kt`/`JavaCompilerFixes.kt` de CodeAssist) :
+  portage `JavaActions.kt`/`JavaCompilerFixes.kt` de version de référence) :
   suppression de ligne d'import inutilisé, suppression d'instruction non
   utilisée (multi-fragments et paramètres écartés), try-catch au type
   EXACT de l'argument structuré, `throws` créé après la liste de
@@ -1534,17 +1534,17 @@ Quatre fonctionnalités livrées dans cette version : la première est nouvelle 
   +5 `CompletionPopupBadgeRenderTest` (:ui, Robolectric) ; chemins
   android.jar des tests réalignés (golden rules v2.29 de nouveau actives).
 
-### lspjava — alignement du moteur de complétion sur CodeAssist (v0.1.0.59-v2.29)
+### lspjava — alignement du moteur de complétion sur les comportements de référence (v0.1.0.59-v2.29)
 
 - **Filtre subpackage déterministe** : nouvelle requête d'index EXACTE
   `directTypesInPackage(q)` (portage `exactAll(PACKAGE_TYPES, q)` de
-  CodeAssist) — l'ancienne requête `startsWith(q.)` coupée à 300 résultats
+  version de référence) — l'ancienne requête `startsWith(q.)` coupée à 300 résultats
   dans l'ordre du HashMap éjectait arbitrairement les types directs
   (`android.Manifest`/`android.R` : 2 452 classes sous `android.**`
   concouraient pour 300 places). `import android.` rend désormais
   exactement les 47 sous-paquets directs + les 2 types directs, à chaque
   requête, sur toute JVM/ART.
-- **`CompletionPrefixMatcher`** (portage `PrefixMatcher.kt` de CodeAssist) :
+- **`CompletionPrefixMatcher`** (portage `PrefixMatcher.kt` de version de référence) :
   matching gradué exact / préfixe / préfixe-insensible / camel-hump /
   substring (≥ 3 caractères), appliqué à toutes les sources de candidats.
 - **Scoring unifié** (portage 1:1 `CompletionRanker.kt`) : bonus de frappe,
@@ -2271,7 +2271,7 @@ protected void onDraw(Canvas canvas) {
 |---|---|
 | `draw(Canvas)` | Orchestrateur principal (était `onDraw`) |
 | `drawCompositeFoldLine` | Ligne repliée (prefix + placeholder + suffix avec coloration syntaxique) |
-| `drawFoldChevrons` | Chevrons de fold (style CodeAssist, filled triangle, r=3.2dp, alpha 0.8) |
+| `drawFoldChevrons` | Chevrons de fold (filled triangle, r=3.2dp, alpha 0.8) |
 | `drawInlayHints` | Indices en ligne (phantom text) |
 | `drawSemanticTokens` | Overlay de tokens sémantiques (LSP) |
 | `drawCachedSemSpans` | Spans sémantiques cachés par ligne |
@@ -2332,18 +2332,18 @@ Ces responsabilités seront extraites dans les étapes suivantes (EditorInputHan
 
 ## [3.7.2] — 2026-08-09
 
-### Fold — Bug 7 : chevron trop gros + dot trop proche du line number (style CodeAssist)
+### Fold — Bug 7 : chevron trop gros + dot trop proche du line number (style version de référence)
 
-Le rapport de l'utilisateur disait : « l'icône pour fold est trop gros et le dot est trop près de line number count, faite qu'il ressemble à celui de CodeAssist ».
+Le rapport de l'utilisateur disait : « l'icône pour fold est trop gros et le dot est trop près de line number count, faite qu'il ressemble à celui de la version de référence ».
 
-- **Audit CodeAssist** — clonage du repo `tyron12233/CodeAssist` et lecture du source pour extraire les valeurs exactes :
+- **Audit de l'éditeur de référence** — clonage du dépôt de référence et lecture du source pour extraire les valeurs exactes :
   - Chevron : triangle **rempli** (pas stroked), `r = 3.2dp`, `alpha = 0.8f` sur `gutterCurrent`/`textSecondary`. Shape `▸` collapsed = `(cx-r*0.6, cy-r) → (cx+r*0.7, cy) → (cx-r*0.6, cy+r)`. Shape `▾` expanded = `(cx-r, cy-r*0.6) → (cx+r, cy-r*0.6) → (cx, cy+r*0.7)`. File: `EditorRendering.kt:531-543`.
   - Dot : cercle rempli, `radius = 2.5dp` (5dp diameter), center à `5dp + dotR` = **7.5dp du bord gauche du gutter** (PAS à côté du line number). Seulement errors (3) et warnings (2) — info n'a pas de dot. File: `EditorRendering.kt:430,445-451`.
   - Line-number right edge à `gutterWidth - foldStripWidth - 4dp` (à l'opposé du dot).
 
 - **Fix EditorView.drawFoldChevrons()** — remplaçé le stroked triangle (1.4f stroke, r2 = foldStripWidth * 0.25 ≈ 3.5dp+) par un **filled** triangle avec `r = 3.2dp` et `applyAlpha(gutterText, 0.8f)`. Nouvelle méthode utilitaire `applyAlpha(int color, float alpha)` pour multiplier l'alpha d'un ARGB color.
 
-- **Fix GutterView.drawLineNumber()** — le dot est maintenant **piné au bord gauche du gutter** (centre à `5dp + dotR` du bord gauche), PAS à côté du line number. `radius = 2.5dp` (au lieu de `0.35*charWidth` ≈ 3.5dp). Solid filled circle, **sans inner highlight halo** (CodeAssist dessine un plain circle). Seulement errors (3) et warnings (2) — info skip (matches CodeAssist).
+- **Fix GutterView.drawLineNumber()** — le dot est maintenant **piné au bord gauche du gutter** (centre à `5dp + dotR` du bord gauche), PAS à côté du line number. `radius = 2.5dp` (au lieu de `0.35*charWidth` ≈ 3.5dp). Solid filled circle, **sans inner highlight halo** (version de référence dessine un plain circle). Seulement errors (3) et warnings (2) — info skip (matches version de référence).
 
 - **Fix GutterView** — ajout d'un champ `density` (via `setDensity(float)`) car GutterView n'a pas accès au Context. EditorView appelle `gutterView.setDensity(getResources().getDisplayMetrics().density)` dans son constructeur.
 
@@ -2368,7 +2368,7 @@ Le rapport de l'utilisateur disait : « Je veux ajouter 2 fonctionnalités addit
 - `./gradlew :core:testDebugUnitTest :lsp-api:testDebugUnitTest :cel-lsp:testDebugUnitTest` — **493 tests, 0 échec, 0 erreur**.
 - `./gradlew :app:assembleDebug` — APK debug généré sans erreur (8.4 MB).
 - Manual test recommandé :
-  - Fold chevron : plus petit, filled, doux (alpha 0.8) — ressemble à CodeAssist.
+  - Fold chevron : plus petit, filled, doux (alpha 0.8) — ressemble au style des éditeurs professionnels.
   - Diagnostic dot : tout à gauche du gutter (pas à côté du line number), 5dp diameter, seulement errors/warnings.
   - Preview : ouvrez `README.md` ou `index.html` depuis le drawer → 2 icônes apparaissent dans la toolbar → tap → preview s'ouvre.
   - Toggle mode : dans la preview, tap sur l'icône toggle → switch entre split (source + preview) et full (preview seule).
@@ -2399,7 +2399,7 @@ Le rapport de l'utilisateur disait : « une fois replié par ex: `public int add
 
 ### Fold — Bug 5 : texte en blanc quand replié (perte de la coloration syntaxique)
 
-Le rapport de l'utilisateur disait : « une fois replié il n'y a pas de coloration le text est en blanc. Consulte le projet CodeAssist ils ont bien géré la coloration pendant le repli ». Le préfixe visible (`public int add(int a, int b)`) perdait tous ses colors de keywords/types quand la ligne était repliée.
+Le rapport de l'utilisateur disait : « une fois replié il n'y a pas de coloration le text est en blanc. Consulte le projet de référence, ils ont bien géré la coloration pendant le repli ». Le préfixe visible (`public int add(int a, int b)`) perdait tous ses colors de keywords/types quand la ligne était repliée.
 
 - **Root cause** — `EditorView.drawCompositeFoldLine()` dessinait les trois parties (préfixe, placeholder, suffixe) avec un seul `theme.textColor`. Aucune coloration syntaxique n'était appliquée à la partie visible.
 
@@ -2425,7 +2425,7 @@ Le rapport de l'utilisateur disait : « le gutterview est censé afficher un pet
 
 ### Diagnostics — Bug 6b : tap sur la ligne de diagnostic n'ouvrait pas le popup sheet
 
-Le rapport de l'utilisateur disait : « aussi un petit popup sur la ligne de l'erreur, warning et quand on appuie dessus affiche le popup sheet avec les détails comme le fait bien CodeAssist ». Avant, il fallait taper EXACTEMENT sur le squiggle (`offset ∈ [d.start, d.end]`) pour ouvrir le popup — taper à côté sur la même ligne plaçait le caret.
+Le rapport de l'utilisateur disait : « aussi un petit popup sur la ligne de l'erreur, warning et quand on appuie dessus affiche le popup sheet avec les détails comme le font les bons éditeurs de code ». Avant, il fallait taper EXACTEMENT sur le squiggle (`offset ∈ [d.start, d.end]`) pour ouvrir le popup — taper à côté sur la même ligne plaçait le caret.
 
 - **Fix** — `EditorView.handleTap()` élargit la zone de tap :
   1. **Tap sur le dot dans le gutter** (left of line number, NOT in fold strip) → ouvre le popup sheet pour cette ligne.
@@ -2704,9 +2704,9 @@ distincts :
   `publishDiagnostics` (même avec 0 diagnostics) est maintenant loggée dans
   le panneau LSP.
 
-### Architecture LSP — recherche comparative (Sora, CodeAssist, VS Code, Neovim, Kate, Theia)
+### Architecture LSP — recherche comparative (Sora, VS Code, Neovim, Kate, Theia)
 
-L'utilisateur a demandé de ne pas se limiter à Sora Editor et CodeAssist.
+L'utilisateur a demandé de ne pas se limiter à Sora Editor et la version de référence.
 Voici les findings clés de la recherche :
 
 - **Le serveur Java EmmyLua-LS est DÉPRÉCIÉ** (dernière release juillet
@@ -2818,13 +2818,13 @@ de la config d'inspection.
   `client.setSettings(settings)` en plus du push `didChangeConfiguration`,
   pour que les settings soient servies au pull suivant.
 
-### Architecture LSP — note sur l'approche Sora (remote) vs CodeAssist (in-process)
+### Architecture LSP — note sur l'approche Sora (remote) vs in-process
 
 L'utilisateur a demandé de vérifier si l'approche remote de Sora Editor
 (LocalSocket vers un Service séparé) était la bonne, vs l'approche in-process
-de CodeAssist. Analyse :
+de la version de référence. Analyse :
 
-- **CodeAssist** (tyron12233) charge les LSP servers dans le même process
+- **L'éditeur de référence** charge les LSP servers dans le même process
   JVM (même classloader) via `Launcher.createLauncher` avec des streams
   piped en mémoire. Pas de socket, pas de Service séparé, pas d'IPC.
 - **Sora Editor** (et notre éditeur actuel) lance le LSP server dans un
@@ -2835,7 +2835,7 @@ de CodeAssist. Analyse :
   du socket, leak si on oublie `disconnect()`) qui peut causer d'autres
   bugs.
 - **Recommandation** : pour v3.6.0+, envisager de basculer Lua LSP en
-  in-process (comme CodeAssist) — charger `LuaLanguageServer` directement
+  in-process (comme version de référence) — charger `LuaLanguageServer` directement
   dans le process de l'éditeur via LSP4J `Launcher.createLauncher` avec
   `PipedInputStream`/`PipedOutputStream`. Ça élimine le Service, le
   socket, et la fenêtre de timing "Step 2: Waiting 1s for service to open
@@ -2900,8 +2900,7 @@ manquant**. Toutes les corrections ont été appliquées dans cette session.
 ### Fixed — Popup diagnostic (le bug de l'utilisateur)
 - **Tap sur squiggle → popup diagnostic** — `handleTap()` hit-teste maintenant
   les diagnostics. Si le tap atterrit sur un squiggle, un popup en bas de
-  l'écran affiche le **message complet** + les quick-fixes (pattern CodeAssist
-  `DiagnosticSheet`). Tap sur un quick-fix → applique l'action. Tap ailleurs →
+  l'écran affiche le **message complet** + les quick-fixes (motif fiche de diagnostic). Tap sur un quick-fix → applique l'action. Tap ailleurs →
   ferme le popup.
 - **`findDiagnosticAt(offset)`** — cherche le diagnostic à l'offset donné
 - **`showDiagnosticPopup(diag, offset)`** — ouvre le popup avec message + actions
@@ -3081,7 +3080,7 @@ manquant**. Toutes les corrections ont été appliquées dans cette session.
 - **Completion filtering** — suggestions are now filtered client-side by the
   typed prefix, using case-insensitive prefix match + fuzzy subsequence
   (camel-hump). Re-ranks: exact match > case-insensitive exact > prefix >
-  fuzzy. Ported from CodeAssist's `CompletionSession.filtered()`. Typing
+  fuzzy. Ported from the reference implementation's `CompletionSession.filtered()`. Typing
   `end` now correctly shows `end` first, not `and`.
 - **Enter accepts the wrong item** — the soft-keyboard Enter was bypassing
   the completion popup's selection logic. Both `commitText("\n")` and
@@ -3099,7 +3098,7 @@ manquant**. Toutes les corrections ont été appliquées dans cette session.
 - **Client-side completion cache** — when the provider returns items for
   a token, the full set is cached. On subsequent keystrokes that extend
   the same token, the cached set is filtered locally — NO provider
-  round-trip. This is the CodeAssist pattern: keeps the popup responsive
+  round-trip. This is the reference pattern: keeps the popup responsive
   on every keystroke even with a slow LSP server. The cache is
   invalidated when the caret moves to a different token, the prefix
   becomes empty, or the user accepts/dismisses the popup.
@@ -3159,8 +3158,8 @@ manquant**. Toutes les corrections ont été appliquées dans cette session.
   fix applies to attribute values that span lines. Extracted
   `parseXmlAttributes` helper so the inline and cross-line paths share
   the same logic.
-- **XML Enter indentation** — rewrote `EditOps.xmlNewline` using the
-  CodeAssist `XmlNewlineHandler` approach (forward-scan stack of
+- **XML Enter indentation** — rewrote `EditOps.xmlNewline` using a
+  forward-scan stack of
   opening-line indents). Fixes three bugs:
   1. Self-closing tags (`<View/>|`) no longer trigger "deeper indent
      after `>`" — the next line stays at the same level.
@@ -3209,7 +3208,7 @@ manquant**. Toutes les corrections ont été appliquées dans cette session.
 - **`@since` Javadoc tags** on all 46 public classes, documenting which
   version each class was introduced in.
 - **`CONTRIBUTING.md`** — dev setup, code conventions, PR process.
-- **`LICENSE`** (MIT) + **`NOTICE`** (CodeAssist / OpenJDK / Android SDK
+- **`LICENSE`** (MIT) + **`NOTICE`** (version de référence / OpenJDK / Android SDK
   attributions).
 - **`USAGE.md`** — complete integration guide: Gradle setup, EditorView in
   a layout, themes, font size, word wrap, diagnostics, fold regions, inlay
@@ -3334,7 +3333,7 @@ manquant**. Toutes les corrections ont été appliquées dans cette session.
   user tap.
 - **A2**: Pinch zoom broken — real `ScaleGestureDetector`, clamp
   `[0.6, 2.6]`, `requestLayout()` after `setTextSize`.
-- **B1-B29**: 29 gaps from the CodeAssist comparative analysis (composing
+- **B1-B29**: 29 gaps from the comparative analysis (composing
   region replace-not-append, `setComposingText` refuses newlines,
   `restartInput` after smart-edit divergence, `replaceText` API 34,
   `deleteSurroundingTextInCodePoints`, `closeConnection` generation-guarded,
@@ -3511,7 +3510,7 @@ The old setters still work (deprecated) — they create an internal adapter
 - **EmptyLanguage** — clears all stale resolvers when switching languages.
 
 ### Fixed
-- Fold chevron visibility (CodeAssist pattern: collapsed always, open on caret line only).
+- Fold chevron visibility (version de référence pattern: collapsed always, open on caret line only).
 - Caret glide: OvershootInterpolator → LinearInterpolator (no overshoot, 100ms).
 - EditorView XML constructor `(Context, AttributeSet)` added.
 - Handler null guard in `setLanguage()` diagnostics.

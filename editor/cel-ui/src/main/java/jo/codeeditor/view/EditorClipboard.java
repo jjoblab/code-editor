@@ -63,7 +63,7 @@ final class EditorClipboard {
     }
 
     private void setClipboard(String text) {
-        // Conserve la FIN (CodeAssist clipForClipboard) — la partie utile
+        // Conserve la FIN — la partie utile
         // d'une sélection surdimensionnée est sa fin (logs, code généré).
         if (text.length() > MAX_CLIPBOARD_CHARS) {
             text = text.substring(text.length() - MAX_CLIPBOARD_CHARS);

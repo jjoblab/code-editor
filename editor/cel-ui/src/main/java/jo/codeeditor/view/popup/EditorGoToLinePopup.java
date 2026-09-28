@@ -15,7 +15,7 @@ import android.widget.PopupWindow;
 
 /**
  * Popup aller-à-la-ligne : PopupWindow Android + EditText sur carte
- * « liquid glass » (portage GoToLinePopup de CodeAssist), saisie
+ * « liquid glass », saisie
  * « ligne » ou « ligne:colonne », variantes dépréciées à champ texte
  * interne. Corps déplacés d'EditorPopupManager à l'identique
  * (adaptation des accès délégués) ; l'état du popup (visibilité,
@@ -46,7 +46,7 @@ public class EditorGoToLinePopup {
         goToLineVisible = true;
         int lineCount = view.session.getDocument().lineCount();
         Context ctx = view.getContext();
-        // Carte glass CodeAssist (un LinearLayout brut theming gutterBg
+        // Carte glass (un LinearLayout brut theming gutterBg
         // serait sans arrondi ni séparation titre/champ/hint).
         EditorGlassCards.GlassCard card = EditorGlassCards.build(view, ctx,
                 "Go to line",

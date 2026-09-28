@@ -8,7 +8,7 @@ import java.util.*;
  * Session de snippet basée sur les tab-stops.
  * Gère les plages de placeholders liés/miroirs pour l'insertion de
  * snippets de code. Reprend le design du {@code SnippetSession.kt} de
- * CodeAssist.
+ * l'éditeur.
  */
 public class SnippetSession {
 

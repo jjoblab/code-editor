@@ -186,7 +186,7 @@ public class EditorImeBridge {
             // être réinterrogé pour les nouvelles occurrences.
             view.scheduleDocumentHighlights();
             // Surbrillance des crochets appariés — recalcul synchrone
-            // (scan borné, CodeAssist recalcule aussi à chaque recomposition).
+            // (scan borné, recalculé à chaque frame).
             view.updateBracketPair();
             if (view.cursorAnchorMonitorMode != 0) {
                 pushCursorAnchorInfo();

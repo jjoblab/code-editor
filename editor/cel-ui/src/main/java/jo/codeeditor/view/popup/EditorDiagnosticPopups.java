@@ -11,7 +11,7 @@ import java.util.List;
 /**
  * Popups de diagnostic : fiche détaillée (sheet), popup de détail ancré
  * à l'offset et fiche groupée par ligne (portage
- * diagnosticsByStartLine de CodeAssist). Ouverture exclusive : referme
+ * groupés par ligne de départ). Ouverture exclusive : referme
  * les autres popups via le gestionnaire. Corps déplacés
  * d'EditorPopupManager à l'identique (adaptation des accès délégués).
  */
@@ -71,7 +71,7 @@ public class EditorDiagnosticPopups {
 
     /**
      * Ouvre la fiche groupée listant chaque diagnostic dont le début se
-     * situe sur {@code line} (portage diagnosticsByStartLine de CodeAssist).
+     * situe sur {@code line} (groupés par ligne de départ).
      * Une ligne avec un seul diagnostic ouvre directement le popup de
      * détail à la place.
      */

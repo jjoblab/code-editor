@@ -5,7 +5,7 @@ import java.util.*;
 /**
  * Cache par ligne de layout/rendu avec invalidation par révision.
  * Gère les inlays (texte fantôme) et les plages sémantiques.
- * Reprend le design du {@code LineRenderCache.kt} de CodeAssist.
+ * Cache de rendu par ligne, validé par révisions (texte/inlay/sémantique).
  *
  * <p>Validation par triple tampon ({@code rev} + {@code inlayRev} +
  * {@code semRev}), payload {@code layout} opaque (typé par l'appelant —

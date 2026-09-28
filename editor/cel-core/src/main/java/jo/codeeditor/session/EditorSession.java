@@ -308,7 +308,7 @@ public class EditorSession {
         return restyle.lineTextRevision(line);
     }
 
-    // ── Indexes par ligne (approche LineOverlay de CodeAssist) ──
+    // ── Indexes par ligne (un compartiment par ligne) ──
     // Mémoïsation des compartiments par ligne (diagnostics, inlay hints,
     // jetons sémantiques) : détenue par SessionAnnotations, reconstruite
     // paresseusement sur changement d'identité de la liste source.
@@ -316,7 +316,7 @@ public class EditorSession {
     /**
      * Retourne tous les diagnostics dont l'offset de DÉBUT se situe sur la
      * ligne du document donnée (portage du {@code diagnosticsByStartLine()}
-     * de CodeAssist). Le compartiment est trié par sévérité décroissante
+     * standard des éditeurs). Le compartiment est trié par sévérité décroissante
      * (puis par offset de début), donc le premier élément est le diagnostic
      * « principal » de la ligne — celui affiché par la puce. Mémoïsé sur la
      * référence de la liste de diagnostics selon le même schéma que
@@ -381,7 +381,7 @@ public class EditorSession {
 
     /**
      * Applique un jeu de plis AUTORITATIF venu du serveur LSP (portage
-     * d'{@code applyCodeFolds} de CodeAssist / EditorSession.kt) :
+     * d'application des plis fraîchement détectés) :
      * <ul>
      *   <li>une région PRÉCÉDEMMENT repliée (même [start, end]) le reste ;</li>
      *   <li>{@code collapsedByDefault} s'applique UNE SEULE FOIS par

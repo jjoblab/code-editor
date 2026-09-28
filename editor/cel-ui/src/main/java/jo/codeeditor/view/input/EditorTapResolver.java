@@ -19,7 +19,7 @@ import java.util.List;
  * sélection, routage vers les popups (icônes d'aperçu/toolbar, complétion,
  * fiches de diagnostic, chips de fold, NavMenu, actions de code,
  * aller-au-symbole) et armement du tap-dismiss différé dans la fenêtre
- * multi-tap (portage EditorInputModifier de CodeAssist).
+ * multi-tap.
  */
 @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
 public class EditorTapResolver {
@@ -37,14 +37,14 @@ public class EditorTapResolver {
     private static final long MULTI_TAP_TIMEOUT_MS = 280;
     private static final float MULTI_TAP_SLOP_PX = 48f;
 
-    // ── pendingTapDismiss (portage EditorInputModifier de CodeAssist) ──
+    // ── pendingTapDismiss (armé par le tap, résolu au geste suivant) ──
     // Un tap est tombé dans une sélection existante : l'offset où placer
     // le caret SI cela s'avère être un tap ISOLÉ, décidé une fois la
     // fenêtre multi-tap échue. Entre le tap et la décision la sélection
     // reste vivante (pas de scintillement) pour qu'un double-tap suivant
     // puisse l'étendre (cas 2 ci-dessous) et que la toolbar continue de
     // s'afficher. -1 = aucun.
-    // CodeAssist s'appuie sur le onTap de Compose qui se déclenche après
+    // Le onTap de Compose se déclenche après
     // le timeout système de double-tap ; ici la même fenêtre est
     // MULTI_TAP_TIMEOUT_MS et le commit est un postDelayed sur le looper
     // principal.
@@ -57,7 +57,7 @@ public class EditorTapResolver {
             if (target < 0 || view.session == null) return;
             if (target > view.session.getDocument().length()) return;
             // Tap isolé dans la sélection → on la replie à l'offset tapé
-            // (CodeAssist : session.setCaret(target) + handlesVisible
+            // (pose le caret + affiche les poignées
             // = false, ce qui masque les poignées ET la pill).
             view.session.setSelection(target);
             view.handlesVisible = false;
@@ -168,7 +168,7 @@ public class EditorTapResolver {
             return;
         }
 
-        // Test de touche du popup de diagnostic (fiche modale style CodeAssist).
+        // Test de touche du popup de diagnostic (fiche modale).
         if (view.diagnosticPopupVisible) {
             if (hitTester.hitTestDiagnosticSheetClose(x, y)) {
                 view.dismissDiagnosticPopup();
@@ -202,7 +202,7 @@ public class EditorTapResolver {
 
         // Test de touche du menu contextuel — un tap sur une rangée la
         // choisit ; un tap ailleurs ferme (Popup onDismissRequest de
-        // CodeAssist).
+        // standard).
         if (view.navMenuVisible) {
             int navRow = hitTester.navMenuRowIndexOf(x, y);
             if (navRow >= 0) {
@@ -296,17 +296,17 @@ public class EditorTapResolver {
         // La fiche de diagnostic ne s'ouvre désormais QUE depuis (1) la
         // chip de diagnostic après la fin de ligne et (2) le point de
         // diagnostic du gutter — exactement les deux points d'entrée de
-        // CodeAssist (DiagnosticChip.onClick → openSheet, tap sur glyphe de
+        // (chip tapée → fiche, tap sur glyphe de
         // gutter → openSheet). Le squiggle lui-même N'EST PAS tappable :
         // un tap sur la plage ondulée place simplement le caret (branche
-        // else de CodeAssist → session.setCaret), pour que l'utilisateur
+        // → pose du caret), pour que l'utilisateur
         // puisse encore positionner le curseur avant/après la plage de
         // diagnostic. Le code de hit sur squiggle a été retiré pour cette
         // parité.
         if (x >= view.metrics.getGutterWidth() && tapCount == 1) {
             // Une ligne avec PLUSIEURS diagnostics ouvre d'abord la fiche
             // groupée ; une seule ouvre directement le popup de détail
-            // (parité diagnosticsByStartLine de CodeAssist).
+            // (groupés par ligne de départ).
             EditorView.DiagnosticChipHit chipHit = view.findDiagnosticChipHitAt(x, y);
             if (chipHit != null) {
                 if (chipHit.diagnostics.size() > 1) {
@@ -331,7 +331,7 @@ public class EditorTapResolver {
                 Selection prev = view.session.getSelection();
                 if (!prev.isCursor() && offset >= prev.start && offset <= prev.end) {
                     // Tap DANS la sélection (pendingTapDismiss, port
-                    // CodeAssist onPress/onTap) : on la garde vivante
+                    //) : on la garde vivante
                     // (anti-flicker), poignées + pill ré-armées, et la décision
                     // est DIFFÉRÉE de la fenêtre multi-tap : un double-tap qui
                     // suit l'étend (case 2), un tap seul la referme au caret
@@ -342,7 +342,7 @@ public class EditorTapResolver {
                     selectionGestures.showSelectionToolbar();
                     armPendingTapDismiss(offset);
                 } else {
-                    // Re-tap CodeAssist : un second tap au MÊME
+                    // Re-tap : un second tap au MÊME
                     // endroit que le caret collapsed BASCULE la pill
                     // Paste/Select all (le re-tap sur le caret
                     // « interaction.handlesVisible = reTap && !handlesVisible »).

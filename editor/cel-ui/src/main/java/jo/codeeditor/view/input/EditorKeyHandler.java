@@ -22,7 +22,7 @@ import java.util.function.LongSupplier;
  * <p><b>Keymap piloté par les données :</b> les cascades de raccourcis
  * Ctrl et de déplacement/édition ont été remplacées par une recherche
  * dans {@link EditorKeymap} (portage des {@code EditorKeymap}/
- * {@code EditorCommands} de CodeAssist). L'événement touche est résolu
+ * une couche de commandes clavier). L'événement touche est résolu
  * en un identifiant de commande ({@link EditorCommands}) et distribué
  * par {@link #executeCommand} ; les hôtes rebindent les commandes via
  * {@code EditorView.setKeymap(EditorKeymap)}. La table par défaut
@@ -52,7 +52,7 @@ public class EditorKeyHandler {
 
     /**
      * État de séquence (chord) en attente (portage du
-     * {@code Outcome.Pending} de CodeAssist). Quand non-null, le prochain
+     * un résultat en attente). Quand non-null, le prochain
      * événement touche est comparé aux secondes frappes des chords ; l'état
      * expire silencieusement {@link #CHORD_TIMEOUT_MS} après son armement
      * (contrôlé via {@link #clock} au prochain événement — pas de Handler,

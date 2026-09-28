@@ -81,7 +81,7 @@ public class EditorInputHandler {
     private boolean longPressTriggered = false;
 
     // ── Geste modal de la fiche de diagnostic ──────────────
-    // Pendant que la fiche de diagnostic (style CodeAssist) est ouverte,
+    // Pendant que la fiche de diagnostic est ouverte,
     // son scrim consomme tout le geste (pas de scroll/drag derrière la
     // modale) ; le tap UP est routé vers handleTap qui applique une
     // quick-fix ou ferme.
@@ -89,7 +89,7 @@ public class EditorInputHandler {
 
     // ── Geste de la toolbar de sélection ───────────────────────────
     // Pendant que la toolbar flottante de sélection est ouverte, un DOWN
-    // dans sa pill engloutit le geste (le Popup de CodeAssist fait
+    // dans sa pill engloutit le geste (le Popup fait
     // pareil) : feedback de pression sur l'item touché, pas de scroll/
     // caret derrière le popup, et le UP se résout via handleTap →
     // handleSelectionToolbarTap.
@@ -99,9 +99,9 @@ public class EditorInputHandler {
     // Pendant que le NavMenu (Actions ⋯) est ouvert, un DOWN dans sa carte
     // engloutit le geste : feedback de pression sur la rangée touchée, le
     // DRAG fait défiler le contenu (verticalScroll/LazyColumn de
-    // CodeAssist), et le UP résout un tap (choix de rangée) — ou rien sur
+    //), et le UP résout un tap (choix de rangée) — ou rien sur
     // les en-têtes/gaps. Un DOWN HORS de la carte ferme (Popup
-    // onDismissRequest de CodeAssist).
+    // onDismissRequest).
     private boolean navMenuGesture = false;
     private boolean navMenuDragging = false;
     /** Le geste est englouti par le popup quick doc (drag = scroll du corps). */
@@ -203,7 +203,7 @@ public class EditorInputHandler {
                 touchHover.cancel();
                 touchHover.schedule(x, y);
                 // Tout nouveau geste résout le tap-dismiss différé en
-                // attente (CodeAssist annule dans onPress) — un double-tap
+                // attente — un double-tap
                 // étend la sélection au lieu de la fermer.
                 cancelPendingTapDismiss();
                 // La fiche de diagnostic est MODALE — consomme le geste
@@ -220,7 +220,7 @@ public class EditorInputHandler {
                     return true;
                 }
                 // La toolbar de sélection engloutit son geste (parité
-                // Popup CodeAssist) — feedback de pression + action au
+                //) — feedback de pression + action au
                 // relâchement.
                 if (view.selectionToolbarVisible) {
                     EditorPopupAnchors.SelectionToolbarMetrics m = view.selectionToolbarMetrics();
@@ -372,7 +372,7 @@ public class EditorInputHandler {
                         isDragging = false;
                         // Un swipe qui a dépassé le touch-slop est un
                         // scroll, jamais un tap — le tap-dismiss différé
-                        // en attente meurt avec lui (CodeAssist :
+                        // en attente meurt avec lui (
                         // !touchScrolled).
                         cancelPendingTapDismiss();
                         // Annule aussi le hover tap-and-hold —
@@ -436,7 +436,7 @@ public class EditorInputHandler {
                         || ((x - touchStartX) * (x - touchStartX)
                             + (y - touchStartY) * (y - touchStartY) < TAP_SLOP_SQ);
                     view.selectionToolbarPressedIdx = -1;
-                    // Parité Popup CodeAssist : la pill engloutit SON geste —
+                    // La pill engloutit SON geste —
                     // un tap sur un gap/divider ne fait rien (le Popup ne
                     // propage pas), le caret ne bouge pas et le clavier ne
                     // se lève pas. On appelle donc le resolver DIRECTEMENT
@@ -450,7 +450,7 @@ public class EditorInputHandler {
                 if (navMenuGesture) {
                     // Résolution du geste menu — tap → pick de la
                     // rangée ; drag → fin du scroll (rien d'autre). Le geste
-                    // est englouti par la carte (Popup CodeAssist).
+                    // est englouti par la carte (Popup).
                     navMenuGesture = false;
                     boolean wasNavTap = !navMenuDragging
                             && ((x == touchStartX && y == touchStartY)
@@ -505,7 +505,7 @@ public class EditorInputHandler {
                     // Un relâchement sans mouvement dans le gutter des
                     // numéros de ligne est un TAP, pas un scroll — on le
                     // route vers handleTap pour que le point de diagnostic
-                    // ouvre la fiche (parité CodeAssist : tap sur glyphe de
+                    // ouvre la fiche (tap sur glyphe de
                     // gutter → openSheet). Un vrai drag (mouvement au-delà
                     // du slop) continue de défiler/flinger comme avant.
                     boolean tapLike = (x == touchStartX && y == touchStartY)

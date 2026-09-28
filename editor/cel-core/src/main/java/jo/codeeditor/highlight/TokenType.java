@@ -3,7 +3,7 @@ package jo.codeeditor.highlight;
 /**
  * Types de jetons pour la coloration syntaxique.
  *
- * <p>L'ensemble couvre la palette de SyntaxColors de CodeAssist et permet
+ * <p>L'ensemble couvre les distinctions usuelles des éditeurs de code et permet
  * une coloration plus fine :
  * <ul>
  *   <li>{@link #OPERATOR} — +, -, *, /, =, !, ?, :, etc.</li>

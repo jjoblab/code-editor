@@ -20,7 +20,7 @@ import java.util.List;
  *       le diagnostic à un offset, celui qui COMMENCE sur une ligne ;</li>
  *   <li><b>garde ampoule</b> — une ligne porte-t-elle un diagnostic
  *       Error/Warning (réserve l'ampoule de code actions aux lignes de
- *       diagnostic, parité CodeAssist).</li>
+ *       diagnostic — comportement de référence).</li>
  * </ul>
  *
  * <p>EditorView conserve les relais package-privés (peintres, tap resolver
@@ -103,7 +103,7 @@ class EditorDiagnosticsLocator {
      * Retourne true si la ligne donnée porte un diagnostic Error/Warning.
      * Utilisé par le dessin de l'ampoule + le hit-test pour réserver
      * l'ampoule aux lignes de diagnostic uniquement (comportement
-     * aligné sur CodeAssist).
+     * standard des éditeurs de code).
      */
     boolean lineHasDiagnostic(int line) {
         if (view.session == null) return false;
@@ -118,7 +118,7 @@ class EditorDiagnosticsLocator {
     /**
      * Trouve le diagnostic à l'offset donné, ou null. N'est plus utilisé
      * par handleTap — le soulignement ondulé n'est pas tapable (parité
-     * CodeAssist : seule la chip et le point de gouttière ouvrent la
+     * Seule la chip et le point de gouttière ouvrent la
      * feuille). Conservé pour les tests et d'éventuelles intégrations
      * appui long / quick doc.
      */

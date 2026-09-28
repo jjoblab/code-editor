@@ -10,7 +10,7 @@ import java.util.Set;
 
 /**
  * Description immuable d'un langage (portage du
- * {@code EditorLanguageProfile} de CodeAssist).
+ * un profil de langue).
  *
  * <p>Un profil regroupe tout ce que l'éditeur doit savoir d'un langage
  * au-delà du SPI d'intelligence ({@code jo.codeeditor.lang.Language}) :

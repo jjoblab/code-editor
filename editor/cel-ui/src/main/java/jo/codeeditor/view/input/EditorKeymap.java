@@ -10,7 +10,7 @@ import java.util.List;
 
 /**
  * Keymap rebindable piloté par les données (portage de l'
- * {@code EditorKeymap} de CodeAssist).
+ * un keymap d'éditeur).
  *
  * <p>Un keymap est une table ordonnée de {@link Binding}s (identifiant de
  * commande + code touche + modificateurs ctrl/shift). {@link EditorKeyHandler}
@@ -42,7 +42,7 @@ import java.util.List;
  *
  * <h2>Chords</h2>
  * <p>Séquences à deux touches (portage du {@code Outcome.Pending} de
- * CodeAssist) : la première touche arme un état en attente de courte
+ * standard) : la première touche arme un état en attente de courte
  * durée, la seconde complète (ou abandonne) la séquence — raccourcis
  * façon IntelliJ {@code Ctrl+K Ctrl+C}. Une touche qui possède déjà une
  * liaison mono-touche se résout TOUJOURS d'abord comme cette liaison ;

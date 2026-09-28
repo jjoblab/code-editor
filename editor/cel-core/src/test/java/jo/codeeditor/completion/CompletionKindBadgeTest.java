@@ -6,7 +6,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * ★ Tests du badge de type du popup de complétion
- * ({@link CompletionKindBadge}, portage du KindBadge de CodeAssist).
+ * ({@link CompletionKindBadge}, glyphe + couleur par genre).
  *
  * <p>Chaque kind LSP moderne doit produire le BON glyphe — « K » pour un
  * mot-clé (le badge rend visible le type des suggestions), « C » classe,
@@ -96,7 +96,7 @@ class CompletionKindBadgeTest {
     }
 
     @Test
-    void keywordKeepsCodeAssistPurple() {
+    void keywordKeepsPurpleBadge() {
         assertEquals(0xFFCD7EE0,
                 CompletionKindBadge.meta(14, null, null, true, ACCENT).color);
     }
@@ -105,7 +105,7 @@ class CompletionKindBadgeTest {
     void darkThemeKeepsPaletteLightThemeDarkens() {
         int darkClass = CompletionKindBadge.meta(7, null, null, true, ACCENT).color;
         int lightClass = CompletionKindBadge.meta(7, null, null, false, ACCENT).color;
-        assertEquals(0xFFE6C178, darkClass);       // palette CodeAssist telle quelle
+        assertEquals(0xFFE6C178, darkClass);       // palette de référence telle quelle
         assertTrue(lightClass < darkClass,         // assombrie sur fond clair
                 "la couleur badge doit être assombrie pour un thème clair");
         // L'alpha est préservé.

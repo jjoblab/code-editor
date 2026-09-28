@@ -8,7 +8,7 @@ import java.util.*;
  * l'intérieur d'un appel de fonction. Gère le déclenchement explicite
  * (Ctrl+P), la résolution automatique au déplacement du caret, et le
  * rejet par appel.
- * Reprend le design du {@code SignatureHelpController.kt} de CodeAssist.
+ * Contrôleur d'aide de signature : suivi de parenthèse active + rafraîchissement débouncé.
  */
 public class SignatureHelpController {
 

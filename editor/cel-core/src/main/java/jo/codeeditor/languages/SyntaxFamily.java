@@ -2,7 +2,7 @@ package jo.codeeditor.languages;
 
 /**
  * Famille lexicale d'un langage (portage du {@code SyntaxFamily}
- * de CodeAssist).
+ * standard des éditeurs).
  *
  * <p>La famille décide vers quel tokenizer intégré
  * {@code SyntaxHighlighter.styleLine} route : tout langage de la

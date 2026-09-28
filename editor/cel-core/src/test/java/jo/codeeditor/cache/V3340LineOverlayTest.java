@@ -10,7 +10,7 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Tests de régression — tampons de révision adossés à LineOverlay.
  *
- * <p>Portage du schéma {@code LineOverlay<T>} de CodeAssist : les tampons
+ * <p>Schéma d'index par ligne : les tampons
  * de révision inlay/sem par ligne vivent désormais dans des tableaux de
  * primitifs parallèles recollés par {@code System.arraycopy} au lieu de
  * HashMaps reconstruites. Ces tests figent les sémantiques OBSERVABLES qui

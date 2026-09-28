@@ -168,8 +168,8 @@ public class GutterView {
      *  <p>Le point est épinglé au bord GAUCHE du gutter (centre à
      *  {@code 5dp + dotR} du bord gauche), le numéro étant aligné à droite
      *  à l'autre extrémité — point et numéro sont donc aux deux bouts,
-     *  séparés par ~50-60dp d'espace vide, comme le layout de CodeAssist.
-     *  Le point est un disque plein (pas de halo interne — CodeAssist
+     *  séparés par ~50-60dp d'espace vide.
+     *  Le point est un disque plein (pas de halo interne
      *  dessine un cercle simple).
      */
     private void drawLineNumber(Canvas canvas, Paint numberPaint, float textX,
@@ -189,18 +189,18 @@ public class GutterView {
             numberPaint.setColor(theme.gutterText);
         }
 
-        // Point de diagnostic style CodeAssist — épinglé au bord GAUCHE du
+        // Point de diagnostic — épinglé au bord GAUCHE du
         // gutter (pas à côté du numéro). Centre x = 5dp + dotR depuis le bord
         // gauche. Disque plein. Rayon maintenu à 3dp : au-dessus des 2.5dp de
-        // CodeAssist mais visuellement plus léger à côté des numéros de ligne.
+        // mais visuellement plus léger à côté des numéros de ligne.
         if (lineIdx < diagnostics.length && diagnostics[lineIdx] > 0) {
             // Ne dessine des points que pour les erreurs (3) et les
-            // avertissements (2) — CodeAssist ne dessine aucun point de
+            // avertissements (2) — aucun point de
             // gutter pour les infos (sévérité 1). Les infos reçoivent un
             // gribouillis dans la zone de texte mais aucun indicateur de
             // gutter.
             int sev = diagnostics[lineIdx];
-            if (sev < 2) return; // ignore les infos — comme CodeAssist
+            if (sev < 2) return; // ignore les diagnostics de sévérité info
             float dotR = 3.0f * density; // 3dp
             float dotCenterX = 5f * density + dotR;
             float dotY = y + lineHeight * 0.5f;

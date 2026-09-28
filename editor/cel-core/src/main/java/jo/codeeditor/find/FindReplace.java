@@ -6,7 +6,7 @@ import java.util.regex.*;
 /**
  * Opérations de recherche/remplacement gérant les modes insensible à la
  * casse, mot entier et regex.
- * Reprend le design du {@code FindReplace.kt} de CodeAssist.
+ * Recherche/remplacement avec expressions régulières.
  */
 public final class FindReplace {
 

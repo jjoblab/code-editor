@@ -76,7 +76,7 @@ public final class EditorPopupAnchors {
 
     /**
      * Géométrie partagée de la fiche de diagnostic (portage du DiagnosticSheet
-     * de CodeAssist). Renvoie {@code null} quand rien n'est affiché, sinon
+     * standard). Renvoie {@code null} quand rien n'est affiché, sinon
      * {@code [panelTop, panelBottom, actionStartY, actionRowH,
      * closeCx, closeCy, closeR]}.
      */
@@ -145,7 +145,7 @@ public final class EditorPopupAnchors {
 
     /**
      * Géométrie de la pill (chip) de diagnostic pour {@code d} sur
-     * {@code line} (portage du DiagnosticChip de CodeAssist). Renvoie
+     * {@code line} (motif chip de diagnostic). Renvoie
      * {@code [x, y, w, h, iconR, iconGap, padX, badgeD, badgeGap]} ou null
      * quand la pill serait entièrement hors écran. Source unique de vérité
      * pour la passe de dessin et le hit-test.
@@ -166,7 +166,7 @@ public final class EditorPopupAnchors {
         float chipX;
         float y;
         if (view.wordWrap && view.wrapModel != null) {
-            // ★ CodeAssist DiagnosticChipsLayer : la chip se place
+            // ★ La chip se place
             // après la FIN de la DERNIÈRE rangée repliée (lastSub), pas sur
             // la première ni à la longueur NON repliée.
             EditorView.WrapRows wr = view.wrapRowsFor(line, lineLen);
@@ -195,7 +195,7 @@ public final class EditorPopupAnchors {
             y = view.docLineToY(line) - view.vOffset;
         }
         if (y + lineHeight < 0 || y > view.getHeight()) return null;
-        // Hauteur de pill dimensionnée au contenu (~1.24em, CodeAssist)
+        // Hauteur de pill dimensionnée au contenu (~1.24em)
         // centrée dans la rangée.
         float pillH = view.metrics.getTextSize() * 1.25f;
         float pillY = y + (lineHeight - pillH) * 0.5f;
@@ -242,7 +242,7 @@ public final class EditorPopupAnchors {
 
     /**
      * Géométrie partagée + liste d'actions de la toolbar flottante de
-     * sélection (portage {@code SelectionToolbar} de CodeAssist). SOURCE
+     * sélection. SOURCE
      * UNIQUE de vérité pour le rendu ET le hit-test.
      */
     public static SelectionToolbarMetrics selectionToolbarMetrics(EditorView view) {
@@ -251,7 +251,7 @@ public final class EditorPopupAnchors {
         float density = view.getResources().getDisplayMetrics().density;
 
         // Ancre = extrémité ACTIVE de la sélection (le bout qui suit le
-        // doigt — parité CodeAssist geometry.caretGeometry(selActive)).
+        // doigt — la pill suit la borne active de la sélection).
         float[] anchor = view.caretScreenPos(sel.end);
 
         boolean hasSelection = !sel.isCursor();
@@ -374,7 +374,7 @@ public final class EditorPopupAnchors {
 
         /**
          * L'INDEX d'item à (px, py), ou -1. Les dividers et les gaps entre
-         * items ne sont pas actionnables (parité CodeAssist).
+         * items ne sont pas actionnables.
          */
         public int itemIndexAt(float px, float py) {
             if (!contains(px, py)) return -1;

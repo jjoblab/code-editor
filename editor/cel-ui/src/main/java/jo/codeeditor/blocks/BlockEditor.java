@@ -7,7 +7,7 @@ import jo.codeeditor.view.chrome.EditorTheme;
  * Édition par blocs : analyse le Java en un arbre de blocs typés, dessine
  * les blocs avec des formes et fournit la complétion dans les emplacements
  * de blocs. Éditeur structurel simplifié pour l'édition de code par blocs.
- * Porté depuis le BlockEditor.kt de CodeAssist.
+ * Implémentation Java indépendante.
  */
 public class BlockEditor {
 

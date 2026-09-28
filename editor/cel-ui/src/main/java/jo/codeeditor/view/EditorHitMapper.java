@@ -166,7 +166,7 @@ class EditorHitMapper {
             int visualCol = (int) ((x - colScreenX) / charWidth + 0.5f);
             // Conscient des inlays — remappe la colonne VISUELLE tapée vers
             // la colonne brute du document ; un toucher dans un hint s'aligne
-            // sur son ancre (sémantique visualToRaw de CodeAssist).
+            // sur son ancre (sémantique visualToRaw).
             col = view.rawColFor(line, visualCol);
 
             // Si la ligne porte un pli réduit, borne col à la longueur

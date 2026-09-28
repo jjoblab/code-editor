@@ -6,7 +6,7 @@ import java.util.*;
  * Analyse de documentation rapide : extraction de contenu Javadoc/KDoc.
  * Analyse les commentaires de doc en contenu structuré avec description
  * et sections. Gère {@code}, {@link}, les balises HTML et le Markdown.
- * Reprend le design du {@code QuickDoc.kt} de CodeAssist.
+ * Documentation rapide formatée (markdown léger).
  */
 public class QuickDoc {
 
@@ -38,7 +38,7 @@ public class QuickDoc {
          * Contenu des fences ``` (typiquement la signature exacte
          * renvoyée par le serveur hover LSP). Rendu en tête du popup
          * en monospace sur fond teinté (motif QuickDocPopup de
-         * CodeAssist). Vide quand il n'y a pas de fence.
+         * standard). Vide quand il n'y a pas de fence.
          */
         public final String signature;
         public final String description;

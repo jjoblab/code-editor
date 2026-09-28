@@ -11,7 +11,7 @@ import java.util.Set;
 
 /**
  * Registre + collecteur par frame des painters de plugins (port de
- * l'{@code EditorPainterHost} de CodeAssist).
+ * un painter host d'éditeur).
  *
  * <p>L'hôte possède les {@link EditorDecorationPainter} enregistrés et,
  * une fois par passe de rendu, appelle chacun avec un
@@ -23,7 +23,7 @@ import java.util.Set;
  * <p><b>Fiabilité :</b> un painter qui lève quoi que ce soit ({@link Throwable},
  * pas seulement RuntimeException) est RETIRÉ du registre et signalé aux
  * {@link Listener} — l'éditeur continue de se dessiner. C'est la politique
- * la plus importante du painter host héritée de CodeAssist : un plugin
+ * la plus importante du painter host : un plugin
  * défaillant dégrade en « aucune décoration », jamais en éditeur planté.</p>
  *
  * <pre>{@code
@@ -144,7 +144,7 @@ public final class EditorPainterHost {
             try {
                 painter.paint(ctx);
             } catch (Throwable t) {
-                // ★ Politique du painter host de CodeAssist : un painter qui
+                // ★ Politique du painter host : un painter qui
                 // lève est retiré du registre — ne jamais planter l'éditeur
                 // pour le bug d'un plugin.
                 synchronized (painters) {

@@ -41,7 +41,7 @@ final class FoldRegions {
     /**
      * Les {@code collapsedByDefault} serveur (imports) ont-ils été appliqués
      * une première fois pour CE document ? (portage de
-     * {@code defaultFoldsApplied} de CodeAssist — cf. applyCodeFolds.)
+     * (appliqué une seule fois — cf. applyCodeFolds.)
      */
     private boolean foldDefaultsApplied = false;
 
@@ -102,7 +102,7 @@ final class FoldRegions {
 
     /**
      * Applique un jeu de plis AUTORITATIF venu du serveur LSP (portage
-     * d'{@code applyCodeFolds} de CodeAssist / EditorSession.kt) :
+     * d'application des plis fraîchement détectés) :
      * <ul>
      *   <li>une région PRÉCÉDEMMENT repliée (même [start, end]) le reste ;</li>
      *   <li>{@code collapsedByDefault} s'applique UNE SEULE FOIS par

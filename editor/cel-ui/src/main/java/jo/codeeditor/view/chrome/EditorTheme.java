@@ -79,7 +79,7 @@ public class EditorTheme {
     // ── Texte (défaut) ───────────────────────────────────────────
     public final int textColor;
 
-    // ── Couleurs des popups verre (pattern CodeAssist) ───────────
+    // ── Couleurs des popups verre ───────────
     /** Arrière-plan translucide des popups (alpha ~0.86). */
     public final int glassBg;
     /** Bordure translucide des popups (alpha ~0.10). */

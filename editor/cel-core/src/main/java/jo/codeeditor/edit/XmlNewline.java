@@ -5,7 +5,7 @@ import java.util.List;
 
 /**
  * Gestionnaire de saut de ligne XML/HTML : indentation structurelle issue de
- * l'imbrication des éléments (porté du {@code XmlNewlineHandler} de CodeAssist).
+ * l'imbrication des éléments.
  * Isolé d'EditOps car il repose sur un balayage propre aux balises (pile
  * d'éléments ouverts, alignement d'attributs) sans rapport avec les langages C.
  */
@@ -16,7 +16,7 @@ final class XmlNewline {
     /**
      * Gestionnaire de saut de ligne XML : indentation structurelle issue de
      * l'imbrication des éléments.
-     * <p>Porté depuis le {@code XmlNewlineHandler} de CodeAssist. Utilise un
+     * <p>Utilise un
      * balayage avant avec une pile d'indentations de lignes d'ouverture pour
      * calculer la profondeur d'imbrication correcte — plutôt que l'heuristique
      * « indenter plus profond après {@code >} » qui se déclenchait à tort
@@ -78,7 +78,7 @@ final class XmlNewline {
         return new RangeEdit(pos, pos, "\n" + base, pos + 1 + base.length());
     }
 
-    // ── Aides newline XML (portées depuis Newline.kt de CodeAssist) ─────
+    // ── Aides newline XML ─────
 
     private static final int XML_INDENT_SCAN_LIMIT = 200_000;
 

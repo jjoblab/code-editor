@@ -17,7 +17,7 @@ import jo.codeeditor.document.EditorDocument;
 
 /**
  * Popup de renommage : PopupWindow Android + EditText sur carte « liquid
- * glass » (portage RenamePopup de CodeAssist) ; privilégie le resolver
+ * glass » ; privilégie le resolver
  * LSP rename (WorkspaceEdit appliqué hors thread UI) avec retombée sur
  * l'heuristique locale par identifiant. Corps déplacés
  * d'EditorPopupManager à l'identique (adaptation des accès délégués) ;
@@ -71,7 +71,7 @@ public class EditorRenamePopup {
         if (renameText.isEmpty()) return;
         renameVisible = true;
         Context ctx = view.getContext();
-        // Carte glass CodeAssist (un LinearLayout brut theming
+        // Carte glass (un LinearLayout brut theming
         // gutterBg serait trop pauvre). Titre « Rename \"x\" » ; hint
         // « Enter to rename 'x', Esc to cancel » (parité EditorOverlays.kt).
         EditorGlassCards.GlassCard card = EditorGlassCards.build(view, ctx,

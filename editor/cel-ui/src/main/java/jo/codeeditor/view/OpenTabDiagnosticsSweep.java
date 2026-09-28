@@ -15,7 +15,7 @@ import java.util.concurrent.Executors;
 
 /**
  * Balayage des diagnostics des ONGLETS OUVERTS (port de
- * l'{@code OpenTabDiagnosticsSweep} de CodeAssist).
+ * un balayage d'onglets).
  *
  * <p>L'éditeur rafraîchit déjà les diagnostics de l'onglet <b>actif</b> à
  * chaque changement de texte (avec anti-rebond). Mais un hôte multi-onglets
@@ -27,9 +27,9 @@ import java.util.concurrent.Executors;
  * de chaque onglet HORS du thread principal et applique le résultat sur le
  * thread principal — avec un intervalle de {@value #DEFAULT_GAP_MS} ms
  * entre onglets pour que le thread UI n'applique jamais plusieurs résultats
- * dans une même frame (intervalle de CodeAssist).</p>
+ * dans une même frame (intervalle court).</p>
  *
- * <p><b>Onglets ignorés</b> (parité CodeAssist) :</p>
+ * <p><b>Onglets ignorés</b> :</p>
  * <ul>
  *   <li>l'onglet qui a actuellement le <b>focus</b> — sa propre tâche avec
  *       anti-rebond en est responsable (et l'utilisateur y tape) ;</li>
@@ -57,7 +57,7 @@ import java.util.concurrent.Executors;
  */
 public final class OpenTabDiagnosticsSweep {
 
-    /** Intervalle CodeAssist : 40 ms entre deux applications d'onglet. */
+    /** 40 ms entre deux applications d'onglet. */
     public static final long DEFAULT_GAP_MS = 40L;
 
     /** Exécuteur partagé hors thread principal (daemon — ne bloque jamais
@@ -138,7 +138,7 @@ public final class OpenTabDiagnosticsSweep {
         // Parcours terminé.
     }
 
-    /** Éligibilité CodeAssist : ignore focus / lecture seule / volumineux / sans provider / détaché. */
+    /** Éligibilité : ignore focus / lecture seule / volumineux / sans provider / détaché. */
     private static boolean eligible(EditorView tab) {
         if (tab == null) return false;
         if (tab.getParent() == null) return false;           // détachée

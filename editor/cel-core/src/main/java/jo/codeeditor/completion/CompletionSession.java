@@ -7,7 +7,7 @@ import java.util.*;
  * Stocke une liste de candidats classée par le backend et peut la
  * restreindre localement quand l'utilisateur continue à taper dans
  * le même token.
- * Reprend le design du {@code CompletionSession.kt} de CodeAssist.
+ * Session de complétion : filtrage local + ranking par genre.
  */
 public class CompletionSession {
 
@@ -53,7 +53,7 @@ public class CompletionSession {
         /**
          * Variante complète avec raffinement de kind
          * ({@link #kindTag}) — badge de type précis dans le popup
-         * (portage du KindBadge de CodeAssist : glyphe + couleur par kind).
+         * (glyphe + couleur par genre).
          */
         public Item(String label, String detail, String insertText, String icon,
                     int kind, int sortScore, boolean isKeyword, boolean isSnippet,

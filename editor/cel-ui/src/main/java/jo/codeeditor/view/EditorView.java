@@ -2454,7 +2454,7 @@ public class EditorView extends View {
     }
 
     // ════════════════════════════════════════════════════════════════
-    // Menu contextuel unifié (portage NavMenu de CodeAssist)
+    // Menu contextuel unifié
     // ════════════════════════════════════════════════════════════════
 
     /** Branche le resolver go-to-type-declaration. */
@@ -2494,7 +2494,7 @@ public class EditorView extends View {
      * Retourne true si la ligne donnée porte un diagnostic Error/Warning
      * (délégué à {@link EditorDiagnosticsLocator}). Utilisé par le dessin
      * de l'ampoule + le hit-test pour réserver l'ampoule aux lignes de
-     * diagnostic uniquement (comportement aligné sur CodeAssist).
+     * diagnostic uniquement.
      */
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
     public boolean lineHasDiagnostic(int line) {
@@ -2726,7 +2726,7 @@ public class EditorView extends View {
 
     /**
      * Rafraîchit le popup de complétion selon le contexte courant du caret.
-     * <p>Utilise un filtrage côté client (motif CodeAssist) :
+     * <p>Utilise un filtrage côté client :
      * <ol>
      *   <li>Si le caret est toujours sur le MÊME token que l'ensemble de
      *       base en cache, filtre le cache par préfixe (insensible à la
@@ -2873,13 +2873,13 @@ public class EditorView extends View {
 
     public boolean isDiagnosticSheetVisible() { return popupManager.isDiagnosticSheetVisible(); }
 
-    /** True quand la feuille par-diagnostic (style CodeAssist) est ouverte. */
+    /** True quand la feuille par-diagnostic est ouverte. */
     public boolean isDiagnosticPopupVisible() { return diagnosticPopupVisible; }
 
     /**
      * Affiche la toolbar flottante de sélection (Copier/Couper/Coller/Tout
      * sélectionner) — une pastille dépolie ancrée au-dessus de l'extrémité
-     * ACTIVE de la sélection (UX CodeAssist : la toolbar suit le doigt
+     * ACTIVE de la sélection (la toolbar suit le doigt
      * jusqu'à l'endroit où l'utilisateur a fini de sélectionner).
      */
     public void showSelectionToolbar() {
@@ -2909,7 +2909,7 @@ public class EditorView extends View {
     /**
      * Trouve le diagnostic à l'offset donné, ou null (délégué à
      * {@link EditorDiagnosticsLocator}). N'est plus utilisé par handleTap —
-     * le soulignement ondulé n'est pas tapable (parité CodeAssist : seule
+     * le soulignement ondulé n'est pas tapable (seule
      * la chip et le point de gouttière ouvrent la feuille). Conservé pour
      * les tests et d'éventuelles intégrations appui long / quick doc.
      */
@@ -2930,7 +2930,7 @@ public class EditorView extends View {
     }
 
     /**
-     * Affiche un popup par diagnostic (motif DiagnosticSheet de CodeAssist).
+     * Affiche un popup par diagnostic (motif fiche).
      * Montre le message COMPLET du diagnostic + les éventuelles quick-fixes
      * du resolver d'actions de code. Ancré au-dessus de la ligne du diagnostic.
      */

@@ -2,20 +2,12 @@
 
 ## CodeAssist
 
-This library is inspired by the architecture of
-[CodeAssist](https://github.com/tyron12233/CodeAssist) by tyron12233,
-licensed under the GPL-3.0 license.
-
-code-editor-lib is an independent implementation in Java for Android
-(no shared source code with CodeAssist, which is written in Kotlin with
-Compose Multiplatform). The architectural concepts — Rope-based document
-model, incremental per-line tokenizer, IME bridge with composing-region
-handling, per-line render cache, fold model, wrap model, signature help
-controller, code actions controller, navigation menu — were studied from
-CodeAssist's source and reimplemented from scratch.
-
-We thank the CodeAssist team for the reference implementation that guided
-the design of this library.
+Parts and features of this editor were designed following the
+architecture patterns used by
+[CodeAssist](https://github.com/tyron12233/CodeAssist) by tyron12233
+(GPL-3.0), with improvements and an independent Java implementation for
+Android. No source code is shared (CodeAssist is written in Kotlin with
+Compose Multiplatform).
 
 ## OpenJDK
 

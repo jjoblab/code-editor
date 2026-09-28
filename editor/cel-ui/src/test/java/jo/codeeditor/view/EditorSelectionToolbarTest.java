@@ -274,9 +274,9 @@ public class EditorSelectionToolbarTest {
         ClipData clip = clipboard(view).getPrimaryClip();
         assertNotNull("copy must reach the clipboard", clip);
         assertEquals("greet", clip.getItemAt(0).getText().toString());
-        assertFalse("Copy closes the pill (CodeAssist parity)",
+        assertFalse("Copy closes the pill",
                 view.selectionToolbarVisible);
-        assertFalse("Copy hides the handles (CodeAssist parity)",
+        assertFalse("Copy hides the handles",
                 view.handlesVisible);
     }
 
@@ -307,7 +307,7 @@ public class EditorSelectionToolbarTest {
 
         assertEquals(0, view.getSession().getSelection().start);
         assertEquals(DOC.length(), view.getSession().getSelection().end);
-        assertTrue("Select all KEEPS the pill open (CodeAssist parity — "
+        assertTrue("Select all KEEPS the pill open ("
                 + "Copy/Cut become available on the full selection)",
                 view.selectionToolbarVisible);
         // Et les métriques rafraîchies incluent désormais Copy/Cut sur la
@@ -450,7 +450,7 @@ public class EditorSelectionToolbarTest {
         // Tape DANS la sélection → la garde + ré-affiche la pill + les poignées.
         float[] pos = screenPosFor(DOC.indexOf("greet") + 2);
         tap(view, pos[0], pos[1]);
-        assertTrue("tap inside the selection re-shows the pill (CodeAssist parity)",
+        assertTrue("tap inside the selection re-shows the pill",
                 view.selectionToolbarVisible);
         assertTrue(view.handlesVisible);
         assertFalse("selection is kept", view.getSession().getSelection().isCursor());

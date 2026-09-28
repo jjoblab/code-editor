@@ -265,9 +265,10 @@ automatisé de publication n'existe à ce jour.
 
 ## Crédits
 
-L'architecture s'inspire du projet [CodeAssist](https://github.com/tyron12233/CodeAssist)
-par tyron12233 — implémentation indépendante en Java pour Android, sans code
-commun (voir `NOTICE`).
+Certaines parties et fonctionnalités de l'éditeur ont été conçues en s'appuyant
+sur les patterns d'architecture utilisés par
+[CodeAssist](https://github.com/tyron12233/CodeAssist) (tyron12233), avec des
+améliorations et une implémentation propre en Java pour Android.
 
 ## Licence
 

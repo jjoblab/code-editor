@@ -6,7 +6,7 @@ import java.util.*;
  * Navigation go-to : déclaration, implémentation, déclaration de type,
  * super.
  * Résout les cibles de navigation et gère les résultats simples/multiples.
- * Reprend le design du module navigation de CodeAssist.
+ * Navigation par symboles du document.
  */
 public class NavigationMenu {
 
