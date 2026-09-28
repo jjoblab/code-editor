@@ -23,9 +23,24 @@ public class EditorSelectionGestures {
     private final EditorView view;
     private final EditorInputHandler input;
 
+    /** Ancre du drag de poignée, FIGÉE au DOWN : la borne opposée à la
+     *  poignée attrapée. Relire la sélection à chaque MOVE faisait sauter
+     *  l'ancre dès que le doigt franchissait l'autre poignée (la sélection
+     *  se renormalisait puis se réduisait à une mini-plage suivant le
+     *  doigt au MOVE suivant). */
+    private int handleDragAnchor = -1;
+
     EditorSelectionGestures(EditorView view, EditorInputHandler input) {
         this.view = view;
         this.input = input;
+    }
+
+    /** À appeler au DOWN sur une poignée (juste après hitTestHandle) :
+     *  fige l'ancre du drag pour tous les MOVE à venir du geste. */
+    void beginHandleDrag(int handleMode) {
+        if (view.session == null) { handleDragAnchor = -1; return; }
+        Selection sel = view.session.getSelection();
+        handleDragAnchor = handleMode == 1 ? sel.end : sel.start;
     }
 
     void handleLongPress(float x, float y) {
@@ -60,29 +75,42 @@ public class EditorSelectionGestures {
         // traînée (le pipeline drawMagnifier dormant ré-armé). Activation
         // au premier MOVE — pas au DOWN — pour qu'un TAP rapide sur la
         // poignée ne fasse jamais flasher la bulle ; UP/CANCEL la
-        // désactivent déjà. C'est le cas d'usage de placement de précision
-        // pour lequel ce code a été écrit ; « interfère avec la sélection »
-        // ne s'appliquait qu'au scroll/drag-select, qui n'atteignent jamais
-        // ce chemin (les gestes de poignée sont consommés au DOWN).
+        // désactivent déjà. L'ancre est FIGÉE au DOWN (beginHandleDrag) :
+        // chaque MOVE étend ou rétrécit la sélection entre l'ancre et le
+        // doigt, y compris quand le doigt franchit l'autre poignée.
         view.magnifierActive = true;
         view.magnifierX = x;
         view.magnifierY = y;
         int offset = view.offsetAt(x, y);
-        Selection sel = view.session.getSelection();
         switch (view.handleDragMode) {
-            case 1:
+            case 1: {
+                int anchor = handleAnchorFor(1);
                 view.session.setSelection(Selection.range(
-                    Math.min(sel.end, offset), Math.max(sel.end, offset)));
+                    Math.min(anchor, offset), Math.max(anchor, offset)));
                 break;
-            case 2:
+            }
+            case 2: {
+                int anchor = handleAnchorFor(2);
                 view.session.setSelection(Selection.range(
-                    Math.min(sel.start, offset), Math.max(sel.start, offset)));
+                    Math.min(anchor, offset), Math.max(anchor, offset)));
                 break;
+            }
             case 3:
                 view.session.setSelection(offset);
                 break;
         }
         view.invalidate();
+    }
+
+    /** Ancre du drag de poignée, avec défense : si le DOWN n'a jamais figé
+     *  d'ancre (chemin inattendu), fige-la maintenant depuis la sélection
+     * courante plutôt que de relire min(start,end) à chaque MOVE. */
+    private int handleAnchorFor(int handleMode) {
+        if (handleDragAnchor < 0) {
+            Selection sel = view.session.getSelection();
+            handleDragAnchor = handleMode == 1 ? sel.end : sel.start;
+        }
+        return handleDragAnchor;
     }
 
     int hitTestHandle(float x, float y) {

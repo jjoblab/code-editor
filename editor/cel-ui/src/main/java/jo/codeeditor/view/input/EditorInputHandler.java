@@ -257,6 +257,11 @@ public class EditorInputHandler {
                 int handleHit = selectionGestures.hitTestHandle(x, y);
                 if (handleHit > 0) {
                     view.handleDragMode = handleHit;
+                    // Fige l'ancre du drag au DOWN : la borne opposée à la
+                    // poignée attrapée. La relire à chaque MOVE faisait
+                    // perdre l'ancre quand le doigt franchissait l'autre
+                    // poignée.
+                    selectionGestures.beginHandleDrag(handleHit);
                     isScrolling = false;
                     isDragging = false;
                     return true;
