@@ -54,7 +54,7 @@ sdk.dir=/path/to/android-sdk
 ```
 code-editor/
 ├── settings.gradle.kts        — inclut les 4 modules editor/
-├── build.gradle.kts           — AGP 9.0.0, group/version Maven (jo.codeeditor:3.37.0)
+├── build.gradle.kts           — AGP 9.0.0, group/version Maven (jo.codeeditor:3.38.0)
 ├── gradle/wrapper/            — Gradle 9.5.1
 ├── gradle.properties          — jvmargs, parallélisme, cache
 ├── jitpack.yml                — JDK 17 pour les builds JitPack
@@ -101,27 +101,41 @@ un jar de sources :
 
 | Module | Coordonnées |
 |--------|-------------|
-| `:cel-core` | `jo.codeeditor:cel-core:3.37.0` |
-| `:cel-lsp-api` | `jo.codeeditor:cel-lsp-api:3.37.0` |
-| `:cel-lsp` | `jo.codeeditor:cel-lsp:3.37.0` |
-| `:cel-ui` | `jo.codeeditor:cel-ui:3.37.0` |
+| `:cel-core` | `jo.codeeditor:cel-core:3.38.0` |
+| `:cel-lsp-api` | `jo.codeeditor:cel-lsp-api:3.38.0` |
+| `:cel-lsp` | `jo.codeeditor:cel-lsp:3.38.0` |
+| `:cel-ui` | `jo.codeeditor:cel-ui:3.38.0` |
 
 ### Publication locale (validation)
 
 ```bash
 ./gradlew publishToMavenLocal
-# → ~/.m2/repository/jo/codeeditor/<module>/3.37.0/ (AAR + sources + POM)
+# → ~/.m2/repository/jo/codeeditor/<module>/3.38.0/ (AAR + sources + POM)
 ```
 
 ### Publication sur GitHub Packages (méthode principale)
 
 Deux chemins, au choix :
 
-**A. Workflow GitHub Actions** — `.github/workflows/publish.yml`, à
-déclencher manuellement (onglet Actions > « Publication GitHub Packages » >
-Run workflow). Il publie les 4 modules avec le `GITHUB_TOKEN` du runner
-(injecté dans les propriétés `gpr.user`/`gpr.key`) ; aucune configuration
-locale n'est nécessaire.
+**A. Workflow GitHub Actions (automatique sur tag)** —
+`.github/workflows/publish.yml` publie les 4 modules dès qu'un tag de
+version strict `vX.Y.Z` est poussé (les tags atypiques `vX.Y.Z.n` ne
+publient pas). Un garde-fou échoue si le tag ne correspond pas
+exactement à la `version` de `build.gradle.kts` (GitHub Packages refuse
+le remplacement d'une version déjà publiée), et `assembleRelease test`
+passe AVANT la publication — un tag rouge ne publie jamais. Le workflow
+reste aussi déclenchable manuellement (onglet Actions > « Publication
+GitHub Packages » > Run workflow).
+
+Procédure :
+
+```bash
+# 1. incrémenter version = "…" dans build.gradle.kts (racine), committer
+# 2. créer le tag annoté correspondant et pousser
+git tag -a v3.38.0 -m "v3.38.0"
+git push origin main --tags   # main → ci.yml build ; tag → ci.yml release + publish.yml
+# (pour différer : git push origin main, puis plus tard git push origin v3.38.0)
+```
 
 **B. En local**, avec un jeton d'accès personnel :
 
@@ -159,7 +173,7 @@ JitPack construit la bibliothèque à la demande depuis un tag Git
 JDK 17 côté JitPack. Poussez simplement un tag `v*` :
 
 ```bash
-git tag v3.37.0 && git push origin v3.37.0
+git tag v3.38.0 && git push origin v3.38.0
 ```
 
 La CI valide sur ce tag `assembleRelease` + `publishToMavenLocal` avant que

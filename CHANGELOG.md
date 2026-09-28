@@ -7,6 +7,83 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v3.38.0] — 2026-09-28 — Audit de l'éditeur : correctifs sélection/loupe, undo/redo, performance et publication automatique
+
+Itération issue d'un audit complet de l'éditeur (diagnostic du bug de la
+loupe par test de reproduction, audit systématique des zones sensibles,
+comparaison de la version de référence, build de référence). Le bug
+signalé — « la loupe fait perdre la couleur quand je sélectionne puis je
+fais glisser » — est corrigé à la racine.
+
+### Added
+
+- **Retombées d'état complètes de la loupe** : la perte de focus, le
+  changement de session (fichier/onglet) et le détachement de la vue
+  éteignent la bulle en plus du relâchement tactile.
+- **Drag-select au doigt réparé** : l'armement par le tap survit au geste
+  suivant (il était désarmé deux fois — à l'UP du tap et au DOWN
+  suivant), et le relâchement d'un drag ne résout plus un tap qui
+  écrasait la sélection.
+
+### Changed
+
+- **Crédit recentré** : le code source ne mentionne plus le projet de
+  référence ; les commentaires qui décrivaient un comportement par sa
+  source le décrivent désormais directement. Le crédit vit dans la
+  section Crédits du README et dans `NOTICE`.
+- **Publication automatique** : pousser un tag de version strict
+  `vX.Y.Z` publie les 4 AAR sur GitHub Packages (garde-fou tag = version
+  du build, tests avant publication) ; le workflow reste déclenchable
+  manuellement. Voir `BUILD.md`.
+- **Bornage de la loupe** : la bulle n'est plus jamais coupée par un bord
+  de la vue (au-dessus du doigt si la place suffit, sinon en dessous),
+  et le chemin de clip circulaire réutilise le chemin de travail au lieu
+  d'allouer un chemin par frame.
+
+### Fixed
+
+- **Perte de couleur dans la loupe** : le cache de layouts ligatures
+  signait ses entrées avec la couleur courante d'un paint partagé et
+  muté par de nombreuses couches (spans sémantiques, inlays, chrome) —
+  la loupe héritait d'une couleur résiduelle et reconstruisait des
+  layouts à la couleur de base erronée. La couleur de base du layout
+  est désormais toujours la couleur de texte du thème et la clé du
+  cache ne dépend plus d'aucun état mutable du paint ; la loupe dessine
+  via un paint dédié et ne mutait de toute façon plus jamais le paint
+  partagé. Reproduit par test avant correction (couleur fautive servie
+  + reconstruction du cache à chaque frame).
+- **Ancre de sélection figée au DOWN** : glisser une poignée au-delà de
+  l'autre poignée ne réduit plus la sélection à une mini-plage suivant
+  le doigt ; le drag-select au doigt peut franchir son point de départ
+  et rétrécir la sélection dans l'autre sens.
+- **Undo/redo via le pipeline d'édition commun** : les diagnostics,
+  tokens sémantiques, inlays et régions de pliage sont décalés après
+  Ctrl+Z (ils gardaient des offsets périmés), le mode lecture-seule
+  refuse l'annulation sans consommer la pile, et les listeners d'édition
+  (pont LSP) sont notifiés.
+- **Coalescence des frappes undo réelle** : les frappes consécutives
+  fusionnent en une seule étape annulable, comme documenté (la
+  condition de fusion était inatteignable : chaque caractère tapé
+  créait une étape séparée).
+- **Caret après édition borné à la longueur finale du document** : la
+  rétro-correction IME d'un long passage par un texte court ne laisse
+  plus la sélection hors bornes.
+- **Scroll conscient des plis** : `maxV` soustrait les lignes masquées
+  par les plis repliés (on pouvait défiler longtemps dans le vide sous
+  la dernière ligne visible).
+- **Word-wrap reconstruit au zoom** : pinch-zoom et A+/A- reconstruisent
+  le modèle de retour à la ligne pour la nouvelle largeur de colonne.
+- **Changement de thème complet** : `setTheme` purge aussi le cache de
+  rendu par ligne (les overlays sémantiques y ont des couleurs cuites —
+  jusqu'à 512 lignes gardaient les couleurs de l'ancien thème).
+
+### Performance
+
+- **Modèle de word-wrap reconstruit en O(n)** (au lieu de O(n²)) : une
+  seule passe de somme préfixe par reconstruction au lieu d'une par
+  ligne — chaque frappe avec word-wrap actif sur un gros fichier
+  gelait l'UI.
+
 ## [v3.37.0] — 2026-09-17 — Chords, hygiène B13 & CI (fin de roadmap)
 
 Quatrième itération post-rapport : les trois points restants de la

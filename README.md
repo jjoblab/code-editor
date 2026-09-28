@@ -22,7 +22,7 @@ Android Canvas et intégration LSP — construite from scratch (pas Sora Editor)
 ### Via GitHub Packages (méthode principale)
 
 Les artefacts sont publiés sur `maven.pkg.github.com` avec les coordonnées
-`jo.codeeditor:<module>:<version>` (version courante : `3.37.0`).
+`jo.codeeditor:<module>:<version>` (version courante : `3.38.0`).
 
 1. Créez un jeton d'accès personnel GitHub avec le droit `read:packages`.
 2. Renseignez vos identifiants dans `~/.gradle/gradle.properties` :
@@ -56,12 +56,12 @@ dependencyResolutionManagement {
 // app/build.gradle.kts
 dependencies {
     // Le module UI embarque transitivement cel-core et cel-lsp-api.
-    implementation("jo.codeeditor:cel-ui:3.37.0")
+    implementation("jo.codeeditor:cel-ui:3.38.0")
 
     // Optionnel — intégration Language Server Protocol (LSP4J).
     // Ses dépendances vers cel-core/cel-lsp-api/cel-ui sont compileOnly :
     // gardez la ligne cel-ui ci-dessus.
-    implementation("jo.codeeditor:cel-lsp:3.37.0")
+    implementation("jo.codeeditor:cel-lsp:3.38.0")
 }
 ```
 
@@ -77,8 +77,8 @@ maven { url = uri("https://jitpack.io") }
 
 ```kotlin
 dependencies {
-    implementation("com.github.jjoblab:cel-ui:v3.37.0")
-    implementation("com.github.jjoblab:cel-lsp:v3.37.0") // optionnel
+    implementation("com.github.jjoblab:cel-ui:v3.38.0")
+    implementation("com.github.jjoblab:cel-lsp:v3.38.0") // optionnel
 }
 ```
 
@@ -258,10 +258,11 @@ Le workflow GitHub Actions (`.github/workflows/ci.yml`) exécute sur chaque
 push (main) et chaque PR : `assembleDebug` + `testDebugUnitTest` + `lint` sur
 JDK 17 Temurin, avec cache Gradle et validation des wrapper JARs
 (`gradle/actions/setup-gradle`). Sur chaque tag `v*`, un job release ajoute
-`assembleRelease` + `publishToMavenLocal` (validation de la publication) et
-uploade les AAR/POM en artefacts. La publication sur GitHub Packages est
-manuelle (`./gradlew publish`, voir [`BUILD.md`](BUILD.md)) : aucun workflow
-automatisé de publication n'existe à ce jour.
+`assembleRelease` + `publishToMavenLocal` (répétition générale de la
+publication) et uploade les AAR/POM en artefacts. La publication sur GitHub
+Packages est automatique : pousser un tag de version strict `vX.Y.Z`
+déclenche `.github/workflows/publish.yml` (garde-fou tag = version du build,
+tests avant publication — voir [`BUILD.md`](BUILD.md)).
 
 ## Crédits
 

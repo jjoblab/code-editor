@@ -1,10 +1,34 @@
-# Publication Maven vers GitHub Packages.
+# Publication Maven vers GitHub Packages — les 4 AAR (cel-core,
+# cel-lsp-api, cel-lsp, cel-ui).
 #
-# Déclenchement MANUEL (onglet Actions > « Publication GitHub Packages » >
-# Run workflow) : la version publiée est celle de gradle.properties
-# (propagée aux 4 modules par le build racine). GitHub Packages refusant
-# le remplacement d'une version déjà publiée, incrémenter la version dans
-# gradle.properties avant chaque publication.
+# Déclenchement :
+#   * pousser un tag de version STRICT `vX.Y.Z` — le filtre de tag ci-dessous
+#     est un GLOB GitHub Actions (le `+` d'une regex y serait littéral) :
+#     `v[0-9]*.[0-9]*.[0-9]*` ne matche que les tags à trois composantes
+#     numériques, donc les tags atypiques `vX.Y.Z.n` de ce dépôt ne publient
+#     pas ;
+#   * ou manuellement (onglet Actions > « Publication GitHub Packages » >
+#     Run workflow).
+#
+# Version : lue dans `build.gradle.kts` (racine), ligne `version = "…"` —
+# propagée aux 4 modules par le build racine. Garde-fou : sur un
+# déclenchement par tag, le workflow échoue si le tag ne correspond pas
+# exactement à `v` + version du build (GitHub Packages refuse le
+# remplacement d'une version déjà publiée : un tag qui ne correspond pas,
+# ou un rejeu, doit échouer clairement plutôt que publier n'importe quoi).
+#
+# Les tests passent AVANT la publication (`assembleRelease test`) : un tag
+# rouge ne publie jamais.
+#
+# Procédure de publication :
+#   1. incrémenter `version = "…"` dans build.gradle.kts (racine),
+#   2. committer sur main,
+#   3. `git tag -a vX.Y.Z -m "…"` (X.Y.Z = la version du build),
+#   4. `git push origin main --tags` — pousse main (déclenche ci.yml build)
+#      et le tag (déclenche ci.yml release, répétition générale
+#      publishToMavenLocal, ET ce workflow → publication).
+#      Pour différer la publication : `git push origin main` puis plus
+#      tard `git push origin vX.Y.Z`.
 #
 # Identifiants : le GITHUB_TOKEN du runner (permissions packages:write)
 # est injecté via les propriétés gpr.user / gpr.key attendues par les
@@ -15,6 +39,9 @@
 name: Publication GitHub Packages
 
 on:
+  push:
+    tags:
+      - 'v[0-9]*.[0-9]*.[0-9]*'
   workflow_dispatch:
 
 permissions:
@@ -34,6 +61,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Garde-fou de version (tag ≠ version du build → échec)
+        if: github.event_name == 'push'
+        run: |
+          VERSION=$(sed -n 's/^version = "\(.*\)"$/\1/p' build.gradle.kts | head -1)
+          if [ -z "$VERSION" ]; then
+            echo "::error::version introuvable dans build.gradle.kts (ligne version = \"…\")"
+            exit 1
+          fi
+          if ! echo "${{ github.ref_name }}" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::tag '${{ github.ref_name }}' n'est pas une version stricte vX.Y.Z"
+            exit 1
+          fi
+          if [ "${{ github.ref_name }}" != "v$VERSION" ]; then
+            echo "::error::tag '${{ github.ref_name }}' ≠ v$VERSION (version du build) — GitHub Packages refuse le remplacement d'une version déjà publiée."
+            exit 1
+          fi
+          echo "Tag ${{ github.ref_name }} = version du build ($VERSION)"
+
       - name: Set up JDK 17 (Temurin)
         uses: actions/setup-java@v4
         with:
@@ -44,6 +89,9 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           validate-wrappers: true
+
+      - name: Tests avant publication (un tag rouge ne publie jamais)
+        run: ./gradlew assembleRelease test --stacktrace
 
       - name: Publish cel-core, cel-lsp-api, cel-lsp, cel-ui
         run: >-

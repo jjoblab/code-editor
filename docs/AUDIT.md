@@ -1,6 +1,6 @@
 # Audit de l'éditeur — Phase 1 (aucune modification de code)
 
-> Période : 2026-09-28 · Dépôt : `jjoblab/code-editor` branche `main`, v3.37.0, arbre propre.
+> Période : 2026-09-28 · Dépôt : `jjoblab/code-editor` branche `main`, v3.37.0 au départ de l'audit, arbre propre.
 > Référence amont comparée : tags `v3.20.0` → `v3.22.1` (+ `main`). L'identification du
 > dépôt de référence et le crédit associé vivent dans le README (section Crédits) — ce
 > document n'a pas besoin de les répéter.
