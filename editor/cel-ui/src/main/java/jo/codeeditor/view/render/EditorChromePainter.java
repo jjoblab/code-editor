@@ -39,6 +39,13 @@ public class EditorChromePainter {
     // Usage mono-thread (uniquement depuis onDraw sur le thread UI).
     private final Path scratchPath = new Path();
 
+    // Paint DÉDIÉ à la loupe. La loupe ne doit JAMAIS muter le textPaint
+    // partagé du rendu principal (typeface, taille ni couleur) : ce paint
+    // est synchronisé avant usage et porte la couleur de base
+    // explicitement — un état résiduel ne peut fuiter vers la frame
+    // suivante.
+    private final android.text.TextPaint magnifierPaint = new android.text.TextPaint();
+
     // ── Géométrie de la minimap (déplacée d'EditorView) ───────────
     static final float MINIMAP_WIDTH_DP = 60f;
     static final float MINIMAP_LINE_HEIGHT_PX = 2.5f;  // px par ligne doc
@@ -278,6 +285,11 @@ public class EditorChromePainter {
      * Dessine une loupe (bulle de zoom) au-dessus de la position du doigt
      * pendant les glissements. Montre une vue zoomée ×2 du texte autour du
      * centre de la loupe.
+     *
+     * <p>N'utilise QUE {@link #magnifierPaint} : le textPaint partagé du
+     * rendu principal ne doit être ni lu (couleur résiduelle) ni écrit
+     * ici — la loupe s'exécute en fin de pipeline, après toutes les
+     * couches qui le mutent.</p>
      */
     void drawMagnifier(Canvas canvas) {
         if (!view.magnifierActive) return;
@@ -315,8 +327,13 @@ public class EditorChromePainter {
             int lastLine = Math.min(doc.lineCount() - 1, caretLine + 3);
             float textAreaLeft = view.metrics.getGutterWidth() + view.metrics.getPadLeft();
             float lineHeight = view.metrics.getLineHeight();
-            view.textPaint.setTypeface(view.metrics.getTypeface());
-            view.textPaint.setTextSize(view.metrics.getTextSize());
+            // Paint dédié : synchronisé depuis le paint du texte (typeface,
+            // taille), couleur de base posée explicitement. Le paint partagé
+            // du rendu principal n'est touché nulle part ci-dessous.
+            magnifierPaint.set(view.textPaint);
+            magnifierPaint.setTypeface(view.metrics.getTypeface());
+            magnifierPaint.setTextSize(view.metrics.getTextSize());
+            magnifierPaint.setColor(view.theme.textColor);
             for (int i = firstLine; i <= lastLine; i++) {
                 if (view.isLineFoldedCached(i)) continue;
                 float lineY = view.docLineToY(i) - view.vOffset;
@@ -328,12 +345,12 @@ public class EditorChromePainter {
                     // Chemin de la loupe — tisser aussi les inlays de la ligne
                     // pour que la vue zoomée corresponde au rendu réel.
                     LineRenderCache.LineCacheEntry layout = view.layoutForLine(i, lineText);
-                    text.drawStyledLine(canvas, styled, lineText, textAreaLeft - view.hOffset, lineY, view.textPaint,
+                    text.drawStyledLine(canvas, styled, lineText, textAreaLeft - view.hOffset, lineY, magnifierPaint,
                         layout != null ? layout.inlays : null,
                         layout != null ? layout.rawToVisual : null);
                 } else {
-                    view.textPaint.setColor(view.theme.textColor);
-                    canvas.drawText(lineText, textAreaLeft - view.hOffset, lineY + lineHeight * 0.78f, view.textPaint);
+                    magnifierPaint.setColor(view.theme.textColor);
+                    canvas.drawText(lineText, textAreaLeft - view.hOffset, lineY + lineHeight * 0.78f, magnifierPaint);
                 }
             }
         }
