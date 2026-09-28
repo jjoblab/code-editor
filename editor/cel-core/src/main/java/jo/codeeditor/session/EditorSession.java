@@ -563,7 +563,11 @@ public class EditorSession {
         // le moteur.
         start = Math.max(0, Math.min(start, doc.length()));
         end = Math.max(start, Math.min(end, doc.length()));
-        caretAfter = Math.max(0, Math.min(caretAfter, doc.length() + insertion.length()));
+        // Le caret est borné à la longueur FINALE du document — pas
+        // doc.length() + insertion.length() : une édition qui remplace une
+        // plage par un texte plus court laissait un caret hors bornes.
+        int finalLength = doc.length() - (end - start) + insertion.length();
+        caretAfter = Math.max(0, Math.min(caretAfter, finalLength));
 
         // Si l'édition s'avère être un no-op après bornage, déplacer simplement le caret.
         if (start == end && insertion.isEmpty()) {
