@@ -46,10 +46,43 @@ public class WrapModel {
 
     /**
      * Définit le nombre de rangées de wrap pour une ligne précise du document.
+     *
+     * <p>Reconstruit la somme préfixe à chaque appel : à réserver aux mises à
+     * jour ponctuelles. Pour une reconstruction complète du modèle (toutes
+     * les lignes), utiliser {@link #beginBulkSetRows()}/{@link #setRows(int, int)}
+     * puis {@link #endBulkSetRows()} — une seule passe de somme préfixe.</p>
      */
     public void setRows(int line, int count) {
         if (line < 0 || line >= lineCount) return;
         rowsPerLine[line] = Math.max(1, count);
+        if (!bulkUpdate) rebuildPrefixSum();
+    }
+
+    // ── Reconstruction en masse (une seule passe de somme préfixe) ──
+
+    /** Différer les reconstructions pendant une mise à jour en masse. */
+    private boolean bulkUpdate = false;
+
+    /**
+     * Entre en mode de mise à jour en masse : les appels suivants à
+     * {@link #setRows(int, int)} ne reconstruisent plus la somme préfixe.
+     * Doit être refermé par {@link #endBulkSetRows()}.
+     */
+    public void beginBulkSetRows() {
+        bulkUpdate = true;
+    }
+
+    /**
+     * Referme une mise à jour en masse : UNE SEULE passe de somme préfixe
+     * pour toutes les lignes mises à jour depuis beginBulkSetRows().
+     *
+     * <p>Sans ce mode, la reconstruction complète du modèle coûtait
+     * O(lignes²) temps et ~O(lignes²) octets alloués (une somme préfixe
+     * neuve par setter) — chaque frappe avec word-wrap actif sur un gros
+     * fichier gelait l'UI.</p>
+     */
+    public void endBulkSetRows() {
+        bulkUpdate = false;
         rebuildPrefixSum();
     }
 

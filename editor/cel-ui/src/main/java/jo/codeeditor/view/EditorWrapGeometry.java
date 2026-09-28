@@ -173,9 +173,17 @@ class EditorWrapGeometry {
         // dessinées) et les Y des lignes suivantes seraient trop courts
         // d'autant.
         EditorDocument doc = view.session.getDocument();
-        for (int i = 0; i < lineCount; i++) {
-            int lineLen = doc.lineEnd(i) - doc.lineStart(i);
-            view.wrapModel.setRows(i, wrapRowsFor(i, lineLen).rows);
+        // Passe en masse : UNE SEULE reconstruction de la somme préfixe à la
+        // fin (le setRows individuel reconstruisait à chaque ligne →
+        // O(lignes²) par frappe avec word-wrap actif).
+        view.wrapModel.beginBulkSetRows();
+        try {
+            for (int i = 0; i < lineCount; i++) {
+                int lineLen = doc.lineEnd(i) - doc.lineStart(i);
+                view.wrapModel.setRows(i, wrapRowsFor(i, lineLen).rows);
+            }
+        } finally {
+            view.wrapModel.endBulkSetRows();
         }
     }
 }
