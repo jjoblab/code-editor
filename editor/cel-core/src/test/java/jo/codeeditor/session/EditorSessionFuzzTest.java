@@ -73,13 +73,14 @@ class EditorSessionFuzzTest {
         }
         String textAfterEdits = s.getText();
         int caretAfterEdits = s.getSelection().start;
-        // Tout annuler (les 50).
-        for (int i = 0; i < 50; i++) {
-            assertTrue(s.undo(), "undo " + i + " should succeed");
-        }
+        // Tout annuler — le nombre d'étapes peut être < 50 : les frappes
+        // d'un caractère adjacentes coalescent en une seule étape.
+        int undoCount = 0;
+        while (s.undo()) undoCount++;
+        assertTrue(undoCount > 0, "au moins une étape annulable");
         assertEquals("", s.getText(), "after undoing all edits, doc must be empty");
-        // Tout rétablir (les 50).
-        for (int i = 0; i < 50; i++) {
+        // Tout rétablir (symétriquement au nombre d'étapes annulées).
+        for (int i = 0; i < undoCount; i++) {
             assertTrue(s.redo(), "redo " + i + " should succeed");
         }
         assertEquals(textAfterEdits, s.getText(),

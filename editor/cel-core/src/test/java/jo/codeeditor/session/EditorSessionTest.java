@@ -343,11 +343,16 @@ class EditorSessionTest {
         s.commitText("b");
         s.commitText("c");
         assertEquals("abc", s.getText());
-
+        // Les frappes consécutives d'un caractère coalescent en UNE étape
+        // (voir UndoManager) : un seul undo annule les trois.
         s.undo();
-        assertEquals("ab", s.getText());
+        assertEquals("", s.getText());
+        // Un remplacement est une étape distincte — deux undo au total.
+        s.commitText("abc");
+        assertEquals("abc", s.getText());
+        s.replaceRange(0, 3, "xyz");
         s.undo();
-        assertEquals("a", s.getText());
+        assertEquals("abc", s.getText());
         s.undo();
         assertEquals("", s.getText());
     }
