@@ -32,6 +32,11 @@ public final class UndoManager {
      * Enregistre une étape d'annulation ; le cas échéant, elle est fusionnée
      * avec l'étape précédente.
      *
+     * <p>La chaîne de coalescence (lastEditEnd) est pilotée par
+     * {@link #tryCoalesce} et {@link #armNextCoalesce} : pushStep coupe
+     * toujours la chaîne (un lot, un remplacement ou tout push direct ne
+     * doit jamais fusionner avec la frappe suivante).</p>
+     *
      * @param step l'étape d'annulation à empiler
      */
     public void pushStep(UndoStep step) {
@@ -42,6 +47,27 @@ public final class UndoManager {
         redoStack.clear();
         lastEditEnd = -1;
         lastEditTime = 0;
+    }
+
+    /**
+     * Amorce la chaîne de coalescence potentielle pour l'étape qui vient
+     * d'être poussée : si c'est l'insertion simple d'un caractère, la
+     * frappe suivante À CETTE position fusionnera avec elle ; tout autre
+     * type d'édition coupe la chaîne.
+     *
+     * <p>Sans cet amorçage, la coalescence ne pouvait jamais se déclencher :
+     * pushStep remet lastEditEnd à -1 et tryCoalesce exige
+     * {@code edit.start == lastEditEnd} — la condition était inatteignable
+     * et chaque caractère tapé créait une étape d'annulation séparée.</p>
+     */
+    public void armNextCoalesce(EditOp edit) {
+        if (edit.inserted.length() == 1 && edit.removed.isEmpty()) {
+            lastEditEnd = edit.start + 1;
+            lastEditTime = System.currentTimeMillis();
+        } else {
+            lastEditEnd = -1;
+            lastEditTime = 0;
+        }
     }
 
     /**

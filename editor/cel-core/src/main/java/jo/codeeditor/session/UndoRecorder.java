@@ -67,6 +67,9 @@ final class UndoRecorder {
         } else if (!undoManager.tryCoalesce(op, caretAfter)) {
             UndoStep step = UndoStep.single(op, selBefore, caretAfter);
             undoManager.pushStep(step);
+            // Amorce la chaîne de coalescence pour l'étape qui vient d'être
+            // poussée (frappe suivante adjacente = fusion).
+            undoManager.armNextCoalesce(op);
         }
     }
 }
