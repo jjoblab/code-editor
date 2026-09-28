@@ -1307,6 +1307,13 @@ public class EditorView extends View {
         return foldIndex.get().hiddenAbove(docLine);
     }
 
+    /** Nombre TOTAL de lignes masquées par les plis repliés — pour les
+     *  calculs de hauteur de contenu (scroll) sensibles aux plis. */
+    public int totalHiddenLines() {
+        if (session == null) return 0;
+        return countHiddenLinesAbove(session.getDocument().lineCount());
+    }
+
     /**
      * Retourne le nombre de rangées visuelles occupées par la ligne doc
      * donnée (≥ 1 ; délégué à {@link EditorWrapGeometry}).
