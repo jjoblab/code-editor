@@ -29,13 +29,16 @@ import jo.codeeditor.view.chrome.EditorTheme;
  * Tests du LRU de shaped-layouts adressé par contenu
  * ({@code EditorView.shapedLayoutFor}) :
  * <ul>
- *   <li>les lignes identiques (même texte + même signature de spans + même
- *       couleur de base du paint + même génération de police + même thème)
- *       partagent UN SEUL StaticLayout — pas de re-shaping par frame ;</li>
+ *   <li>les lignes identiques (même texte + même signature de spans +
+ *       même génération de police + même thème) partagent UN SEUL
+ *       StaticLayout — pas de re-shaping par frame ;</li>
  *   <li>une signature de spans différente sur le MÊME texte reconstruit
  *       (des spans périmées ne doivent jamais être servies) ;</li>
- *   <li>une couleur de base du paint différente reconstruit (le chemin du
- *       magnifier mute la couleur du paint au draw) ;</li>
+ *   <li>la couleur COURANTE du paint ne fait PAS partie de la clé : la
+ *       couleur de base du layout est toujours la couleur de texte du
+ *       thème (le paint partagé est muté par les couches de rendu et de
+ *       chrome — loupe comprise — et sa couleur résiduelle ne doit ni
+ *       rejoindre la clé ni être cuite dans le layout servi) ;</li>
  *   <li>le swap de thème et le changement de taille/typeface (révision de
  *       police d'EditorMetrics) invalident TOUT ;</li>
  *   <li>le cache est BORNE à 64 entrées (éviction LRU) et l'adressage par
@@ -111,15 +114,20 @@ public class ShapedLayoutCacheTest {
     }
 
     @Test
-    public void differentBasePaintColorRebuilds() {
+    public void differentBasePaintColor_servedFromCacheWithThemeColor() {
         EditorView view = newView();
         StaticLayout a = view.shapedLayoutFor("}", plainLine(), view.textPaint);
-        // Le draw path mute la couleur de base du paint (magnifier, fallback…)
+        // Les couches de rendu/chrome (loupe comprise) mutent la couleur du
+        // paint partagé en cours de frame : cette couleur résiduelle ne doit
+        // NI rejoindre la clé du cache, NI être cuite dans le layout servi.
         int saved = view.textPaint.getColor();
         view.textPaint.setColor(0xFF123456);
         StaticLayout b = view.shapedLayoutFor("}", plainLine(), view.textPaint);
-        assertNotSame("une couleur de base différente doit reconstruire "
-                + "(couleur cuite dans le TextPaint capturé)", a, b);
+        assertSame("une couleur de paint différente ne doit PAS reconstruire"
+                + " (la couleur de base est celle du thème, pas du paint)", a, b);
+        assertEquals("la couleur de base du layout servi est la couleur de"
+                + " texte du thème",
+                view.theme.textColor, b.getPaint().getColor());
         view.textPaint.setColor(saved);
     }
 

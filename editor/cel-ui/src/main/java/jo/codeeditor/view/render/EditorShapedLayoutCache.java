@@ -19,12 +19,21 @@ import jo.codeeditor.view.chrome.EditorTheme;
  * reconstruisait un SpannableStringBuilder + StaticLayout pour chaque
  * ligne à chaque frame — scroll, clignotement, glissement). Clé : le
  * texte de la ligne ; validité d'entrée : signature des spans (start,
- * end, type) + couleur de base de la peinture, PLUS invalidation globale
- * quand la police (révision EditorMetrics) ou le thème (couleurs cuites
- * dans les spans) change. L'identité de session ne participe
+ * end, type), PLUS invalidation globale quand la police (révision
+ * EditorMetrics) ou le thème (couleurs cuites dans les spans et couleur
+ * de base des layouts) change. L'identité de session ne participe
  * délibérément PAS : même texte + mêmes spans + même police + même thème
  * = mêmes pixels, quel que soit le document — c'est tout l'intérêt de
  * l'adressage par contenu.</p>
+ *
+ * <p>La couleur de base du layout est TOUJOURS la couleur de texte du
+ * thème — jamais la couleur courante du paint passé en argument : ce
+ * paint est partagé avec tout le pipeline de rendu et muté par de
+ * nombreuses couches (spans sémantiques, inlays, chrome, loupe). En
+ * signer les entrées avec sa couleur courante cuisait une couleur
+ * résiduelle arbitraire dans les layouts et reconstruisait le cache à
+ * chaque changement de couleur (voir le bug de la loupe qui « perdait
+ * la couleur »).</p>
  */
 @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
 public final class EditorShapedLayoutCache {
@@ -61,9 +70,15 @@ public final class EditorShapedLayoutCache {
      * Retourne un {@link android.text.StaticLayout} façonné pour le dessin
      * en mode ligatures de {@code lineText}, mémoïsé par adressage de
      * contenu. Les lignes identiques (même texte, même signature de spans,
-     * même couleur de base, même génération de police, même thème)
-     * partagent UN seul layout au lieu de payer le coût
-     * SpannableStringBuilder + façonnage à chaque frame.
+     * même génération de police, même thème) partagent UN seul layout au
+     * lieu de payer le coût SpannableStringBuilder + façonnage à chaque
+     * frame.
+     *
+     * <p>Le {@code paint} fourni ne contribue que ses attributs stables
+     * (typeface, taille, drapeaux — couverts par la révision de police).
+     * Sa couleur est IGNORÉE : la couleur de base du layout est la couleur
+     * de texte du thème, ce qui détache la clé du cache de tout état
+     * mutable du paint partagé.</p>
      *
      * <p>Sûreté de threads : appelé depuis le thread UI uniquement
      * (chemin de dessin).</p>
@@ -80,7 +95,7 @@ public final class EditorShapedLayoutCache {
             shapedCacheFontRev = fontRev;
             shapedCacheTheme = view.theme;
         }
-        int sig = shapedSignature(styled, paint);
+        int sig = shapedSignature(styled);
         ShapedEntry e = shapedLayoutCache.get(lineText);
         if (e != null && e.spansSig == sig) return e.layout;
 
@@ -112,19 +127,28 @@ public final class EditorShapedLayoutCache {
                 }
             }
         }
+        // Couleur de base : la couleur de texte du THÈME — jamais l'état
+        // mutable du paint partagé au moment de l'appel. Les couches de
+        // rendu (spans sémantiques, inlays) et de chrome (loupe, minimap,
+        // popups) mutent ce paint en cours de frame ; cuire leur couleur
+        // résiduelle ici figeait une couleur erronée pour les portions de
+        // ligne sans span (bug « la loupe fait perdre la couleur »).
+        android.text.TextPaint basePaint = new android.text.TextPaint(paint);
+        basePaint.setColor(view.theme.textColor);
         android.text.StaticLayout sl = new android.text.StaticLayout(
-            ssb, new android.text.TextPaint(paint), Integer.MAX_VALUE,
+            ssb, basePaint, Integer.MAX_VALUE,
             android.text.Layout.Alignment.ALIGN_NORMAL, 1f, 0f, false);
         shapedLayoutCache.put(lineText, new ShapedEntry(sl, sig));
         return sl;
     }
 
-    /** Signature de validité rapide : spans (start, end, type) + la
-     *  couleur de base de la peinture (mutée au moment du dessin — ex. le
-     *  chemin loupe — donc elle doit participer pour éviter de servir une
-     *  couleur de base périmée). */
-    private static int shapedSignature(StyledLine styled, android.graphics.Paint paint) {
-        int h = paint.getColor();
+    /** Signature de validité rapide : spans (start, end, type). La couleur
+     *  de base ne participe PAS : elle est toujours la couleur de texte du
+     *  thème (déjà couverte par l'invalidation globale sur changement de
+     *  thème) — la clé ne dépend ainsi d'aucun état mutable du paint
+     *  partagé. */
+    private static int shapedSignature(StyledLine styled) {
+        int h = 0;
         if (styled == null || styled.spans == null) return h;
         for (LineSpan span : styled.spans) {
             h = h * 31 + span.startCol;
