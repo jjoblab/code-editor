@@ -265,9 +265,10 @@ automatisé de publication n'existe à ce jour.
 
 ## Crédits
 
-L'architecture s'inspire du projet [l'outil tiers](https://(dépôt externe retiré))
-par l'auteur tiers d'alors — implémentation indépendante en Java pour Android, sans code
-commun (voir `NOTICE`).
+Certaines parties et fonctionnalités de l'éditeur ont été conçues en s'appuyant
+sur les patterns d'architecture utilisés par
+[l'outil tiers](https://(dépôt externe retiré)) (l'auteur tiers d'alors), avec des
+améliorations et une implémentation propre en Java pour Android.
 
 ## Licence
 

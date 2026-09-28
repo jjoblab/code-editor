@@ -166,7 +166,7 @@ public class EditorPopupHitTester {
 
     /**
      * Vrai quand (x, y) touche le bouton FERMER de la fiche de diagnostic —
-     * un tap là ferme la fiche (× du DiagnosticSheet de l'outil tiers).
+     * un tap là ferme la fiche (× de la fiche).
      */
     public boolean hitTestDiagnosticSheetClose(float x, float y) {
         if (!view.diagnosticPopupVisible) return false;

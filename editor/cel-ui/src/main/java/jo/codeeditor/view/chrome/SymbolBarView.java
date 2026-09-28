@@ -10,10 +10,10 @@ import android.widget.LinearLayout;
 
 /**
  * Barre de symboles/actions placée au-dessus du clavier IME, comme
- * l'EditorSymbolBar de l'outil tiers. Donne un accès rapide aux symboles de
+ * une barre de symboles. Donne un accès rapide aux symboles de
  * code et aux actions de l'éditeur sans fermer le clavier.
  *
- * <p>Inspirée de l'EditorSymbolBar de l'outil tiers.
+ * <p>Barre de symboles horizontale,
  * <ul>
  *   <li>Touches épinglées : Tab, //, ↑, ↓, Dup</li>
  *   <li>Symboles défilants : { } ( ) ; = . , " ' : &lt; &gt; / * [ ] + - &amp; | ! ? @ # _ % \</li>
@@ -21,7 +21,7 @@ import android.widget.LinearLayout;
  *
  * <p>Utilise {@code onTouchEvent} brut (PAS {@code setOnClickListener}) pour
  * que l'éditeur garde le focus et que l'IME reste ouvert — comme
- * l'outil tiers.
+ * l'éditeur.
  */
 public class SymbolBarView extends LinearLayout {
 

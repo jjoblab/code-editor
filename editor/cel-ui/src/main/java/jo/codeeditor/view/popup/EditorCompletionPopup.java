@@ -27,7 +27,7 @@ public class EditorCompletionPopup {
         this.popups = popups;
     }
 
-    // ── Exécuteurs dédiés (modèle l'outil tiers) ─────────────────────
+    // ── Exécuteurs dédiés (un par popup) ─────────────────────
     /**
      * Lane « interactive » côté éditeur : la complétion possède son propre
      * worker mono-thread daemon — AUCUN autre consommateur (hover,
@@ -218,7 +218,7 @@ public class EditorCompletionPopup {
     /**
      * Rafraîchit le popup de complétion — version ASYNCHRONE.
      *
-     * <p>Modèle l'outil tiers appliqué :</p>
+     * <p>Modèle appliqué :</p>
      * <ol>
      *   <li><b>Chemin rapide idem-token</b> (Étendre) : filtre local du cache
      *       base, zéro aller-retour, inchangé.</li>

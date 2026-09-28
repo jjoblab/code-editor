@@ -10,7 +10,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * Registre central des langages (portage du
- * {@code EditorLanguageRegistry} de l'outil tiers).
+ * un registre de langues).
  *
  * <p>Centralise la distribution par chaînes qui vivait dans
  * {@code SyntaxHighlighter} (routage des tokenizers + recherche de

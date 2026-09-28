@@ -2,20 +2,12 @@
 
 ## l'outil tiers
 
-This library is inspired by the architecture of
-[l'outil tiers](https://(dépôt externe retiré)) by l'auteur tiers d'alors,
-licensed under the GPL-3.0 license.
-
-code-editor-lib is an independent implementation in Java for Android
-(no shared source code with l'outil tiers, which is written in Kotlin with
-Compose Multiplatform). The architectural concepts — Rope-based document
-model, incremental per-line tokenizer, IME bridge with composing-region
-handling, per-line render cache, fold model, wrap model, signature help
-controller, code actions controller, navigation menu — were studied from
-l'outil tiers's source and reimplemented from scratch.
-
-We thank the l'outil tiers team for the reference implementation that guided
-the design of this library.
+Parts and features of this editor were designed following the
+architecture patterns used by
+[l'outil tiers](https://(dépôt externe retiré)) by l'auteur tiers d'alors
+(GPL-3.0), with improvements and an independent Java implementation for
+Android. No source code is shared (l'outil tiers is written in Kotlin with
+Compose Multiplatform).
 
 ## OpenJDK
 

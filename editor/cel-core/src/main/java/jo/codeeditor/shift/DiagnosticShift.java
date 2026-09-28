@@ -5,7 +5,7 @@ import java.util.*;
 /**
  * Décale les offsets de diagnostics, jetons sémantiques, régions pliables
  * et inlay hints à travers les éditions de texte. Reprend le design du
- * {@code DiagnosticShift.kt} de l'outil tiers.
+ * le décalage des annotations après édition.
  * <p>
  * Utilise la gravité droite pour les débuts (ils suivent l'édition) et la
  * gravité gauche pour les fins (ils restent en place à la frontière de
@@ -142,7 +142,7 @@ public final class DiagnosticShift {
         /** true quand le pli est actuellement réduit (masqué). */
         public final boolean collapsed;
         /**
-         * Repliée PAR DÉFAUT (l'outil tiers {@code collapsedByDefault}) :
+         * Repliée PAR DÉFAUT :
          * appliquée UNE SEULE FOIS par document (imports) puis l'état
          * utilisateur l'emporte — cf. {@code EditorSession.applyCodeFolds}.
          */
@@ -159,7 +159,7 @@ public final class DiagnosticShift {
         /**
          * Variante complète (collapsedByDefault pour le pliage
          * serveur : groupe d'imports replié à l'ouverture comme
-         * l'outil tiers/les IDE de bureau).
+         * les IDE de bureau).
          */
         public FoldRegion(int start, int end, String placeholder, String kind,
                 boolean collapsed, boolean collapsedByDefault) {

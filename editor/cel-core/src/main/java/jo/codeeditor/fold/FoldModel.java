@@ -5,7 +5,7 @@ import java.util.*;
 /**
  * Modèle de pliage : correspondance entre lignes du document et lignes
  * visuelles (pliées).
- * Reprend le design du {@code FoldModel.kt} de l'outil tiers.
+ * Projection pliée avec placeholders.
  */
 public class FoldModel {
 

@@ -179,12 +179,12 @@ public class EditorSelectionGestures {
     /**
      * Résout le tap sur la pill via les MÉTRIQUES PARTAGÉES
      * ({@link EditorView#selectionToolbarMetrics()}), plus aucune
-     * duplication du layout. Les 6 actions l'outil tiers sont câblées :
+     * duplication du layout. Les 6 actions sont câblées :
      * Copy/Cut/Paste/Select all + Docs ℹ / Actions ⋯ (le hit-test
      * recalculait auparavant un layout 4-boutons obsolète — les icônes
      * étaient inatteignables et la pill collapsed rejetait tout tap).
      *
-     * <p>Parité l'outil tiers {@code SelectionToolbarLayer} : Copy/Cut/Paste
+     * <p>Comportement de la toolbar de sélection : Copy/Cut/Paste
      * referment la pill (et masquent les poignées), Select all la laisse
      * ouverte (Copy/Cut deviennent disponibles), Docs ouvre le quick-doc,
      * Actions ouvre le popup de quick-fixes de la ligne.</p>
@@ -211,14 +211,14 @@ public class EditorSelectionGestures {
                 hideSelectionChrome();
                 break;
             case EditorView.SEL_ACT_SELECT_ALL:
-                // l'outil tiers : la pill RESTE ouverte après Select all —
+                // La pill RESTE ouverte après Select all —
                 // Copy/Cut deviennent disponibles sur la sélection totale.
                 view.session.selectAll();
                 view.invalidate();
                 break;
             case EditorView.SEL_ACT_DOCS:
                 hideSelectionChrome();
-                // ★ l'outil tiers showQuickDoc() passe selection.START
+                // ★ showQuickDoc() passe selection.START
                 // (CodeEditor.kt l.306-312) — le mot sous le début de la
                 // sélection se résout plus sûrement que sous sa fin.
                 view.showQuickDoc(sel.start);
@@ -226,7 +226,7 @@ public class EditorSelectionGestures {
             case EditorView.SEL_ACT_ACTIONS:
                 hideSelectionChrome();
                 // ★ Ouvre le MENU CONTEXTUEL UNIFIÉ (portage
-                // NavMenu de l'outil tiers — openNavMenu) : sections GO TO /
+                // menu contextuel unifié) : sections GO TO /
                 // QUICK FIXES / INTENTIONS, au lieu de la simple liste de
                 // quick-fixes.
                 view.showNavMenu(view.session.getDocument()
@@ -238,7 +238,7 @@ public class EditorSelectionGestures {
         return true;
     }
 
-    /** l'outil tiers {@code interaction.handlesVisible = false} : referme la pill + masque les poignées. */
+    /** Referme la pill + masque les poignées. */
     private void hideSelectionChrome() {
         view.handlesVisible = false;
         dismissSelectionToolbar();
