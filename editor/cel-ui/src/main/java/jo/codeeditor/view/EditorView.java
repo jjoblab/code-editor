@@ -1086,6 +1086,11 @@ public class EditorView extends View {
         // spans — un changement de thème invalide tous les StaticLayout
         // en cache.
         shapedCache.clear();
+        // Le LineRenderCache cuit AUSSI les couleurs du thème dans ses
+        // SemSpan (overlays sémantiques par ligne) : sans cette purge, les
+        // lignes en cache gardaient les couleurs sémantiques de l'ancien
+        // thème jusqu'à leur prochaine édition.
+        renderCache.clear();
         gutterView.setTheme(theme);
         invalidate();
     }
