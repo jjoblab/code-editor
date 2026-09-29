@@ -15,22 +15,28 @@
     <string name="toggle_ligatures">Ligatures</string>
     <string name="toggle_non_printable">Non-imprimables</string>
     <string name="toggle_theme">Thème clair</string>
+    <string name="toggle_scheme">Scheme</string>
     <string name="action_undo">Annuler</string>
     <string name="action_redo">Rétablir</string>
+    <string name="action_expand">Étendre la sélection</string>
     <string name="action_zoom_out">Réduire la police</string>
     <string name="action_zoom_in">Agrandir la police</string>
 
     <!-- À propos -->
     <string name="about_title">À propos de la démo</string>
-    <string name="about_message">Terrain de jeu pour la bibliothèque code-editor v3.38.0 (Java, Canvas, MIT).
+    <string name="about_message">Terrain de jeu pour la bibliothèque code-editor v3.40.0 (Java, Canvas, MIT).
 
 \u2022 27 langages : basculez via le menu Langage.
 \u2022 Analyseur factice : diagnostics, complétion, signatures, quick doc et code actions synthétiques \u2014 sans serveur LSP.
+\u2022 Scheme de couleurs : la bascule Scheme applique « Crépuscule ambré » par-dessus le thème (sélection, caret, commentaires, fonctions, javadoc) \u2014 cascade de résolution, purge des caches incluse.
+\u2022 Distinctions fines : javadocs, contrôle de flux (if/for/return), modificateurs (public/static), caractères, chaînes brutes, namespaces XML, entités et emphase Markdown sont colorés distinctement.
 
 À essayer :
 \u2022 Tapez un identifiant \u2192 popup de complétion (badges par type).
 \u2022 Ouvrez une parenthèse, ex. println( \u2192 aide de signature.
 \u2022 Longue pression sur un mot \u2192 quick doc généré.
+\u2022 Basculez Scheme \u2192 sélection et tokens recolorés sans changer de thème.
+\u2022 Étendre la sélection \u2192 curseur \u2192 mot \u2192 syntagme \u2192 lignes (cascade).
 \u2022 Lignes TODO / FIXME \u2192 diagnostics (squiggles + points dans la gouttière).
 \u2022 Ampoule de la gouttière \u2192 code actions.
 \u2022 Pincez pour zoomer, double-tap pour sélectionner un mot, glissez les poignées (loupe de sélection).
