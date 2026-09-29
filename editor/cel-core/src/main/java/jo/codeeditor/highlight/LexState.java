@@ -23,6 +23,16 @@ public final class LexState {
     public static final int CSS_STRING = 6;
     /** Dans un littéral Shell entre apostrophes ('...' sur plusieurs lignes). */
     public static final int SHELL_SINGLE_QUOTE = 12;
+    // ── Distinctions fines (lot 4 #26) ────────────────────────────────
+    /** Dans un commentaire de documentation (/** ... *&#47;) — comme
+     *  BLOCK_COMMENT mais l'état PORTÉ se souvient que l'ouverture était
+     *  {@code /**} : les lignes de continuation reçoivent DOC_COMMENT et
+     *  non COMMENT, sans table annexe. */
+    public static final int DOC_COMMENT = 7;
+    /** Dans une section CDATA XML ({@code <![CDATA[ ... ]]>}) — état
+     *  dédié (l'ancien port réutilisait KT_RAW_STRING) pour que le
+     *  contenu ne soit pas re-lexé comme du balisage. */
+    public static final int XML_CDATA = 8;
 
     private LexState() {}
 }

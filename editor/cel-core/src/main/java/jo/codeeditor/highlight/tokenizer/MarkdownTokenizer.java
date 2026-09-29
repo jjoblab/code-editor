@@ -55,13 +55,35 @@ public final class MarkdownTokenizer {
                 continue;
             }
 
-            // Gras : **texte**
+            // Gras : **texte** → EMPHASIS (lot 4 #26 — distinct du texte
+            // tant qu'un scheme ne le recolore pas, hérite d'ANNOTATION
+            // sinon).
             if (ch == '*' && pos + 1 < line.length() && line.charAt(pos + 1) == '*') {
                 int close = line.indexOf("**", pos + 2);
                 if (close >= 0) {
-                    spans.add(new LineSpan(pos, close + 2, TokenType.ANNOTATION));
+                    spans.add(new LineSpan(pos, close + 2, TokenType.EMPHASIS));
                     pos = close + 2;
                     continue;
+                }
+            }
+
+            // Italique *texte* / _texte_ → EMPHASIS (lot 4 #26).
+            // Règle intra-mot du Markdown : « * » PEUT ouvrir à
+            // l'intérieur d'un mot (a*b*c), « _ » NE PEUT PAS
+            // (snake_case reste du texte brut).
+            if (ch == '*' || ch == '_') {
+                boolean intraWordOk = ch == '*';
+                boolean prevWord = pos > 0
+                        && Character.isLetterOrDigit(line.charAt(pos - 1));
+                boolean nextWord = pos + 1 < line.length()
+                        && Character.isLetterOrDigit(line.charAt(pos + 1));
+                if (!prevWord || intraWordOk) {
+                    int close = findEmphasisClose(line, pos + 1, ch);
+                    if (close >= 0) {
+                        spans.add(new LineSpan(pos, close + 1, TokenType.EMPHASIS));
+                        pos = close + 1;
+                        continue;
+                    }
                 }
             }
 
@@ -99,7 +121,7 @@ public final class MarkdownTokenizer {
             int end = pos + 1;
             while (end < line.length()) {
                 char c = line.charAt(end);
-                if (c == '*' || c == '`' || c == '[' || c == '#') break;
+                if (c == '*' || c == '`' || c == '[' || c == '#' || c == '_') break;
                 end++;
             }
             if (end > pos + 1 || spans.isEmpty() || spans.get(spans.size() - 1).type != TokenType.PLAIN) {
@@ -113,6 +135,27 @@ public final class MarkdownTokenizer {
         }
 
         return new StyledLine(spans, entryState, state);
+    }
+
+    /**
+     * Trouve la position du délimiteur d'emphase fermant (lot 4 #26).
+     * Renvoie l'index du caractère fermant, ou -1. Règle « right-flanking »
+     * simplifiée : le fermant doit être PRÉCÉDÉ d'un contenu non blanc ;
+     * la lettre qui suit n'importe PAS (le « * » est autorisé intra-mot,
+     * contrairement au « _ » dont l'OUVERTURE intra-mot est déjà refusée
+     * par l'appelant).
+     */
+    private static int findEmphasisClose(String line, int from, char marker) {
+        int i = from;
+        while (i < line.length()) {
+            char c = line.charAt(i);
+            if (c == marker) {
+                boolean prevContent = i > from && !Character.isWhitespace(line.charAt(i - 1));
+                if (prevContent) return i;
+            }
+            i++;
+        }
+        return -1;
     }
 
     /**

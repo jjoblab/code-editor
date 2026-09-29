@@ -76,9 +76,21 @@ public final class ColorAttributes {
     /** Lecture : clé → champ d'EditorTheme. */
     private static final Map<String, ToIntFunction<EditorTheme>> GETTERS = new LinkedHashMap<>();
 
+    /** Clés VIRTUELLES : attributs du registre sans champ dédié dans
+     *  EditorTheme (distinctions fines du lot 4 #26) — leur couleur vit
+     *  dans la carte d'extras du thème et retombe sur le parent. */
+    private static final Map<String, Boolean> VIRTUAL = new LinkedHashMap<>();
+
     private static void reg(ColorAttribute a, ToIntFunction<EditorTheme> getter) {
         ATTRIBUTES.add(a);
         GETTERS.put(a.key, getter);
+    }
+
+    /** Enregistre un attribut VIRTUEL — la lecture délègue au parent. */
+    private static void regVirtual(ColorAttribute a) {
+        ATTRIBUTES.add(a);
+        VIRTUAL.put(a.key, true);
+        GETTERS.put(a.key, t -> get(t, a.parent));
     }
 
     static {
@@ -153,6 +165,26 @@ public final class ColorAttributes {
             t -> t.indentGuide);
         reg(new ColorAttribute(KEY_COMPOSING, "Texte en composition (IME)", ColorAttribute.GROUP_CHROME, null),
             t -> t.composing);
+
+        // ── Distinctions fines (lot 4 #26) — attributs VIRTUELS :
+        // aucune couleur propre (délèguent au parent) — rien ne change
+        // visuellement tant qu'un scheme ne les sépare pas.
+        regVirtual(new ColorAttribute("syntax.docComment", "Commentaires de documentation",
+                ColorAttribute.GROUP_SYNTAX, KEY_COMMENT));
+        regVirtual(new ColorAttribute("syntax.keywordControl", "Contrôle de flux (if, for, return…)",
+                ColorAttribute.GROUP_SYNTAX, KEY_KEYWORD));
+        regVirtual(new ColorAttribute("syntax.keywordModifier", "Modificateurs (public, static…)",
+                ColorAttribute.GROUP_SYNTAX, KEY_KEYWORD));
+        regVirtual(new ColorAttribute("syntax.char", "Caractères ('a')",
+                ColorAttribute.GROUP_SYNTAX, KEY_STRING));
+        regVirtual(new ColorAttribute("syntax.stringRaw", "Chaînes brutes (\"\"\"…\"\"\")",
+                ColorAttribute.GROUP_SYNTAX, KEY_STRING));
+        regVirtual(new ColorAttribute("syntax.namespace", "Espaces de nom XML",
+                ColorAttribute.GROUP_SYNTAX, KEY_TYPE));
+        regVirtual(new ColorAttribute("syntax.entity", "Entités XML (&amp;…)",
+                ColorAttribute.GROUP_SYNTAX, KEY_ESCAPE));
+        regVirtual(new ColorAttribute("syntax.emphasis", "Emphase Markdown (**gras**, _italique_)",
+                ColorAttribute.GROUP_SYNTAX, KEY_ANNOTATION));
     }
 
     private ColorAttributes() {
@@ -187,12 +219,18 @@ public final class ColorAttributes {
         return GETTERS.containsKey(key);
     }
 
+    /** Clé VIRTUELLE (sans champ dédié dans EditorTheme) ? */
+    public static boolean isVirtual(String key) {
+        return VIRTUAL.containsKey(key);
+    }
+
     /** Toutes les clés (itérable stable). */
     public static List<String> keys() {
         return new ArrayList<>(GETTERS.keySet());
     }
 
-    /** Lecture de la valeur brute d'un attribut sur un thème. */
+    /** Lecture de la valeur brute d'un attribut sur un thème. Les clés
+     *  virtuelles délèguent à leur parent (couleur héritée). */
     public static int get(EditorTheme theme, String key) {
         ToIntFunction<EditorTheme> g = GETTERS.get(key);
         if (g == null) throw new IllegalArgumentException("Clé inconnue : " + key);
