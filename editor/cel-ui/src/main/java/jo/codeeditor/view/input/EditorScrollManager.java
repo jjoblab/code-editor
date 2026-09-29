@@ -134,8 +134,14 @@ public class EditorScrollManager {
         if (view.session == null) return 0;
         float contentH;
         if (view.wordWrap && view.wrapModel != null) {
+            // ★ B12 : les rangées des lignes cachées par des plis repliés
+            // n'occupent AUCUNE rangée visuelle — sans cette soustraction,
+            // on pouvait scroller sous la dernière ligne visible dans le
+            // vide (même défaut que le chemin non-wrap avant B10).
+            long visibleRows = view.wrapModel.totalRows()
+                    - view.totalHiddenWrapRows();
             contentH = view.metrics.getPadTop()
-                + view.wrapModel.totalRows() * view.metrics.getLineHeight()
+                + visibleRows * view.metrics.getLineHeight()
                 + view.metrics.getPadBottom();
         } else {
             // Les lignes masquées par les plis repliés n'occupent AUCUNE

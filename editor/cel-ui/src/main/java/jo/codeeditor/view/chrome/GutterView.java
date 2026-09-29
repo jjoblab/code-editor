@@ -25,11 +25,46 @@ public class GutterView {
     private final EditorMetrics metrics;
     private EditorTheme theme;
 
+    // ★ B21d : paints réutilisables (un par couche du gutter) — les
+    // couleurs se re-posent chaque frame ; plus aucune allocation par draw.
+    private final Paint bgPaint = new Paint();
+    private final Paint sepPaint = new Paint();
+    private final Paint numberPaint = new Paint();
+    private final Paint dotPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+
     // Données de diagnostic : sévérité par ligne (0=aucune, 1=info, 2=avertissement, 3=erreur)
     private int[] diagnostics = new int[0];
 
     /** Renvoie true si la ligne de document donnée est masquée par un repli fermé. */
     private IntPredicate hiddenLineChecker;
+
+    /**
+     * ★ B11+B20 — Géométrie de l'hôte ({@code EditorView.docLineToY} /
+     * {@code docLineForScreenY}) : quand elle est définie, la gouttière
+     * aligne ses numéros sur les positions Y RÉELLES du texte
+     * (conscientes du retour à la ligne ET des plis repliés) et démarre
+     * son itération à la première ligne visible (O(visible) au lieu de
+     * O(lignes du document) par frame).
+     */
+    public interface HostGeometry {
+        /** Coordonnée Y (espace contenu, avant scrollTop) du HAUT de la
+         *  ligne de document — padding supérieur inclus. */
+        float docLineToY(int docLine);
+        /** Ligne de document contenant la coordonnée Y écran donnée. */
+        int docLineForScreenY(float screenY);
+    }
+
+    private HostGeometry geometry;
+
+    /**
+     * Définit la géométrie hôte (voir {@link HostGeometry}). Sans
+     * géométrie, la gouttière retombe sur ses chemins historiques
+     * (comptage indépendant — utilisé par les tests unitaires
+     * standalone).
+     */
+    public void setHostGeometry(HostGeometry geometry) {
+        this.geometry = geometry;
+    }
 
     /** Densité d'écran (px/dp), utilisée pour dimensionner le point de diagnostic. */
     private float density = 1f;
@@ -120,23 +155,40 @@ public class GutterView {
         // remplissage totalement opaque, un alpha d'environ 88 % laisse
         // faiblement apparaître le texte qui défile derrière — effet verre
         // dépoli similaire au gutter translucide de VS Code.
-        Paint bgPaint = new Paint();
+        // ★ B21d : paints HOISTÉS en champs — 3 new Paint() par frame
+        // (plus 1 par point de diagnostic) allouaient/garbageaient à chaque
+        // redraw ; les couleurs se re-posent chaque frame, sans allocation.
         bgPaint.setColor(applyAlpha(theme.gutterBg, 0.88f));
         canvas.drawRect(0, 0, gutterWidth, viewHeight, bgPaint);
 
         // Ligne séparatrice
-        Paint sepPaint = new Paint();
         sepPaint.setColor(theme.gutterBorder);
         sepPaint.setStrokeWidth(1f);
         canvas.drawLine(gutterWidth, 0, gutterWidth, viewHeight, sepPaint);
 
         // Numéros de ligne — alignés à droite à la fin de la zone des numéros
         // (AVANT la bande de repli), avec 0,5 caractère de marge à droite.
-        Paint numberPaint = new Paint(metrics.getGutterPaint());
+        numberPaint.set(metrics.getGutterPaint());
         numberPaint.setColor(theme.gutterText);
 
         float textX = lineNumberAreaRight - metrics.getCharWidth() * 0.5f;
 
+        if (geometry != null) {
+            // ★ B11+B20 : chemin canonique — Y de l'hôte (wrap + plis)
+            // et départ à la première ligne visible.
+            int first = Math.max(0, geometry.docLineForScreenY(scrollTop) - 1);
+            for (int i = first; i < totalLines; i++) {
+                if (hiddenLineChecker != null && hiddenLineChecker.test(i)) {
+                    continue;
+                }
+                float y = geometry.docLineToY(i) - scrollTop;
+                if (y + lineHeight < 0) continue;
+                if (y > viewHeight) break;
+                drawLineNumber(canvas, numberPaint, textX, y, lineHeight,
+                        i, currentLine, lineNumberAreaRight);
+            }
+            return;
+        }
         if (hiddenLineChecker != null) {
             // Chemin sensible aux replis : parcourt toutes les lignes du
             // document, ignore les masquées et dessine chaque ligne visible
@@ -204,7 +256,6 @@ public class GutterView {
             float dotR = 3.0f * density; // 3dp
             float dotCenterX = 5f * density + dotR;
             float dotY = y + lineHeight * 0.5f;
-            Paint dotPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
             dotPaint.setColor(getDiagnosticColor(sev));
             dotPaint.setStyle(Paint.Style.FILL);
             canvas.drawCircle(dotCenterX, dotY, dotR, dotPaint);

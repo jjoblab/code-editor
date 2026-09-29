@@ -71,6 +71,38 @@ public final class EditorDocument {
         return cachedText;
     }
 
+    /**
+     * ★ B19 : extrait {@code [start, end)} SANS matérialiser le document
+     * entier. Le cache de {@link #getText()} est invalidé à CHAQUE édition
+     * — un appel par frappe recopiat donc tout le fichier pour lire une
+     * tranche de quelques caractères. La rope splicée ne matérialise que
+     * la plage demandée (O(log n) + taille de la tranche).
+     */
+    public String subText(int start, int end) {
+        start = Math.max(0, Math.min(start, length()));
+        end = Math.max(start, Math.min(end, length()));
+        if (start == end) return "";
+        return rope.sub(start, end).toString();
+    }
+
+    /**
+     * ★ B19 : vue {@link CharSequence} sur la rope courante — O(1), aucune
+     * matérialisation, {@code charAt} en O(log n) sur l'arbre. Pour les
+     * helpers de frappe intelligente qui lisent quelques caractères autour
+     * du curseur ({@code charAt} O(log n) sur l'arbre) ; remplacer {@code doc.getText()}
+     * (copie complète du document à chaque frappe) par cette vue dans ces
+     * chemins.
+     *
+     * <p><b>Contrat</b> : la vue reflète le document AU MOMENT DE L'APPEL
+     * et reste cohérente tant qu'aucune mutation n'intervient (une édition
+     * substitue la rope sous-jacente par une nouvelle instance). Les
+     * appelants l'utilisent donc pour une LECTURE bornée entre deux
+     * éditions — jamais comme référence longue durée.</p>
+     */
+    public CharSequence charSequence() {
+        return rope;
+    }
+
     /** Renvoie le nombre total de caractères. */
     public int length() {
         return rope.length();

@@ -416,6 +416,15 @@ public class EditorSession {
     }
 
     /**
+     * ★ B21d : y a-t-il AU MOINS un pli replié ? Test sans allocation —
+     * la voie historique {@code getCollapsedFolds().isEmpty()} allouait
+     * une liste fraîche à CHAQUE FRAME de rendu juste pour ce test.
+     */
+    public boolean hasCollapsedFolds() {
+        return folds.hasCollapsed();
+    }
+
+    /**
      * Retourne vrai si la ligne du document donnée est actuellement masquée
      * par une région de pliage repliée. Méthode de commodité — la vue s'en
      * sert pour sauter le dessin des lignes masquées.
@@ -577,7 +586,7 @@ public class EditorSession {
 
         String removed = "";
         if (end > start) {
-            removed = doc.getText().substring(start, end);
+            removed = doc.subText(start, end); // ★ B19 : tranche, pas de copie complète
         }
         EditOp op = new EditOp(start, removed, insertion);
         int selBefore = selection.start;
@@ -680,7 +689,7 @@ public class EditorSession {
     public void typeChar(char ch) {
         int selMin = Math.min(selection.start, selection.end);
         int selMax = Math.max(selection.start, selection.end);
-        RangeEdit re = EditOps.smartInsert(doc.getText(), selMin, selMax, ch, language);
+        RangeEdit re = EditOps.smartInsert(doc.charSequence(), selMin, selMax, ch, language); // ★ B19
         replaceRangeWithCaret(re.start, re.end, re.text, re.caret);
         // Détecter la divergence avec la sémantique littérale « frapper ce caractère » attendue par l'IME.
         boolean diverged = re.start != selMin || re.end != selMax
@@ -707,13 +716,13 @@ public class EditorSession {
      */
     public void backspace(boolean word) {
         if (word) {
-            int pos = EditOps.wordBoundaryLeft(doc.getText(), selection.start);
+            int pos = EditOps.wordBoundaryLeft(doc.charSequence(), selection.start); // ★ B19
             replaceRangeWithCaret(pos, selection.start, "", pos);
             return;
         }
         int selMin = Math.min(selection.start, selection.end);
         int selMax = Math.max(selection.start, selection.end);
-        RangeEdit re = EditOps.smartBackspace(doc.getText(), selMin, selMax, language);
+        RangeEdit re = EditOps.smartBackspace(doc.charSequence(), selMin, selMax, language); // ★ B19
         replaceRangeWithCaret(re.start, re.end, re.text, re.caret);
         // Détecter la divergence avec la sémantique littérale « supprimer un
         // caractère avant le caret » attendue par l'IME. Les règles
@@ -739,11 +748,11 @@ public class EditorSession {
      */
     public void deleteForward(boolean word) {
         if (word) {
-            int pos = EditOps.wordBoundaryRight(doc.getText(), selection.start);
+            int pos = EditOps.wordBoundaryRight(doc.charSequence(), selection.start); // ★ B19
             replaceRangeWithCaret(selection.start, pos, "", selection.start);
             return;
         }
-        RangeEdit re = EditOps.smartDeleteForward(doc.getText(), selection.start, selection.end, language);
+        RangeEdit re = EditOps.smartDeleteForward(doc.charSequence(), selection.start, selection.end, language); // ★ B19
         replaceRangeWithCaret(re.start, re.end, re.text, re.caret);
     }
 
@@ -861,21 +870,26 @@ public class EditorSession {
 
 
     // ── Opérations de sélection ────────────────────────────────
+    // ★ B21f : tous les mutateurs passent par setSelection(...) —
+    // l'ancienne écriture directe du champ ne notifiait JAMAIS l'IME
+    // (updateSelection jamais poussé) : le miroir de l'IME (contexte
+    // d'autocorrection, sélection extraite) désynchronisait après
+    // Ctrl+A, les flèches, Select all…
 
     public void selectAll() {
-        selection = Selection.range(0, doc.length());
+        setSelection(Selection.range(0, doc.length()));
     }
 
     public void selectWordAt(int offset) {
-        int[] range = EditOps.wordRangeAt(doc.getText(), offset);
-        selection = Selection.range(range[0], range[1]);
+        int[] range = EditOps.wordRangeAt(doc.charSequence(), offset); // ★ B19
+        setSelection(Selection.range(range[0], range[1]));
     }
 
     public void selectLineAt(int offset) {
         int line = doc.lineForOffset(offset);
         int start = doc.lineStart(line);
         int end = doc.lineEnd(line);
-        selection = Selection.range(start, end);
+        setSelection(Selection.range(start, end));
     }
 
     // ── Déplacement du curseur ─────────────────────────────────
@@ -884,9 +898,9 @@ public class EditorSession {
         int newPos = Math.max(0, Math.min(doc.length(), selection.start + delta));
         if (selecting) {
             int anchor = selection.isCursor() ? selection.start : (delta > 0 ? selection.start : selection.end);
-            selection = Selection.range(Math.min(anchor, newPos), Math.max(anchor, newPos));
+            setSelection(Selection.range(Math.min(anchor, newPos), Math.max(anchor, newPos)));
         } else {
-            selection = Selection.cursor(newPos);
+            setSelection(Selection.cursor(newPos));
         }
     }
 
@@ -900,9 +914,9 @@ public class EditorSession {
 
         if (selecting) {
             int anchor = selection.start;
-            selection = Selection.range(Math.min(anchor, newPos), Math.max(anchor, newPos));
+            setSelection(Selection.range(Math.min(anchor, newPos), Math.max(anchor, newPos)));
         } else {
-            selection = Selection.cursor(newPos);
+            setSelection(Selection.cursor(newPos));
         }
     }
 
@@ -923,9 +937,9 @@ public class EditorSession {
 
         if (selecting) {
             int anchor = selection.start;
-            selection = Selection.range(Math.min(anchor, newPos), Math.max(anchor, newPos));
+            setSelection(Selection.range(Math.min(anchor, newPos), Math.max(anchor, newPos)));
         } else {
-            selection = Selection.cursor(newPos);
+            setSelection(Selection.cursor(newPos));
         }
     }
 
@@ -934,9 +948,9 @@ public class EditorSession {
         int newPos = doc.lineEnd(line);
         if (selecting) {
             int anchor = selection.start;
-            selection = Selection.range(Math.min(anchor, newPos), Math.max(anchor, newPos));
+            setSelection(Selection.range(Math.min(anchor, newPos), Math.max(anchor, newPos)));
         } else {
-            selection = Selection.cursor(newPos);
+            setSelection(Selection.cursor(newPos));
         }
     }
 
@@ -944,9 +958,9 @@ public class EditorSession {
         int newPos = toEnd ? doc.length() : 0;
         if (selecting) {
             int anchor = selection.start;
-            selection = Selection.range(Math.min(anchor, newPos), Math.max(anchor, newPos));
+            setSelection(Selection.range(Math.min(anchor, newPos), Math.max(anchor, newPos)));
         } else {
-            selection = Selection.cursor(newPos);
+            setSelection(Selection.cursor(newPos));
         }
     }
 
@@ -957,7 +971,7 @@ public class EditorSession {
             duplicateLine();
             return;
         }
-        String selected = doc.getText().substring(selection.start, selection.end);
+        String selected = doc.subText(selection.start, selection.end); // ★ B19
         replaceRange(selection.end, selection.end, selected);
     }
 
@@ -1028,7 +1042,7 @@ public class EditorSession {
 
     public String selectedText() {
         if (selection.isCursor()) return "";
-        return doc.getText().substring(selection.start, selection.end);
+        return doc.subText(selection.start, selection.end); // ★ B19
     }
 
     public String cutSelection() {
@@ -1063,7 +1077,8 @@ public class EditorSession {
             if (best == null) best = diagnostics.get(diagnostics.size() - 1); // bouclage
         }
 
-        selection = Selection.cursor(best.start);
+        // ★ B21f : via setSelection — le saut de diagnostic notifie l'IME.
+        setSelection(Selection.cursor(best.start));
     }
 
     // ── Suppression autour ──────────────────────────────────────

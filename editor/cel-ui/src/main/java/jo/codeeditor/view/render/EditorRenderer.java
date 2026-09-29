@@ -94,7 +94,7 @@ public class EditorRenderer {
         // dessinent à un mauvais Y. D'où : quand des plis existent, calculer
         // la plage de lignes via le mappeur sensible aux plis
         // docLineForScreenY (comme le retour à la ligne le fait).
-        boolean hasCollapsedFolds = !view.session.getCollapsedFolds().isEmpty();
+        boolean hasCollapsedFolds = view.session.hasCollapsedFolds(); // ★ B21d : sans allocation
         final int firstVisible = Math.max(0, (int) Math.floor(view.vOffset / lineHeight) - 1);
         final int lastVisible  = Math.min(doc.lineCount() - 1,
                                           (int) Math.ceil((view.vOffset + height) / lineHeight) + 1);
@@ -140,7 +140,16 @@ public class EditorRenderer {
         }
 
         // 3. Guides d'indentation (fins traits verticaux à chaque INDENT_UNIT_COLS) — dessinés avant le texte
-        highlights.drawIndentGuides(canvas, doc, firstVisible, lastVisible, textAreaLeft, lineHeight, paddingTop);
+        // ★ B9 : les passes non sensibles aux plis itèrent des LIGNES DOCUMENT
+        //        (elles comparent doc.lineForOffset et positionnent via
+        //        docLineToY) — leur passer la plage de lignes document
+        //        (firstDocVisible/lastDocVisible, déjà conscientes des plis
+        //        ET du wrap), pas les rangées visuelles. Sans cela, un pli
+        //        replié AU-DESSUS du viewport compactait la plage : la bande
+        //        de sélection, les surlignages de recherche, les soulignés et
+        //        les guides s'arrêtaient trop tôt (bas du viewport non
+        //        dessiné).
+        highlights.drawIndentGuides(canvas, doc, firstDocVisible, lastDocVisible, textAreaLeft, lineHeight, paddingTop);
 
         // La gouttière est dessinée APRÈS le texte (en overlay
         // semi-transparent) pour que le texte qui défile derrière reste
@@ -152,7 +161,7 @@ public class EditorRenderer {
         // 5. Surlignage de sélection (bande par ligne, un rect par ligne visible)
         if (!sel.isCursor()) {
             try {
-                highlights.drawSelection(canvas, doc, sel, textAreaLeft, lineHeight, paddingTop, firstVisible, lastVisible);
+                highlights.drawSelection(canvas, doc, sel, textAreaLeft, lineHeight, paddingTop, firstDocVisible, lastDocVisible);
             } catch (RuntimeException ignored) {
             }
         }
@@ -163,7 +172,7 @@ public class EditorRenderer {
         if (!view.findHighlights.isEmpty()) {
             try {
                 highlights.drawFindHighlights(canvas, doc, textAreaLeft, lineHeight, paddingTop,
-                                    firstVisible, lastVisible);
+                                    firstDocVisible, lastDocVisible);
             } catch (RuntimeException ignored) {}
         }
 
@@ -173,7 +182,7 @@ public class EditorRenderer {
         if (!view.documentHighlights.isEmpty()) {
             try {
                 highlights.drawDocumentHighlights(canvas, doc, textAreaLeft, lineHeight,
-                    paddingTop, firstVisible, lastVisible);
+                    paddingTop, firstDocVisible, lastDocVisible);
             } catch (RuntimeException ignored) {}
         }
 
@@ -264,7 +273,11 @@ public class EditorRenderer {
                     }
                 } else {
                     view.textPaint.setColor(view.theme.textColor);
-                    canvas.drawText(lineText, textAreaLeft - view.hOffset, lineY + lineHeight * 0.78f, view.textPaint);
+                    // Fenêtré (parité sora) : une ligne minifiée sans
+                    // style ne dessine que sa tranche visible.
+                    text.drawPlainLine(canvas, lineText,
+                            textAreaLeft - view.hOffset,
+                            lineY + lineHeight * 0.78f, view.textPaint);
                 }
             }
         }
@@ -280,13 +293,13 @@ public class EditorRenderer {
         // clip, un soulignement à la colonne 0 sur une ligne défilée à droite
         // (hOffset > 0) se dessinerait par-dessus la gouttière — il
         // semblerait flotter au-dessus au lieu d'être masqué derrière elle.
-        diagnostics.drawSquiggles(canvas, doc, firstVisible, lastVisible, textAreaLeft, lineHeight, paddingTop);
+        diagnostics.drawSquiggles(canvas, doc, firstDocVisible, lastDocVisible, textAreaLeft, lineHeight, paddingTop);
 
         // Encadrés de parenthèses appariées — rectangle de CONTOUR 1 px
         // autour de chaque parenthèse de la paire sous/derrière le curseur,
         // dans la couleur d'accent à 45 % d'alpha. Dessinés après les
         // soulignements ondulés et dans le clip de la zone de texte.
-        highlights.drawBracketMatchBoxes(canvas, doc, textAreaLeft, lineHeight, firstVisible, lastVisible);
+        highlights.drawBracketMatchBoxes(canvas, doc, textAreaLeft, lineHeight, firstDocVisible, lastDocVisible);
 
         // Décorations de texte + inlays de plugins, par-dessus les couches
         // propres de l'éditeur (dans le clip pour ne jamais déborder dans la
@@ -313,7 +326,7 @@ public class EditorRenderer {
             view.gutterView.setPluginMarks(null);
         }
         view.gutterView.draw(canvas, view.vOffset, height, doc.lineCount(), currentLine);
-        chrome.drawFoldChevrons(canvas, doc, firstVisible, lastVisible, lineHeight, paddingTop);
+        chrome.drawFoldChevrons(canvas, doc, firstDocVisible, lastDocVisible, lineHeight, paddingTop);
         canvas.restore();
 
         // Ligne de séparation de l'aperçu en mode SPLIT.
@@ -341,7 +354,7 @@ public class EditorRenderer {
         assist.drawQuickDocPopup(canvas);
 
         // 14. Ampoules de code actions + popup
-        assist.drawCodeActionsBulbs(canvas, firstVisible, lastVisible, lineHeight, paddingTop);
+        assist.drawCodeActionsBulbs(canvas, firstDocVisible, lastDocVisible, lineHeight, paddingTop);
         assist.drawCodeActionsPopup(canvas);
         // 14.5. Menu contextuel unifié (NavMenu — toolbar de sélection)
         chrome.drawNavMenu(canvas);
@@ -353,7 +366,7 @@ public class EditorRenderer {
         //     sheet de diagnostic. (Le go-to-line et le rename utilisent de
         //     vrais PopupWindow Android, donc rien à dessiner sur le Canvas.)
         if (view.diagnosticChipsEnabled) {
-            diagnostics.drawDiagnosticChips(canvas, doc, firstVisible, lastVisible, lineHeight, paddingTop);
+            diagnostics.drawDiagnosticChips(canvas, doc, firstDocVisible, lastDocVisible, lineHeight, paddingTop);
         }
         diagnostics.drawDiagnosticListSheet(canvas);
         chrome.drawSelectionToolbar(canvas);

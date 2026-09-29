@@ -24,6 +24,8 @@ import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Rect;
+import android.os.Parcel;
+import android.os.Parcelable;
 import android.util.TypedValue;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
@@ -685,7 +687,9 @@ public class EditorView extends View {
             return;
         }
         Selection sel = session.getSelection();
-        bracketPair = matchingBracket(session.getText(), sel.start);
+        // ★ B19 : balayage borné sur la ROPE (charAt O(log n)) — getText()
+        // matérialisait le document entier à chaque déplacement de caret.
+        bracketPair = matchingBracket(session.getDocument().charSequence(), sel.start);
     }
 
     /** Résolveur du rename. Retourne le nouveau texte complet après renommage. */
@@ -1029,6 +1033,19 @@ public class EditorView extends View {
             // ligne visible à chaque dessin).
             return s != null && isLineFoldedCached(line);
         });
+        // ★ B11+B20 : la gouttière s'aligne sur la géométrie de la vue
+        // (docLineToY / docLineForScreenY — conscients du wrap ET des
+        // plis) et démarre son itération à la première ligne visible.
+        this.gutterView.setHostGeometry(new GutterView.HostGeometry() {
+            @Override
+            public float docLineToY(int docLine) {
+                return EditorView.this.docLineToY(docLine);
+            }
+            @Override
+            public int docLineForScreenY(float screenY) {
+                return EditorView.this.docLineForScreenY(screenY);
+            }
+        });
         this.session = new EditorSession();
         this.session.setImeListener(imeBridge.listener);
         this.session.setOnLinesShiftedListener(cacheShiftListener);
@@ -1064,9 +1081,14 @@ public class EditorView extends View {
             this.session.setImeListener(null);
             this.session.setOnLinesShiftedListener(null);
         }
+        // ★ B21e : setSession(null) détache proprement la session sans
+        // NPE (les chemins de dessin/tactiles vérifient déjà session ==
+        // null) ; une nouvelle session se rattache ensuite normalement.
         this.session = session;
-        this.session.setImeListener(imeBridge.listener);
-        this.session.setOnLinesShiftedListener(cacheShiftListener);
+        if (session != null) {
+            session.setImeListener(imeBridge.listener);
+            session.setOnLinesShiftedListener(cacheShiftListener);
+        }
         renderCache.clear();
         // Réinitialise le glissement du caret pour que le premier dessin
         // dans la nouvelle session s'affiche d'un coup.
@@ -1253,6 +1275,15 @@ public class EditorView extends View {
     }
 
     @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        // ★ B21g : rejoue un schedule de diagnostics différé faute de
+        // Handler — l'attach initial (setLanguage avant addView) ne doit
+        // plus exécuter la tâche en synchrone.
+        diagnosticsPusher.onAttachedToWindow();
+    }
+
+    @Override
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
         // La loupe ne doit pas survivre au détachement de la vue.
@@ -1260,6 +1291,12 @@ public class EditorView extends View {
         // Ferme toute feuille d'aperçu ouverte pour ne pas fuiter un popup
         // pointant vers un éditeur détaché (ce qui planterait au toucher).
         preview.onDetachedFromWindow();
+        // ★ B15 : ferme aussi les PopupWindow go-to-line / rename /
+        // références — un PopupWindow vivant après le détachement de sa
+        // vue hôte lève WindowLeaked et fuit l'Activity à la rotation.
+        popupManager.dismissGoToLine();
+        popupManager.dismissRename();
+        referencesController.dismiss();
         // Nettoyage complet des callbacks en attente : une vue détachée
         // avec des callbacks runnables encore postés (préfetch au repos,
         // rafraîchissement débouncé des code actions, hover tap-hold,
@@ -1309,6 +1346,17 @@ public class EditorView extends View {
 
     /** Nombre TOTAL de lignes masquées par les plis repliés — pour les
      *  calculs de hauteur de contenu (scroll) sensibles aux plis. */
+    /**
+     * Nombre TOTAL de rangées wrap cachées par les plis repliés (mode
+     * word-wrap) — utilisé par le gestionnaire de scroll pour borner
+     * maxV() : les lignes cachées n'occupent aucune rangée visuelle.
+     */
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public long totalHiddenWrapRows() {
+        if (session == null) return 0;
+        return wrapGeometry.hiddenWrapRowsAbove(session.getDocument().lineCount());
+    }
+
     public int totalHiddenLines() {
         if (session == null) return 0;
         return countHiddenLinesAbove(session.getDocument().lineCount());
@@ -2159,6 +2207,101 @@ public class EditorView extends View {
     public void scrollHorizontallyBy(float dx) {
         scrollManager.scrollHorizontallyBy(dx);
     }
+
+    // ════════════════════════════════════════════════════════════════
+    // État d'instance (rotation / recreation) — B17
+    // ════════════════════════════════════════════════════════════════
+
+    /**
+     * Sauvegarde l'état VISUEL de l'éditeur : défilement (vOffset/hOffset),
+     * zoom (fontScale) et bascule du retour à la ligne. B17 : sans cela,
+     * une rotation de l'activité réinitialisait scroll au sommet, zoom à
+     * ×1 et wrap à la valeur par défaut — l'hôte ne peut pas les restaurer
+     * lui-même (champs internes). Le CONTENU du document reste de la
+     * responsabilité de l'hôte (la session ne vit pas dans la vue).
+     */
+    @Override
+    protected Parcelable onSaveInstanceState() {
+        Parcelable superState = super.onSaveInstanceState();
+        SavedState ss = new SavedState(superState);
+        ss.vOffset = vOffset;
+        ss.hOffset = hOffset;
+        ss.fontScale = zoom.fontScale;
+        ss.wordWrap = wordWrap;
+        return ss;
+    }
+
+    @Override
+    protected void onRestoreInstanceState(Parcelable state) {
+        if (!(state instanceof SavedState)) {
+            super.onRestoreInstanceState(state);
+            return;
+        }
+        SavedState ss = (SavedState) state;
+        super.onRestoreInstanceState(ss.getSuperState());
+        // Zoom d'abord : setFontScale reconstruit le modèle de wrap (B13).
+        if (ss.fontScale != zoom.fontScale) zoom.setFontScale(ss.fontScale);
+        // Wrap ensuite — setWordWrap rebuild aussi ; ne rebuild PAS si
+        // identique (état déjà cohérent).
+        if (wordWrap != ss.wordWrap) setWordWrap(ss.wordWrap);
+        // Scroll en dernier, borné à la géométrie RESTAURÉE. Sans session
+        // encore posée, maxV()/maxH() valent 0 : garder les valeurs brutes
+        // — elles seront bornées au premier usage (scroll/setSession).
+        if (session != null) {
+            vOffset = clamp(ss.vOffset, 0, maxV());
+            hOffset = clamp(ss.hOffset, 0, maxH());
+        } else {
+            vOffset = ss.vOffset;
+            hOffset = ss.hOffset;
+        }
+        invalidate();
+    }
+
+    /** État sauvegardé de la vue (scroll/zoom/wrap) — voir
+     *  {@link #onSaveInstanceState()}. */
+    static final class SavedState extends View.BaseSavedState {
+        float vOffset;
+        float hOffset;
+        float fontScale;
+        boolean wordWrap;
+
+        SavedState(Parcelable superState) {
+            super(superState);
+        }
+
+        SavedState(Parcel in) {
+            super(in);
+            vOffset = in.readFloat();
+            hOffset = in.readFloat();
+            fontScale = in.readFloat();
+            wordWrap = in.readByte() != 0;
+        }
+
+        @Override
+        public void writeToParcel(Parcel out, int flags) {
+            super.writeToParcel(out, flags);
+            out.writeFloat(vOffset);
+            out.writeFloat(hOffset);
+            out.writeFloat(fontScale);
+            out.writeByte((byte) (wordWrap ? 1 : 0));
+        }
+
+        public static final Parcelable.Creator<SavedState> CREATOR =
+                new Parcelable.Creator<SavedState>() {
+            @Override
+            public SavedState createFromParcel(Parcel in) {
+                return new SavedState(in);
+            }
+            @Override
+            public SavedState[] newArray(int size) {
+                return new SavedState[size];
+            }
+        };
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    // Défilement — bornes
+    // ════════════════════════════════════════════════════════════════
 
     /** Défilement vertical max : hauteur du contenu moins hauteur du viewport, au moins 0. */
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)

@@ -33,8 +33,78 @@ import java.util.List;
 public class EditorTextPainter {
     private final EditorView view;
 
+    /** Marge de colonnes de part et d'autre de la fenêtre visible — la
+     *  loupe (zoom ~2x) et le surlignage de sélection débordent légèrement
+     *  du viewport. */
+    private static final int VISIBLE_COL_MARGIN = 16;
+    /** Garde-fou : largeur minimale de la fenêtre en colonnes — une ligne
+     *  courte ou un viewport étroit dessinent au moins cette tranche. */
+    private static final int VISIBLE_COL_MIN = 64;
+
     EditorTextPainter(EditorView view) {
         this.view = view;
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    // Fenêtre de colonnes visibles (parité sora TextRow.draw)
+    // ════════════════════════════════════════════════════════════════
+
+    /**
+     * Fenêtre de colonnes visibles {@code [première, dernière)} pour la
+     * ligne donnée, dérivée du défilement horizontal ({@code hOffset}),
+     * de la largeur du viewport et d'une marge.
+     *
+     * <p>★ Correctif « minifier » : sora-editor ne dessine jamais une
+     * ligne entière — {@code TextRow.draw(canvas, beginOffset,
+     * endOffset)} borne le dessin à la fenêtre horizontale visible. Une
+     * ligne minifiée (des centaines de Ko sur une seule ligne) ne
+     * façonnait ici que la tranche visible : le chemin ligatures
+     * construisait un StaticLayout de la ligne ENTIÈRE (secondes de
+     * façonnage + dizaines de Mo par frame), le chemin drawText
+     * shaping chaque span géant, et drawNonPrintableChars itérait chaque
+     * caractère. Désormais tout le dessin non-wrap est clippé à cette
+     * fenêtre — le coût devient indépendant de la longueur de la
+     * ligne.</p>
+     */
+    private int[] visibleColWindow(int lineLen) {
+        float charWidth = view.metrics.getCharWidth();
+        if (charWidth <= 0f || view.getWidth() <= 0) {
+            return new int[]{0, lineLen};
+        }
+        int firstCol = Math.max(0,
+                (int) Math.floor(view.hOffset / charWidth) - VISIBLE_COL_MARGIN);
+        int viewportCols = (int) Math.ceil(view.getWidth() / charWidth);
+        int lastCol = Math.min(lineLen, firstCol
+                + Math.max(viewportCols + 2 * VISIBLE_COL_MARGIN, VISIBLE_COL_MIN));
+        return new int[]{firstCol, lastCol};
+    }
+
+    /** Découpe les spans d'un StyledLine à la fenêtre {@code [from, to)}
+     *  (bornes décalées) pour le rendu ligatures d'une tranche de ligne. */
+    private static StyledLine sliceSpans(StyledLine styled, int from, int to) {
+        java.util.ArrayList<LineSpan> out = new java.util.ArrayList<>(styled.spans.size());
+        for (LineSpan span : styled.spans) {
+            int start = Math.max(span.startCol, from);
+            int end = Math.min(span.endCol, to);
+            if (start >= end) continue;
+            out.add(new LineSpan(start - from, end - from, span.type));
+        }
+        return new StyledLine(out, styled.entryState, styled.exitState);
+    }
+
+    /**
+     * Dessine une ligne SANS style (retombe monochrome) clippée à la
+     * fenêtre de colonnes visibles — remplace le drawText pleine ligne du
+     * chemin de repli du renderer.
+     */
+    void drawPlainLine(Canvas canvas, String lineText, float x, float y, Paint paint) {
+        if (lineText == null || lineText.isEmpty()) return;
+        int[] win = visibleColWindow(lineText.length());
+        int s = Math.max(0, win[0]);
+        int e = Math.min(lineText.length(), win[1]);
+        if (s >= e) return;
+        canvas.drawText(lineText, s, e,
+                x + s * view.metrics.getCharWidth(), y, paint);
     }
 
     // ════════════════════════════════════════════════════════════════
@@ -60,7 +130,11 @@ public class EditorTextPainter {
         view.textPaint.setTextSize(view.metrics.getTextSize() * 0.7f);
         view.textPaint.setColor(view.applyAlphaToColor(view.theme.gutterText, 0.35f));
         view.textPaint.setFakeBoldText(false);
-        for (int i = 0; i < lineText.length(); i++) {
+        // ★ Ne itérer que la FENÊTRE VISIBLE de colonnes : sur une ligne
+        // minifiée de 500 Ko, l'itération caractère par caractère
+        // déclenchait jusqu'à 500 000 drawText par frame.
+        int[] win = visibleColWindow(lineText.length());
+        for (int i = Math.max(0, win[0]); i < Math.min(lineText.length(), win[1]); i++) {
             char c = lineText.charAt(i);
             // Position sensible aux inlays — la colonne visuelle du caractère
             // brut i est rawToVisual[i] + (inlays ancrés À i tissés avant lui).
@@ -73,11 +147,15 @@ public class EditorTextPainter {
                     y + lineHeight * 0.78f, view.textPaint);
             }
         }
-        // Indicateur de retour à la ligne final (¬) en fin de ligne.
+        // Indicateur de retour à la ligne final (¬) en fin de ligne —
+        // seulement s'il tombe dans le viewport (sur une ligne minifiée,
+        // la fin de ligne est à des centaines de milliers de colonnes).
         int endVis = (rawToVisual != null && lineText.length() < rawToVisual.length)
             ? rawToVisual[lineText.length()] : lineText.length();
-        canvas.drawText("¬", x + endVis * charWidth + charWidth * 0.2f,
-            y + lineHeight * 0.78f, view.textPaint);
+        float nlX = x + endVis * charWidth + charWidth * 0.2f;
+        if (nlX >= -charWidth && nlX <= view.getWidth() + charWidth) {
+            canvas.drawText("¬", nlX, y + lineHeight * 0.78f, view.textPaint);
+        }
         view.textPaint.setTypeface(view.metrics.getTypeface());
         view.textPaint.setTextSize(view.metrics.getTextSize());
     }
@@ -377,6 +455,15 @@ public class EditorTextPainter {
                                int start, int end, float x, float y, Paint paint) {
         float charWidth = view.metrics.getCharWidth();
         float baseline = y + view.metrics.getLineHeight() * 0.78f;
+        // ★ Clip à la fenêtre de colonnes visibles (parité sora
+        // TextRow.draw) : un span géant de ligne minifiée ne dessine que
+        // sa tranche visible.
+        int[] win = visibleColWindow(lineText.length());
+        int clippedStart = Math.max(start, win[0]);
+        int clippedEnd = Math.min(end, win[1]);
+        if (clippedStart >= clippedEnd) return;
+        start = clippedStart;
+        end = clippedEnd;
         if (inlays == null || inlays.isEmpty()) {
             canvas.drawText(lineText, start, end, x + start * charWidth, baseline, paint);
             return;
@@ -435,7 +522,27 @@ public class EditorTextPainter {
         // ligatures. Les lignes identiques partagent désormais UN seul
         // layout.
         if (view.fontLigatures && styled != null && styled.spans != null) {
-            // Dessiner via StaticLayout — il traite les ligatures.
+            // ★ Fenêtre visible (parité sora TextRow.draw(begin, end)) :
+            // ne façonner QUE la tranche visible. Un StaticLayout de la
+            // ligne entière minifiée (500 Ko) coûtait plusieurs secondes
+            // de façonnage et des dizaines de Mo ; la tranche est bornée
+            // par le viewport (~100-200 colonnes).
+            int[] win = visibleColWindow(lineText.length());
+            int firstCol = win[0];
+            int lastCol = win[1];
+            if (lastCol <= firstCol) return;
+            if (lastCol - firstCol < lineText.length()) {
+                String slice = lineText.substring(firstCol, lastCol);
+                StyledLine sliced = sliceSpans(styled, firstCol, lastCol);
+                android.text.StaticLayout sl = view.shapedLayoutFor(slice, sliced, paint);
+                canvas.save();
+                canvas.translate(x + firstCol * charWidth,
+                        y + lineHeight * 0.78f - sl.getLineBaseline(0));
+                sl.draw(canvas);
+                canvas.restore();
+                return;
+            }
+            // Ligne courte (tient dans la fenêtre) : chemin intégral.
             android.text.StaticLayout sl = view.shapedLayoutFor(lineText, styled, paint);
             canvas.save();
             canvas.translate(x, y + lineHeight * 0.78f - sl.getLineBaseline(0));
@@ -450,11 +557,24 @@ public class EditorTextPainter {
         // appareils modernes supportent les ligatures de JetBrains Mono),
         // ce path est rarement pris — mais on garde la cohérence visuelle.
         android.graphics.Typeface savedTypeface = paint.getTypeface();
+        // ★ Clip global à la fenêtre visible : les spans hors écran sont
+        // sautés, les spans géants ne dessinent que leur tranche visible
+        // (drawRawRange re-clippe, mais le substring + le fond de couleur
+        // précalculés restent bornés au viewport).
+        int[] win = visibleColWindow(lineText.length());
         for (LineSpan span : styled.spans) {
             int start = EditorView.clamp(span.startCol, 0, lineText.length());
             int end = EditorView.clamp(span.endCol, 0, lineText.length());
+            if (end <= win[0] || start >= win[1]) continue;  // hors fenêtre
+            start = Math.max(start, win[0]);
+            end = Math.min(end, win[1]);
             if (start >= end) continue;
-            String tokenText = lineText.substring(start, end);
+            // ★ B21d : plus de substring par span — le tokenText ne servait
+            // qu'au test « le token commence par # » (aperçu de couleur) et
+            // à parseColorLiteral. Tester le premier caractère suffit pour
+            // le garde ; le substring n'est alloué QUE pour les vrais
+            // candidats (rare) et pour le dessin de l'aperçu.
+            String tokenText = lineText.charAt(start) == '#' ? lineText.substring(start, end) : null;
 
             // Appliquer italique/gras pour COMMENT/KEYWORD/ANNOTATION.
             int styleFlag = 0;  // Typeface.NORMAL
@@ -475,7 +595,7 @@ public class EditorTextPainter {
             // #RRGGBB, #RGB, #RRGGBBAA, #RGBA sont rendus avec la couleur
             // réelle en fond et une couleur de texte contrastée par-dessus.
             Integer colorBg = null;
-            if (tokenText.startsWith("#") && tokenText.length() >= 4) {
+            if (tokenText != null && tokenText.length() >= 4) {
                 colorBg = parseColorLiteral(tokenText);
             }
             if (colorBg != null) {
@@ -579,7 +699,22 @@ public class EditorTextPainter {
         int rows = wr.rows;
         StyledLine styled = lineNum < styledLines.size() ? styledLines.get(lineNum) : null;
 
-        for (int r = 0; r < rows; r++) {
+        // ★ N'itérer que les rangées VISIBLES : une ligne minifiée avec
+        // word-wrap s'étale sur des dizaines de milliers de rangées —
+        // seule la trentaine visible doit être dessinée (parité sora :
+        // le rendu borne par le viewport, pas par la ligne).
+        float viewH = view.getHeight();
+        int rFirst = Math.max(0,
+                (int) Math.floor((-lineHeight - lineTopY) / lineHeight));
+        int rLast = Math.min(rows - 1,
+                (int) Math.ceil((viewH - lineTopY) / lineHeight));
+        // Pointeur de départ dans les spans (triés par startCol, sortie
+        // du tokenizer) : les rangées étant parcourues en ordre croissant,
+        // les spans terminés avant la rangée courante ne sont JAMAIS
+        // réexaminés — O(spans) au total au lieu de O(rangées × spans)
+        // sur une ligne minifiée à des milliers de spans.
+        int spanBase = 0;
+        for (int r = rFirst; r <= rLast; r++) {
             int rowStartCol = wr.rowStartCol(r);
             int rowEndCol = wr.rowEndCol(r, lineLen);
             float rowX = r == 0 ? textAreaLeft
@@ -588,7 +723,13 @@ public class EditorTextPainter {
             if (rowEndCol <= rowStartCol) continue;
             if (styled != null) {
                 // Dessiner chaque span clippé à la plage de colonnes de cette rangée.
-                for (LineSpan span : styled.spans) {
+                while (spanBase < styled.spans.size()
+                        && styled.spans.get(spanBase).endCol <= rowStartCol) {
+                    spanBase++;
+                }
+                for (int si = spanBase; si < styled.spans.size(); si++) {
+                    LineSpan span = styled.spans.get(si);
+                    if (span.startCol >= rowEndCol) break;
                     int start = EditorView.clamp(span.startCol, 0, lineLen);
                     int end = EditorView.clamp(span.endCol, 0, lineLen);
                     if (end <= rowStartCol || start >= rowEndCol) continue;
