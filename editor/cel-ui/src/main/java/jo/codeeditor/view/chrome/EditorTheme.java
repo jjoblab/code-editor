@@ -371,6 +371,75 @@ public class EditorTheme {
     // ── Recherche de couleur par jeton (source unique de vérité) ─
 
     /**
+     * Builder de thème dérivé — base immuable + remplacements par clé
+     * de registre ({@link jo.codeeditor.theme.ColorAttributes}). Utilisé
+     * par la résolution du scheme de couleurs modifiable (lot 4 #25) :
+     * chaque attribut du thème final vaut l'override du scheme s'il
+     * existe, sinon la valeur de la base.
+     */
+    public static final class Builder {
+        private final EditorTheme base;
+        private final java.util.Map<String, Integer> overrides = new java.util.LinkedHashMap<>();
+
+        private Builder(EditorTheme base) {
+            this.base = base;
+        }
+
+        /** Pose la couleur d'une clé de registre (clé validée à l'écriture). */
+        public Builder set(String key, int color) {
+            overrides.put(key, color);
+            return this;
+        }
+
+        public EditorTheme build() {
+            return new EditorTheme(
+                pick("editor.background", base.editorBg),
+                pick("gutter.background", base.gutterBg),
+                pick("gutter.text", base.gutterText),
+                pick("gutter.border", base.gutterBorder),
+                pick("caret", base.caret),
+                pick("selection", base.selection),
+                pick("editor.currentLine", base.currentLine),
+                pick("diagnostics.error", base.error),
+                pick("diagnostics.warning", base.warning),
+                pick("diagnostics.info", base.info),
+                pick("syntax.keyword", base.keyword),
+                pick("syntax.string", base.string),
+                pick("syntax.comment", base.comment),
+                pick("syntax.number", base.number),
+                pick("syntax.annotation", base.annotation),
+                pick("syntax.func", base.func),
+                pick("syntax.type", base.type),
+                pick("syntax.punct", base.punct),
+                pick("syntax.operator", base.operator),
+                pick("syntax.escape", base.escape),
+                pick("syntax.label", base.label),
+                pick("syntax.property", base.property),
+                pick("syntax.variable", base.variable),
+                pick("syntax.constant", base.constant),
+                pick("syntax.regexp", base.regexp),
+                pick("search.match", base.findMatch),
+                pick("search.current", base.findCurrent),
+                pick("search.occurrence", base.occurrence),
+                pick("chrome.indentGuide", base.indentGuide),
+                pick("chrome.composing", base.composing),
+                pick("text.foreground", base.textColor)
+            );
+        }
+
+        private int pick(String key, int fallback) {
+            Integer c = overrides.get(key);
+            return c != null ? c : fallback;
+        }
+    }
+
+    /** Point d'entrée du builder : base = thème de référence. */
+    public static Builder from(EditorTheme base) {
+        return new Builder(base);
+    }
+
+
+    /**
      * Renvoie la couleur du type de jeton donné. Source unique de
      * vérité — tous les chemins de rendu passent par cette méthode.
      */
