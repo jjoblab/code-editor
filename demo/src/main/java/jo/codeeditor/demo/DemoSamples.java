@@ -23,6 +23,10 @@ final class DemoSamples {
         LANGUAGES.put("Groovy", "groovy");
         LANGUAGES.put("Python", "python");
         LANGUAGES.put("JavaScript", "javascript");
+        // Échantillon « bundle de production » : une seule ligne de ~14 Ko
+        // pour tester le rendu fenêtré des lignes minifiées (correctif
+        // « minifier » — parité sora TextRow.draw).
+        LANGUAGES.put("Minifié (JS)", "minified-js");
         LANGUAGES.put("TypeScript", "typescript");
         LANGUAGES.put("PHP", "php");
         LANGUAGES.put("Ruby", "ruby");
@@ -45,6 +49,14 @@ final class DemoSamples {
         LANGUAGES.put("Smali", "smali");
         LANGUAGES.put("Log", "log");
     }
+
+    /** Bundle minifié de ~14 Ko sur UNE SEULE ligne (48 modules IIFE
+     *  enchaînés) — exerce le rendu fenêtré, le wrap par rangées
+     *  visibles et le skip TextMate des lignes > 5000 caractères. */
+    private static final String MINIFIED_JS =
+            "/*! bundle v3.38.0 */!function(t,e){'use strict';var r=Object.prototype.hasOwnProperty,n=new Map([[1,'alpha'],[2,'beta'],[3,'gamma'],[4,'delta']]);function o(i){var s=n.get(i);return s?String.fromCharCode(65+i-1).toLowerCase()+s:'n/a'}function u(){var a=0;n.forEach(function(v,k){a+=k});return a}t.lookup=o;t.total=u;t.keys=function(){return Array.from(n.keys())}}(this,function(){}),"
+            .repeat(48)
+            + "console.log('minified bundle loaded');";
 
     private static final String JAVA = """
             package demo;
@@ -830,6 +842,7 @@ final class DemoSamples {
             case "groovy": return GROOVY;
             case "python": return PYTHON;
             case "javascript": return JAVASCRIPT;
+            case "minified-js": return MINIFIED_JS;
             case "typescript": return TYPESCRIPT;
             case "php": return PHP;
             case "ruby": return RUBY;

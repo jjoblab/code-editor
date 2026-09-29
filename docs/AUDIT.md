@@ -395,14 +395,19 @@ croisée **et** démontrée par test exécuté. Le plan 1D peut être appliqué.
 | — | `chore(credits)` — phase 3 : plus aucune mention dans editor/ (grep = 0) |
 | — | `feat(release)` — v3.38.0 : publish.yml automatique sur tag + garde-fou + tests avant publication, AGENT.md, docs |
 
+### Appliqué — session 2026-09-29 (bugs signalés + consultation sora-editor)
+
+| Bugs | Correctif (commit) |
+|---|---|
+| signalé (tap) | `fix(input)` — le simple appui ne sélectionne plus plusieurs lignes/mots : drag-select armé par l'APPUI LONG (modèle sora `dragSelectAfterLongPress`, ancre à trois indices), sous le slop = RIEN, poignées gate par slop, DOWN/UP/CANCEL désarment |
+| signalé (minifier) | `perf(render)` — dessin fenêtré aux colonnes visibles (parité sora `TextRow.draw`) : tranche du StaticLayout ligatures, spans clippés, non-imprimables bornés, wrap par rangées visibles + pointeur de spans, plus d'inlays > 5000 car/ligne |
+| B9 | `fix(render)` — les 9 passes non sensibles aux plis reçoivent des plages de lignes document (firstDocVisible/lastDocVisible) |
+| B12 | `fix(wrap)` — docLineToY/docLineForScreenY/maxV wrap conscients des plis (rangées cachées par sommes préfixe, recherche binaire « ligne contenant la rangée ») |
+| B11 + B20 | `fix(gutter)` — alignement sur la géométrie hôte (wrap + plis) et itération O(visible) via GutterView.HostGeometry |
+| B15 + B16 + B21e | `fix(popups,session)` — popups go-to-line/rename/références fermés au détachement, dismissReferences bump la génération, setSession(null) sans NPE |
+
 ### Restant (priorisé, chaque item a son plan au §1D)
 
-- **B9** (passes de rendu non sensibles aux plis : utiliser des plages de
-  lignes document via `docLineForScreenY`) — majeur visuel ;
-- **B11 + B20** (gutter : conscience du wrap + départ de boucle O(visible)) ;
-- **B12** (docLineToY/docLineForScreenY mode wrap × plis repliés) ;
-- **B15 + B16** (popups go-to-line/rename non fermés au detach ;
-  génération references non bumpée à la fermeture) ;
 - **B17** (onSaveInstanceState minimal : scroll/zoom/wrap) ;
 - **B19** (matérialisations getText() par frappe) et les ports de
   performance du lot 3 (scans de rope feuille par feuille, début de token
