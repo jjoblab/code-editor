@@ -1,6 +1,7 @@
 package jo.codeeditor.view;
 
 import jo.codeeditor.document.EditorDocument;
+import jo.codeeditor.shift.DiagnosticShift;
 
 /**
  * Géométrie du retour à la ligne (word wrap) — correspondance ligne
@@ -81,7 +82,53 @@ class EditorWrapGeometry {
             int hiddenAbove = view.countHiddenLinesAbove(docLine);
             return view.metrics.getPadTop() + (docLine - hiddenAbove) * view.metrics.getLineHeight();
         }
-        return view.metrics.getPadTop() + view.wrapModel.topRow(docLine) * view.metrics.getLineHeight();
+        // ★ B12 : le mode wrap ignorait les lignes cachées par les plis
+        // repliés (contrairement au chemin non-wrap) — trou vide sous le
+        // pli replié et taps sur des lignes invisibles. La rangée du
+        // modèle de wrap est corrigée des rangées cachées au-dessus.
+        long visibleTopRow = view.wrapModel.topRow(docLine)
+                - hiddenWrapRowsAbove(docLine);
+        return view.metrics.getPadTop()
+                + visibleTopRow * view.metrics.getLineHeight();
+    }
+
+    /**
+     * ★ B12 — rangées wrap CACHÉES au-dessus de {@code docLine} par les
+     * plis repliés, en mode word-wrap. Chaque pli replié {@code [s, e]}
+     * démarrant au-dessus de la ligne ({@code s < docLine}) contribue :
+     * <ul>
+     *   <li>{@code rowsOf(s) - 1} — l'en-tête du pli n'occupe plus qu'UNE
+     *       rangée (texte composite) au lieu de ses rangées wrap
+     *       naturelles ;</li>
+     *   <li>les rangées des lignes STRICTEMENT intérieures au pli situées
+     *       au-dessus de {@code docLine} — calcul en O(1) par différence
+     *       de sommes préfixe ({@code topRow(b) - topRow(a)}).</li>
+     * </ul>
+     * La fonction est exacte pour toute ligne (y compris à l'intérieur
+     * d'un pli), ce qui garde la rangée visible croissante au sens
+     * large — requis par la recherche binaire de
+     * {@link #docLineForScreenY}.
+     */
+    long hiddenWrapRowsAbove(int docLine) {
+        if (view.session == null || view.wrapModel == null) return 0;
+        java.util.List<DiagnosticShift.FoldRegion> folds =
+                view.session.getCollapsedFolds();
+        if (folds.isEmpty()) return 0;
+        jo.codeeditor.document.EditorDocument doc = view.session.getDocument();
+        long hidden = 0;
+        for (DiagnosticShift.FoldRegion f : folds) {
+            int s = doc.lineForOffset(f.start);
+            if (s >= docLine) continue;
+            int e = doc.lineForOffset(f.end);
+            // L'en-tête du pli n'occupe plus qu'une rangée composite.
+            hidden += view.wrapModel.rowsOf(s) - 1;
+            // Rangées des lignes strictement intérieures au-dessus de
+            // docLine : somme préfixe sur [s+1, min(e+1, docLine)).
+            long from = view.wrapModel.topRow(s + 1);
+            long to = view.wrapModel.topRow(Math.min(e + 1, docLine));
+            hidden += Math.max(0, to - from);
+        }
+        return hidden;
     }
 
     /**
@@ -138,7 +185,43 @@ class EditorWrapGeometry {
             if (best >= docLineCount) return Math.max(0, docLineCount - 1);
             return best;
         }
-        return view.wrapModel.docLineForRow(visualRow);
+        // ★ B12 : recherche binaire sur la rangée visible CONSCIENTE des
+        // plis (topRow − rangées cachées, croissante au sens large), puis
+        // saut en avant des lignes cachées — mêmes sémantiques que le
+        // chemin non-wrap. Sans plis repliés, chemin intégré historique
+        // du modèle de wrap (recherche binaire sur la somme préfixe).
+        if (!view.session.hasCollapsedFolds()) { // ★ B21d : sans allocation
+            return view.wrapModel.docLineForRow(visualRow);
+        }
+        jo.codeeditor.document.EditorDocument doc = view.session.getDocument();
+        int docLineCount = doc.lineCount();
+        if (docLineCount == 0) return 0;
+        if (visualRow < 0) return Math.max(0, docLineCount - 1);
+        EditorFoldIndex.FoldIndex idx = view.foldIndex.get();
+        // La ligne qui CONTIENT visualRow est la dernière ligne dont la
+        // rangée de tête est <= visualRow — les lignes cachées forment
+        // une région plate (delta 0) et l'en-tête d'un pli n'occupe
+        // qu'une rangée, donc la recherche « plus petite ligne dont la
+        // tête DÉPASSE la rangée » donne le successeur : ligne = best-1.
+        int lo = 0, hi = docLineCount - 1, best = -1;
+        while (lo <= hi) {
+            int mid = (lo + hi) >>> 1;
+            long visibleTopRow = view.wrapModel.topRow(mid)
+                    - hiddenWrapRowsAbove(mid);
+            if (visibleTopRow > visualRow) {
+                best = mid;
+                hi = mid - 1;
+            } else {
+                lo = mid + 1;
+            }
+        }
+        if (best < 0) return Math.max(0, docLineCount - 1);
+        int line = Math.max(0, best - 1);
+        // Garde défensive : une ligne cachée ne peut pas contenir une
+        // rangée visible — remonter vers l'en-tête du pli qui occupe
+        // ce créneau (une seule rangée composite).
+        while (line > 0 && idx.isHidden(line)) line--;
+        return line;
     }
 
     /**

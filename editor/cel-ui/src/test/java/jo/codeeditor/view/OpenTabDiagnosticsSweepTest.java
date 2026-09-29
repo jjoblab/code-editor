@@ -201,6 +201,14 @@ public class OpenTabDiagnosticsSweepTest {
     @Test
     public void sweep_throwingProviderIsCountedAsSkipped_andWalkContinues() {
         EditorView bad = newTab("class A {}\n", new ThrowingLang());
+        // B21g : setLanguage n'exécute plus la tâche de diagnostics inline
+        // quand la vue n'a pas de Handler — simuler l'analyse propre de
+        // l'onglet (premier appel du provider) pour que le SWEEP soit bien
+        // le deuxième appel, celui qui jette.
+        try {
+            bad.getDiagnosticsProviderSpi().computeDiagnostics("class A {}\n");
+        } catch (RuntimeException ignored) {
+        }
         EditorView good = newTab("class B {}\n", new TestLang(oneError("ok")));
         OpenTabDiagnosticsSweep sweep = OpenTabDiagnosticsSweep.start(List.of(bad, good));
         drainMainLooper();

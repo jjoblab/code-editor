@@ -7,6 +7,80 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v3.39.0] — 2026-09-30 — Correctifs finaux de l'audit : sélection wrap-aware, état d'instance, mineurs B21 et lectures B19
+
+Deuxième session d'exécution du plan 1D de l'audit. Le bug signalé cette
+session — « dès que le drag commence, les caractères ou mots sélectionnés
+n'ont plus de couleur » — est corrigé à la racine et démontré par test
+pixel-level (configuration du module demo : word-wrap activé,
+échantillon « Minifié (JS) »).
+
+### Added
+
+- **État d'instance de l'éditeur (B17)** : `onSaveInstanceState` /
+  `onRestoreInstanceState` sauvegardent et restaurent le défilement
+  (vOffset/hOffset), le zoom (fontScale) et le basculement du word wrap.
+  Une rotation ne réinitialise plus le scroll au sommet ni le zoom à ×1.
+  Le contenu du document reste de la responsabilité de l'hôte.
+- **Lectures ciblées du document (B19)** : `EditorDocument.subText(start,
+  end)` (tranche via la rope) et `EditorDocument.charSequence()` (vue
+  sans copie, contrat « cohérente jusqu'à la prochaine mutation »).
+
+### Changed
+
+- **Sélection et surlignages wrap-aware** : les bandes de sélection,
+  d'occurrences de recherche et d'occurrences LSP dessinent UNE rect par
+  rangée visuelle en mode word wrap (helper `drawColRangeBand`) — la
+  géométrie historique posait une seule rect pleine ligne à
+  `colonne × charWidth`, hors écran dès la deuxième rangée wrappée.
+  Hors wrap, le chemin historique (colonnes tissées d'inlays) est
+  inchangé.
+
+### Fixed
+
+- **Sélection « sans couleur » en mode wrap** (bug signalé) : avec le
+  wrap activé (config par défaut du demo), appui long et drag corrects
+  (poignées, loupe) mais AUCUNE couleur visible sur les mots
+  sélectionnés dès que leurs colonnes dépassaient la capacité de la
+  première rangée (~100 colonnes) — la bande était peinte hors écran.
+  Reproduit au pixel avant correction (0 pixel de la couleur de
+  sélection), corrigé après.
+- **Auto-espace IME (B21a)** : l'espace nue commitée n'est avalée que si
+  le caret est réellement juste après le symbole suivi encore présent ;
+  le suivi de lot est réinitialisé par composition, backspace,
+  déplacement de caret et replaceText — une vraie espace tapée après
+  ponctuation n'est plus avalée.
+- **Complétion, caret reculé (B21b)** : l'acceptation est rejetée quand
+  le caret a reculé avant le début du token au lieu d'écraser une plage
+  inversée avant le mot.
+- **Suffixe des plis (B21c)** : `FoldModel.compositeText` — la colonne de
+  fin du pli dans la dernière ligne était calculée puis jetée ; la
+  formule de substitution valait structurellement toujours 0 et
+  affichait la dernière ligne entière comme suffixe.
+- **Mutateurs de sélection et IME (B21f)** : selectAll, flèches,
+  début/fin de ligne, saut de diagnostic notifient enfin l'IME
+  (updateSelection poussé) — le miroir de l'IME ne désynchronise plus.
+- **Diagnostics sans Handler (B21g)** : le schedule différé au premier
+  attachement au lieu d'exécuter la tâche complète en synchrone sur le
+  thread appelant.
+- **Résultats de références orphelins (B21j)** : la résolution qui
+  revient après détachement de la vue est jetée — plus de mutation UI
+  hors thread ni d'invalidate contre une vue morte.
+
+### Performance
+
+- **Plus de matérialisation getText() par frappe (B19)** : frappe
+  intelligente, appariement de crochets, complétion (début de token,
+  contrôle de fraîcheur), tranches de sélection et extraction IME lisent
+  désormais la rope (`subText`/`charSequence`) — le cache getText() était
+  invalidé à chaque édition et recopiait tout le fichier à chaque appel.
+- **Zéro allocation par frame dans le gutter (B21d)** : 4 Paint hoistés
+  en champs ; `hasCollapsedFolds()` sans allocation remplace
+  `getCollapsedFolds().isEmpty()` appelé par frame ; le path non-ligatures
+  ne substring plus chaque span (test `charAt` en garde).
+- **Rename fallback sans substring par position (B21i)** : comparaison en
+  place (`charAt`) — plus O(n) allocations de chaînes par renommage.
+
 ## [v3.38.0] — 2026-09-28 — Audit de l'éditeur : correctifs sélection/loupe, undo/redo, performance et publication automatique
 
 Itération issue d'un audit complet de l'éditeur (diagnostic du bug de la

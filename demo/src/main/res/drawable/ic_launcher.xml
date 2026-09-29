@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Icône vectorielle de la démo : carré arrondi zinc + chevron émeraude. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#09090B"
+        android:pathData="M24,4h60a20,20 0 0 1 20,20v60a20,20 0 0 1 -20,20h-60a20,20 0 0 1 -20,-20v-60a20,20 0 0 1 20,-20z" />
+    <path
+        android:fillColor="#34D399"
+        android:pathData="M43,36l-16,18 16,18 5,-5 -11,-13 11,-13z" />
+    <path
+        android:fillColor="#34D399"
+        android:pathData="M63,36l16,18 -16,18 -5,-5 11,-13 -11,-13z" />
+    <path
+        android:fillColor="#5EEAD4"
+        android:pathData="M55,30h6l-8,48h-6z" />
+</vector>
