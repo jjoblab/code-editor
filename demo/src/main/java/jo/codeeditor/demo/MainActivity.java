@@ -33,13 +33,14 @@ public class MainActivity extends AppCompatActivity {
     private static final float ZOOM_STEP = 0.15f;
 
     private MaterialToolbar toolbar;
-    private EditorView editor;
+    EditorView editor; // package-private : accès par le test de fumée
     EditorSession session; // package-private : accès par le test de fumée
     private DemoAnalyzer analyzer;
 
     private String languageId = "java";
     private String languageLabel = "Java";
     private boolean editorLight = false;
+    private boolean schemeOn = false;
     private MenuItem languageItem;
 
     @Override
@@ -68,7 +69,9 @@ public class MainActivity extends AppCompatActivity {
                 ViewGroup.LayoutParams.WRAP_CONTENT));
 
         editor = new EditorView(this);
-        editor.setTheme(DemoTheme.emeraldNight());
+        // Pose le thème de référence du scheme (lot 4 #25) — sans scheme
+        // actif, ça revient à setTheme(base) : même purge de caches.
+        editor.setSchemeBaseTheme(DemoTheme.emeraldNight());
         root.addView(editor, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
 
@@ -96,13 +99,15 @@ public class MainActivity extends AppCompatActivity {
         MaterialButton ligatures = toggle(R.string.toggle_ligatures, false);
         MaterialButton nonPrintable = toggle(R.string.toggle_non_printable, false);
         MaterialButton theme = toggle(R.string.toggle_theme, false);
+        MaterialButton scheme = toggle(R.string.toggle_scheme, false);
         toggles.addView(wrap);
         toggles.addView(minimap);
         toggles.addView(ligatures);
         toggles.addView(nonPrintable);
         toggles.addView(theme);
+        toggles.addView(scheme);
         int[] wrapIds = {wrap.getId(), minimap.getId(), ligatures.getId(),
-                nonPrintable.getId(), theme.getId()};
+                nonPrintable.getId(), theme.getId(), scheme.getId()};
         for (int i = 0; i < wrapIds.length; i++) toggles.check(wrapIds[i]);
 
         editor.setWordWrap(true);
@@ -113,6 +118,7 @@ public class MainActivity extends AppCompatActivity {
             else if (id == ligatures.getId()) editor.setFontLigatures(checked);
             else if (id == nonPrintable.getId()) editor.setShowNonPrintable(checked);
             else if (id == theme.getId()) applyEditorTheme(checked);
+            else if (id == scheme.getId()) applyColorScheme(checked);
         });
 
         action(bar, R.string.action_undo, v -> {
@@ -121,6 +127,7 @@ public class MainActivity extends AppCompatActivity {
         action(bar, R.string.action_redo, v -> {
             if (session != null) session.redo();
         });
+        action(bar, R.string.action_expand, v -> editor.expandSelection());
         action(bar, R.string.action_zoom_out, v -> zoom(-ZOOM_STEP));
         action(bar, R.string.action_zoom_in, v -> zoom(+ZOOM_STEP));
 
@@ -161,9 +168,22 @@ public class MainActivity extends AppCompatActivity {
         editor.setFontScale(next);
     }
 
-    private void applyEditorTheme(boolean light) {
+    /** Bascule thème jour/nuit — la base du scheme suit (lot 4 #25). */
+    void applyEditorTheme(boolean light) {
         editorLight = light;
-        editor.setTheme(light ? EditorTheme.light() : DemoTheme.emeraldNight());
+        // Base demo jour/nuit posée comme référence du scheme (lot 4 #25) :
+        // sans scheme actif ça résout à setTheme(base) — purge de caches
+        // incluse ; avec un scheme actif, la cascade repart de cette base
+        // et le mode du scheme suit le thème.
+        editor.setSchemeBaseTheme(light ? DemoTheme.emeraldDay()
+                                        : DemoTheme.emeraldNight());
+        if (schemeOn) editor.setSchemeDarkMode(!light);
+    }
+
+    /** Bascule le scheme de couleurs (lot 4 #25) — null = thème brut. */
+    void applyColorScheme(boolean on) {
+        schemeOn = on;
+        editor.setColorScheme(on ? DemoTheme.duskScheme() : null);
     }
 
     private boolean onMenuItem(MenuItem item) {
