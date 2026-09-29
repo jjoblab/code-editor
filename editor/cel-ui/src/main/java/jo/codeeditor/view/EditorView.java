@@ -18,6 +18,7 @@ import jo.codeeditor.view.render.EditorPainterHost;
 import jo.codeeditor.view.render.EditorRenderer;
 import jo.codeeditor.view.render.EditorShapedLayoutCache;
 
+import androidx.annotation.Nullable;
 import androidx.annotation.RestrictTo;
 
 import android.content.Context;
@@ -1115,6 +1116,61 @@ public class EditorView extends View {
         renderCache.clear();
         gutterView.setTheme(theme);
         invalidate();
+    }
+
+    // ── Scheme de couleurs modifiable (lot 4 #25) ────────────────
+
+    /** Scheme actif (peut être null = thème brut), et son mode. */
+    private jo.codeeditor.theme.EditorColorScheme colorScheme;
+    private boolean schemeDarkMode = true;
+    /** Thème de référence sur lequel le scheme est résolu. */
+    private EditorTheme schemeBaseTheme;
+
+    /**
+     * Pose le thème de référence du scheme. C'est CE thème que le scheme
+     * « décore » : les clés sans opinion suivent ses valeurs (et suivent
+     * le parent quand elles héritaient déjà visuellement de lui).
+     * Réapplique immédiatement le scheme actif.
+     */
+    public void setSchemeBaseTheme(EditorTheme base) {
+        this.schemeBaseTheme = base;
+        applyColorScheme();
+    }
+
+    /**
+     * Active un scheme de couleurs modifiable (null = revenir au thème
+     * brut). La résolution en cascade produit un thème effectif appliqué
+     * via {@link #setTheme(EditorTheme)} — purge de caches incluse.
+     */
+    public void setColorScheme(@Nullable jo.codeeditor.theme.EditorColorScheme scheme) {
+        this.colorScheme = scheme;
+        applyColorScheme();
+    }
+
+    /** Scheme actif, ou null si aucun. */
+    @Nullable
+    public jo.codeeditor.theme.EditorColorScheme getColorScheme() {
+        return colorScheme;
+    }
+
+    /** Mode du scheme (true = sombre). Recalcule le thème effectif. */
+    public void setSchemeDarkMode(boolean dark) {
+        this.schemeDarkMode = dark;
+        applyColorScheme();
+    }
+
+    public boolean isSchemeDarkMode() {
+        return schemeDarkMode;
+    }
+
+    /** Recalcule le thème effectif depuis le scheme actif (si présent). */
+    private void applyColorScheme() {
+        if (colorScheme == null) {
+            if (schemeBaseTheme != null) setTheme(schemeBaseTheme);
+            return;
+        }
+        EditorTheme base = schemeBaseTheme != null ? schemeBaseTheme : theme;
+        setTheme(colorScheme.resolve(base, schemeDarkMode));
     }
 
     /**
