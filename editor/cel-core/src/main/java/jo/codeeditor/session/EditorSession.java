@@ -416,6 +416,15 @@ public class EditorSession {
     }
 
     /**
+     * ★ B21d : y a-t-il AU MOINS un pli replié ? Test sans allocation —
+     * la voie historique {@code getCollapsedFolds().isEmpty()} allouait
+     * une liste fraîche à CHAQUE FRAME de rendu juste pour ce test.
+     */
+    public boolean hasCollapsedFolds() {
+        return folds.hasCollapsed();
+    }
+
+    /**
      * Retourne vrai si la ligne du document donnée est actuellement masquée
      * par une région de pliage repliée. Méthode de commodité — la vue s'en
      * sert pour sauter le dessin des lignes masquées.
@@ -861,21 +870,26 @@ public class EditorSession {
 
 
     // ── Opérations de sélection ────────────────────────────────
+    // ★ B21f : tous les mutateurs passent par setSelection(...) —
+    // l'ancienne écriture directe du champ ne notifiait JAMAIS l'IME
+    // (updateSelection jamais poussé) : le miroir de l'IME (contexte
+    // d'autocorrection, sélection extraite) désynchronisait après
+    // Ctrl+A, les flèches, Select all…
 
     public void selectAll() {
-        selection = Selection.range(0, doc.length());
+        setSelection(Selection.range(0, doc.length()));
     }
 
     public void selectWordAt(int offset) {
         int[] range = EditOps.wordRangeAt(doc.getText(), offset);
-        selection = Selection.range(range[0], range[1]);
+        setSelection(Selection.range(range[0], range[1]));
     }
 
     public void selectLineAt(int offset) {
         int line = doc.lineForOffset(offset);
         int start = doc.lineStart(line);
         int end = doc.lineEnd(line);
-        selection = Selection.range(start, end);
+        setSelection(Selection.range(start, end));
     }
 
     // ── Déplacement du curseur ─────────────────────────────────
@@ -884,9 +898,9 @@ public class EditorSession {
         int newPos = Math.max(0, Math.min(doc.length(), selection.start + delta));
         if (selecting) {
             int anchor = selection.isCursor() ? selection.start : (delta > 0 ? selection.start : selection.end);
-            selection = Selection.range(Math.min(anchor, newPos), Math.max(anchor, newPos));
+            setSelection(Selection.range(Math.min(anchor, newPos), Math.max(anchor, newPos)));
         } else {
-            selection = Selection.cursor(newPos);
+            setSelection(Selection.cursor(newPos));
         }
     }
 
@@ -900,9 +914,9 @@ public class EditorSession {
 
         if (selecting) {
             int anchor = selection.start;
-            selection = Selection.range(Math.min(anchor, newPos), Math.max(anchor, newPos));
+            setSelection(Selection.range(Math.min(anchor, newPos), Math.max(anchor, newPos)));
         } else {
-            selection = Selection.cursor(newPos);
+            setSelection(Selection.cursor(newPos));
         }
     }
 
@@ -923,9 +937,9 @@ public class EditorSession {
 
         if (selecting) {
             int anchor = selection.start;
-            selection = Selection.range(Math.min(anchor, newPos), Math.max(anchor, newPos));
+            setSelection(Selection.range(Math.min(anchor, newPos), Math.max(anchor, newPos)));
         } else {
-            selection = Selection.cursor(newPos);
+            setSelection(Selection.cursor(newPos));
         }
     }
 
@@ -934,9 +948,9 @@ public class EditorSession {
         int newPos = doc.lineEnd(line);
         if (selecting) {
             int anchor = selection.start;
-            selection = Selection.range(Math.min(anchor, newPos), Math.max(anchor, newPos));
+            setSelection(Selection.range(Math.min(anchor, newPos), Math.max(anchor, newPos)));
         } else {
-            selection = Selection.cursor(newPos);
+            setSelection(Selection.cursor(newPos));
         }
     }
 
@@ -944,9 +958,9 @@ public class EditorSession {
         int newPos = toEnd ? doc.length() : 0;
         if (selecting) {
             int anchor = selection.start;
-            selection = Selection.range(Math.min(anchor, newPos), Math.max(anchor, newPos));
+            setSelection(Selection.range(Math.min(anchor, newPos), Math.max(anchor, newPos)));
         } else {
-            selection = Selection.cursor(newPos);
+            setSelection(Selection.cursor(newPos));
         }
     }
 
@@ -1063,7 +1077,8 @@ public class EditorSession {
             if (best == null) best = diagnostics.get(diagnostics.size() - 1); // bouclage
         }
 
-        selection = Selection.cursor(best.start);
+        // ★ B21f : via setSelection — le saut de diagnostic notifie l'IME.
+        setSelection(Selection.cursor(best.start));
     }
 
     // ── Suppression autour ──────────────────────────────────────

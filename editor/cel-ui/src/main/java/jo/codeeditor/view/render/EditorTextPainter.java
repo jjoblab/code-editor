@@ -569,7 +569,12 @@ public class EditorTextPainter {
             start = Math.max(start, win[0]);
             end = Math.min(end, win[1]);
             if (start >= end) continue;
-            String tokenText = lineText.substring(start, end);
+            // ★ B21d : plus de substring par span — le tokenText ne servait
+            // qu'au test « le token commence par # » (aperçu de couleur) et
+            // à parseColorLiteral. Tester le premier caractère suffit pour
+            // le garde ; le substring n'est alloué QUE pour les vrais
+            // candidats (rare) et pour le dessin de l'aperçu.
+            String tokenText = lineText.charAt(start) == '#' ? lineText.substring(start, end) : null;
 
             // Appliquer italique/gras pour COMMENT/KEYWORD/ANNOTATION.
             int styleFlag = 0;  // Typeface.NORMAL
@@ -590,7 +595,7 @@ public class EditorTextPainter {
             // #RRGGBB, #RGB, #RRGGBBAA, #RGBA sont rendus avec la couleur
             // réelle en fond et une couleur de texte contrastée par-dessus.
             Integer colorBg = null;
-            if (tokenText.startsWith("#") && tokenText.length() >= 4) {
+            if (tokenText != null && tokenText.length() >= 4) {
                 colorBg = parseColorLiteral(tokenText);
             }
             if (colorBg != null) {

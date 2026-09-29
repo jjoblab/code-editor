@@ -25,6 +25,13 @@ public class GutterView {
     private final EditorMetrics metrics;
     private EditorTheme theme;
 
+    // ★ B21d : paints réutilisables (un par couche du gutter) — les
+    // couleurs se re-posent chaque frame ; plus aucune allocation par draw.
+    private final Paint bgPaint = new Paint();
+    private final Paint sepPaint = new Paint();
+    private final Paint numberPaint = new Paint();
+    private final Paint dotPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+
     // Données de diagnostic : sévérité par ligne (0=aucune, 1=info, 2=avertissement, 3=erreur)
     private int[] diagnostics = new int[0];
 
@@ -148,19 +155,20 @@ public class GutterView {
         // remplissage totalement opaque, un alpha d'environ 88 % laisse
         // faiblement apparaître le texte qui défile derrière — effet verre
         // dépoli similaire au gutter translucide de VS Code.
-        Paint bgPaint = new Paint();
+        // ★ B21d : paints HOISTÉS en champs — 3 new Paint() par frame
+        // (plus 1 par point de diagnostic) allouaient/garbageaient à chaque
+        // redraw ; les couleurs se re-posent chaque frame, sans allocation.
         bgPaint.setColor(applyAlpha(theme.gutterBg, 0.88f));
         canvas.drawRect(0, 0, gutterWidth, viewHeight, bgPaint);
 
         // Ligne séparatrice
-        Paint sepPaint = new Paint();
         sepPaint.setColor(theme.gutterBorder);
         sepPaint.setStrokeWidth(1f);
         canvas.drawLine(gutterWidth, 0, gutterWidth, viewHeight, sepPaint);
 
         // Numéros de ligne — alignés à droite à la fin de la zone des numéros
         // (AVANT la bande de repli), avec 0,5 caractère de marge à droite.
-        Paint numberPaint = new Paint(metrics.getGutterPaint());
+        numberPaint.set(metrics.getGutterPaint());
         numberPaint.setColor(theme.gutterText);
 
         float textX = lineNumberAreaRight - metrics.getCharWidth() * 0.5f;
@@ -248,7 +256,6 @@ public class GutterView {
             float dotR = 3.0f * density; // 3dp
             float dotCenterX = 5f * density + dotR;
             float dotY = y + lineHeight * 0.5f;
-            Paint dotPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
             dotPaint.setColor(getDiagnosticColor(sev));
             dotPaint.setStyle(Paint.Style.FILL);
             canvas.drawCircle(dotCenterX, dotY, dotR, dotPaint);
