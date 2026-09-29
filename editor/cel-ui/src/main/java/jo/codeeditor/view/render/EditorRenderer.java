@@ -264,7 +264,11 @@ public class EditorRenderer {
                     }
                 } else {
                     view.textPaint.setColor(view.theme.textColor);
-                    canvas.drawText(lineText, textAreaLeft - view.hOffset, lineY + lineHeight * 0.78f, view.textPaint);
+                    // Fenêtré (comportement de référence) : une ligne minifiée sans
+                    // style ne dessine que sa tranche visible.
+                    text.drawPlainLine(canvas, lineText,
+                            textAreaLeft - view.hOffset,
+                            lineY + lineHeight * 0.78f, view.textPaint);
                 }
             }
         }
