@@ -1273,6 +1273,15 @@ public class EditorView extends View {
     }
 
     @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        // ★ B21g : rejoue un schedule de diagnostics différé faute de
+        // Handler — l'attach initial (setLanguage avant addView) ne doit
+        // plus exécuter la tâche en synchrone.
+        diagnosticsPusher.onAttachedToWindow();
+    }
+
+    @Override
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
         // La loupe ne doit pas survivre au détachement de la vue.

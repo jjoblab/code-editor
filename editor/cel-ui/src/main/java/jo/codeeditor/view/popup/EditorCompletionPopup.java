@@ -191,6 +191,14 @@ public class EditorCompletionPopup {
         }
         jo.codeeditor.completion.CompletionSession.Item item = view.completionItems.get(view.completionSelected);
         int caret = view.session.getSelection().start;
+        // ★ B21b : garde de cohérence — si le caret a RECULÉ avant le début
+        // du token (flèches, clic pendant le popup), l'insertion
+        // [tokenStart, caret) écraserait une plage inversée AVANT le mot :
+        // rejeter l'acceptation, le popup se referme sans muter le texte.
+        if (caret < view.completionTokenStart) {
+            dismissCompletion();
+            return false;
+        }
         if (view.session.isComposing()) {
             view.session.imeFinishComposing();
             if (view.imeBridge != null && !view.imeBridge.listener.isSyncingExtractedText()) {
