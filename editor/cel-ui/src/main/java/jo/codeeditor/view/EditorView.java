@@ -24,6 +24,8 @@ import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Rect;
+import android.os.Parcel;
+import android.os.Parcelable;
 import android.util.TypedValue;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
@@ -2194,6 +2196,101 @@ public class EditorView extends View {
     public void scrollHorizontallyBy(float dx) {
         scrollManager.scrollHorizontallyBy(dx);
     }
+
+    // ════════════════════════════════════════════════════════════════
+    // État d'instance (rotation / recreation) — B17
+    // ════════════════════════════════════════════════════════════════
+
+    /**
+     * Sauvegarde l'état VISUEL de l'éditeur : défilement (vOffset/hOffset),
+     * zoom (fontScale) et bascule du retour à la ligne. B17 : sans cela,
+     * une rotation de l'activité réinitialisait scroll au sommet, zoom à
+     * ×1 et wrap à la valeur par défaut — l'hôte ne peut pas les restaurer
+     * lui-même (champs internes). Le CONTENU du document reste de la
+     * responsabilité de l'hôte (la session ne vit pas dans la vue).
+     */
+    @Override
+    protected Parcelable onSaveInstanceState() {
+        Parcelable superState = super.onSaveInstanceState();
+        SavedState ss = new SavedState(superState);
+        ss.vOffset = vOffset;
+        ss.hOffset = hOffset;
+        ss.fontScale = zoom.fontScale;
+        ss.wordWrap = wordWrap;
+        return ss;
+    }
+
+    @Override
+    protected void onRestoreInstanceState(Parcelable state) {
+        if (!(state instanceof SavedState)) {
+            super.onRestoreInstanceState(state);
+            return;
+        }
+        SavedState ss = (SavedState) state;
+        super.onRestoreInstanceState(ss.getSuperState());
+        // Zoom d'abord : setFontScale reconstruit le modèle de wrap (B13).
+        if (ss.fontScale != zoom.fontScale) zoom.setFontScale(ss.fontScale);
+        // Wrap ensuite — setWordWrap rebuild aussi ; ne rebuild PAS si
+        // identique (état déjà cohérent).
+        if (wordWrap != ss.wordWrap) setWordWrap(ss.wordWrap);
+        // Scroll en dernier, borné à la géométrie RESTAURÉE. Sans session
+        // encore posée, maxV()/maxH() valent 0 : garder les valeurs brutes
+        // — elles seront bornées au premier usage (scroll/setSession).
+        if (session != null) {
+            vOffset = clamp(ss.vOffset, 0, maxV());
+            hOffset = clamp(ss.hOffset, 0, maxH());
+        } else {
+            vOffset = ss.vOffset;
+            hOffset = ss.hOffset;
+        }
+        invalidate();
+    }
+
+    /** État sauvegardé de la vue (scroll/zoom/wrap) — voir
+     *  {@link #onSaveInstanceState()}. */
+    static final class SavedState extends View.BaseSavedState {
+        float vOffset;
+        float hOffset;
+        float fontScale;
+        boolean wordWrap;
+
+        SavedState(Parcelable superState) {
+            super(superState);
+        }
+
+        SavedState(Parcel in) {
+            super(in);
+            vOffset = in.readFloat();
+            hOffset = in.readFloat();
+            fontScale = in.readFloat();
+            wordWrap = in.readByte() != 0;
+        }
+
+        @Override
+        public void writeToParcel(Parcel out, int flags) {
+            super.writeToParcel(out, flags);
+            out.writeFloat(vOffset);
+            out.writeFloat(hOffset);
+            out.writeFloat(fontScale);
+            out.writeByte((byte) (wordWrap ? 1 : 0));
+        }
+
+        public static final Parcelable.Creator<SavedState> CREATOR =
+                new Parcelable.Creator<SavedState>() {
+            @Override
+            public SavedState createFromParcel(Parcel in) {
+                return new SavedState(in);
+            }
+            @Override
+            public SavedState[] newArray(int size) {
+                return new SavedState[size];
+            }
+        };
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    // Défilement — bornes
+    // ════════════════════════════════════════════════════════════════
 
     /** Défilement vertical max : hauteur du contenu moins hauteur du viewport, au moins 0. */
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
