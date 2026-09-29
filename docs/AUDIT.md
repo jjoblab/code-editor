@@ -457,10 +457,21 @@ reste le contrat d'exécution pour la suite.
   ci-dessus) ;
 - **Magnifier natif API 28+ avec repli** (recommandé, décision
   propriétaire) ;
-- **Lot 3 restant** : scans de rope feuille par feuille pour
-  l'équilibre (`c4bec0cf7` — partiellement couvert par les lectures B19),
-  occurrences posées + dessin par double recherche binaire
-  (`71eea9425`), traces IME conditionnelles (sans objet : aucune trace
-  de ce type dans ce dépôt) ;
-- **B21h** (référence forte session→vue après détachement) — [S], à
-  démontrer par test de cycle de vie.
+- ~~**Lot 3 restant** : scans de rope feuille par feuille pour
+  l'équilibre (`c4bec0cf7` — partiellement couvert par les lectures
+  B19)~~ — **fait** (session 2026-09-30 v3.41.0 ci-dessous) ;
+- **Lot 3 restant** : occurrences posées + dessin par double recherche
+  binaire (`71eea9425`), traces IME conditionnelles (sans objet : aucune
+  trace de ce type dans ce dépôt) ;
+- ~~**B21h** (référence forte session→vue après détachement)~~ — **fait**
+  (session 2026-09-30 v3.41.0 ci-dessous — démontré par test de cycle de
+  vie, échouait avant le correctif).
+
+### Appliqué — session 2026-09-30 (v3.41.0 : scans rope + B21h + demo à jour)
+
+| Item | Correctif (commit) |
+|---|---|
+| `c4bec0cf7` | `perf(rope,edit,ui)` — `Rope.visitLeaves`/`visitLeavesBackward` (visiteur stoppable, accès direct au String de feuille, O(feuilles + fenêtre) au lieu de O(fenêtre·log n)) ; `BracketPairs.docBalance` et `EditorBracketMatcher.matchingBracket` (AVANT et ARRIÈRE) portés sur ce chemin quand le texte est une Rope, chemin CharSequence générique inchangé. Équivalence rope/String : 12 tests (couverture exacte, offsets globaux, ordres miroir, arrêt anticipé, plages vides, clip bornes, paires à cheval sur feuilles). BUG réel attrapé par le contrat : comparaisons de couverture en coordonnées GLOBALES (`nodeStart + left.length`) — l'ancienne version tronquait la visite au-delà de la première branche profonde (IndexOutOfBounds) |
+| B21h | `fix(view)` — purge des listeners session→vue au détachement (setImeListener(null), setOnLinesShiftedListener(null)) + repos à l'attachement. Démontré par EditorViewDetachLeakTest (WeakReference + GC Robolectric) : échouait avant (vue toujours accessible depuis la session survivante), passe après. setSession(null) purgeait déjà (B21e) — ceci couvre l'hôte qui garde la session posée dans la vue démontée |
+| demo | `feat(demo)` — mise à jour de l'application pour les fonctionnalités du lot 4 : bascule « Scheme » (preset Crépuscule ambré, EditorColorScheme #25, le mode du scheme suit la bascule Thème), action « Étendre la sélection » (EditorView.expandSelection() #27), DemoTheme reconstruit par le Builder par clés avec les 8 attributs VIRTUELS posés dans les thèmes nuit ET jour (#26 — javadoc, contrôle de flux, modificateurs, caractères, chaînes brutes, namespaces, entités, emphase). 4 tests de fumée nouveaux (7/7 verts) |
+| — | `chore(git)` — auteur/committer `jjoblab <olson12jb@gmail.com>` réécrit sur les 10 commits « Z User » (filter-branch, tags suivis) |

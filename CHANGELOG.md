@@ -7,6 +7,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v3.41.0] — 2026-09-30 — Scans feuille par feuille (rope) + cycle de vie session→vue (B21h) + demo à jour
+
+Quatrième session d'exécution du plan 1D de l'audit : le port amont
+`c4bec0cf7` (parcours de la rope feuille par feuille au lieu d'une
+descente d'arbre par caractère), le cycle de vie B21h (référence forte
+session→vue après détachement — suspect [S] levé par test de cycle de
+vie), et la mise à jour de l'application demo pour exposer les
+fonctionnalités du Lot 4 (#25 #26 #27). L'historique des commits a
+également été réécrit (auteur `jjoblab` sur les 40 commits).
+
+### Added
+
+- **Scans feuille par feuille (`c4bec0cf7`)** : `Rope.visitLeaves` /
+  `visitLeavesBackward` — visite des feuilles couvrant une plage avec
+  accès direct au String de chaque feuille (O(feuilles + fenêtre) au
+  lieu de O(n·log n) par `charAt`) ; `BracketPairs.docBalance` (comptage
+  d'équilibre) et `EditorBracketMatcher.matchingBracket` (appariement
+  AVANT et ARRIÈRE, arrêt au premier appariement) portés sur ce chemin
+  quand le texte est une rope, chemin CharSequence générique inchangé.
+  Résultat strictement identique — 12 tests d'équivalence rope/String.
+- **Demo : scheme de couleurs (#25)** — bascule « Scheme » appliquant le
+  preset « Crépuscule ambré » par-dessus le thème, mode du scheme qui
+  suit la bascule Thème.
+- **Demo : distinctions fines de tokens (#26)** — les 8 attributs
+  virtuels posés dans les thèmes nuit ET jour de la demo (javadoc,
+  contrôle de flux, modificateurs, caractères, chaînes brutes,
+  namespaces, entités, emphase).
+- **Demo : action « Étendre la sélection » (#27)** dans la barre
+  d'actions.
+
+### Fixed
+
+- **B21h — cycle de vie session→vue** : `onDetachedFromWindow` purge
+  désormais les listeners session→vue (`setImeListener(null)`,
+  `setOnLinesShiftedListener(null)`) — une session qui survit à sa vue
+  (hôte recyclant les sessions entre onglets) ne la retenait plus
+  fortement : le graphe vue (popups, caches, painter, loupe) devient
+  collectable. `onAttachedToWindow` repose les listeners (attach après
+  `setSession`, recyclage de ViewHolder : ni IME ni décalages de cache
+  perdus). Démontré par `EditorViewDetachLeakTest` (WeakReference + GC
+  Robolectric) : échouait avant, passe après.
+- **`Rope.visitSub`** : comparaisons de couverture en coordonnées
+  globales (`nodeStart + left.length`) au lieu de locales — l'ancienne
+  version tronquait la visite au-delà de la première branche profonde
+  (attrapé par le test de contrat avant commit).
+
+### Changed
+
+- Historique git réécrit : auteur/committer `jjoblab
+  <olson12jb@gmail.com>` sur les 40 commits (les 10 commits récents
+  portaient l'identité de session « Z User »).
+- Demo : thème clair dédié (`emeraldDay`), le toggle Thème repose la
+  base du scheme ; 4 tests de fumée nouveaux (7/7 verts).
+
 ## [v3.40.0] — 2026-09-30 — Bug sélection (loupe) corrigé à la racine + Lot 4 : ports fonctionnels
 
 Troisième session d'exécution du plan 1D de l'audit. Le bug signalé —
