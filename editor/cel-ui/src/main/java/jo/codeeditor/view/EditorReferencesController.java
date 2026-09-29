@@ -107,8 +107,16 @@ class EditorReferencesController {
         });
     }
 
-    /** Referme le popup de références. */
+    /**
+     * Referme le popup de références.
+     *
+     * <p>★ B16 : bump la génération — sans cela, une résolution LSP en
+     * vol (jusqu'à 15 s) passait encore le garde {@code gen == generation}
+     * de son apply et RE-OUVRAIT le popup que l'utilisateur venait de
+     * fermer.</p>
+     */
     void dismiss() {
+        generation++;  // invalide toute résolution en vol
         popupVisible = false;
         view.invalidate();
     }
