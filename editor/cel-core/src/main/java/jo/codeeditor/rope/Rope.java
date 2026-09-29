@@ -42,6 +42,81 @@ public abstract class Rope implements CharSequence {
         this.depth = depth;
     }
 
+    // ── Visite feuille par feuille (port amont c4bec0cf7) ───────
+
+    /**
+     * Visiteur des feuilles — appelé feuille par feuille avec le contenu
+     * complet de la feuille et son offset global (début de feuille).
+     */
+    public interface LeafVisitor {
+        /**
+         * @param leafData    contenu complet de la feuille (accès direct au
+         *                    String — pas de descente d'arbre par caractère)
+         * @param globalStart offset documentaire du 1er caractère de la feuille
+         * @return {@code false} pour interrompre la visite
+         */
+        boolean visit(String leafData, int globalStart);
+    }
+
+    /**
+     * Visite les feuilles couvrant {@code [from, min(to, length))} en ordre
+     * croissant, puis s'arrête.
+     *
+     * <p>Le coût est O(feuilles visitées + longueur visitée) : chaque
+     * feuille expose son String en accès direct, au lieu d'une descente
+     * d'arbre PAR CARACTÈRE ({@code charAt(i)} = O(log n) par appel, soit
+     * O(n·log n) pour un scan complet). Le visiteur clippe lui-même sa
+     * fenêtre aux positions globales couvertes par la feuille : le champ
+     * couvre {@code [globalStart, globalStart + leafData.length())}.</p>
+     */
+    public void visitLeaves(int from, int to, LeafVisitor visitor) {
+        if (visitor == null || to <= from) return;
+        if (from < 0) from = 0;
+        if (to > length) to = length;
+        visitSub(this, 0, from, to, visitor, true);
+    }
+
+    /** Pareil en ordre DÉCROISSANT (scans arrière — appariement de crochets). */
+    public void visitLeavesBackward(int from, int to, LeafVisitor visitor) {
+        if (visitor == null || to <= from) return;
+        if (from < 0) from = 0;
+        if (to > length) to = length;
+        visitSub(this, 0, from, to, visitor, false);
+    }
+
+    private static boolean visitSub(Rope node, int nodeStart,
+                                    int from, int to, LeafVisitor v,
+                                    boolean forward) {
+        if (node instanceof Leaf) {
+            return v.visit(((Leaf) node).data, nodeStart);
+        }
+        Branch b = (Branch) node;
+        // Fin GLOBALE du sous-arbre gauche — les comparaisons se font en
+        // coordonnées documentaires (l'invariant d'appel garantit que le
+        // nœud courant recouvre [from, to) au moins partiellement).
+        int leftEnd = nodeStart + b.left.length;
+        if (forward) {
+            if (from < leftEnd
+                    && !visitSub(b.left, nodeStart, from, to, v, true)) {
+                return false;
+            }
+            if (to > leftEnd
+                    && !visitSub(b.right, leftEnd, from, to, v, true)) {
+                return false;
+            }
+        } else {
+            if (to > leftEnd
+                    && !visitSub(b.right, leftEnd, from, to, v, false)) {
+                return false;
+            }
+            if (from < leftEnd
+                    && !visitSub(b.left, nodeStart, from, to, v, false)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     // ── CharSequence ──────────────────────────────────────────────
 
     @Override

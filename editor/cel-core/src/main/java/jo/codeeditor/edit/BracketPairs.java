@@ -3,6 +3,8 @@ package jo.codeeditor.edit;
 import java.util.HashMap;
 import java.util.Map;
 
+import jo.codeeditor.rope.Rope;
+
 /**
  * Connaissance des paires de crochets et de guillemets utilisées par l'édition
  * intelligente. Centralise les tables ouvreurs↔fermeurs (dont dépendent
@@ -57,10 +59,32 @@ final class BracketPairs {
 
     /**
      * Compte les ouvreurs moins les fermeurs dans le texte du document (jusqu'à BALANCE_SCAN_LIMIT caractères).
+     *
+     * <p>Port amont {@code c4bec0cf7} : quand le texte est une {@link Rope},
+     * le scan passe <b>feuille par feuille</b> (accès direct au String de
+     * chaque feuille, O(n) total) au lieu de {@code charAt(i)} qui redescend
+     * l'arbre à chaque caractère (O(n·log n)). Le résultat est STRICTEMENT
+     * identique — seules les feuilles couvrant la fenêtre bornée sont
+     * visitées, dans l'ordre du document.</p>
      */
     static int docBalance(CharSequence text, char opener, char closer) {
-        int count = 0;
         int limit = Math.min(text.length(), BALANCE_SCAN_LIMIT);
+        if (text instanceof Rope) {
+            int[] count = {0};
+            int[] remaining = {limit};
+            ((Rope) text).visitLeaves(0, limit, (data, start) -> {
+                int end = Math.min(data.length(), remaining[0]);
+                for (int i = 0; i < end; i++) {
+                    char ch = data.charAt(i);
+                    if (ch == opener) count[0]++;
+                    else if (ch == closer) count[0]--;
+                }
+                remaining[0] -= end;
+                return remaining[0] > 0;
+            });
+            return count[0];
+        }
+        int count = 0;
         for (int i = 0; i < limit; i++) {
             char ch = text.charAt(i);
             if (ch == opener) count++;
