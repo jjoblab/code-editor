@@ -29,3 +29,7 @@ project(":cel-ui").projectDir = file("editor/cel-ui")
 
 include(":cel-lsp")
 project(":cel-lsp").projectDir = file("editor/cel-lsp")
+
+// ─── Application de démonstration (terrain de jeu) ───────────────
+include(":demo")
+project(":demo").projectDir = file("demo")

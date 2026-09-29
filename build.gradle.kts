@@ -11,10 +11,12 @@
 plugins {
     // AGP 9.0.0, aligné sur le wrapper Gradle 9.5.1.
     id("com.android.library") version "9.0.0" apply false
+    // Requis par le module :demo (application de démonstration).
+    id("com.android.application") version "9.0.0" apply false
 }
 
 group = "jo.codeeditor"
-version = "3.38.0"
+version = "3.39.0"
 
 // Propage group/version à chaque module pour que les publications
 // `maven-publish` (déclarées dans le build.gradle.kts de chaque module)

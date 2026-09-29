@@ -180,6 +180,19 @@ final class FoldRegions {
     }
 
     /**
+     * ★ B21d : test d'existence SANS allocation — l'appel de
+     * {@code collapsed().isEmpty()} par frame allouait une liste fraîche
+     * (plus une itération complète) juste pour savoir s'il y a AU MOINS un
+     * pli replié. Court-circuite au premier pli replié trouvé.
+     */
+    boolean hasCollapsed() {
+        for (DiagnosticShift.FoldRegion r : foldRegions) {
+            if (r.collapsed) return true;
+        }
+        return false;
+    }
+
+    /**
      * Retourne vrai si la ligne du document donnée est actuellement masquée
      * par une région de pliage repliée. Méthode de commodité — la vue s'en
      * sert pour sauter le dessin des lignes masquées.

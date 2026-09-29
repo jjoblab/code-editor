@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Palette « sombre éditeur » : zinc profond + accent émeraude,
+         cohérente avec le thème par défaut de l'éditeur (DemoTheme). -->
+    <color name="emerald_400">#FF34D399</color>
+    <color name="emerald_700">#FF047857</color>
+    <color name="zinc_950">#FF09090B</color>
+    <color name="zinc_900">#FF18181B</color>
+    <color name="zinc_800">#FF27272A</color>
+    <color name="zinc_700">#FF3F3F46</color>
+    <color name="zinc_400">#FFA1A1AA</color>
+    <color name="zinc_200">#FFE4E4E7</color>
+</resources>

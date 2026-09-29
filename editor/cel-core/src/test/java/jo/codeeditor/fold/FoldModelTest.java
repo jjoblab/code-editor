@@ -48,6 +48,22 @@ class FoldModelTest {
     }
 
     @Test
+    void compositeText_suffixStartsAtFoldEnd_notAtLineStart() {
+        // Pli [6, 21) : commence dans la ligne 0 (col 6, après « alpha »),
+        // se termine dans la ligne 1 (col 8, sur « delta »).
+        // Lignes : "alpha bravo," (0-11), "charlie delta," (13-26), "echo" (28-31).
+        var regions = List.of(new FoldRegion(6, 21, "…", "block", true));
+        var texts = List.of("alpha bravo,", "charlie delta,", "echo");
+        var model = FoldModel.build(3, regions, texts);
+
+        var composite = model.compositeText(0, texts);
+        // Suffixe = dernière ligne à partir de la colonne de FIN du pli
+        // (« delta, ») — historiquement la formule recalcule une colonne
+        // toujours 0 et affichait « charlie delta, » EN ENTIER.
+        assertEquals("alpha …delta,", composite);
+    }
+
+    @Test
     void visualLineCount_noFolds() {
         var model = FoldModel.build(5, List.of(), lineTexts(5));
         assertEquals(5, model.visualLineCount());

@@ -103,12 +103,27 @@ class EditorReferencesController {
                 view.invalidate();
             };
             android.os.Handler h = view.getHandler();
-            if (h != null) h.post(apply); else apply.run();
+            if (h != null) {
+                h.post(apply);
+            } else {
+                // ★ B21j : vue DÉTACHÉE à la résolution — le résultat est
+                // JETÉ (pas de mutation d'état UI ni d'invalidate hors du
+                // thread UI, pas de popup rouvert contre une vue morte).
+                // Une nouvelle résolution sera déclenchée au prochain show().
+            }
         });
     }
 
-    /** Referme le popup de références. */
+    /**
+     * Referme le popup de références.
+     *
+     * <p>★ B16 : bump la génération — sans cela, une résolution LSP en
+     * vol (jusqu'à 15 s) passait encore le garde {@code gen == generation}
+     * de son apply et RE-OUVRAIT le popup que l'utilisateur venait de
+     * fermer.</p>
+     */
     void dismiss() {
+        generation++;  // invalide toute résolution en vol
         popupVisible = false;
         view.invalidate();
     }
