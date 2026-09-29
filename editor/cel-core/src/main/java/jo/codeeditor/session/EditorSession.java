@@ -5,7 +5,9 @@ import jo.codeeditor.document.Selection;
 import jo.codeeditor.edit.CommentSyntax;
 import jo.codeeditor.edit.EditOps;
 import jo.codeeditor.edit.RangeEdit;
+import jo.codeeditor.highlight.LineSpan;
 import jo.codeeditor.highlight.StyledLine;
+import jo.codeeditor.highlight.TokenType;
 import jo.codeeditor.shift.DiagnosticShift;
 import jo.codeeditor.shift.EditSpan;
 
@@ -890,6 +892,157 @@ public class EditorSession {
         int start = doc.lineStart(line);
         int end = doc.lineEnd(line);
         setSelection(Selection.range(start, end));
+    }
+
+    // ── Expand selection (lot 4 #27) ───────────────────────────
+
+    /**
+     * Étend la sélection courante d'UN cran (audit §1D lot 4 #27, esprit
+     * amont <em>94cd8e9bb</em>) : curseur → mot → syntagme → ligne(s).
+     *
+     * <p>La cascade complète, d'un appel à l'appel suivant :</p>
+     * <ol>
+     *   <li><b>Curseur sans sélection</b> → sélection du mot sous le
+     *       curseur (mêmes bornes de mot que l'appui long) ;</li>
+     *   <li><b>Mot</b> → <b>syntagme</b> : le span syntaxique englobant
+     *       (chaîne, caractère, commentaire…) s'il couvre la sélection —
+     *       guillemets inclus — sinon la paire de crochets englobante la
+     *       plus interne ({@code ()} {@code []} {@code {}}, délimiteurs
+     *       inclus) ;</li>
+     *   <li><b>Syntagme</b> → <b>ligne(s) entière(s)</b> touchées par la
+     *       sélection (sans le saut de ligne final) ;</li>
+     *   <li><b>Lignes complètes</b> → inclut le saut de ligne de la
+     *       dernière ligne ; au-delà (ou en fin de document), plus rien
+     *       à étendre.</li>
+     * </ol>
+     *
+     * @return {@code true} si la sélection a changé, {@code false} si elle
+     *         couvre déjà tout ce qui peut l'être (document entier).
+     */
+    public boolean expandSelection() {
+        CharSequence cs = doc.charSequence();
+
+        // 1. Curseur → mot.
+        if (selection.isCursor()) {
+            int[] range = EditOps.wordRangeAt(cs, selection.start);
+            if (range[1] > range[0]) {
+                setSelection(Selection.range(range[0], range[1]));
+                return true;
+            }
+            return false;
+        }
+
+        // 2. Lignes complètes déjà couvertes ? (le niveau « ligne » de la
+        //    cascade prime sur les crochets : sans cela, une sélection de
+        //    ligne complète à l'intérieur d'un bloc re-basculerait vers la
+        //    paire d'accolades englobante au lieu de progresser.)
+        int firstLine0 = doc.lineForOffset(selection.start);
+        int lastLine0 = doc.lineForOffset(Math.max(selection.start, selection.end - 1));
+        if (selection.start == doc.lineStart(firstLine0)
+                && selection.end >= doc.lineEnd(lastLine0)) {
+            boolean endsAtDocEnd = selection.end >= doc.length();
+            boolean endsWithNewline = selection.end < doc.length()
+                    && cs.charAt(selection.end - 1) == '\n';
+            if (endsAtDocEnd || endsWithNewline) {
+                return false; // lignes + saut final : plus rien à étendre
+            }
+            // Inclure le saut de ligne de la dernière ligne sélectionnée.
+            setSelection(Selection.range(selection.start, selection.end + 1));
+            return true;
+        }
+
+        // 3. Mot → syntagme : span syntaxique englobant (chaîne/commentaire),
+        //    sinon paire de crochets englobante la plus interne.
+        int[] span = enclosingSyntaxSpanRange(selection.start, selection.end);
+        if (span != null && !(span[0] == selection.start && span[1] == selection.end)) {
+            setSelection(Selection.range(span[0], span[1]));
+            return true;
+        }
+        int[] brackets = enclosingBracketRange(cs, selection.start, selection.end);
+        if (brackets != null && !(brackets[0] == selection.start
+                && brackets[1] == selection.end)) {
+            setSelection(Selection.range(brackets[0], brackets[1]));
+            return true;
+        }
+
+        // 4. → ligne(s) entière(s) touchées (sans le saut de ligne final —
+        //    il sera inclus à l'appel suivant par l'étape 2).
+        int firstLine = doc.lineForOffset(selection.start);
+        int lastLine = doc.lineForOffset(Math.max(selection.start, selection.end - 1));
+        int start = doc.lineStart(firstLine);
+        int lastLineEnd = doc.lineEnd(lastLine);
+        setSelection(Selection.range(start, lastLineEnd));
+        return true;
+    }
+
+    /**
+     * Recherche le span syntaxique (chaîne, caractère, chaîne brute,
+     * commentaire, doc-comment, emphase, regexp) qui couvre ENTIÈREMENT
+     * la sélection [start, end) — bornes converties en offsets document.
+     * Renvoie {@code null} si la sélection s'étend sur plusieurs lignes
+     * ou si aucun span englobant n'existe. Les bornes du span INCLUENT
+     * les délimiteurs (guillemets, {@code /*} et {@code *&#47;}).
+     */
+    private int[] enclosingSyntaxSpanRange(int start, int end) {
+        if (end <= start) return null;
+        int firstLine = doc.lineForOffset(start);
+        int lastLine = doc.lineForOffset(Math.max(start, end - 1));
+        if (firstLine != lastLine) return null; // multi-lignes : pas de span simple
+
+        List<StyledLine> styled = getStyledLines();
+        if (firstLine >= styled.size()) return null;
+        StyledLine sl = styled.get(firstLine);
+        if (sl == null || sl.spans == null) return null;
+        int lineStart = doc.lineStart(firstLine);
+        for (LineSpan s : sl.spans) {
+            TokenType t = s.type;
+            if (t != TokenType.STRING && t != TokenType.CHAR
+                    && t != TokenType.RAW_STRING && t != TokenType.COMMENT
+                    && t != TokenType.DOC_COMMENT && t != TokenType.REGEXP
+                    && t != TokenType.EMPHASIS) {
+                continue;
+            }
+            int s0 = lineStart + s.startCol;
+            int s1 = lineStart + s.endCol;
+            if (s0 <= start && end <= s1) {
+                return new int[]{s0, s1};
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Recherche la paire de crochets englobante la plus interne couvrant
+     * [start, end) — délimiteurs INCLUS dans la plage renvoyée. Les
+     * paires cherchées sont {@code ()} {@code []} {@code {}} ; le scan
+     * arrière est borné à 8192 caractères (commande interactive).
+     * Renvoie {@code null} si aucune paire ne convient.
+     */
+    private int[] enclosingBracketRange(CharSequence cs, int start, int end) {
+        final int MAX_BACKSCAN = 8192;
+        int from = Math.max(0, start - MAX_BACKSCAN);
+        for (int i = start - 1; i >= from; i--) {
+            char c = cs.charAt(i);
+            if (c != '(' && c != '[' && c != '{') continue;
+            char close = (c == '(') ? ')' : (c == '[') ? ']' : '}';
+            // Scan avant avec profondeur sur cette paire uniquement.
+            int depth = 0;
+            for (int j = i + 1, lim = Math.min(cs.length(), i + MAX_BACKSCAN); j < lim; j++) {
+                char d = cs.charAt(j);
+                if (d == c) depth++;
+                else if (d == close) {
+                    if (depth-- == 0) {
+                        // Paire (i, j) : valable si elle couvre la sélection
+                        // ET n'est pas déjà exactement sélectionnée.
+                        if (j >= end - 1 && !(i == start && j + 1 == end)) {
+                            return new int[]{i, j + 1};
+                        }
+                        break; // paire fermée avant la fin de la sélection → suivante
+                    }
+                }
+            }
+        }
+        return null;
     }
 
     // ── Déplacement du curseur ─────────────────────────────────

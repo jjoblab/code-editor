@@ -1103,6 +1103,17 @@ public class EditorView extends View {
 
     public EditorSession getSession() { return session; }
 
+    /**
+     * Étend la sélection courante d'un cran (lot 4 #27) : curseur → mot →
+     * syntagme (span syntaxique ou crochets englobants) → ligne(s).
+     * Voir {@link EditorSession#expandSelection()} pour la cascade exacte.
+     *
+     * @return {@code true} si la sélection a changé.
+     */
+    public boolean expandSelection() {
+        return session != null && session.expandSelection();
+    }
+
     public void setTheme(EditorTheme theme) {
         this.theme = theme;
         // Les layouts façonnés ont les couleurs de thème cuites dans leurs

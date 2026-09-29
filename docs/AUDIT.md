@@ -440,11 +440,23 @@ reste le contrat d'exécution pour la suite.
 | B21j | `fix(view)` — résultat de résolution jeté si la vue est détachée au retour |
 | B19 + lot 3 | `perf(session,ui)` — EditorDocument.subText()/charSequence() (lectures ciblées sur la rope) ; frappe intelligente, appariement de crochets, complétion (début de token + fraîcheur de livraison, filtre mémoïsé déjà présent), tranches de sélection, extraction IME (ExtractedText fenêtré, SurroundingText, composition, code points) migrés — plus de copie du document entier par frappe |
 
-### Restant après la session 2026-09-30 (pour une itération future)
+### Appliqué — session 2026-09-30 (lot 4 : ports fonctionnels + bug loupe)
 
-- **Lot 4 fonctionnel** : scheme de couleurs modifiable
+| Item | Correctif (commit) |
+|---|---|
+| signalé (loupe) | `fix(render)` — fuite d'état du paint partagé : drawMagnifier (anneau STROKE) et drawMinimap (contour viewport) ne remettaient pas selPaint à FILL → bande de sélection/occurrences/poignées dessinées en CONTOUR sur toutes les frames suivant l'amorce du drag. Restauration FILL dans les deux peintres + défense en profondeur (drawColRangeBand, drawSelectionHandles forcent FILL). NB : le minifier R8 était déjà désactivé (isMinifyEnabled=false depuis l'origine) — il n'était pas la cause. 6 tests de contrat d'état |
+| #25 | `feat(theme)` — scheme de couleurs modifiable : ColorAttribute/ColorAttributes (registre ordonné de 39 attributs, parents avant enfants, sans réflexion), EditorColorScheme (maps éparses sombre/clair, résolution cascade override → parent si héritage visuel → base → plancher texte, JSON plat des seuls overrides, presets), EditorTheme.Builder (base + overrides par clé, carte d'attributs virtuels), EditorView.setColorScheme/setSchemeDarkMode/setSchemeBaseTheme (passe par setTheme → purge caches). 22 tests |
+| #26 | `feat(highlight)` — distinctions fines : 8 TokenTypes virtuels (DOC_COMMENT, KEYWORD_CONTROL, KEYWORD_MODIFIER, CHAR, RAW_STRING, NAMESPACE, ENTITY, EMPHASIS) héritant du parent côté thème (tokenExtras + colorForToken) ; tables partagées contrôle/modificateurs ; état lexer DOC_COMMENT (se souvient de /** ) ; XML : namespace éclaté, entités fenêtre 12, état CDATA dédié XML_CDATA, scanner de texte stoppé devant « & » ; Markdown : EMPHASIS avec règle intra-mot `_` vs `*`. 16 + 3 tests |
+| #27 | `feat(selection)` — expand selection : EditorSession.expandSelection()/EditorView.expandSelection() — cascade curseur → mot → syntagme (span syntaxique ou crochets englobants, délimiteurs inclus, scan arrière borné 8192) → ligne(s) → saut de ligne final → false. 8 tests |
+
+### Restant après la session 2026-09-30 — lot 4 (pour une itération future)
+
+- ~~**Lot 4 fonctionnel** : scheme de couleurs modifiable
   (`ab3e7d5d0`), distinctions fines de tokens (`b8cd18824`),
-  expand selection (`94cd8e9bb`), Magnifier natif API 28+ avec repli ;
+  expand selection (`94cd8e9bb`)~~ — **fait** (voir session lot 4
+  ci-dessus) ;
+- **Magnifier natif API 28+ avec repli** (recommandé, décision
+  propriétaire) ;
 - **Lot 3 restant** : scans de rope feuille par feuille pour
   l'équilibre (`c4bec0cf7` — partiellement couvert par les lectures B19),
   occurrences posées + dessin par double recherche binaire
