@@ -7,6 +7,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v3.40.0] — 2026-09-30 — Bug sélection (loupe) corrigé à la racine + Lot 4 : ports fonctionnels
+
+Troisième session d'exécution du plan 1D de l'audit. Le bug signalé —
+« quand je drag, je vois la bordure du rectangle de sélection mais pas la
+couleur » — n'était PAS lié au minifier (R8 désactivé depuis l'origine) :
+c'est une fuite d'état du paint partagé entre peintres, corrigée à la
+racine et blindée par défense en profondeur. Le Lot 4 (ports fonctionnels)
+est ensuite exécuté intégralement (#25 #26 #27).
+
+### Added
+
+- **Scheme de couleurs modifiable par l'utilisateur (#25)** : registre
+  ordonné des 39 attributs (clé stable, libellé, groupe, parent
+  d'héritage visuel), `EditorColorScheme` à deux maps éparses
+  sombre/clair (clé absente = « pas d'opinion »), résolution eager en
+  cascade (override → parent si héritage visuel avéré → base → plancher
+  texte), presets en code, sérialisation plate JSON des seuls overrides
+  `{schema,id,name,basedOn,dark,light}`, intégration vue
+  (`setColorScheme`/`setSchemeDarkMode`/`setSchemeBaseTheme`) avec purge
+  des caches via `setTheme`.
+- **Distinctions fines de tokens (#26)** : 8 nouveaux types « virtuels »
+  (aucune couleur propre — héritent du parent, invisibles tant qu'un
+  scheme ne les sépare) : DOC_COMMENT (nouvel état lexer qui se souvient
+  de l'ouverture `/**`), KEYWORD_CONTROL/KEYWORD_MODIFIER (tables de
+  mots partagées appliquées à tout mot-clé existant — un langage contribué
+  obtient la distinction gratuitement), CHAR, RAW_STRING, NAMESPACE,
+  ENTITY (fenêtre 12) et EMPHASIS (règle intra-mot `_` vs `*`).
+- **Expand selection (#27)** : `EditorSession.expandSelection()` /
+  `EditorView.expandSelection()` — cascade curseur → mot → syntagme
+  (span syntaxique ou crochets englobants, délimiteurs inclus) →
+  ligne(s) → saut de ligne final, puis false en fin de cascade.
+
+### Fixed
+
+- **Bande de sélection en contour sans couleur pendant le drag** :
+  `drawMagnifier` (dernier peintre de la frame) dessinait son anneau avec
+  le paint PARTAGÉ `selPaint` en `Style.STROKE` sans le remettre à
+  `FILL` — la frame suivante (et toutes celles du drag, la loupe restant
+  active) dessinait la bande de sélection, les occurrences et les
+  poignées en CONTOUR. La minimap laissait la même fuite via le contour
+  de son viewport. Correctif : restauration FILL dans les deux peintres +
+  défense en profondeur (`drawColRangeBand` et `drawSelectionHandles`
+  forcent FILL). 6 tests de contrat (état du paint) — 4 échouent sans le
+  correctif.
+- **Entités XML au milieu d'un texte** : `a &amp; b` était avalé en PLAIN
+  (le scanner de texte ne s'arrêtait pas devant `&`) — corrigé.
+
+### Changed
+
+- `kotlinRawString` / `singleQuotedChar` : contrats de tests mis à jour
+  vers les nouveaux types RAW_STRING et CHAR (héritent de STRING).
+
 ## [v3.39.0] — 2026-09-30 — Correctifs finaux de l'audit : sélection wrap-aware, état d'instance, mineurs B21 et lectures B19
 
 Deuxième session d'exécution du plan 1D de l'audit. Le bug signalé cette
