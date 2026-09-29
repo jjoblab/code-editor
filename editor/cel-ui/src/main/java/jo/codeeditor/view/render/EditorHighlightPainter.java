@@ -50,7 +50,6 @@ public class EditorHighlightPainter {
     void drawFindHighlights(Canvas canvas, EditorDocument doc,
                              float textAreaLeft, float lineHeight, float paddingTop,
                              int firstVisible, int lastVisible) {
-        float charWidth = view.metrics.getCharWidth();
         for (int i = 0; i < view.findHighlights.size(); i++) {
             Match m = view.findHighlights.get(i);
             int line = doc.lineForOffset(m.start);
@@ -61,11 +60,9 @@ public class EditorHighlightPainter {
             int startCol = EditorView.clamp(m.start - lineStart, 0, doc.lineEnd(line) - lineStart);
             int endCol = EditorView.clamp(m.end - lineStart, 0, doc.lineEnd(line) - lineStart);
             if (endCol <= startCol) endCol = startCol + 1;
-            float y = view.docLineToY(line) - view.vOffset; // Y sensible aux plis
-            float x1 = textAreaLeft + view.visualColFor(line, startCol) * charWidth - view.hOffset;
-            float x2 = textAreaLeft + view.visualColFor(line, endCol) * charWidth - view.hOffset;
             view.selPaint.setColor(i == view.findCurrentIndex ? view.theme.findCurrent : view.theme.findMatch);
-            canvas.drawRect(x1, y, x2, y + lineHeight, view.selPaint);
+            // Bande consciente du wrap (une rect par rangée visuelle).
+            drawColRangeBand(canvas, doc, line, startCol, endCol, textAreaLeft, lineHeight);
         }
     }
 
@@ -83,7 +80,6 @@ public class EditorHighlightPainter {
     void drawDocumentHighlights(Canvas canvas, EditorDocument doc,
                                 float textAreaLeft, float lineHeight, float paddingTop,
                                 int firstVisible, int lastVisible) {
-        float charWidth = view.metrics.getCharWidth();
         // Utiliser la couleur de thème dédiée « occurrence » — distincte de
         // findMatch pour que l'utilisateur distingue les occurrences LSP
         // (passives) des occurrences de recherche explicites (actives).
@@ -101,10 +97,8 @@ public class EditorHighlightPainter {
             int startCol = EditorView.clamp(start - lineStart, 0, doc.lineEnd(line) - lineStart);
             int endCol = EditorView.clamp(end - lineStart, 0, doc.lineEnd(line) - lineStart);
             if (endCol <= startCol) endCol = startCol + 1;
-            float y = view.docLineToY(line) - view.vOffset;
-            float x1 = textAreaLeft + view.visualColFor(line, startCol) * charWidth - view.hOffset;
-            float x2 = textAreaLeft + view.visualColFor(line, endCol) * charWidth - view.hOffset;
-            canvas.drawRect(x1, y, x2, y + lineHeight, view.selPaint);
+            // Bande consciente du wrap (une rect par rangée visuelle).
+            drawColRangeBand(canvas, doc, line, startCol, endCol, textAreaLeft, lineHeight);
         }
         view.selPaint.setAlpha(255);
     }
@@ -149,6 +143,73 @@ public class EditorHighlightPainter {
         }
     }
 
+    /**
+     * Dessine la bande de la plage de colonnes {@code [colStart, colEnd)}
+     * de la ligne de document donnée avec le paint courant
+     * ({@code view.selPaint}), UNE RECT PAR RANGÉE VISUELLE en mode
+     * word-wrap.
+     *
+     * <p>Bug « les caractères sélectionnés n'ont plus de couleur » (config
+     * demo : wrap activé, ligne minifiée) : la géométrie historique posait
+     * UNE seule rect pleine ligne à {@code colonne × charWidth} — comme si
+     * la ligne ne wrappait pas. Dès que la sélection visait des colonnes
+     * au-delà de la capacité de la 1re rangée (~100 colonnes), la bande
+     * était dessinée HORS ÉCRAN à droite : poignées et drag corrects
+     * (caretScreenPos est wrap-aware) mais AUCUNE couleur sur les mots
+     * sélectionnés. Chaque passe qui dessine une plage de colonnes
+     * (sélection, occurrences de recherche, occurrences LSP) passe par
+     * ce helper pour que la bande suive les rangées du modèle de wrap.</p>
+     *
+     * <p>Hors wrap : chemin historique inchangé — une seule rect, X
+     * sensible aux inlays via {@code visualColFor} (tissage des colonnes).</p>
+     */
+    private void drawColRangeBand(Canvas canvas, EditorDocument doc, int line,
+                                  int colStart, int colEnd,
+                                  float textAreaLeft, float lineHeight) {
+        final int lineLen = doc.lineEnd(line) - doc.lineStart(line);
+        if (view.wordWrap && view.wrapModel != null) {
+            // Mode wrap : une rect par rangée couverte. Le X suit la même
+            // géométrie que caretScreenPos/offsetAt (colonnes BRUTES — les
+            // rangées de continuation démarrent à wrapIndentCols).
+            EditorView.WrapRows wr = view.wrapRowsFor(line, lineLen);
+            float charWidth = view.metrics.getCharWidth();
+            float lineTop = view.docLineToY(line) - view.vOffset;
+            if (colStart >= colEnd) {
+                // Ligne vide couverte par une sélection multi-lignes :
+                // marqueur de traîne pour que la rangée reste visible.
+                float x = textAreaLeft - view.hOffset;
+                canvas.drawRect(x, lineTop, x + charWidth * 0.6f,
+                        lineTop + lineHeight, view.selPaint);
+                return;
+            }
+            for (int r = 0; r < wr.rows; r++) {
+                int rowStart = wr.rowStartCol(r);
+                int rowEnd = wr.rowEndCol(r, lineLen);
+                int s = Math.max(colStart, rowStart);
+                int e = Math.min(colEnd, rowEnd);
+                if (e <= s) continue;
+                float rowX = textAreaLeft
+                        + (r > 0 ? wr.wrapIndentCols * charWidth : 0);
+                float x1 = rowX + (s - rowStart) * charWidth - view.hOffset;
+                float x2 = rowX + (e - rowStart) * charWidth - view.hOffset;
+                float y = lineTop + r * lineHeight;
+                canvas.drawRect(x1, y, Math.max(x1 + 1, x2), y + lineHeight,
+                        view.selPaint);
+            }
+            return;
+        }
+        // Hors wrap : bande unique, colonnes visuelles tissées d'inlays
+        // (chemin historique, inchangé).
+        float charWidth = view.metrics.getCharWidth();
+        float y = view.docLineToY(line) - view.vOffset;
+        float x1 = textAreaLeft + view.visualColFor(line, colStart) * charWidth - view.hOffset;
+        float x2 = textAreaLeft + view.visualColFor(line, colEnd) * charWidth - view.hOffset;
+        // Marqueur de traîne après la fin de ligne pour qu'une ligne
+        // sélectionnée vide montre quand même une bande.
+        float trailing = (colEnd == colStart) ? charWidth * 0.6f : 0;
+        canvas.drawRect(x1, y, Math.max(x1 + 1, x2 + trailing), y + lineHeight, view.selPaint);
+    }
+
     // ════════════════════════════════════════════════════════════════
     // Surlignage de sélection
     // ════════════════════════════════════════════════════════════════
@@ -159,26 +220,19 @@ public class EditorHighlightPainter {
         view.selPaint.setColor(view.theme.selection);
         int selStartLine = EditorView.clamp(doc.lineForOffset(sel.start), 0, doc.lineCount() - 1);
         int selEndLine = EditorView.clamp(doc.lineForOffset(Math.max(0, sel.end - 1)), 0, doc.lineCount() - 1);
-        float charWidth = view.metrics.getCharWidth();
         for (int i = Math.max(selStartLine, firstVisible); i <= Math.min(selEndLine, lastVisible); i++) {
             // Sauter les lignes cachées (repliées) — pas de bande de sélection dans le trou.
             if (view.isLineFoldedCached(i)) continue;
-            float y = view.docLineToY(i) - view.vOffset; // Y sensible aux plis
             int lineStart = doc.lineStart(i);
             int lineEnd = doc.lineEnd(i);
             int colStart = (i == selStartLine) ? sel.start - lineStart : 0;
             int colEnd = (i == selEndLine) ? sel.end - lineStart : lineEnd - lineStart;
             colStart = EditorView.clamp(colStart, 0, lineEnd - lineStart);
             colEnd = EditorView.clamp(colEnd, 0, lineEnd - lineStart);
-            // Sensible aux inlays — mapper les colonnes brutes vers les
-            // colonnes visuelles tissées pour que la bande de sélection
-            // suive le texte décalé.
-            float x1 = textAreaLeft + view.visualColFor(i, colStart) * charWidth - view.hOffset;
-            float x2 = textAreaLeft + view.visualColFor(i, colEnd) * charWidth - view.hOffset;
-            // Marqueur de traîne après la fin de ligne pour qu'une ligne
-            // sélectionnée vide montre quand même une bande.
-            float trailing = (colEnd == colStart) ? charWidth * 0.6f : 0;
-            canvas.drawRect(x1, y, Math.max(x1 + 1, x2 + trailing), y + lineHeight, view.selPaint);
+            // Bande consciente du wrap : une rect par rangée visuelle
+            // (l'ancienne rect pleine ligne partait hors écran dès la 2e
+            // rangée wrappée — sélection « sans couleur »).
+            drawColRangeBand(canvas, doc, i, colStart, colEnd, textAreaLeft, lineHeight);
         }
     }
 
