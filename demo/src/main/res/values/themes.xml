@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Material 3 sombre sans couleur dynamique : la palette zinc/émeraude
+         est figée pour rester cohérente avec le thème de l'éditeur. -->
+    <style name="Theme.Demo" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="colorPrimary">@color/emerald_400</item>
+        <item name="colorOnPrimary">@color/zinc_950</item>
+        <item name="colorPrimaryContainer">@color/emerald_700</item>
+        <item name="colorOnPrimaryContainer">@color/zinc_200</item>
+
+        <item name="colorSurface">@color/zinc_950</item>
+        <item name="colorOnSurface">@color/zinc_200</item>
+        <item name="colorSurfaceContainer">@color/zinc_900</item>
+        <item name="colorSurfaceContainerHigh">@color/zinc_900</item>
+        <item name="android:colorBackground">@color/zinc_950</item>
+
+        <item name="colorOutline">@color/zinc_700</item>
+        <item name="colorOnSurfaceVariant">@color/zinc_400</item>
+
+        <item name="android:statusBarColor">@color/zinc_950</item>
+        <item name="android:navigationBarColor">@color/zinc_950</item>
+        <item name="android:windowBackground">@color/zinc_950</item>
+    </style>
+</resources>

@@ -193,18 +193,23 @@ public class EditorRenamePopup {
      * remplacement effectué.
      */
     private static String substringRename(String text, String oldName, String newName) {
+        // ★ B21i : comparaison EN PLACE (charAt) — l'ancienne boucle
+        // allouait text.substring(i, i+len) à CHAQUE position testée
+        // (O(n) allocations + O(n·m) de copies) ; sur un gros fichier le
+        // rename fallback triturait des dizaines de Mo de déchets.
+        int m = oldName.length();
         StringBuilder sb = new StringBuilder(text.length() + newName.length());
         int i = 0;
         int replaced = 0;
         while (i < text.length()) {
-            if (i + oldName.length() <= text.length()
-                && text.substring(i, i + oldName.length()).equals(oldName)
+            if (i + m <= text.length()
+                && matchesAt(text, i, oldName, m)
                 && (i == 0 || (!Character.isLetterOrDigit(text.charAt(i - 1)) && text.charAt(i - 1) != '_'))
-                && (i + oldName.length() == text.length()
-                    || (!Character.isLetterOrDigit(text.charAt(i + oldName.length()))
-                        && text.charAt(i + oldName.length()) != '_'))) {
+                && (i + m == text.length()
+                    || (!Character.isLetterOrDigit(text.charAt(i + m))
+                        && text.charAt(i + m) != '_'))) {
                 sb.append(newName);
-                i += oldName.length();
+                i += m;
                 replaced++;
             } else {
                 sb.append(text.charAt(i));
@@ -212,6 +217,14 @@ public class EditorRenamePopup {
             }
         }
         return replaced > 0 ? sb.toString() : null;
+    }
+
+    /** Comparaison de {@code name} à {@code text} depuis {@code i}, sans allocation. */
+    private static boolean matchesAt(String text, int i, String name, int len) {
+        for (int j = 0; j < len; j++) {
+            if (text.charAt(i + j) != name.charAt(j)) return false;
+        }
+        return true;
     }
 
     void dismissRename() {

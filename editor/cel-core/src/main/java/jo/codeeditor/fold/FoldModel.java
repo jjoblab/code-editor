@@ -77,6 +77,9 @@ public class FoldModel {
             // Masque les lignes entre startLine+1 et endLine
             String prefixText = "";
             String suffixText = "";
+            // ★ B21c : colonne de fin du pli dans la dernière ligne —
+            // transmise à FoldedLineInfo au lieu d'être jetée.
+            int lastLineFoldEndCol = -1;
             if (lineTexts != null && startLine < lineTexts.size()) {
                 String firstLine = lineTexts.get(startLine);
                 // Trouve la colonne du début du pli dans la première ligne
@@ -95,14 +98,15 @@ public class FoldModel {
                         lastLineOffset += lineTexts.get(i).length() + 1;
                     }
                     int foldEndCol = r.end - lastLineOffset;
-                    suffixText = lastLine.substring(Math.min(foldEndCol, lastLine.length()));
+                    lastLineFoldEndCol = Math.max(0, Math.min(foldEndCol, lastLine.length()));
+                    suffixText = lastLine.substring(lastLineFoldEndCol);
                 }
             }
 
             FoldedLineInfo info = new FoldedLineInfo(
                 startLine, endLine, prefixText.length(),
                 prefixText.length() + r.placeholder.length(),
-                r.placeholder
+                r.placeholder, lastLineFoldEndCol
             );
             foldInfoMap.put(startLine, info);
 
@@ -207,13 +211,16 @@ public class FoldModel {
         String lineText = vl.docLine < lineTexts.size() ? lineTexts.get(vl.docLine) : "";
         String prefix = lineText.substring(0, Math.min(fi.prefixEnd, lineText.length()));
         String suffix = "";
-        if (fi.endLine < lineTexts.size()) {
+        // ★ B21c : le suffixe commence à la colonne de FIN du pli dans la
+        // dernière ligne (fi.lastLineFoldEndCol, calculée à la construction
+        // et historiquement jetée). L'ancienne formule
+        // suffixStart - prefixEnd - placeholder.length() valait
+        // STRUCTURELLEMENT toujours 0 — la dernière ligne entière était
+        // affichée comme suffixe du pli.
+        if (fi.lastLineFoldEndCol >= 0 && fi.endLine < lineTexts.size()) {
             String lastLine = lineTexts.get(fi.endLine);
-            // Le suffixe commence à l'offset suffixStart depuis le début de la
-            // zone de pli de la dernière ligne
-            // Par simplicité, utilise suffixStart comme colonne dans la dernière ligne
-            int col = fi.suffixStart - fi.prefixEnd - fi.placeholder.length();
-            suffix = lastLine.substring(Math.max(0, Math.min(col, lastLine.length())));
+            suffix = lastLine.substring(Math.max(0,
+                    Math.min(fi.lastLineFoldEndCol, lastLine.length())));
         }
         return prefix + fi.placeholder + suffix;
     }

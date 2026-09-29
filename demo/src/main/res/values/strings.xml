@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Démo code-editor</string>
+    <string name="toolbar_subtitle">Prêt</string>
+
+    <!-- Sélecteur de langage -->
+    <string name="menu_language">Langage</string>
+    <string name="menu_language_title">Choisir un langage</string>
+    <string name="menu_reset">Réinitialiser l\u2019échantillon</string>
+    <string name="menu_about">À propos</string>
+
+    <!-- Bascules rapides -->
+    <string name="toggle_wrap">Retour à la ligne</string>
+    <string name="toggle_minimap">Minimap</string>
+    <string name="toggle_ligatures">Ligatures</string>
+    <string name="toggle_non_printable">Non-imprimables</string>
+    <string name="toggle_theme">Thème clair</string>
+    <string name="action_undo">Annuler</string>
+    <string name="action_redo">Rétablir</string>
+    <string name="action_zoom_out">Réduire la police</string>
+    <string name="action_zoom_in">Agrandir la police</string>
+
+    <!-- À propos -->
+    <string name="about_title">À propos de la démo</string>
+    <string name="about_message">Terrain de jeu pour la bibliothèque code-editor v3.38.0 (Java, Canvas, MIT).
+
+\u2022 27 langages : basculez via le menu Langage.
+\u2022 Analyseur factice : diagnostics, complétion, signatures, quick doc et code actions synthétiques \u2014 sans serveur LSP.
+
+À essayer :
+\u2022 Tapez un identifiant \u2192 popup de complétion (badges par type).
+\u2022 Ouvrez une parenthèse, ex. println( \u2192 aide de signature.
+\u2022 Longue pression sur un mot \u2192 quick doc généré.
+\u2022 Lignes TODO / FIXME \u2192 diagnostics (squiggles + points dans la gouttière).
+\u2022 Ampoule de la gouttière \u2192 code actions.
+\u2022 Pincez pour zoomer, double-tap pour sélectionner un mot, glissez les poignées (loupe de sélection).
+
+Clavier physique : Ctrl+Z/Y annuler/rétablir, Ctrl+F recherche, Ctrl+Shift+O aller au symbole.</string>
+</resources>
