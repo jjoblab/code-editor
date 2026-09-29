@@ -1029,6 +1029,19 @@ public class EditorView extends View {
             // ligne visible à chaque dessin).
             return s != null && isLineFoldedCached(line);
         });
+        // ★ B11+B20 : la gouttière s'aligne sur la géométrie de la vue
+        // (docLineToY / docLineForScreenY — conscients du wrap ET des
+        // plis) et démarre son itération à la première ligne visible.
+        this.gutterView.setHostGeometry(new GutterView.HostGeometry() {
+            @Override
+            public float docLineToY(int docLine) {
+                return EditorView.this.docLineToY(docLine);
+            }
+            @Override
+            public int docLineForScreenY(float screenY) {
+                return EditorView.this.docLineForScreenY(screenY);
+            }
+        });
         this.session = new EditorSession();
         this.session.setImeListener(imeBridge.listener);
         this.session.setOnLinesShiftedListener(cacheShiftListener);
