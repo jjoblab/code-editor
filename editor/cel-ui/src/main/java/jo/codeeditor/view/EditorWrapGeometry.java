@@ -190,7 +190,7 @@ class EditorWrapGeometry {
         // saut en avant des lignes cachées — mêmes sémantiques que le
         // chemin non-wrap. Sans plis repliés, chemin intégré historique
         // du modèle de wrap (recherche binaire sur la somme préfixe).
-        if (view.session.getCollapsedFolds().isEmpty()) {
+        if (!view.session.hasCollapsedFolds()) { // ★ B21d : sans allocation
             return view.wrapModel.docLineForRow(visualRow);
         }
         jo.codeeditor.document.EditorDocument doc = view.session.getDocument();

@@ -138,13 +138,29 @@ final class ImeBridge {
         // Détecter l'auto-espace séparée : une " " nue commitée juste après un
         // commit de symbole dans le même lot. Suivre l'offset du dernier
         // commit de symbole pour détecter cela au commit suivant.
+        // ★ B21a : avant d'avaler, VALIDER que l'espace arrive réellement
+        // juste après le symbole suivi (caret à symbolOffset+1 ET le
+        // caractère à cet offset est toujours un symbole à auto-espace).
+        // Sans cette validation, l'offset de lot survivait à tout : une
+        // VRAIE espace tapée après ponctuation (déplacement du caret,
+        // backspace du symbole puis espace, composition…) était avalée
+        // elle aussi — l'espace tapée disparaissait.
         if (text.equals(" ") && batchImeSymbolCommitOffset >= 0) {
-            // C'est l'auto-espace du clavier après un symbole — l'avaler.
+            boolean caretRightAfterSymbol =
+                    session.selection.start == batchImeSymbolCommitOffset + 1
+                    && session.selection.end == batchImeSymbolCommitOffset + 1;
+            boolean symbolStillThere =
+                    batchImeSymbolCommitOffset < session.doc.length()
+                    && isAutoSpacedSymbol(session.doc.charAt(batchImeSymbolCommitOffset));
             batchImeSymbolCommitOffset = -1;
-            if (listener != null && !listener.isSyncingExtractedText()) {
-                listener.onRestartInput();
+            if (caretRightAfterSymbol && symbolStillThere) {
+                // C'est l'auto-espace du clavier après un symbole — l'avaler.
+                if (listener != null && !listener.isSyncingExtractedText()) {
+                    listener.onRestartInput();
+                }
+                return;
             }
-            return;
+            // Espace légitime — tomber au chemin de commit normal ci-dessous.
         }
         // Suivre les commits de symboles pour que le prochain commit d'espace
         // nue puisse être détecté comme l'auto-espace du clavier.
@@ -183,6 +199,10 @@ final class ImeBridge {
      * l'IME cible le mot précédent.
      */
     void setComposingText(String text, int newCursorPosition) {
+        // ★ B21a : toute mutation IME non-commit termine le lot — le suivi
+        // du symbole pour l'auto-espace ne doit jamais survivre à autre
+        // chose qu'un commit immédiat d'espace nue.
+        batchImeSymbolCommitOffset = -1;
         int regionStart, regionEnd;
         if (composingStart >= 0) {
             regionStart = composingStart;
@@ -219,6 +239,7 @@ final class ImeBridge {
      * L'IME définit la région de composition.
      */
     void setComposingRegion(int start, int end) {
+        batchImeSymbolCommitOffset = -1; // ★ B21a : fin de lot
         if (start >= end) {
             composingStart = -1;
             composingEnd = -1;
@@ -236,6 +257,7 @@ final class ImeBridge {
     void finishComposing() {
         composingStart = -1;
         composingEnd = -1;
+        batchImeSymbolCommitOffset = -1; // ★ B21a : fin de lot
         notifySelectionChanged(session.selection.start, session.selection.end);
     }
 
@@ -252,6 +274,7 @@ final class ImeBridge {
      * s'appliquent que via le backspace de la session.
      */
     void deleteSurrounding(int beforeLength, int afterLength) {
+        batchImeSymbolCommitOffset = -1; // ★ B21a : fin de lot
         int selStart = session.selection.start;
         int selEnd = session.selection.end;
         int delStart = Math.max(0, selStart - beforeLength);
@@ -265,6 +288,7 @@ final class ImeBridge {
      * L'IME définit la sélection (offsets absolus). Bornée au document.
      */
     void setSelection(int start, int end) {
+        batchImeSymbolCommitOffset = -1; // ★ B21a : fin de lot
         start = Math.max(0, Math.min(start, session.doc.length()));
         end = Math.max(0, Math.min(end, session.doc.length()));
         if (start == end) {
@@ -281,6 +305,7 @@ final class ImeBridge {
      * et le décalage des diagnostics restent cohérents.
      */
     void replaceText(int start, int end, String text, int newCursorPosition) {
+        batchImeSymbolCommitOffset = -1; // ★ B21a : fin de lot
         int regionStart = Math.max(0, Math.min(start, session.doc.length()));
         int regionEnd = Math.max(regionStart, Math.min(end, session.doc.length()));
         int newCaret;

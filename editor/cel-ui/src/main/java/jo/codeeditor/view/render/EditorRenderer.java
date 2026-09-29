@@ -94,7 +94,7 @@ public class EditorRenderer {
         // dessinent à un mauvais Y. D'où : quand des plis existent, calculer
         // la plage de lignes via le mappeur sensible aux plis
         // docLineForScreenY (comme le retour à la ligne le fait).
-        boolean hasCollapsedFolds = !view.session.getCollapsedFolds().isEmpty();
+        boolean hasCollapsedFolds = view.session.hasCollapsedFolds(); // ★ B21d : sans allocation
         final int firstVisible = Math.max(0, (int) Math.floor(view.vOffset / lineHeight) - 1);
         final int lastVisible  = Math.min(doc.lineCount() - 1,
                                           (int) Math.ceil((view.vOffset + height) / lineHeight) + 1);
