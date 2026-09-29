@@ -166,6 +166,14 @@ public class EditorHighlightPainter {
     private void drawColRangeBand(Canvas canvas, EditorDocument doc, int line,
                                   int colStart, int colEnd,
                                   float textAreaLeft, float lineHeight) {
+        // ★ Discipline d'état du paint partagé : la loupe et la minimap
+        // dessinent leurs contours avec CE MÊME paint en Style.STROKE.
+        // Forcer FILL ici garantit que la bande de sélection / recherche /
+        // occurrences LSP reste un REMPLISSAGE même si un peintre de la
+        // frame précédente a laissé le style en STROKE (bug « bordure du
+        // rectangle visible mais pas la couleur de sélection » pendant le
+        // drag de la loupe).
+        view.selPaint.setStyle(android.graphics.Paint.Style.FILL);
         final int lineLen = doc.lineEnd(line) - doc.lineStart(line);
         if (view.wordWrap && view.wrapModel != null) {
             // Mode wrap : une rect par rangée couverte. Le X suit la même
@@ -407,6 +415,9 @@ public class EditorHighlightPainter {
         float density = view.getResources().getDisplayMetrics().density;
         float r = view.HANDLE_RADIUS_DP * density;
         view.selPaint.setColor(view.theme.caret);
+        // Poignées REMPLIES : forcer FILL (le paint partagé peut arriver
+        // en STROKE si un peintre concurrent l'a laissé dans cet état).
+        view.selPaint.setStyle(Paint.Style.FILL);
         view.selPaint.setAntiAlias(true);
         if (sel.isCursor()) {
             float[] pos = view.caretScreenPos(sel.start);
