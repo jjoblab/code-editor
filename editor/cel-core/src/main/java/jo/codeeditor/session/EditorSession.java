@@ -586,7 +586,7 @@ public class EditorSession {
 
         String removed = "";
         if (end > start) {
-            removed = doc.getText().substring(start, end);
+            removed = doc.subText(start, end); // ★ B19 : tranche, pas de copie complète
         }
         EditOp op = new EditOp(start, removed, insertion);
         int selBefore = selection.start;
@@ -689,7 +689,7 @@ public class EditorSession {
     public void typeChar(char ch) {
         int selMin = Math.min(selection.start, selection.end);
         int selMax = Math.max(selection.start, selection.end);
-        RangeEdit re = EditOps.smartInsert(doc.getText(), selMin, selMax, ch, language);
+        RangeEdit re = EditOps.smartInsert(doc.charSequence(), selMin, selMax, ch, language); // ★ B19
         replaceRangeWithCaret(re.start, re.end, re.text, re.caret);
         // Détecter la divergence avec la sémantique littérale « frapper ce caractère » attendue par l'IME.
         boolean diverged = re.start != selMin || re.end != selMax
@@ -716,13 +716,13 @@ public class EditorSession {
      */
     public void backspace(boolean word) {
         if (word) {
-            int pos = EditOps.wordBoundaryLeft(doc.getText(), selection.start);
+            int pos = EditOps.wordBoundaryLeft(doc.charSequence(), selection.start); // ★ B19
             replaceRangeWithCaret(pos, selection.start, "", pos);
             return;
         }
         int selMin = Math.min(selection.start, selection.end);
         int selMax = Math.max(selection.start, selection.end);
-        RangeEdit re = EditOps.smartBackspace(doc.getText(), selMin, selMax, language);
+        RangeEdit re = EditOps.smartBackspace(doc.charSequence(), selMin, selMax, language); // ★ B19
         replaceRangeWithCaret(re.start, re.end, re.text, re.caret);
         // Détecter la divergence avec la sémantique littérale « supprimer un
         // caractère avant le caret » attendue par l'IME. Les règles
@@ -748,11 +748,11 @@ public class EditorSession {
      */
     public void deleteForward(boolean word) {
         if (word) {
-            int pos = EditOps.wordBoundaryRight(doc.getText(), selection.start);
+            int pos = EditOps.wordBoundaryRight(doc.charSequence(), selection.start); // ★ B19
             replaceRangeWithCaret(selection.start, pos, "", selection.start);
             return;
         }
-        RangeEdit re = EditOps.smartDeleteForward(doc.getText(), selection.start, selection.end, language);
+        RangeEdit re = EditOps.smartDeleteForward(doc.charSequence(), selection.start, selection.end, language); // ★ B19
         replaceRangeWithCaret(re.start, re.end, re.text, re.caret);
     }
 
@@ -881,7 +881,7 @@ public class EditorSession {
     }
 
     public void selectWordAt(int offset) {
-        int[] range = EditOps.wordRangeAt(doc.getText(), offset);
+        int[] range = EditOps.wordRangeAt(doc.charSequence(), offset); // ★ B19
         setSelection(Selection.range(range[0], range[1]));
     }
 
@@ -971,7 +971,7 @@ public class EditorSession {
             duplicateLine();
             return;
         }
-        String selected = doc.getText().substring(selection.start, selection.end);
+        String selected = doc.subText(selection.start, selection.end); // ★ B19
         replaceRange(selection.end, selection.end, selected);
     }
 
@@ -1042,7 +1042,7 @@ public class EditorSession {
 
     public String selectedText() {
         if (selection.isCursor()) return "";
-        return doc.getText().substring(selection.start, selection.end);
+        return doc.subText(selection.start, selection.end); // ★ B19
     }
 
     public String cutSelection() {

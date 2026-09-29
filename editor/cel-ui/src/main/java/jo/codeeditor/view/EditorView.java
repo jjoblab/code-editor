@@ -687,7 +687,9 @@ public class EditorView extends View {
             return;
         }
         Selection sel = session.getSelection();
-        bracketPair = matchingBracket(session.getText(), sel.start);
+        // ★ B19 : balayage borné sur la ROPE (charAt O(log n)) — getText()
+        // matérialisait le document entier à chaque déplacement de caret.
+        bracketPair = matchingBracket(session.getDocument().charSequence(), sel.start);
     }
 
     /** Résolveur du rename. Retourne le nouveau texte complet après renommage. */
