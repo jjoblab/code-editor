@@ -1077,9 +1077,14 @@ public class EditorView extends View {
             this.session.setImeListener(null);
             this.session.setOnLinesShiftedListener(null);
         }
+        // ★ B21e : setSession(null) détache proprement la session sans
+        // NPE (les chemins de dessin/tactiles vérifient déjà session ==
+        // null) ; une nouvelle session se rattache ensuite normalement.
         this.session = session;
-        this.session.setImeListener(imeBridge.listener);
-        this.session.setOnLinesShiftedListener(cacheShiftListener);
+        if (session != null) {
+            session.setImeListener(imeBridge.listener);
+            session.setOnLinesShiftedListener(cacheShiftListener);
+        }
         renderCache.clear();
         // Réinitialise le glissement du caret pour que le premier dessin
         // dans la nouvelle session s'affiche d'un coup.
@@ -1273,6 +1278,12 @@ public class EditorView extends View {
         // Ferme toute feuille d'aperçu ouverte pour ne pas fuiter un popup
         // pointant vers un éditeur détaché (ce qui planterait au toucher).
         preview.onDetachedFromWindow();
+        // ★ B15 : ferme aussi les PopupWindow go-to-line / rename /
+        // références — un PopupWindow vivant après le détachement de sa
+        // vue hôte lève WindowLeaked et fuit l'Activity à la rotation.
+        popupManager.dismissGoToLine();
+        popupManager.dismissRename();
+        referencesController.dismiss();
         // Nettoyage complet des callbacks en attente : une vue détachée
         // avec des callbacks runnables encore postés (préfetch au repos,
         // rafraîchissement débouncé des code actions, hover tap-hold,
