@@ -423,3 +423,32 @@ Raison de l'arrêt : budget de la session consacré en priorité aux bugs du
 brief (sélection/loupe), aux correctifs critiques/majeurs démontrés, aux
 phases 3-4 contractuelles (nettoyage, publication, archive). Le plan 1D
 reste le contrat d'exécution pour la suite.
+
+### Appliqué — session 2026-09-30 (bugs restants + signalés + mineurs)
+
+| Bugs | Correctif (commit) |
+|---|---|
+| signalé (wrap) | `fix(render)` — bandes de sélection/surlignages wrap-aware (drawColRangeBand : une rect par rangée visuelle) — l'ancienne rect pleine ligne partait HORS ÉCRAN dès la 2e rangée wrappée (config demo : wrap actif, « Minifié (JS) »). Reproduit au pixel avant (0 pixel de couleur de sélection), corrigé après ; les 3 passes (sélection, recherche, occurrences LSP) partagent le helper |
+| B17 | `feat(view)` — onSaveInstanceState/onRestoreInstanceState (SavedState : vOffset/hOffset/fontScale/wordWrap, ordre zoom→wrap→scroll, offsets bruts sans session fiable) |
+| B21a | `fix(session)` — auto-espace IME : validation caret/symbole avant d'avaler + reset du suivi sur toutes les autres mutations IME |
+| B21b | `fix(popup)` — garde caret < completionTokenStart à l'acceptation |
+| B21c | `fix(fold)` — FoldedLineInfo porte lastLineFoldEndCol (colonne calculée puis jetée ; formule de substitution toujours 0) |
+| B21d | `perf(view)` — zéro allocation par frame : 4 Paint hoistés (GutterView), hasCollapsedFolds() sans allocation (renderer + géométrie wrap), substring par span remplacé par test charAt (path non-ligatures) |
+| B21f | `fix(session)` — tous les mutateurs de sélection notifient l'IME (via setSelection) |
+| B21g | `fix(view)` — schedule de diagnostics différé à l'attachement (plus d'exécution synchrone sans Handler) |
+| B21i | `perf(popup)` — rename fallback : comparaison en place (charAt), plus de substring par position |
+| B21j | `fix(view)` — résultat de résolution jeté si la vue est détachée au retour |
+| B19 + lot 3 | `perf(session,ui)` — EditorDocument.subText()/charSequence() (lectures ciblées sur la rope) ; frappe intelligente, appariement de crochets, complétion (début de token + fraîcheur de livraison, filtre mémoïsé déjà présent), tranches de sélection, extraction IME (ExtractedText fenêtré, SurroundingText, composition, code points) migrés — plus de copie du document entier par frappe |
+
+### Restant après la session 2026-09-30 (pour une itération future)
+
+- **Lot 4 fonctionnel** : scheme de couleurs modifiable
+  (`ab3e7d5d0`), distinctions fines de tokens (`b8cd18824`),
+  expand selection (`94cd8e9bb`), Magnifier natif API 28+ avec repli ;
+- **Lot 3 restant** : scans de rope feuille par feuille pour
+  l'équilibre (`c4bec0cf7` — partiellement couvert par les lectures B19),
+  occurrences posées + dessin par double recherche binaire
+  (`71eea9425`), traces IME conditionnelles (sans objet : aucune trace
+  de ce type dans ce dépôt) ;
+- **B21h** (référence forte session→vue après détachement) — [S], à
+  démontrer par test de cycle de vie.
