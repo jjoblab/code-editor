@@ -216,10 +216,13 @@ public class MainActivity extends AppCompatActivity {
         if (session != null) session.dispose();
 
         String sample = DemoSamples.sampleFor(id);
+        // L'échantillon « Minifié (JS) » partage la coloration et les
+        // mots-clés JavaScript (id de langage distinct pour l'échantillon).
+        String editorLanguageId = "minified-js".equals(id) ? "javascript" : id;
         session = new EditorSession(EditorDocument.of(sample));
         editor.setSession(session);
-        session.setLanguage(id);
-        analyzer = new DemoAnalyzer(editor, session, id);
+        session.setLanguage(editorLanguageId);
+        analyzer = new DemoAnalyzer(editor, session, editorLanguageId);
         analyzer.attach();
 
         editor.setOnSelectionChangedListener((line, col, isCursor) ->
