@@ -18,6 +18,7 @@ import android.graphics.Canvas;
 import java.util.List;
 
 import jo.codeeditor.document.EditorDocument;
+import jo.codeeditor.highlight.TokenType;
 import jo.codeeditor.session.EditorSession;
 import jo.codeeditor.view.EditorView;
 import jo.codeeditor.view.chrome.EditorTheme;
@@ -35,8 +36,12 @@ public class EditorColorSchemeTest {
 
     @Test
     public void registry_complete_coversAllThemeKeys() {
-        assertEquals("le registre doit décrire 31 attributs (les 31 couleurs du constructeur)",
-                31, ColorAttributes.all().size());
+        // 31 attributs à champ dédié + 8 attributs VIRTUELS des
+        // distinctions fines (lot 4 #26 : docComment, keywordControl,
+        // keywordModifier, char, stringRaw, namespace, entity, emphasis).
+        assertEquals(39, ColorAttributes.all().size());
+        assertEquals(8, ColorAttributes.all().stream()
+                .filter(a -> ColorAttributes.isVirtual(a.key)).count());
         // Clés pivots présentes.
         assertTrue(ColorAttributes.isValidKey(ColorAttributes.KEY_SELECTION));
         assertTrue(ColorAttributes.isValidKey(ColorAttributes.KEY_KEYWORD));
@@ -214,6 +219,51 @@ public class EditorColorSchemeTest {
         assertEquals(0x80123456, EditorColorScheme.parseColor("#80123456").intValue());
         assertNull(EditorColorScheme.parseColor("rouge"));
         assertNull(EditorColorScheme.parseColor(null));
+    }
+
+    // ── Distinctions fines (lot 4 #26) : attributs virtuels ──────
+
+    @Test
+    public void virtualAttributes_inheritParentByDefault() {
+        EditorTheme dark = EditorTheme.dark();
+        // Sans opinion : chaque type fin retombe sur la couleur du parent.
+        assertEquals(dark.comment, dark.colorForToken(TokenType.DOC_COMMENT));
+        assertEquals(dark.keyword, dark.colorForToken(TokenType.KEYWORD_CONTROL));
+        assertEquals(dark.keyword, dark.colorForToken(TokenType.KEYWORD_MODIFIER));
+        assertEquals(dark.string, dark.colorForToken(TokenType.CHAR));
+        assertEquals(dark.string, dark.colorForToken(TokenType.RAW_STRING));
+        assertEquals(dark.type, dark.colorForToken(TokenType.NAMESPACE));
+        assertEquals(dark.escape, dark.colorForToken(TokenType.ENTITY));
+        assertEquals(dark.annotation, dark.colorForToken(TokenType.EMPHASIS));
+    }
+
+    @Test
+    public void virtualAttributes_schemeOverride_separatesThem() {
+        EditorColorScheme s = EditorColorScheme.createDefault();
+        s.setColor("syntax.docComment", 0xFF11AA33, true);
+        s.setColor("syntax.keywordControl", 0xFFFF5544, true);
+
+        EditorTheme out = s.resolve(EditorTheme.dark(), true);
+        // Les types surchargés se distinguent…
+        assertEquals(0xFF11AA33, out.colorForToken(TokenType.DOC_COMMENT));
+        assertEquals(0xFFFF5544, out.colorForToken(TokenType.KEYWORD_CONTROL));
+        // …les parents restent inchangés…
+        assertEquals(EditorTheme.dark().comment, out.colorForToken(TokenType.COMMENT));
+        assertEquals(EditorTheme.dark().keyword, out.colorForToken(TokenType.KEYWORD));
+        // …et les types virtuels sans opinion suivent toujours le parent.
+        assertEquals(out.colorForToken(TokenType.KEYWORD),
+                out.colorForToken(TokenType.KEYWORD_MODIFIER));
+    }
+
+    @Test
+    public void virtualAttributes_parentOverride_propagates() {
+        // Recolorer syntax.comment propage aussi DOC_COMMENT (héritage).
+        EditorColorScheme s = EditorColorScheme.createDefault();
+        s.setColor(ColorAttributes.KEY_COMMENT, 0xFF99BBDD, true);
+        EditorTheme out = s.resolve(EditorTheme.dark(), true);
+        assertEquals(0xFF99BBDD, out.colorForToken(TokenType.COMMENT));
+        assertEquals("docComment suit son parent recoloré",
+                0xFF99BBDD, out.colorForToken(TokenType.DOC_COMMENT));
     }
 
     // ── Intégration vue ──────────────────────────────────────────
