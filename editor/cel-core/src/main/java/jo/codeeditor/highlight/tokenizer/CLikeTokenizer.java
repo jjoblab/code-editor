@@ -47,15 +47,20 @@ public final class CLikeTokenizer {
         Set<String> keywords = getKeywords(language);
 
         while (pos < line.length()) {
-            // Gestion des états inter-lignes
-            if (state == LexState.BLOCK_COMMENT) {
+            // Gestion des états inter-lignes. BLOCK_COMMENT et DOC_COMMENT
+            // partagent la même mécanique de fermeture — seul le type de
+            // span diffère : l'état PORTÉ se souvient que l'ouverture était
+            // {@code /**} (lot 4 #26), sans table annexe.
+            if (state == LexState.BLOCK_COMMENT || state == LexState.DOC_COMMENT) {
+                boolean doc = state == LexState.DOC_COMMENT;
+                TokenType commentType = doc ? TokenType.DOC_COMMENT : TokenType.COMMENT;
                 int end = line.indexOf("*/", pos);
                 if (end >= 0) {
-                    spans.add(new LineSpan(pos, end + 2, TokenType.COMMENT));
+                    spans.add(new LineSpan(pos, end + 2, commentType));
                     pos = end + 2;
                     state = LexState.NORMAL;
                 } else {
-                    spans.add(new LineSpan(pos, line.length(), TokenType.COMMENT));
+                    spans.add(new LineSpan(pos, line.length(), commentType));
                     pos = line.length();
                 }
                 continue;
@@ -77,11 +82,11 @@ public final class CLikeTokenizer {
             if (state == LexState.KT_RAW_STRING) {
                 int end = line.indexOf("\"\"\"", pos);
                 if (end >= 0) {
-                    spans.add(new LineSpan(pos, end + 3, TokenType.STRING));
+                    spans.add(new LineSpan(pos, end + 3, TokenType.RAW_STRING));
                     pos = end + 3;
                     state = LexState.NORMAL;
                 } else {
-                    spans.add(new LineSpan(pos, line.length(), TokenType.STRING));
+                    spans.add(new LineSpan(pos, line.length(), TokenType.RAW_STRING));
                     pos = line.length();
                 }
                 continue;
@@ -102,16 +107,21 @@ public final class CLikeTokenizer {
                 continue;
             }
 
-            // Début de commentaire de bloc
+            // Début de commentaire de bloc. {@code /**} ouvre un commentaire
+            // de DOCUMENTATION : span/state DOC_COMMENT (lot 4 #26) — les
+            // lignes de continuation resteront DOC_COMMENT jusqu'au
+            // {@code */} fermant.
             if (ch == '/' && pos + 1 < line.length() && line.charAt(pos + 1) == '*') {
+                boolean doc = pos + 2 < line.length() && line.charAt(pos + 2) == '*';
+                TokenType commentType = doc ? TokenType.DOC_COMMENT : TokenType.COMMENT;
                 int end = line.indexOf("*/", pos + 2);
                 if (end >= 0) {
-                    spans.add(new LineSpan(pos, end + 2, TokenType.COMMENT));
+                    spans.add(new LineSpan(pos, end + 2, commentType));
                     pos = end + 2;
                 } else {
-                    spans.add(new LineSpan(pos, line.length(), TokenType.COMMENT));
+                    spans.add(new LineSpan(pos, line.length(), commentType));
                     pos = line.length();
-                    state = LexState.BLOCK_COMMENT;
+                    state = doc ? LexState.DOC_COMMENT : LexState.BLOCK_COMMENT;
                 }
                 continue;
             }
@@ -120,13 +130,14 @@ public final class CLikeTokenizer {
             if (ch == '"') {
                 if ("kotlin".equals(language) && pos + 2 < line.length()
                     && line.charAt(pos + 1) == '"' && line.charAt(pos + 2) == '"') {
-                    // Chaîne brute Kotlin
+                    // Chaîne brute Kotlin → RAW_STRING (lot 4 #26) —
+                    // distincte de STRING tant qu'un scheme les sépare.
                     int end = line.indexOf("\"\"\"", pos + 3);
                     if (end >= 0) {
-                        spans.add(new LineSpan(pos, end + 3, TokenType.STRING));
+                        spans.add(new LineSpan(pos, end + 3, TokenType.RAW_STRING));
                         pos = end + 3;
                     } else {
-                        spans.add(new LineSpan(pos, line.length(), TokenType.STRING));
+                        spans.add(new LineSpan(pos, line.length(), TokenType.RAW_STRING));
                         pos = line.length();
                         state = LexState.KT_RAW_STRING;
                     }
@@ -143,14 +154,14 @@ public final class CLikeTokenizer {
                 continue;
             }
 
-            // Littéral de caractère
+            // Littéral de caractère → CHAR (lot 4 #26)
             if (ch == '\'') {
                 int end = SpanUtils.findStringEnd(line, pos + 1, '\'');
                 if (end >= 0) {
-                    spans.add(new LineSpan(pos, end + 1, TokenType.STRING));
+                    spans.add(new LineSpan(pos, end + 1, TokenType.CHAR));
                     pos = end + 1;
                 } else {
-                    spans.add(new LineSpan(pos, line.length(), TokenType.STRING));
+                    spans.add(new LineSpan(pos, line.length(), TokenType.CHAR));
                     pos = line.length();
                 }
                 continue;
@@ -235,7 +246,17 @@ public final class CLikeTokenizer {
                 String word = line.substring(pos, end);
                 TokenType type;
                 if (keywords.contains(word)) {
-                    type = TokenType.KEYWORD;
+                    // Distinction fine contrôle/modificateurs (lot 4 #26) :
+                    // re-classification via la TABLE PARTAGÉE — tout
+                    // langage déjà déclaré mot-clé obtient la distinction
+                    // gratuitement. Sinon KEYWORD générique.
+                    if (KeywordTables.CONTROL_KEYWORDS.contains(word)) {
+                        type = TokenType.KEYWORD_CONTROL;
+                    } else if (KeywordTables.MODIFIER_KEYWORDS.contains(word)) {
+                        type = TokenType.KEYWORD_MODIFIER;
+                    } else {
+                        type = TokenType.KEYWORD;
+                    }
                 } else if (KeywordTables.JAVA_TYPES.contains(word)) {
                     type = TokenType.TYPE;
                 } else if (SpanUtils.isAllCaps(word) && word.length() > 1) {

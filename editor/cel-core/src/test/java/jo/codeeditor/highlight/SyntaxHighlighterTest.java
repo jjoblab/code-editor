@@ -47,7 +47,8 @@ class SyntaxHighlighterTest {
     @Test
     void singleQuotedChar() {
         StyledLine line = hl.styleLine("char c = 'x';", LexState.NORMAL, "java");
-        assertTrue(line.spans.stream().anyMatch(s -> s.type == TokenType.STRING));
+        // lot 4 #26 : le littéral de caractère reçoit son propre type (hérite de STRING).
+        assertTrue(line.spans.stream().anyMatch(s -> s.type == TokenType.CHAR));
     }
 
     @Test
@@ -166,7 +167,8 @@ class SyntaxHighlighterTest {
     void kotlinRawString() {
         StyledLine line = hl.styleLine("val s = \"\"\"", LexState.NORMAL, "kotlin");
         assertEquals(LexState.KT_RAW_STRING, line.exitState);
-        assertTrue(line.spans.stream().anyMatch(s -> s.type == TokenType.STRING));
+        // lot 4 #26 : la chaîne brute reçoit son propre type (hérite de STRING).
+        assertTrue(line.spans.stream().anyMatch(s -> s.type == TokenType.RAW_STRING));
     }
 
     @Test

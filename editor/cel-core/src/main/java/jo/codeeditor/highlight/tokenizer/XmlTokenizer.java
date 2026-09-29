@@ -50,8 +50,9 @@ public final class XmlTokenizer {
             }
         }
 
-        // Gestion du CDATA inter-lignes.
-        if (state == LexState.KT_RAW_STRING) { // réutilisé pour CDATA
+        // Gestion du CDATA inter-lignes — état DÉDIÉ XML_CDATA (lot 4 #26,
+        // l'ancien port réutilisait KT_RAW_STRING).
+        if (state == LexState.XML_CDATA) {
             int end = line.indexOf("]]>", pos);
             if (end >= 0) {
                 spans.add(new LineSpan(pos, end + 3, TokenType.STRING));
@@ -124,7 +125,8 @@ public final class XmlTokenizer {
                 continue;
             }
 
-            // CDATA <![CDATA[ ... ]]>
+            // CDATA <![CDATA[ ... ]]> — état inter-lignes DÉDIÉ XML_CDATA
+            // (lot 4 #26) : le contenu n'est plus re-lexé comme du balisage.
             if (ch == '<' && pos + 8 < line.length() && line.startsWith("![CDATA[", pos + 1)) {
                 int end = line.indexOf("]]>", pos + 9);
                 if (end >= 0) {
@@ -133,7 +135,7 @@ public final class XmlTokenizer {
                 } else {
                     spans.add(new LineSpan(pos, line.length(), TokenType.STRING));
                     pos = line.length();
-                    state = LexState.KT_RAW_STRING;
+                    state = LexState.XML_CDATA;
                 }
                 continue;
             }
@@ -156,7 +158,9 @@ public final class XmlTokenizer {
                 int end = pos + 2;
                 while (end < line.length() && (Character.isLetterOrDigit(line.charAt(end)) || line.charAt(end) == '_' || line.charAt(end) == ':' || line.charAt(end) == '-' || line.charAt(end) == '.')) end++;
                 spans.add(new LineSpan(pos, pos + 2, TokenType.PUNCT)); // </
-                spans.add(new LineSpan(pos + 2, end, TokenType.TYPE)); // nom de balise
+                // Nom qualifié éclaté (lot 4 #26) : préfixe NAMESPACE,
+                // « : » PUNCT, nom local TYPE.
+                addQualifiedNameSpans(spans, line, pos + 2, end, TokenType.TYPE);
                 if (end < line.length() && line.charAt(end) == '>') {
                     spans.add(new LineSpan(end, end + 1, TokenType.PUNCT)); // >
                     end++;
@@ -172,7 +176,8 @@ public final class XmlTokenizer {
                 while (end < line.length() && (Character.isLetterOrDigit(line.charAt(end)) || line.charAt(end) == '_' || line.charAt(end) == ':' || line.charAt(end) == '-' || line.charAt(end) == '.')) end++;
                 spans.add(new LineSpan(pos, pos + 1, TokenType.PUNCT)); // <
                 if (end > pos + 1) {
-                    spans.add(new LineSpan(pos + 1, end, TokenType.TYPE)); // nom de balise
+                    // Nom qualifié éclaté (lot 4 #26) : voir addQualifiedNameSpans.
+                    addQualifiedNameSpans(spans, line, pos + 1, end, TokenType.TYPE);
                 }
                 pos = end;
 
@@ -206,18 +211,29 @@ public final class XmlTokenizer {
 
             // Contenu textuel entre balises.
             if (ch == '&') {
-                // Entité XML : &amp; &lt; etc.
+                // Entité XML/HTML → ENTITY (lot 4 #26), fenêtre de 12
+                // caractères (le « ; » fermant doit être à moins de 12
+                // caractères du « & » ouvrant — couvre &amp; &lt; &#233;
+                // &xLongName; sans avaler un « & » orphelin de prose).
                 int end = line.indexOf(';', pos);
-                if (end >= 0 && end - pos < 10) {
-                    spans.add(new LineSpan(pos, end + 1, TokenType.ESCAPE));
+                if (end >= 0 && end - pos < 12) {
+                    spans.add(new LineSpan(pos, end + 1, TokenType.ENTITY));
                     pos = end + 1;
                     continue;
                 }
+                // Pas une entité valide : consommer le « & » en texte brut
+                // (sans cela, la boucle tournerait sur place).
+                spans.add(new LineSpan(pos, pos + 1, TokenType.PLAIN));
+                pos++;
+                continue;
             }
 
-            // Contenu textuel brut.
+            // Contenu textuel brut — s'arrête devant « < » ET devant « & »
+            // pour que ce dernier soit réévalué comme entité potentielle
+            // (avant : un « &amp; » au milieu d'un texte n'était JAMAIS
+            // détecté car avalé par la portion de texte qui le précédait).
             int textStart = pos;
-            while (pos < line.length() && line.charAt(pos) != '<') pos++;
+            while (pos < line.length() && line.charAt(pos) != '<' && line.charAt(pos) != '&') pos++;
             if (pos > textStart) {
                 spans.add(new LineSpan(textStart, pos, TokenType.PLAIN));
             }
@@ -254,7 +270,9 @@ public final class XmlTokenizer {
                 pos++;
             }
             if (pos > attrStart) {
-                spans.add(new LineSpan(attrStart, pos, TokenType.PROPERTY)); // nom d'attribut
+                // Nom d'attribut qualifié éclaté (lot 4 #26) :
+                // android:text → NAMESPACE(android) + PUNCT(:) + PROPERTY(text).
+                addQualifiedNameSpans(spans, line, attrStart, pos, TokenType.PROPERTY);
             }
             // Ignore les blancs avant =.
             while (pos < line.length() && Character.isWhitespace(line.charAt(pos))) pos++;
@@ -281,6 +299,32 @@ public final class XmlTokenizer {
             }
         }
         return pos;
+    }
+
+    /**
+     * Éclate un nom qualifié XML (lot 4 #26) : {@code ns:local} émet le
+     * préfixe en {@link TokenType#NAMESPACE}, le « : » en PUNCT et le nom
+     * local dans le type de base fourni (TYPE pour les balises, PROPERTY
+     * pour les attributs). Un nom sans « : » émet un seul span du type de
+     * base — comportement historique inchangé.
+     */
+    private static void addQualifiedNameSpans(List<LineSpan> spans, String line,
+                                              int start, int end, TokenType localType) {
+        int colon = -1;
+        for (int i = start; i < end; i++) {
+            if (line.charAt(i) == ':') { colon = i; break; }
+        }
+        if (colon < 0) {
+            spans.add(new LineSpan(start, end, localType));
+            return;
+        }
+        if (colon > start) {
+            spans.add(new LineSpan(start, colon, TokenType.NAMESPACE));
+        }
+        spans.add(new LineSpan(colon, colon + 1, TokenType.PUNCT));
+        if (colon + 1 < end) {
+            spans.add(new LineSpan(colon + 1, end, localType));
+        }
     }
     private XmlTokenizer() {}
 }

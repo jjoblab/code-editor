@@ -40,6 +40,25 @@ public enum TokenType {
     CONSTANT,
     /** Littéraux d'expressions régulières. */
     REGEXP,
+    // ── Distinctions fines (lot 4 #26 — aucune couleur propre : tous ces
+    // types héritent du champ parent côté thème et ne se distinguent
+    // visuellement que si un scheme de couleurs les sépare) ──────────
+    /** Commentaires de documentation (/** … *&#47;) — hérite de COMMENT. */
+    DOC_COMMENT,
+    /** Mots-clés de contrôle de flux (if, for, while, return…) — hérite de KEYWORD. */
+    KEYWORD_CONTROL,
+    /** Modificateurs (public, static, final…) — hérite de KEYWORD. */
+    KEYWORD_MODIFIER,
+    /** Littéraux de caractère ('a') — hérite de STRING. */
+    CHAR,
+    /** Chaînes brutes ("""…""" Kotlin) — hérite de STRING. */
+    RAW_STRING,
+    /** Préfixe d'espace de nom XML (android:text — le « android ») — hérite de TYPE. */
+    NAMESPACE,
+    /** Entités XML/HTML (&amp;, &#233;) — hérite de ESCAPE. */
+    ENTITY,
+    /** Emphase Markdown (**gras**, *italique*, _italique_) — hérite de ANNOTATION. */
+    EMPHASIS,
     // ── Coloration console/log ─────
     // Utilisés par le styleur « log » (LogTokenizer.styleLog) pour la
     // coloration sémantique des consoles Gradle/JVM embarquées dans l'app
