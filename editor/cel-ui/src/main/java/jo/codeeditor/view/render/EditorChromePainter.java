@@ -143,6 +143,12 @@ public class EditorChromePainter {
         view.selPaint.setStrokeWidth(1f);
         view.selPaint.setColor(view.applyAlphaToColor(view.theme.selection, 0.6f));
         canvas.drawRect(minimapLeft, viewportY, minimapLeft + minimapWidth, viewportY + viewportH, view.selPaint);
+        // ★ Restauration du paint partagé (même discipline que la loupe) :
+        // le contour du viewport de minimap ne doit pas fuir en STROKE
+        // vers la frame suivante (bande de sélection en contour sans
+        // remplissage).
+        view.selPaint.setStyle(android.graphics.Paint.Style.FILL);
+        view.selPaint.setStrokeWidth(0f);
     }
 
     /** Assombrit une couleur ARGB du facteur donné (0..1). */
@@ -368,6 +374,17 @@ public class EditorChromePainter {
         view.selPaint.setStrokeWidth(1f * density);
         view.selPaint.setColor(view.applyAlphaToColor(view.theme.gutterText, 0.2f));
         canvas.drawCircle(magCx, magCy, magRadius - 2f * density, view.selPaint);
+        // ★ Restauration de l'état du paint PARTAGÉ : la loupe est le
+        // dernier peintre de la frame ; sans remise à FILL, la frame
+        // SUIVANTE dessine la bande de sélection, les occurrences et les
+        // poignées en CONTOUR — exactement le bug « je vois la bordure du
+        // rectangle mais pas la couleur » qui apparaît dès que le drag
+        // (et donc la loupe) démarre. La loupe s'active à l'amorce du
+        // drag de poignée (EditorSelectionGestures.dragHandle) et reste
+        // visible tant que le doigt bouge : toutes les frames du drag
+        // héritaient du style STROKE.
+        view.selPaint.setStyle(Paint.Style.FILL);
+        view.selPaint.setStrokeWidth(0f);
     }
 
     /** Centre X de la loupe borné dans la largeur de la vue : la bulle
