@@ -26,6 +26,11 @@ final class EditorDiagnosticsPusher {
     private jo.codeeditor.lang.provider.DiagnosticsProvider providerSpi;
     private Runnable task;
     private EditorView.OnDiagnosticsPublishedListener listener;
+    /** ★ B21g : un schedule sans Handler (vue non attachée) est différé
+     *  au premier attachement au lieu d'exécuter la tâche en SYNCHRONE
+     *  (calcul du provider + reconstruction de gouttière hors debounce,
+     *  sur le thread appelant). */
+    private boolean pendingOnAttach;
 
     EditorDiagnosticsPusher(EditorView view) {
         this.view = view;
@@ -85,12 +90,27 @@ final class EditorDiagnosticsPusher {
      */
     void schedule() {
         if (task == null) return;
-        if (view.getHandler() != null) {
-            view.getHandler().removeCallbacks(task);
-            view.getHandler().postDelayed(task, DIAGNOSTICS_DEBOUNCE_MS);
+        android.os.Handler h = view.getHandler();
+        if (h != null) {
+            h.removeCallbacks(task);
+            h.postDelayed(task, DIAGNOSTICS_DEBOUNCE_MS);
         } else {
-            // Vue non attachée — exécute immédiatement.
-            task.run();
+            // ★ B21g : vue non attachée — NE PLUS exécuter la tâche en
+            // synchrone (elle calcule les diagnostics et reconstruit la
+            // gouttière : un travail complet, hors debounce, sur le thread
+            // appelant). Différer au premier attachement.
+            pendingOnAttach = true;
+        }
+    }
+
+    /**
+     * ★ B21g : appelé par {@code EditorView.onAttachedToWindow} — rejoue
+     * un schedule différé faute de Handler (attach initial).
+     */
+    void onAttachedToWindow() {
+        if (pendingOnAttach) {
+            pendingOnAttach = false;
+            schedule();
         }
     }
 
