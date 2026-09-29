@@ -1309,6 +1309,17 @@ public class EditorView extends View {
 
     /** Nombre TOTAL de lignes masquées par les plis repliés — pour les
      *  calculs de hauteur de contenu (scroll) sensibles aux plis. */
+    /**
+     * Nombre TOTAL de rangées wrap cachées par les plis repliés (mode
+     * word-wrap) — utilisé par le gestionnaire de scroll pour borner
+     * maxV() : les lignes cachées n'occupent aucune rangée visuelle.
+     */
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public long totalHiddenWrapRows() {
+        if (session == null) return 0;
+        return wrapGeometry.hiddenWrapRowsAbove(session.getDocument().lineCount());
+    }
+
     public int totalHiddenLines() {
         if (session == null) return 0;
         return countHiddenLinesAbove(session.getDocument().lineCount());
