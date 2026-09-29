@@ -31,6 +31,34 @@ public class GutterView {
     /** Renvoie true si la ligne de document donnée est masquée par un repli fermé. */
     private IntPredicate hiddenLineChecker;
 
+    /**
+     * ★ B11+B20 — Géométrie de l'hôte ({@code EditorView.docLineToY} /
+     * {@code docLineForScreenY}) : quand elle est définie, la gouttière
+     * aligne ses numéros sur les positions Y RÉELLES du texte
+     * (conscientes du retour à la ligne ET des plis repliés) et démarre
+     * son itération à la première ligne visible (O(visible) au lieu de
+     * O(lignes du document) par frame).
+     */
+    public interface HostGeometry {
+        /** Coordonnée Y (espace contenu, avant scrollTop) du HAUT de la
+         *  ligne de document — padding supérieur inclus. */
+        float docLineToY(int docLine);
+        /** Ligne de document contenant la coordonnée Y écran donnée. */
+        int docLineForScreenY(float screenY);
+    }
+
+    private HostGeometry geometry;
+
+    /**
+     * Définit la géométrie hôte (voir {@link HostGeometry}). Sans
+     * géométrie, la gouttière retombe sur ses chemins historiques
+     * (comptage indépendant — utilisé par les tests unitaires
+     * standalone).
+     */
+    public void setHostGeometry(HostGeometry geometry) {
+        this.geometry = geometry;
+    }
+
     /** Densité d'écran (px/dp), utilisée pour dimensionner le point de diagnostic. */
     private float density = 1f;
 
@@ -137,6 +165,22 @@ public class GutterView {
 
         float textX = lineNumberAreaRight - metrics.getCharWidth() * 0.5f;
 
+        if (geometry != null) {
+            // ★ B11+B20 : chemin canonique — Y de l'hôte (wrap + plis)
+            // et départ à la première ligne visible.
+            int first = Math.max(0, geometry.docLineForScreenY(scrollTop) - 1);
+            for (int i = first; i < totalLines; i++) {
+                if (hiddenLineChecker != null && hiddenLineChecker.test(i)) {
+                    continue;
+                }
+                float y = geometry.docLineToY(i) - scrollTop;
+                if (y + lineHeight < 0) continue;
+                if (y > viewHeight) break;
+                drawLineNumber(canvas, numberPaint, textX, y, lineHeight,
+                        i, currentLine, lineNumberAreaRight);
+            }
+            return;
+        }
         if (hiddenLineChecker != null) {
             // Chemin sensible aux replis : parcourt toutes les lignes du
             // document, ignore les masquées et dessine chaque ligne visible
