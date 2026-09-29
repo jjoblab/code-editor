@@ -187,6 +187,7 @@ par responsabilité.
 | Coloration incrémentale par ligne | ✅ | `highlight/SyntaxHighlighter.java` | État de sortie + cascade stop-rule |
 | Tokéniseurs intégrés (14) | ✅ | `highlight/tokenizer/` | CLike, Xml, Json, Python, Lua, Css, Shell, Yaml, Sql, Properties, Toml, Smali, Log, Markdown |
 | Utilitaires de tokénisation | ✅ | `highlight/tokenizer/SpanUtils.java`, `highlight/tokenizer/KeywordTables.java` | Découpage de spans, tables de mots-clés |
+| Distinctions fines de tokens (lot 4 #26) | ✅ | `highlight/TokenType.java`, `tokenizer/CLikeTokenizer.java`, `tokenizer/XmlTokenizer.java`, `tokenizer/MarkdownTokenizer.java` | DOC_COMMENT (état porté), KEYWORD_CONTROL/KEYWORD_MODIFIER (tables partagées), CHAR, RAW_STRING, NAMESPACE, ENTITY (fenêtre 12), EMPHASIS (règle intra-mot `_` vs `*`) — héritent du parent tant qu'un scheme ne les sépare |
 | Interface TextMate optionnelle | ✅ | `highlight/TextMateTokenizer.java` | Point d'extension pour un module tm4e ; repli sur les tokéniseurs intégrés |
 | Styles sémantiques | ✅ | `highlight/StyledLine.java`, `highlight/TokenType.java` | Jeton → type → couleur (thème) |
 
@@ -200,6 +201,20 @@ par responsabilité.
 | 27 langages intégrés | ✅ | `languages/BuiltinLanguages.java` | java, kotlin, javascript, typescript, c, cpp, go, rust, swift, dart, php, ruby, scala, groovy, python, lua, xml/html, css, json, yaml, sql, shell, properties, toml, smali, log, markdown |
 | Profils de langage | ✅ | `languages/LanguageProfile.java` | family, alias, extensions, keywords, commentSyntax |
 | Familles syntaxiques | ✅ | `languages/SyntaxFamily.java` | C_LIKE, XML, JSON, PYTHON, LUA, CSS, SHELL, YAML, SQL, PROPERTIES, TOML, SMALI, LOG, MARKDOWN |
+
+---
+
+## 13bis. Scheme de couleurs modifiable (`:cel-ui`, `theme/`) — lot 4 #25
+
+| Fonctionnalité | État | Fichier | Description |
+|----------------|------|---------|-------------|
+| Registre d'attributs de couleur | ✅ | `theme/ColorAttribute.java`, `theme/ColorAttributes.java` | 39 attributs (clé stable, libellé, groupe, parent d'héritage), parents avant enfants, accesseurs sans réflexion |
+| Scheme épars sombre/clair | ✅ | `theme/EditorColorScheme.java` | Clé absente = « pas d'opinion » ; résolution cascade override → parent si héritage visuel → base → plancher texte |
+| Persistance + partage | ✅ | `theme/EditorColorScheme.java` | JSON plat des seuls overrides `{schema,id,name,basedOn,dark,light}` ; tolérant aux clés inconnues |
+| Presets en code | ✅ | `theme/EditorColorScheme.java` | `emeraldAccents()`… |
+| Intégration vue | ✅ | `view/EditorView.java` | `setColorScheme` / `setSchemeDarkMode` / `setSchemeBaseTheme` — purge des caches via `setTheme` |
+| Expand selection | ✅ | `session/EditorSession.java`, `view/EditorView.java` | Lot 4 #27 : curseur → mot → syntagme (span ou crochets) → ligne(s) → `
+` final |
 
 ---
 
