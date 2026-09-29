@@ -203,5 +203,34 @@ public final class KeywordTables {
     // ── Mots-clés Properties (aucun, mais réservé) ───────────────
     public static final Set<String> PROPERTIES_KEYWORDS = builtinKeywords("PROPERTIES_KEYWORDS");
 
+    // ═════════════════════════════════════════════════════════════════
+    // Distinctions fines (lot 4 #26) : tables de mots PARTAGÉES
+    // contrôle/modificateurs. Elles ne définissent PAS des mots-clés —
+    // elles RE-CLASSIFIENT un mot que le langage a déjà déclaré mot-clé :
+    // tout langage contribué (registre ou hôte) obtient la distinction
+    // gratuitement, sans maintenir ses propres sous-tables. Un mot-clé
+    // absent des deux tables reste KEYWORD générique.
+    // ═════════════════════════════════════════════════════════════════
+
+    /** Mots-clés de contrôle de flux (→ {@link jo.codeeditor.highlight.TokenType#KEYWORD_CONTROL}). */
+    public static final Set<String> CONTROL_KEYWORDS = new HashSet<>(Arrays.asList(
+        "if", "else", "for", "while", "do", "switch", "case", "default",
+        "return", "break", "continue", "try", "catch", "finally", "throw",
+        "throws", "goto", "yield", "await", "when", "except", "raise",
+        "with", "rescue", "ensure", "elif", "foreach", "until", "guard",
+        "defer", "then"
+    ));
+
+    /** Modificateurs de déclaration (→ {@link jo.codeeditor.highlight.TokenType#KEYWORD_MODIFIER}). */
+    public static final Set<String> MODIFIER_KEYWORDS = new HashSet<>(Arrays.asList(
+        "public", "private", "protected", "internal", "static", "final",
+        "abstract", "sealed", "open", "override", "transient", "volatile",
+        "synchronized", "native", "strictfp", "const", "readonly", "inline",
+        "lateinit", "suspend", "operator", "infix", "data", "companion",
+        "enum", "annotation", "export", "declare", "async", "mutating",
+        "nonmutating", "required", "optional", "virtual", "explicit", "friend",
+        "mutable", "constexpr", "extern", "register", "unsafe", "async"
+    ));
+
     private KeywordTables() {}
 }

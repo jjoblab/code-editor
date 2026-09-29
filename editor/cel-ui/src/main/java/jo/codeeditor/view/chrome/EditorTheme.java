@@ -85,6 +85,30 @@ public class EditorTheme {
     /** Bordure translucide des popups (alpha ~0.10). */
     public final int glassBorder;
 
+    // ── Attributs « virtuels » (lot 4 #26) ──────────────────────
+    /**
+     * Couleurs des attributs de registre SANS champ dédié (distinctions
+     * fines : DOC_COMMENT, KEYWORD_CONTROL, ENTITY…). Vide par défaut :
+     * chaque type virtuel retombe alors sur la couleur de son parent
+     * (cf. {@link #colorForToken}) — rien ne change visuellement tant
+     * qu'un scheme de couleurs ne les sépare pas. Rempli par le Builder
+     * quand un scheme pose une opinion sur ces clés.
+     */
+    private java.util.Map<String, Integer> tokenExtras = java.util.Collections.emptyMap();
+
+    /** Couleur d'un attribut virtuel (clé du registre), ou le fallback fourni. */
+    public int extraColor(String registryKey, int fallback) {
+        Integer c = tokenExtras.get(registryKey);
+        return c != null ? c : fallback;
+    }
+
+    /** Réservé au Builder : attache les attributs virtuels résolus (immuable). */
+    void attachTokenExtras(java.util.Map<String, Integer> extras) {
+        this.tokenExtras = extras.isEmpty()
+                ? java.util.Collections.emptyMap()
+                : java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(extras));
+    }
+
     // ── Constructeur ─────────────────────────────────────────────
 
     public EditorTheme(
@@ -380,6 +404,8 @@ public class EditorTheme {
     public static final class Builder {
         private final EditorTheme base;
         private final java.util.Map<String, Integer> overrides = new java.util.LinkedHashMap<>();
+        /** Overrides des attributs VIRTUELS (clés sans champ dédié). */
+        private final java.util.Map<String, Integer> virtualExtras = new java.util.LinkedHashMap<>();
 
         private Builder(EditorTheme base) {
             this.base = base;
@@ -387,12 +413,16 @@ public class EditorTheme {
 
         /** Pose la couleur d'une clé de registre (clé validée à l'écriture). */
         public Builder set(String key, int color) {
-            overrides.put(key, color);
+            if (jo.codeeditor.theme.ColorAttributes.isVirtual(key)) {
+                virtualExtras.put(key, color);
+            } else {
+                overrides.put(key, color);
+            }
             return this;
         }
 
         public EditorTheme build() {
-            return new EditorTheme(
+            EditorTheme built = new EditorTheme(
                 pick("editor.background", base.editorBg),
                 pick("gutter.background", base.gutterBg),
                 pick("gutter.text", base.gutterText),
@@ -425,6 +455,8 @@ public class EditorTheme {
                 pick("chrome.composing", base.composing),
                 pick("text.foreground", base.textColor)
             );
+            built.attachTokenExtras(virtualExtras);
+            return built;
         }
 
         private int pick(String key, int fallback) {
@@ -460,6 +492,16 @@ public class EditorTheme {
             case VARIABLE:   return variable;
             case CONSTANT:   return constant;
             case REGEXP:     return regexp;
+            // ── Distinctions fines (lot 4 #26) : attributs VIRTUELS —
+            // couleur du parent tant qu'un scheme ne les sépare pas.
+            case DOC_COMMENT:      return extraColor("syntax.docComment", comment);
+            case KEYWORD_CONTROL:  return extraColor("syntax.keywordControl", keyword);
+            case KEYWORD_MODIFIER: return extraColor("syntax.keywordModifier", keyword);
+            case CHAR:             return extraColor("syntax.char", string);
+            case RAW_STRING:       return extraColor("syntax.stringRaw", string);
+            case NAMESPACE:        return extraColor("syntax.namespace", type);
+            case ENTITY:           return extraColor("syntax.entity", escape);
+            case EMPHASIS:         return extraColor("syntax.emphasis", annotation);
             // ★ Coloration des logs (styleur « log »).
             case ERROR:      return error;
             case WARNING:    return warning;
