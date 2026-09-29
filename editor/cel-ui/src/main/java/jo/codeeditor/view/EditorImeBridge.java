@@ -88,9 +88,14 @@ public class EditorImeBridge {
     // ════════════════════════════════════════════════════════════════
 
     ExtractedText buildExtractedText() {
-        String text = view.session.getText();
+        // ★ B19 : la longueur lue sur le document SANS matérialiser le
+        // texte — le grand fichier n'est copié que si l'IME demande
+        // vraiment une fenêtre complète autour du curseur.
+        EditorDocument doc = view.session.getDocument();
+        int docLen = doc.length();
         ExtractedText et = new ExtractedText();
-        if (text.length() <= MAX_EXTRACT_CHARS) {
+        if (docLen <= MAX_EXTRACT_CHARS) {
+            String text = view.session.getText();
             et.text = text;
             et.startOffset = 0;
             et.selectionStart = Math.min(view.session.getSelection().start, view.session.getSelection().end);
@@ -99,9 +104,10 @@ public class EditorImeBridge {
             int half = MAX_EXTRACT_CHARS / 2;
             int caret = view.session.getSelection().start;
             int start = Math.max(0, caret - half);
-            int end = Math.min(text.length(), start + MAX_EXTRACT_CHARS);
+            int end = Math.min(docLen, start + MAX_EXTRACT_CHARS);
             if (end - start < MAX_EXTRACT_CHARS) start = Math.max(0, end - MAX_EXTRACT_CHARS);
-            et.text = text.substring(start, end);
+            // ★ B19 : tranche via la rope — pas de copie du document entier.
+            et.text = doc.subText(start, end);
             et.startOffset = start;
             et.selectionStart = Math.min(view.session.getSelection().start, view.session.getSelection().end) - start;
             et.selectionEnd = Math.max(view.session.getSelection().start, view.session.getSelection().end) - start;
@@ -130,7 +136,7 @@ public class EditorImeBridge {
         builder.setInsertionMarkerLocation(caretX, caretY, caretY + lineHeight * 0.75f, caretY + lineHeight, 0);
         int[] comp = view.session.getComposingRegion();
         if (comp != null && comp.length >= 2) {
-            builder.setComposingText(comp[0], view.session.getText().substring(comp[0], comp[1]));
+            builder.setComposingText(comp[0], doc.subText(comp[0], comp[1])); // ★ B19
         }
         return builder.build();
     }
@@ -310,10 +316,10 @@ public class EditorImeBridge {
         public boolean deleteSurroundingTextInCodePoints(int beforeLength, int afterLength) {
             EditorSession s = session();
             if (s == null) return false;
-            String text = s.getText();
+            EditorDocument docB = s.getDocument();
             int caret = s.getSelection().start;
-            int charBefore = codePointsToCharsBackward(text, caret, beforeLength);
-            int charAfter = codePointsToCharsForward(text, caret, afterLength);
+            int charBefore = codePointsToCharsBackward(docB.charSequence(), caret, beforeLength); // ★ B19
+            int charAfter = codePointsToCharsForward(docB.charSequence(), caret, afterLength); // ★ B19
             s.imeDeleteSurrounding(charBefore, charAfter);
             view.onTextChanged();
             return true;
@@ -388,7 +394,7 @@ public class EditorImeBridge {
             int selEnd = Math.max(s.getSelection().start, s.getSelection().end);
             int start = Math.max(0, caret - beforeLength);
             int end = Math.min(s.getDocument().length(), caret + afterLength);
-            String text = s.getText().substring(start, end);
+            String text = s.getDocument().subText(start, end); // ★ B19
             int selectionStart = selStart - start;
             int selectionEnd = selEnd - start;
             int offset = start;
@@ -440,7 +446,7 @@ public class EditorImeBridge {
             return true;
         }
 
-        private static int codePointsToCharsBackward(String text, int from, int codePoints) {
+        private static int codePointsToCharsBackward(CharSequence text, int from, int codePoints) {
             int cp = 0;
             int i = from;
             while (cp < codePoints && i > 0) {
@@ -455,7 +461,7 @@ public class EditorImeBridge {
             return from - i;
         }
 
-        private static int codePointsToCharsForward(String text, int from, int codePoints) {
+        private static int codePointsToCharsForward(CharSequence text, int from, int codePoints) {
             int cp = 0;
             int i = from;
             while (cp < codePoints && i < text.length()) {

@@ -111,7 +111,7 @@ public class EditorCompletionPopup {
         return java.util.Collections.emptyList();
     }
 
-    private static int tokenStartAt(String text, int caret) {
+    private static int tokenStartAt(CharSequence text, int caret) {
         int tokenStart = caret;
         while (tokenStart > 0) {
             char c = text.charAt(tokenStart - 1);
@@ -245,9 +245,12 @@ public class EditorCompletionPopup {
     void refreshCompletion() {
         if (view.session == null) return;
         int caret = view.session.getSelection().start;
-        String text = view.session.getText();
+        // ★ B19/21 : début de token lu SUR LA ROPE (charAt en O(log n),
+        // aucune matérialisation) — getText() recopiait le document ENTIER
+        // à chaque frappe juste pour lire le mot courant.
+        CharSequence text = view.session.getDocument().charSequence();
         int tokenStart = tokenStartAt(text, caret);
-        String prefix = text.substring(tokenStart, caret);
+        String prefix = view.session.getDocument().subText(tokenStart, caret);
 
         // ── Étendre : même token, base en cache → filtrage local pur. ──
         if (!prefix.isEmpty()
@@ -294,7 +297,7 @@ public class EditorCompletionPopup {
     void refreshCompletionFromHost() {
         if (view.session == null) return;
         int caret = view.session.getSelection().start;
-        int tokenStart = tokenStartAt(view.session.getText(), caret);
+        int tokenStart = tokenStartAt(view.session.getDocument().charSequence(), caret); // ★ B19
         scheduleAsyncFetch(tokenStart, true);
     }
 
@@ -343,14 +346,15 @@ public class EditorCompletionPopup {
                 if (view.session == null) return;
                 if (gen != completionGeneration.get()) return;          // superseded
                 // Le caret doit toujours être dans le token demandé.
-                String cur = view.session.getText();
+                // ★ B19 : lecture sur la rope — pas de copie complète.
+                CharSequence cur = view.session.getDocument().charSequence();
                 int curCaret = view.session.getSelection().start;
                 if (curCaret < safeTokenStart
                         || Math.min(cur.length(), curCaret) < safeTokenStart
                         || tokenStartAt(cur, curCaret) != safeTokenStart) {
                     return; // une frappe plus récente couvrira ce cas
                 }
-                String curPrefix = cur.substring(safeTokenStart,
+                String curPrefix = view.session.getDocument().subText(safeTokenStart,
                         Math.min(cur.length(), curCaret));
                 if (fetched.isEmpty()) {
                     view.completionBaseItems.clear();
