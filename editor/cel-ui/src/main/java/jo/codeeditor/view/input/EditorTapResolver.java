@@ -347,6 +347,12 @@ public class EditorTapResolver {
                     // Paste/Select all (le re-tap sur le caret
                     // « interaction.handlesVisible = reTap && !handlesVisible »).
                     // Un tap ailleurs la referme.
+                    //
+                    // ★ Le tap ne NUIT PLUS le drag-select (modèle sora) :
+                    // l'armement par tap + jitter sous le slop créait une
+                    // sélection parasite (« j'ai seulement appuyé »).
+                    // Le drag-select s'arme désormais par l'APPUI LONG
+                    // (EditorSelectionGestures.handleLongPress).
                     boolean reTap = prev.isCursor() && prev.start == offset;
                     view.session.setSelection(offset);
                     if (reTap && !view.selectionToolbarVisible) {
@@ -356,7 +362,6 @@ public class EditorTapResolver {
                         view.handlesVisible = false;
                         selectionGestures.dismissSelectionToolbar();
                     }
-                    input.armDragSelect(); // arme le drag-select (UX CodeIDE)
                 }
                 break;
             case 2:
