@@ -40,6 +40,11 @@ import java.util.List;
  */
 class EditorLineLayoutResolver {
 
+    /** Au-delà de cette longueur de ligne, les inlays ne sont plus tissés
+     *  (tables de colonnes int[ligne+1] trop coûteuses sur une ligne
+     *  minifiée). Aligné sur le garde-fou TextMate MAX_LINE_LENGTH. */
+    private static final int MAX_INLAY_LINE_LEN = 5000;
+
     private final EditorView view;
 
     EditorLineLayoutResolver(EditorView view) {
@@ -120,7 +125,15 @@ class EditorLineLayoutResolver {
         // scroll). L'accès au seau est O(taille du seau) ; l'index est
         // mémoïsé sur l'identité de la liste source et reconstruit une
         // fois par setInlayHints/setSemanticTokens ou édition.
-        List<DiagnosticShift.InlayHint> lineHints = view.session.getInlayHintsForLine(lineNum);
+        // ★ Ligne monstre (minifiée) : AUCUN inlay tissé — les tables de
+        // colonnes brute↔visuelle coûtent un int[ligne+1] (2 Mo pour une
+        // ligne de 500 Ko) et le texte est bien trop dense pour qu'un
+        // hint fantôme y soit lisible. Seuil aligné sur le garde-fou
+        // TextMate (MAX_LINE_LENGTH = 5000).
+        List<DiagnosticShift.InlayHint> lineHints =
+                lineText.length() > MAX_INLAY_LINE_LEN
+                        ? java.util.Collections.emptyList()
+                        : view.session.getInlayHintsForLine(lineNum);
         List<LineRenderCache.InlayPiece> inlays = new ArrayList<>(lineHints.size());
         for (DiagnosticShift.InlayHint h : lineHints) {
             int col = h.offset - lineStart;
