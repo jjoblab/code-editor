@@ -1348,6 +1348,14 @@ public class EditorView extends View {
         // Handler — l'attach initial (setLanguage avant addView) ne doit
         // plus exécuter la tâche en synchrone.
         diagnosticsPusher.onAttachedToWindow();
+        // ★ B21h : repose les listeners session→vue — l'attach peut venir
+        // APRÈS setSession (session posée avant addView, recyclage de
+        // ViewHolder) : sans repos, une vue ré-attachée ne recevrait plus
+        // ni IME ni décalages de cache de sa session.
+        if (session != null) {
+            session.setImeListener(imeBridge.listener);
+            session.setOnLinesShiftedListener(cacheShiftListener);
+        }
     }
 
     @Override
@@ -1384,6 +1392,17 @@ public class EditorView extends View {
         // sa fin. Le clignotement lui-même est basé sur le temps et piloté
         // par le chemin de dessin, donc il meurt avec la vue.
         caretAnim.cancelGlide();
+        // ★ B21h : purge les listeners session→vue — une session qui
+        // survit au détachement de sa vue (hôte recyclant les sessions
+        // entre onglets) ne doit plus la retenir fortement (imeBridge →
+        // vue), sinon la vue et tout son graphe (popups, caches, painter,
+        // loupe) fuient jusqu'à la mort de la session. setSession(null)
+        // purge déjà (B21e) — ceci couvre l'hôte qui garde la session
+        // posée dans la vue démontée. onAttachedToWindow repose.
+        if (session != null) {
+            session.setImeListener(null);
+            session.setOnLinesShiftedListener(null);
+        }
     }
 
     /**
