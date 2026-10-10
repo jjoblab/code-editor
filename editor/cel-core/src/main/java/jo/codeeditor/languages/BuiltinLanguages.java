@@ -276,6 +276,11 @@ final class BuiltinLanguages {
             new CommentSyntax("--", "--[[", "]]");
     private static final CommentSyntax SQL_STYLE =
             new CommentSyntax("--", "/*", "*/");
+    // Lot 1 (audit v3.41.0) : CSS ne supporte que les commentaires de
+    // bloc /* … */ — pas de // ligne. L'ancien C_STYLE insérait //
+    // en CSS, qui n'est pas un commentaire valide.
+    private static final CommentSyntax CSS_BLOCK =
+            new CommentSyntax(null, "/*", "*/");
 
     // ═════════════════════════════════════════════════════════════
     // Table des profils.
@@ -307,7 +312,7 @@ final class BuiltinLanguages {
         LanguageRegistry.put(LanguageProfile.builder("css")
                 .family(SyntaxFamily.CSS).alias("scss", "less")
                 .extension("css", "scss", "less")
-                .commentSyntax(CommentSyntax.C_STYLE).build());
+                .commentSyntax(CSS_BLOCK).build());
         LanguageRegistry.put(LanguageProfile.builder("shell")
                 .family(SyntaxFamily.SHELL).alias("bash", "sh")
                 .extension("sh", "bash")
@@ -336,7 +341,11 @@ final class BuiltinLanguages {
                 .commentSyntax(HASH).build());
         LanguageRegistry.put(LanguageProfile.builder("log")
                 .family(SyntaxFamily.LOG).extension("log")
-                .commentSyntax(CommentSyntax.C_STYLE).build());
+                // Lot 1 (audit v3.41.0) : un fichier de log n'est pas
+                // édité comme du code — pas de commentaire à insérer.
+                // L'ancien C_STYLE faisait que Ctrl+/ insérait // ou
+                // /* … */ dans du texte mort.
+                .commentSyntax(CommentSyntax.NONE).build());
 
         // ── Famille C-like ─────────────────────────────────────
         LanguageRegistry.put(LanguageProfile.builder("java")
@@ -398,5 +407,15 @@ final class BuiltinLanguages {
                 .family(SyntaxFamily.C_LIKE).extension("scala")
                 .keywordSet(JAVA_KEYWORDS)
                 .commentSyntax(CommentSyntax.C_STYLE).build());
+
+        // ── Lot 1 (audit v3.41.0) — texte brut ─────────────────────
+        // Profile « text » / « plaintext » : aucun commentaire de
+        // code, pas de mot-clé. Famille C_LIKE faute de mieux
+        // (le tokenizer CLike ne colore aucun mot-clé sur du texte
+        // sans mots-clés enregistrés → pas de dégât visible).
+        LanguageRegistry.put(LanguageProfile.builder("text")
+                .family(SyntaxFamily.C_LIKE).alias("plaintext")
+                .extension("txt")
+                .commentSyntax(CommentSyntax.NONE).build());
     }
 }

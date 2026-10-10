@@ -173,8 +173,17 @@ public class LanguageRegistryTest {
         // Famille C + inconnus
         assertSame(CommentSyntax.C_STYLE, CommentSyntax.forLanguage("java"));
         assertSame(CommentSyntax.C_STYLE, CommentSyntax.forLanguage("kotlin"));
-        assertSame(CommentSyntax.C_STYLE, CommentSyntax.forLanguage("css"));
-        assertSame(CommentSyntax.C_STYLE, CommentSyntax.forLanguage("log"));
+        // Lot 1 (audit v3.41.0) : CSS n'a pas de commentaire de
+        // ligne //, seulement /* … */ (bloc). Log n'est pas édité
+        // comme du code : aucun commentaire. Texte brut : aucun
+        // commentaire (profile « text » désormais enregistrée).
+        CommentSyntax css = CommentSyntax.forLanguage("css");
+        assertFalse(css.hasLine(), "css has no // line comment");
+        assertEquals("/*", css.blockStart);
+        assertEquals("*/", css.blockEnd);
+        assertSame(CommentSyntax.NONE, CommentSyntax.forLanguage("log"));
+        assertSame(CommentSyntax.NONE, CommentSyntax.forLanguage("text"));
+        assertSame(CommentSyntax.NONE, CommentSyntax.forLanguage("plaintext"));
         assertSame(CommentSyntax.C_STYLE, CommentSyntax.forLanguage("pascal"));
         assertSame(CommentSyntax.C_STYLE, CommentSyntax.forLanguage(null));
         assertSame(CommentSyntax.C_STYLE, CommentSyntax.forLanguage("  "));

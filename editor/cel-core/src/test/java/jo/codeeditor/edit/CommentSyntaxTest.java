@@ -42,7 +42,10 @@ class CommentSyntaxTest {
     void cFamilyLanguagesAllResolveToSlashSyntax() {
         String[] langs = {"java", "kotlin", "kt", "c", "h", "cpp", "cc", "hpp",
                 "cxx", "go", "rust", "javascript", "typescript", "php",
-                "swift", "dart", "groovy", "gradle", "scala", "css"};
+                "swift", "dart", "groovy", "gradle", "scala"};
+        // Lot 1 (audit v3.41.0) : CSS retiré de cette liste — il
+        // n'a pas de commentaire de ligne //, seulement des
+        // commentaires de bloc /* … */ (cf. css_hasBlockCommentOnly_noLineComment).
         for (String lang : langs) {
             CommentSyntax cs = CommentSyntax.forLanguage(lang);
             assertEquals("//", cs.lineComment, lang);
@@ -157,5 +160,60 @@ class CommentSyntaxTest {
                 CommentSyntax.forLanguage("go"));
         assertFalse(CommentSyntax.forLanguage("python")
                 .equals(CommentSyntax.forLanguage("java")));
+    }
+
+    // ── Lot 1 (audit v3.41.0) — CSS, log, texte brut ───────────────
+
+    /**
+     * CSS ne reconnaît pas les commentaires de ligne {@code //}.
+     * {@code Ctrl+/} dans un fichier CSS doit insérer
+     * {@code /* … *\/} (bloc sur une ligne) et non {@code // …}.
+     */
+    @Test
+    void css_hasBlockCommentOnly_noLineComment() {
+        CommentSyntax css = CommentSyntax.forLanguage("css");
+        assertFalse(css.hasLine(),
+                "CSS ne supporte pas les commentaires de ligne // — "
+                        + "Ctrl+/ ne doit pas insérer de // en CSS");
+        assertTrue(css.hasBlock(),
+                "CSS supporte les commentaires de bloc /* … */");
+        assertEquals("/*", css.blockStart);
+        assertEquals("*/", css.blockEnd);
+        assertNull(css.lineComment,
+                "CSS n'a pas de préfixe de commentaire de ligne");
+    }
+
+    /**
+     * Les fichiers de log ne sont pas édités comme du code — il n'y
+     * a ni commentaire de ligne ni commentaire de bloc à insérer.
+     * {@code Ctrl+/} sur un fichier .log doit être un no-op.
+     */
+    @Test
+    void log_hasNoCommentSyntax() {
+        CommentSyntax log = CommentSyntax.forLanguage("log");
+        assertFalse(log.hasLine(),
+                "Les fichiers de log n'ont pas de commentaire de ligne");
+        assertFalse(log.hasBlock(),
+                "Les fichiers de log n'ont pas de commentaire de bloc");
+        assertEquals(CommentSyntax.NONE, log);
+    }
+
+    /**
+     * Le texte brut ({@code text}, {@code plaintext}) ne supporte
+     * aucune syntaxe de commentaire de code. {@code Ctrl+/} doit
+     * être un no-op.
+     */
+    @Test
+    void plainText_hasNoCommentSyntax() {
+        CommentSyntax text = CommentSyntax.forLanguage("text");
+        CommentSyntax plaintext = CommentSyntax.forLanguage("plaintext");
+        assertEquals(CommentSyntax.NONE, text,
+                "text n'a pas de syntaxe de commentaire");
+        assertEquals(CommentSyntax.NONE, plaintext,
+                "plaintext n'a pas de syntaxe de commentaire");
+        assertFalse(text.hasLine());
+        assertFalse(text.hasBlock());
+        assertFalse(plaintext.hasLine());
+        assertFalse(plaintext.hasBlock());
     }
 }
