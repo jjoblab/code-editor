@@ -9,6 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`FoldStrategy` enum** (Lot 2) — nouvelle enum qui route le
+  `FoldDetector` : `BRACE` (C-like, JSON, SQL), `TAG` (XML, HTML,
+  SVG, HTM), `INDENT` (Python, YAML), `KEYWORD` (Lua), `HEADING`
+  (Markdown), `OFF` (text, log, properties, toml, shell).
+- **Traits d'édition dans `LanguageProfile`** (Lot 2) — 3 nouveaux
+  champs immuables : `autoCloseQuotes` (`Set<Character>`),
+  `autoCloseBrackets` (`Set<Character>`), `foldStrategy`
+  (`FoldStrategy`). Valeurs par défaut calculées par famille ;
+  builder optionnel pour les hôtes qui veulent raffiner.
+- **Pliage YAML** (Lot 2) — `detectIndentFolds` unifie Python et
+  YAML. Les blocs YAML sont détectés par indentation (clé `key:`
+  suivie d'une ligne plus indentée). Auparavant, YAML tombait sur
+  `detectBraceFolds` (aucun pli).
+- **Pliage JSON tableaux `[ … ]`** (Lot 2) — `detectBraceFolds`
+  détecte désormais les crochets `[ … ]` en plus des accolades
+  `{ … }`, avec une pile unique. Pratique pour les tableaux JSON
+  multi-lignes.
+- **Pliage commentaires de bloc et javadoc** (Lot 2) —
+  `detectBraceFolds` détecte aussi les `/* … */` et
+  `/** … */` comme plis (`kind "comment"`), avec le même filtre
+  « au moins 3 lignes ».
 - **Profile « text » / « plaintext »** (Lot 1) — enregistré dans
   `BuiltinLanguages` avec `CommentSyntax.NONE` (Ctrl+/ devient un
   no-op sur du texte brut, comme pour JSON). Alias `plaintext`,
@@ -24,6 +45,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **`FoldDetector.detect` route via le registre** (Lot 2) —
+  résout le `LanguageProfile` du langage via
+  `LanguageRegistry.forName` puis délègue à la méthode
+  spécialisée selon la `foldStrategy` du profil (un switch
+  d'enum au lieu d'une chaîne de comparaisons de strings).
+  Les alias (`html`, `htm`, `svg` pour `xml` ; `py` pour
+  `python` ; `md` pour `markdown` ; `rs` pour `rust`, etc.)
+  et les langages contribués par l'hôte sont honorés
+  automatiquement. Les langages inconnus retombent sur
+  `BRACE` (comportement historique Java-first).
+- **`SmartTyping.smartInsert` auto-close piloté par profil**
+  (Lot 2) — l'auto-close des guillemets et des crochets est
+  désormais décidé par les traits `autoCloseQuotes` /
+  `autoCloseBrackets` du `LanguageProfile`, pas par
+  `LanguageIds`. Élargit l'auto-close des guillemets à C,
+  C++, Go, Rust, PHP, Swift, Dart, Groovy, JS/TS, Scala,
+  Python, Lua, SQL, JSON, Shell, XML/CSS/Markdown (avant :
+  Java/Kotlin seulement). Restreint l'auto-close des
+  crochets à C_LIKE/PYTHON/LUA/JSON/SMALI/SQL (avant :
+  tous sauf text).
+- **Garde `isInStringOrComment` pour les guillemets**
+  (Lot 2) — la garde contextuelle du Lot 1 (pas d'auto-close
+  dans une chaîne ou un commentaire) est désormais appliquée
+  aussi aux guillemets, pas seulement aux crochets. Cohérence.
 - **`LanguageIds` route par le registre** (Lot 1) — `isJavaOrKotlin`
   et `isXml` ne comparent plus en exact `java`/`kotlin`/`xml`/`html` :
   la résolution passe par `LanguageRegistry.forName`, qui normalise
