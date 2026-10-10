@@ -7,6 +7,81 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Profile « text » / « plaintext »** (Lot 1) — enregistré dans
+  `BuiltinLanguages` avec `CommentSyntax.NONE` (Ctrl+/ devient un
+  no-op sur du texte brut, comme pour JSON). Alias `plaintext`,
+  extension `txt`.
+- **`CodeContext.isInLineComment`** (Lot 1) — prédicat détectant les
+  commentaires de ligne `// …`, conscient des chaînes et commentaires
+  de bloc. Auparavant, seul `isInString` et `isInBlockComment`
+  existaient — un `//` dans une chaîne ou un commentaire de bloc
+  était confondu avec un commentaire de ligne.
+- **`CodeContext.isInStringOrComment`** (Lot 1) — raccourci combinant
+  `isInString` + `isInBlockComment` + `isInLineComment`, utilisé par
+  les gardes-fous d'auto-close.
+
+### Changed
+
+- **`LanguageIds` route par le registre** (Lot 1) — `isJavaOrKotlin`
+  et `isXml` ne comparent plus en exact `java`/`kotlin`/`xml`/`html` :
+  la résolution passe par `LanguageRegistry.forName`, qui normalise
+  (minuscules + trim) et reconnaît les alias déclarés (`kt` →
+  Kotlin, `htm`/`svg` → XML, etc.) ainsi que les langages contribués
+  par l'hôte via `LanguageRegistry.register`. La sémantique stricte
+  (Java/Kotlin uniquement, famille XML uniquement) est conservée —
+  l'élargissement à tous les C_LIKE pour l'auto-close des quotes
+  sera traité dans le Lot 2 via les traits d'édition de
+  `LanguageProfile`.
+- **`SmartNewline.javaNewline`/`kotlinNewline` utilisent
+  `IndentDetection.detectIndentUnit`** (Lot 1) — l'unité
+  d'indentation de continuation (après ouvreurs `{` `(` `[`, après
+  un opérateur dangling, après une flèche Kotlin, après un label
+  `case`) n'est plus codée en dur comme 4 espaces. Un fichier
+  2-espaces reçoit 2 espaces de continuation, un fichier tabulé
+  reçoit une tabulation.
+- **`SmartNewline.smartEnterComplete` n'insère plus de `;` en
+  Kotlin** (Lot 1) — Kotlin n'utilise pas de point-virgule de façon
+  idiomatique ; l'insertion d'un `;` final était un bruit
+  syntaxique. Le bloc `{ … }` pour `if`/`else`/`for`/… reste inséré
+  pour Java comme pour Kotlin.
+- **`SmartTyping` garde d'auto-close des crochets** (Lot 1) — la
+  garde `balance < BALANCE_SCAN_LIMIT` (50 000, toujours vraie pour
+  des documents normaux) était la seule condition. Désormais deux
+  gardes supplémentaires sont appliquées : pas d'auto-close si le
+  caractère suivant est un caractère d'identifiant (lettre, chiffre,
+  `_`, `$` — l'utilisateur enveloppe probablement une expression) ;
+  pas d'auto-close si la position est dans une chaîne ou un
+  commentaire (ligne ou bloc). La garde `balance` reste comme filet
+  de sécurité pour les documents pathologiques.
+- **`CommentSyntax` pour CSS** (Lot 1) — désormais `CSS_BLOCK`
+  (`/* … */`, pas de `//`). CSS ne supporte pas les commentaires de
+  ligne `//` — `Ctrl+/` insérait `//` en CSS, qui n'est pas un
+  commentaire valide. La bascule ligne → bloc se fait
+  automatiquement via `CommentToggler`.
+- **`CommentSyntax` pour log** (Lot 1) — désormais `CommentSyntax.NONE`.
+  Un fichier `.log` n'est pas édité comme du code.
+- **`indentLines` préserve la sélection** (Lot 1) — après Tab ou
+  Maj+Tab sur un bloc multi-lignes, la sélection est recalée sur la
+  nouvelle étendue (au lieu d'être réduite à un caret). Les Maj+Tab
+  successifs fonctionnent désormais comme attendu.
+- **`indentLines` ignore les lignes vides pour Tab** (Lot 1) — une
+  ligne purement vide (uniquement des espaces/tabulations) ne
+  reçoit pas l'indentation. les éditeurs de code de bureau ne le fait pas.
+- **`EditorSignaturePopup.refreshSignatureHelp` évite le
+  `getText()` avant le gate** (Lot 1+3) — `view.session.getText()`
+  (copie String complète du document, O(n) sur le thread UI) était
+  appelé AVANT le gate `findCallOpen` qui décide s'il y a du travail
+  à faire. Désormais la vue live `doc.charSequence()` (rope, pas de
+  copie) est utilisée pour le gate ; la copie String n'a lieu que
+  si le gate passe.
+- **`EditorCompletionPopup.launchFetch` n'appelle
+  `getText()` que si un provider externe est branché** (Lot 1+3) —
+  le chemin sans provider (`builtinKeywordCompletions`) extrait le
+  prefix via `doc.subText` (O(log n + taille du prefix)) sans copie
+  complète du document.
+
 ### Fixed
 
 - **Gutter : numéros de ligne qui disparaissent au défilement (Lot 0)** —
@@ -26,6 +101,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Tests : `GutterWrapAlignmentTest.gutterNumbers_coverVisibleRangeContiguously_noGaps`,
   `gutterNumbers_drawnAtMidDocument_noDisappearance` (Robolectric) ;
   assertion de complétude ajoutée à `gutterIteration_startsAtFirstVisibleLine`.
+
+- **`CodeContext.isDanglingOperator` : la virgule n'est plus un
+  opérateur en suspension** (Lot 1) — la virgule était classée comme
+  opérateur « en suspension » au même titre que `+`, `-`, `*`, etc.
+  Cela déclenchait +1 niveau d'indentation après Entrée pour tous
+  les contextes de séparation : listes d'arguments multi-lignes,
+  énumérations Java, JSON `"a": 1,`, paramètres Python, listes YAML.
+
+- **`CodeContext.isInBlockComment` ignore les chaînes et les
+  commentaires de ligne** (Lot 1) — l'ancien code balayait le document
+  depuis l'offset 0 sans tenir compte des chaînes ni des
+  commentaires de ligne : un `/*` apparaissant dans une chaîne
+  (`"/*"`), dans un glob shell (`/tmp/*`), ou dans un commentaire de
+  ligne (`// /*`) activait faussement `foundOpen = true` et marquait
+  toutes les lignes suivantes comme dans un commentaire de bloc.
+  Chaque Entrée insérait alors ` * ` jusqu'à la fin du fichier. Le
+  prédicat utilise désormais la même machine à états que
+  `isInString`, qui ignore correctement les chaînes et les
+  commentaires de ligne.
+
+- **`SmartTyping` auto-close de `(` devant un identifiant** (Lot 1) —
+  `(` tapé devant `foo` insérait `(\|)foo` (auto-close déclenché).
+  Désormais seul `(` est inséré ; l'utilisateur peut ensuite taper
+  `foo)` pour envelopper.
+
+- **`SmartTyping` auto-close dans les commentaires et les chaînes**
+  (Lot 1) — `(` tapé dans `// foo` ou dans `"abc"` n'insère plus de
+  paire `()` dans du texte mort.
+
+- **`SmartNewline` hardcoded `"    "` indent** (Lot 1) — 10
+  occurrences dans `javaNewline`/`kotlinNewline` remplacées par
+  `IndentDetection.detectIndentUnit(text)`. Un fichier 2-espaces
+  recevait 4 espaces de continuation.
+
+- **`SmartNewline.smartEnterComplete` insérait un `;` en Kotlin**
+  (Lot 1) — Kotlin n'utilise pas de point-virgule de façon
+  idiomatique. L'insertion d'un `;` final était un bruit syntaxique.
+
+### Performance
+
+- **`EditorSignaturePopup` — `getText()` après le gate, pas avant**
+  (Lot 1+3) — voir Changed.
+- **`EditorCompletionPopup` — `getText()` seulement si provider
+  externe** (Lot 1+3) — voir Changed.
+- **`indentLines` utilise `doc.charSequence()` au lieu de
+  `doc.getText()`** (Lot 1+3) — la détection de l'unité d'indentation
+  se fait sur la rope (pas de copie complète du document).
 
 ## [v3.41.0] — 2026-09-30 — Scans feuille par feuille (rope) + cycle de vie session→vue (B21h) + demo à jour
 
