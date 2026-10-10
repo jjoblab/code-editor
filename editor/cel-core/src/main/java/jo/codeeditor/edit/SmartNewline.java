@@ -1,5 +1,8 @@
 package jo.codeeditor.edit;
 
+import jo.codeeditor.languages.LanguageProfile;
+import jo.codeeditor.languages.LanguageRegistry;
+
 /**
  * Gestionnaires de saut de ligne intelligents pour les langages style C :
  * dispatch par famille (XML délégué à XmlNewline), indentation Java (puces,
@@ -32,6 +35,11 @@ final class SmartNewline {
         boolean isKotlin = "kotlin".equals(language);
         int lineStart = EditTextUtils.lineStartForOffset(text, pos);
         String currentIndent = EditTextUtils.extractIndent(text, lineStart);
+        // Lot 1 (audit v3.41.0) : unité d'indentation détectée
+        // (tabulation, 2 ou 4 ou 8 espaces) au lieu du littéral codé
+        // dur "    ". Un fichier 2-espaces recevait 4 espaces de
+        // continuation avant ce correctif.
+        String indentUnit = IndentDetection.detectIndentUnit(text);
 
         // Vérifier si on est dans un littéral de chaîne — pas de saut de ligne intelligent
         if (!isKotlin && CodeContext.isInString(text, pos)) {
@@ -43,21 +51,21 @@ final class SmartNewline {
 
         // Expansion de paire vide : {|} -> {<indent>\n<indent>curseur\n<indent>}
         if (BracketPairs.isOpener(charBefore) && BracketPairs.isCloser(charAfter) && BracketPairs.isPair(charBefore, charAfter)) {
-            String deeperIndent = currentIndent + "    ";
+            String deeperIndent = currentIndent + indentUnit;
             String result = "\n" + deeperIndent + "\n" + currentIndent;
             return new RangeEdit(pos, pos, result, pos + 1 + deeperIndent.length());
         }
 
         // Indentation plus profonde après les ouvreurs : { ou ( ou [
         if (BracketPairs.isOpener(charBefore) && charBefore != '"' && charBefore != '\'') {
-            String deeperIndent = currentIndent + "    ";
+            String deeperIndent = currentIndent + indentUnit;
             return new RangeEdit(pos, pos, "\n" + deeperIndent, pos + 1 + deeperIndent.length());
         }
 
         // Poursuite de l'indentation : saut de ligne avec la même indentation
         // Vérifier aussi l'indentation de continuation (opérateurs en suspension)
         if (CodeContext.isDanglingOperator(text, pos - 1)) {
-            String continuationIndent = currentIndent + "    ";
+            String continuationIndent = currentIndent + indentUnit;
             return new RangeEdit(pos, pos, "\n" + continuationIndent, pos + 1 + continuationIndent.length());
         }
 
@@ -79,7 +87,7 @@ final class SmartNewline {
         }
 
         // Continuation de puce de liste (- ou * en début de ligne)
-        String trimmedLine = EditTextUtils.extractLineText(text, lineStart);
+        String trimmedLine = EditTextUtils.extractLineText(text, lineStart).trim();
         if (trimmedLine.startsWith("- ") || trimmedLine.startsWith("* ")) {
             String bullet = trimmedLine.substring(0, 2);
             if (trimmedLine.length() > 2) {
@@ -92,7 +100,7 @@ final class SmartNewline {
 
         // Indentation des labels case : case X: ou default:
         if (CodeContext.isCaseLabel(text, pos - 1)) {
-            String deeperIndent = currentIndent + "    ";
+            String deeperIndent = currentIndent + indentUnit;
             return new RangeEdit(pos, pos, "\n" + deeperIndent, pos + 1 + deeperIndent.length());
         }
 
@@ -111,32 +119,33 @@ final class SmartNewline {
     private static RangeEdit kotlinNewline(CharSequence text, int pos, String language) {
         int lineStart = EditTextUtils.lineStartForOffset(text, pos);
         String currentIndent = EditTextUtils.extractIndent(text, lineStart);
+        String indentUnit = IndentDetection.detectIndentUnit(text);
 
         char charBefore = pos > 0 ? text.charAt(pos - 1) : '\0';
         char charAfter = pos < text.length() ? text.charAt(pos) : '\0';
 
         // Expansion de paire vide
         if (BracketPairs.isOpener(charBefore) && BracketPairs.isCloser(charAfter) && BracketPairs.isPair(charBefore, charAfter)) {
-            String deeperIndent = currentIndent + "    ";
+            String deeperIndent = currentIndent + indentUnit;
             String result = "\n" + deeperIndent + "\n" + currentIndent;
             return new RangeEdit(pos, pos, result, pos + 1 + deeperIndent.length());
         }
 
         // Plus profond après les ouvreurs
         if (BracketPairs.isOpener(charBefore) && charBefore != '"' && charBefore != '\'') {
-            String deeperIndent = currentIndent + "    ";
+            String deeperIndent = currentIndent + indentUnit;
             return new RangeEdit(pos, pos, "\n" + deeperIndent, pos + 1 + deeperIndent.length());
         }
 
         // Indentation flèche (->) dans when/match
         if (CodeContext.endsWithArrow(text, pos - 1)) {
-            String deeperIndent = currentIndent + "    ";
+            String deeperIndent = currentIndent + indentUnit;
             return new RangeEdit(pos, pos, "\n" + deeperIndent, pos + 1 + deeperIndent.length());
         }
 
         // Continuation d'opérateur en suspension
         if (CodeContext.isDanglingOperator(text, pos - 1)) {
-            String continuationIndent = currentIndent + "    ";
+            String continuationIndent = currentIndent + indentUnit;
             return new RangeEdit(pos, pos, "\n" + continuationIndent, pos + 1 + continuationIndent.length());
         }
 
@@ -149,7 +158,7 @@ final class SmartNewline {
         if (BracketPairs.isOpener(charBefore)) {
             char closer = BracketPairs.closerFor(charBefore);
             if (closer != '\0') {
-                String deeperIndent = currentIndent + "    ";
+                String deeperIndent = currentIndent + indentUnit;
                 String result = "\n" + deeperIndent + "\n" + currentIndent;
                 return new RangeEdit(pos, pos, result, pos + 1 + deeperIndent.length());
             }
@@ -175,6 +184,14 @@ final class SmartNewline {
         if (!LanguageIds.isJavaOrKotlin(language)) {
             return new RangeEdit(pos, pos, "", pos);
         }
+        // Lot 1 (audit v3.41.0) : Kotlin n'utilise pas de
+        // point-virgule de façon idiomatique. L'ancien code
+        // insérait un ; final pour Java ET Kotlin (via le garde
+        // isJavaOrKotlin). Désormais l'insertion du ; est réservée
+        // à Java ; le bloc { } pour if/else/for/... reste inséré
+        // pour les deux langages (utile dans les deux).
+        LanguageProfile profile = LanguageRegistry.forName(language);
+        boolean isKotlin = profile != null && "kotlin".equals(profile.name);
 
         int lineStart = EditTextUtils.lineStartForOffset(text, pos);
         String lineText = EditTextUtils.extractLineText(text, lineStart);
@@ -193,7 +210,11 @@ final class SmartNewline {
             }
         }
 
-        // Si la ligne ne finit pas par ; } ou {, ajouter ;
+        // Si la ligne ne finit pas par ; } ou {, ajouter ; — mais
+        // seulement pour Java (pas Kotlin).
+        if (isKotlin) {
+            return new RangeEdit(pos, pos, "", pos);
+        }
         char lastChar = trimmed.isEmpty() ? '\0' : trimmed.charAt(trimmed.length() - 1);
         if (lastChar != ';' && lastChar != '{' && lastChar != '}' && lastChar != ',') {
             return new RangeEdit(pos, pos, ";", pos + 1);
