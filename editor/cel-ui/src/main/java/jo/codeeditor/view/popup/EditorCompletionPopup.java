@@ -320,12 +320,18 @@ public class EditorCompletionPopup {
         if (gen != completionGeneration.get()) return; // superseded pendant le debounce
         if (view.session == null) return;
         fetchInFlight = true;
-        final String snapText = view.session.getText();
+        // Lot 1+3 (audit v3.41.0) : on évite la copie complète du
+        // document (O(n) sur le thread UI) tant qu'on n'en a pas
+        // besoin. Le prefix est extrait via subText (O(log n +
+        // taille du prefix), beaucoup plus rapide). La snapshot
+        // complète String n'est prise que si un provider externe
+        // est branché (son API prend String en paramètre).
         final int snapCaret = view.session.getSelection().start;
         final int safeTokenStart = Math.min(tokenStart, snapCaret);
-        final String prefix = snapText.substring(safeTokenStart, snapCaret);
         final jo.codeeditor.view.EditorView.CompletionProvider provider = view.completionProvider;
         final String langName = view.session.getLanguage();
+        final String prefix = view.session.getDocument().subText(safeTokenStart, snapCaret);
+        final String snapText = (provider != null) ? view.session.getText() : null;
 
         COMPLETION_EXECUTOR.execute(() -> {
             java.util.List<jo.codeeditor.completion.CompletionSession.Item> result = null;
