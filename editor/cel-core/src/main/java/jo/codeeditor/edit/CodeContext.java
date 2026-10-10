@@ -98,6 +98,80 @@ final class CodeContext {
         return inBlockComment;
     }
 
+    /**
+     * Indique si la position {@code pos} se trouve à l'intérieur d'un
+     * commentaire de ligne {@code // …}. Conscient des littéraux de
+     * chaîne/char et des commentaires de bloc pour ne pas confondre
+     * un {@code //} dans une chaîne avec un commentaire de ligne.
+     *
+     * <p><b>Lot 1 (audit v3.41.0)</b> : ajouté pour le garde-fou
+     * d'auto-close des crochets dans {@link SmartTyping} — sans lui,
+     * un {@code (} tapé dans un commentaire de ligne insérait une
+     * paire {@code ()} dans du texte mort.</p>
+     */
+    static boolean isInLineComment(CharSequence text, int pos) {
+        if (pos <= 0) return false;
+        boolean inString = false;
+        char quoteChar = '\0';
+        boolean inLineComment = false;
+        boolean inBlockComment = false;
+        for (int i = 0; i < pos; i++) {
+            char ch = text.charAt(i);
+            if (inLineComment) {
+                if (ch == '\n') inLineComment = false;
+                continue;
+            }
+            if (inBlockComment) {
+                if (ch == '*' && i + 1 < text.length() && text.charAt(i + 1) == '/') {
+                    inBlockComment = false;
+                    i++;
+                }
+                continue;
+            }
+            if (inString) {
+                if (ch == '\\') {
+                    i++;
+                } else if (ch == quoteChar) {
+                    inString = false;
+                }
+                continue;
+            }
+            if (ch == '/' && i + 1 < text.length()) {
+                char next = text.charAt(i + 1);
+                if (next == '/') {
+                    inLineComment = true;
+                    i++;
+                    continue;
+                }
+                if (next == '*') {
+                    inBlockComment = true;
+                    i++;
+                    continue;
+                }
+            }
+            if (ch == '"' || ch == '\'') {
+                inString = true;
+                quoteChar = ch;
+            }
+        }
+        return inLineComment;
+    }
+
+    /**
+     * Raccourci : la position est dans un littéral de chaîne, un
+     * commentaire de ligne ou un commentaire de bloc. Utilisé par
+     * les gardes-fous d'auto-close pour désactiver l'auto-close
+     * dans tout contexte « non-code ».
+     *
+     * <p><b>Lot 1 (audit v3.41.0)</b> — ajouté pour
+     * {@link SmartTyping}.</p>
+     */
+    static boolean isInStringOrComment(CharSequence text, int pos) {
+        return isInString(text, pos)
+                || isInBlockComment(text, pos)
+                || isInLineComment(text, pos);
+    }
+
     static boolean isInString(CharSequence text, int pos) {
         boolean inString = false;
         char quoteChar = '\0';

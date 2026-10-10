@@ -42,9 +42,37 @@ final class SmartTyping {
         // Auto-close des crochets
         if (BracketPairs.isOpener(ch) && ch != '"' && ch != '\'') {
             char closer = BracketPairs.closerFor(ch);
-            // Vérification d'équilibre
+            // Lot 1 (audit v3.41.0) : la garde « balance <
+            // BALANCE_SCAN_LIMIT » était toujours vraie pour des
+            // documents normaux (balance ~ 0, jamais 50k+), donc
+            // l'auto-close se déclenchait dans tous les contextes :
+            // ( devant un identifiant → (\|)foo (l'utilisateur veut
+            // en général envelopper foo, pas créer une paire vide) ;
+            // ( dans un commentaire // foo(\|) ; ( dans une chaîne.
+            //
+            // Désormais on applique deux gardes supplémentaires,
+            // calquées sur celles qui existent déjà pour les
+            // guillemets (afterIdent, ligne 54) :
+            //
+            // 1. Pas d'auto-close si le caractère suivant est un
+            //    caractère d'identifiant (lettre, chiffre, _ ou $).
+            //    L'utilisateur est probablement en train d'envelopper
+            //    un identifiant/expression.
+            // 2. Pas d'auto-close si la position courante est à
+            //    l'intérieur d'une chaîne ou d'un commentaire (ligne
+            //    ou bloc). On réutilise les prédicats de CodeContext,
+            //    déjà conscients des chaînes/commentaires.
+            //
+            // La garde balance < BALANCE_SCAN_LIMIT est conservée
+            // comme filet de sécurité pour les documents pathologiques
+            // (50k+ ouvreurs non fermés — probablement une erreur de
+            // syntaxe), mais elle n'est plus la seule condition.
+            boolean nextIsIdent = pos < text.length()
+                    && EditTextUtils.isIdentChar(text.charAt(pos));
+            boolean inStringOrComment = CodeContext.isInStringOrComment(text, pos);
             int balance = BracketPairs.docBalance(text, ch, closer);
-            if (balance < BracketPairs.BALANCE_SCAN_LIMIT) {
+            if (!nextIsIdent && !inStringOrComment
+                    && balance < BracketPairs.BALANCE_SCAN_LIMIT) {
                 return new RangeEdit(pos, pos, "" + ch + closer, pos + 1);
             }
         }
