@@ -160,10 +160,167 @@ public class GutterWrapAlignmentTest {
         assertTrue("la gouttière dessine des numéros AU-DESSUS du viewport"
                 + " (min = " + minLine + ", viewport commence à la ligne ~20)",
                 minLine >= 19);
+        // Lot 0 (audit v3.41.0) : assertion de COMPLÉTUDE. L'ancien
+        // test n'assertait que {@code minLine >= 19} — or le bug du
+        // double vOffset faisait que {@code first} dépassait la ligne
+        // 40 (en mode wrap 2 rangées/ligne), donc {@code minLine = 40}
+        // — l'assertion large passait quand même. On borne désormais
+        // la première ligne dessinée à l'intervalle attendu
+        // (≈ 20 ± 2) : si le bug réapparaît, minLine saute à ~40 et
+        // l'assertion échoue.
+        assertTrue("la gouttière saute les numéros du haut du viewport"
+                + " (min = " + minLine + " > 22) — bug du double vOffset :"
+                + " first est calculé avec scrollTop au lieu de 0, ce qui"
+                + " décale la première ligne dessinée bien au-delà du haut"
+                + " du viewport",
+                minLine <= 22);
         // Viewport 1920/40 = 48 rangées → au plus ~25 lignes visibles
         // (2 rangées par ligne) + marges — jamais 100 numéros.
         assertTrue("trop de numéros dessinés (" + count
                 + ") — l'itération doit être bornée au viewport",
                 count <= 40);
+    }
+
+    /**
+     * Lot 0 (audit v3.41.0) : quand l'éditeur est scrollé verticalement,
+     * les numéros de ligne doivent couvrir SANS TROU l'intervalle des
+     * lignes visibles. Avant le correctif, la gouttière passait
+     * {@code scrollTop} (= vOffset) à {@code docLineForScreenY}, qui
+     * ajoutait déjà {@code vOffset} en interne — double décalage : à
+     * mi-document, plus aucun numéro n'était dessiné.
+     *
+     * <p>Document non wrappé, 200 lignes courtes. vOffset calé sur 16
+     * lignes (16×40 = 640 px). La première ligne partiellement visible
+     * est la ligne 16 (0-indexée), la dernière est ~63 (viewport 1920 px
+     * / 40 px = 48 rangées). L'assertion : les numéros dessinés doivent
+     * former une suite <b>contiguë</b> qui couvre l'intégralité de cet
+     * intervalle.</p>
+     */
+    @Test
+    public void gutterNumbers_coverVisibleRangeContiguously_noGaps() {
+        Context ctx = RuntimeEnvironment.getApplication();
+        EditorView view = new EditorView(ctx);
+        // 200 lignes courtes (pas de wrap) — isole le défaut de
+        // double-vOffset du chemin canonique geometry. On n'utilise
+        // PAS de chiffres dans le texte pour que les seuls chiffres
+        // collectés via ShadowCanvas soient les numéros de ligne du
+        // gutter (et non des fragments de texte dessinés par le
+        // textPainter).
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 200; i++) sb.append("aaaa\n");
+        EditorSession session = new EditorSession(EditorDocument.of(sb.toString()));
+        view.setSession(session);
+        view.measure(1080, 1920);
+        view.layout(0, 0, 1080, 1920);
+        injectMetrics(view);
+        view.setWordWrap(false);
+
+        // Scroll de 16 lignes : vOffset = 16 * lineHeight = 640.
+        // La première ligne visible (en haut du viewport) est la ligne
+        // 0-indexée 16 (numéro « 17 »).
+        view.vOffset = 16 * LINE_H;
+        view.invalidate();
+
+        java.util.List<String> texts = new java.util.ArrayList<>();
+        numberYs(view, texts);
+
+        // Numéros de ligne réellement dessinés (entiers 1..200).
+        java.util.List<Integer> drawn = new java.util.ArrayList<>();
+        for (String t : texts) {
+            if (t.matches("\\d{1,3}")) {
+                int n = Integer.parseInt(t);
+                if (n >= 1 && n <= 200) drawn.add(n);
+            }
+        }
+        assertTrue("aucun numéro dessiné — la goutrière ne rend rien",
+                !drawn.isEmpty());
+
+        // Tri pour faciliter l'analyse de contiguïté.
+        java.util.Collections.sort(drawn);
+
+        int minDrawn = drawn.get(0);
+        int maxDrawn = drawn.get(drawn.size() - 1);
+
+        // Le premier numéro dessiné doit correspondre au début du
+        // viewport (ligne 16 → numéro « 17 »). Tolérance ±1 ligne
+        // pour la ligne partiellement visible.
+        assertTrue("le premier numéro dessiné (" + minDrawn
+                + ") est trop loin du haut du viewport (attendu ~17)"
+                + " — les numéros du haut du viewport sont absents (bug"
+                + " du double vOffset)",
+                minDrawn >= 16 && minDrawn <= 18);
+
+        // Contiguïté : il ne doit PAS y avoir de trou dans la suite
+        // dessinée. Le bug saute 15 numéros en haut (de 17 à 31 par ex.).
+        for (int i = 1; i < drawn.size(); i++) {
+            int prev = drawn.get(i - 1);
+            int cur = drawn.get(i);
+            assertTrue("trou dans la numérotation dessinée : "
+                    + prev + " puis " + cur
+                    + " — le bug du double vOffset saute des numéros"
+                    + " en haut du viewport",
+                    cur == prev + 1);
+        }
+
+        // Couverture : le dernier numéro doit atteindre au moins la
+        // dernière ligne visible (16 + 1920/40 = 64 → numéro « 64 »).
+        // Tolérance d'une ligne pour la ligne partiellement visible en bas.
+        assertTrue("le dernier numéro dessiné (" + maxDrawn
+                + ") est trop loin de la fin du viewport (attendu >= ~63)"
+                + " — couverture incomplète du viewport",
+                maxDrawn >= 63);
+
+        // Cohérence : le nombre de numéros dessinés doit couvrir
+        // intégralement l'intervalle [minDrawn, maxDrawn] (puisqu'on a
+        // vérifié la contiguïté, c'est juste max-min+1).
+        int expectedCount = maxDrawn - minDrawn + 1;
+        assertTrue("le compte (" + drawn.size() + ") ne couvre pas"
+                + " l'intervalle [" + minDrawn + ", " + maxDrawn
+                + "] (attendu " + expectedCount + ")",
+                drawn.size() == expectedCount);
+    }
+
+    /**
+     * Lot 0 — Variante : à mi-document, le bug du double vOffset
+     * faisait que {@code first} dépassait {@code totalLines} et la
+     * gouttière ne dessinait plus AUCUN numéro. Document court de 50
+     * lignes, vOffset calé sur 40 lignes (= 1600 px) — la moitié du
+     * document. Sans correctif, {@code docLineForScreenY(1600)}
+     * renvoie ~80 (>= 50), la boucle ne s'exécute pas.
+     */
+    @Test
+    public void gutterNumbers_drawnAtMidDocument_noDisappearance() {
+        Context ctx = RuntimeEnvironment.getApplication();
+        EditorView view = new EditorView(ctx);
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 50; i++) sb.append("x\n");
+        EditorSession session = new EditorSession(EditorDocument.of(sb.toString()));
+        view.setSession(session);
+        view.measure(1080, 1920);
+        view.layout(0, 0, 1080, 1920);
+        injectMetrics(view);
+        view.setWordWrap(false);
+
+        // Mi-document : vOffset = 40 * lineHeight = 1600 px.
+        view.vOffset = 40 * LINE_H;
+        view.invalidate();
+
+        java.util.List<String> texts = new java.util.ArrayList<>();
+        numberYs(view, texts);
+
+        int count = 0;
+        for (String t : texts) {
+            if (t.matches("\\d{1,3}")) {
+                int n = Integer.parseInt(t);
+                // Le document ne contient que 50 lignes ; au moins
+                // les numéros des dernières lignes (41 à 50) doivent
+                // être dessinés.
+                if (n >= 41 && n <= 50) count++;
+            }
+        }
+        assertTrue("à mi-document, la gouttière ne dessine plus aucun"
+                + " numéro de ligne (count=" + count + ") — le bug du"
+                + " double vOffset fait dépasser first >= totalLines",
+                count >= 5);
     }
 }

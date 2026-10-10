@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Gutter : numéros de ligne qui disparaissent au défilement (Lot 0)** —
+  `GutterView.draw` passait `scrollTop` (= `view.vOffset`) à
+  `geometry.docLineForScreenY`, qui ajoute déjà `view.vOffset` en interne
+  (`contentY = screenY + view.vOffset - padTop`). Double décalage : à
+  mi-document, `first` dépassait `totalLines` et la boucle ne dessinait
+  plus aucun numéro. Le renderer appelle lui-même `docLineForScreenY(0)`
+  et `docLineForScreenY(height)` (EditorRenderer:106/109) ; la gouttière
+  adopte maintenant la même convention (passe `0` au lieu de `scrollTop`,
+  conserve la marge `-1` pour la ligne partiellement visible). Coût
+  toujours O(visible) par frame, sans allocation. Le chemin historique
+  sans géométrie (non atteignable en production — `setHostGeometry`
+  toujours appelé par le constructeur `EditorView`) a également été
+  aligné : `firstLine` tenait compte de `paddingTop` et la marge `-1`
+  pour la ligne partiellement visible a été ajoutée.
+  Tests : `GutterWrapAlignmentTest.gutterNumbers_coverVisibleRangeContiguously_noGaps`,
+  `gutterNumbers_drawnAtMidDocument_noDisappearance` (Robolectric) ;
+  assertion de complétude ajoutée à `gutterIteration_startsAtFirstVisibleLine`.
+
 ## [v3.41.0] — 2026-09-30 — Scans feuille par feuille (rope) + cycle de vie session→vue (B21h) + demo à jour
 
 Quatrième session d'exécution du plan 1D de l'audit : le port amont

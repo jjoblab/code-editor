@@ -176,7 +176,20 @@ public class GutterView {
         if (geometry != null) {
             // ★ B11+B20 : chemin canonique — Y de l'hôte (wrap + plis)
             // et départ à la première ligne visible.
-            int first = Math.max(0, geometry.docLineForScreenY(scrollTop) - 1);
+            //
+            // Lot 0 (audit v3.41.0) : docLineForScreenY prend une
+            // coordonnée Y ÉCRAN (0 = haut du viewport) et AJOUTE
+            // déjà view.vOffset en interne (cf. EditorWrapGeometry,
+            // {@code contentY = screenY + view.vOffset - padTop}).
+            // Passer {@code scrollTop} (= vOffset) comme argument
+            // décalait donc le calcul deux fois — à mi-document,
+            // {@code first} dépassait {@code totalLines} et la boucle
+            // ne dessinait plus aucun numéro. Le renderer appelle
+            // lui-même docLineForScreenY(0)/docLineForScreenY(height)
+            // (EditorRenderer:106/109) — la gouttière doit suivre la
+            // même convention. La marge -1 conserve la ligne
+            // partiellement visible en haut du viewport.
+            int first = Math.max(0, geometry.docLineForScreenY(0) - 1);
             for (int i = first; i < totalLines; i++) {
                 if (hiddenLineChecker != null && hiddenLineChecker.test(i)) {
                     continue;
@@ -206,10 +219,25 @@ public class GutterView {
             }
         } else {
             // Chemin historique : pas de replis, chaque ligne du document est visible.
-            int firstLine = (int) (scrollTop / lineHeight);
-            int lastLine = Math.min(totalLines - 1, (int) ((scrollTop + viewHeight) / lineHeight));
+            //
+            // Lot 0 (audit v3.41.0) : ce chemin n'est PAS atteignable en
+            // production — l'EditorView pose TOUJOURS la géométrie hôte
+            // (cf. EditorView:1040, setHostGeometry appelé dans le
+            // constructeur). Il ne sert qu'aux tests unitaires standalone
+            // de GutterView. L'ancien calcul {@code (int)(scrollTop /
+            // lineHeight)} ne tenait pas compte de {@code paddingTop},
+            // ratant la ligne partiellement visible en haut du viewport
+            // dès que {@code scrollTop > paddingTop}. Aligné sur le
+            // chemin géométrie : marge -1 pour la ligne partiellement
+            // visible, plus filtre {@code y + lineHeight < 0} par sécurité.
+            int firstLine = Math.max(0,
+                    (int) Math.floor((scrollTop - paddingTop) / lineHeight) - 1);
+            int lastLine = Math.min(totalLines - 1,
+                    (int) Math.floor((scrollTop + viewHeight - paddingTop) / lineHeight) + 1);
             for (int i = firstLine; i <= lastLine; i++) {
                 float y = paddingTop + i * lineHeight - scrollTop;
+                if (y + lineHeight < 0) continue;
+                if (y > viewHeight) break;
                 drawLineNumber(canvas, numberPaint, textX, y, lineHeight, i, currentLine, lineNumberAreaRight);
             }
         }
