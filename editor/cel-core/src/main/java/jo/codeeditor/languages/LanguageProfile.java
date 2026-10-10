@@ -16,9 +16,11 @@ import java.util.Set;
  * au-delà du SPI d'intelligence ({@code jo.codeeditor.lang.Language}) :
  * les ids auxquels il répond (nom canonique + alias), les extensions de
  * fichiers couvertes, son ensemble de mots-clés, sa {@link SyntaxFamily}
- * lexicale (qui sélectionne le tokenizer intégré) et sa
+ * lexicale (qui sélectionne le tokenizer intégré), sa
  * {@link CommentSyntax} (qui pilote {@code toggleLineComment}/
- * {@code toggleBlockComment}).</p>
+ * {@code toggleBlockComment}) et — depuis le Lot 2 — ses
+ * <b>traits d'édition</b> : caractères à auto-fermer (quotes,
+ * crochets), stratégie de pliage.</p>
  *
  * <p>Les profils sont enregistrés dans le {@link LanguageRegistry}. Les
  * hôtes peuvent enregistrer leurs propres langages — y compris des
@@ -32,6 +34,9 @@ import java.util.Set;
  *     .extension("ml")
  *     .keywords("if", "else", "repeat", "until")
  *     .commentSyntax(new CommentSyntax("#", null, null))
+ *     .autoCloseQuotes('"', '\'')
+ *     .autoCloseBrackets('(', '{', '[')
+ *     .foldStrategy(FoldStrategy.BRACE)
  *     .build();
  * LanguageRegistry.register(custom);
  * editorSession.setLanguage("mylang");
@@ -53,16 +58,43 @@ public final class LanguageProfile {
     public final Set<String> keywords;
     /** Syntaxe de commentaire utilisée par les bascules de commentaire (jamais null). */
     public final CommentSyntax commentSyntax;
+    /**
+     * Caractères de guillemet à auto-fermer (Lot 2). Vide pour les
+     * langages sans guillemets (texte brut, log, properties, toml).
+     * Pour Java/Kotlin/C/JS/TS/etc. : {@code "}, {@code '} (et
+     * {@code `} pour JS/TS). Pour Python : {@code "}, {@code '}
+     * (triples incluses via la logique de SmartTyping).
+     */
+    public final Set<Character> autoCloseQuotes;
+    /**
+     * Caractères de crochet à auto-fermer (Lot 2). Vide pour les
+     * langages sans structure de code (texte brut, log, properties).
+     * Pour tous les langages de code : {@code (}, {@code {}, {@code [}.
+     */
+    public final Set<Character> autoCloseBrackets;
+    /**
+     * Stratégie de pliage (Lot 2). Jamais null — défaut
+     * {@link FoldStrategy#BRACE} pour la famille C_LIKE,
+     * {@link FoldStrategy#OFF} pour text/log/properties/toml,
+     * autres valeurs par famille (voir
+     * {@link Builder#foldStrategy}).
+     */
+    public final FoldStrategy foldStrategy;
 
     private LanguageProfile(String name, SyntaxFamily family,
             Set<String> aliases, Set<String> extensions,
-            Set<String> keywords, CommentSyntax commentSyntax) {
+            Set<String> keywords, CommentSyntax commentSyntax,
+            Set<Character> autoCloseQuotes, Set<Character> autoCloseBrackets,
+            FoldStrategy foldStrategy) {
         this.name = name;
         this.family = family;
         this.aliases = aliases;
         this.extensions = extensions;
         this.keywords = keywords;
         this.commentSyntax = commentSyntax;
+        this.autoCloseQuotes = autoCloseQuotes;
+        this.autoCloseBrackets = autoCloseBrackets;
+        this.foldStrategy = foldStrategy;
     }
 
     /** Builder fluent — voir la javadoc de la classe pour un exemple d'utilisation. */
@@ -103,6 +135,14 @@ public final class LanguageProfile {
         private final Set<String> keywords = new HashSet<>();
         private SyntaxFamily family = SyntaxFamily.C_LIKE;
         private CommentSyntax commentSyntax = CommentSyntax.C_STYLE;
+        // Lot 2 : traits d'édition. Les valeurs par défaut sont
+        // calculées dans build() à partir de la famille (C_LIKE →
+        // quotes+brackets, XML → aucun crochet, etc.) pour préserver
+        // la compatibilité avec les profils existants qui n'appellent
+        // pas les nouvelles méthodes du builder.
+        private Set<Character> autoCloseQuotes = null;
+        private Set<Character> autoCloseBrackets = null;
+        private FoldStrategy foldStrategy = null;
 
         private Builder(String name) {
             if (name == null) throw new IllegalArgumentException("name is null");
@@ -146,12 +186,156 @@ public final class LanguageProfile {
             return this;
         }
 
+        /**
+         * Lot 2 : caractères de guillemet à auto-fermer. Si non
+         * appelé, la valeur par défaut dépend de la famille :
+         * C_LIKE → {@code "}, {@code '} ; PYTHON, LUA, SHELL, SQL,
+         * JSON → {@code "}, {@code '} ; XML, CSS, MARKDOWN →
+         * {@code "} ; LOG, PROPERTIES, TOML, SMALI → aucun.
+         * Passer {@code null} ou un tableau vide pour désactiver
+         * explicitement l'auto-close des guillemets.
+         */
+        public Builder autoCloseQuotes(char... quotes) {
+            this.autoCloseQuotes = new HashSet<>();
+            for (char c : quotes) this.autoCloseQuotes.add(c);
+            return this;
+        }
+
+        /**
+         * Lot 2 : caractères de crochet à auto-fermer. Si non
+         * appelé, la valeur par défaut dépend de la famille :
+         * C_LIKE, PYTHON, LUA, JSON, SMALI, SQL → {@code (},
+         * {@code {}, {@code [} ; XML, CSS, MARKDOWN, YAML,
+         * SHELL, PROPERTIES, TOML, LOG → aucun.
+         */
+        public Builder autoCloseBrackets(char... brackets) {
+            this.autoCloseBrackets = new HashSet<>();
+            for (char c : brackets) this.autoCloseBrackets.add(c);
+            return this;
+        }
+
+        /**
+         * Lot 2 : stratégie de pliage. Si non appelé, la valeur par
+         * défaut dépend de la famille : C_LIKE/JSON/SQL/SMALI →
+         * {@link FoldStrategy#BRACE} ; XML/CSS → {@link FoldStrategy#TAG}
+         * (CSS n'a pas de balises mais a des blocs { … } — TAG est
+         * étendu pour CSS en BRACE) ; PYTHON/YAML →
+         * {@link FoldStrategy#INDENT} ; LUA →
+         * {@link FoldStrategy#KEYWORD} ; MARKDOWN →
+         * {@link FoldStrategy#HEADING} ; LOG/PROPERTIES/TOML →
+         * {@link FoldStrategy#OFF}.
+         */
+        public Builder foldStrategy(FoldStrategy strategy) {
+            this.foldStrategy = strategy;
+            return this;
+        }
+
         public LanguageProfile build() {
+            // Lot 2 : valeurs par défaut par famille (quand le builder
+            // n'a pas été appelé explicitement pour ces traits).
+            Set<Character> finalQuotes = autoCloseQuotes != null
+                    ? autoCloseQuotes : defaultQuotes(family);
+            Set<Character> finalBrackets = autoCloseBrackets != null
+                    ? autoCloseBrackets : defaultBrackets(family);
+            FoldStrategy finalFold = foldStrategy != null
+                    ? foldStrategy : defaultFoldStrategy(family);
             return new LanguageProfile(name, family,
                     Collections.unmodifiableSet(new HashSet<>(aliases)),
                     Collections.unmodifiableSet(new HashSet<>(extensions)),
                     Collections.unmodifiableSet(new HashSet<>(keywords)),
-                    commentSyntax);
+                    commentSyntax,
+                    Collections.unmodifiableSet(new HashSet<>(finalQuotes)),
+                    Collections.unmodifiableSet(new HashSet<>(finalBrackets)),
+                    finalFold);
+        }
+
+        /** Valeurs par défaut pour autoCloseQuotes selon la famille. */
+        private static Set<Character> defaultQuotes(SyntaxFamily family) {
+            Set<Character> s = new HashSet<>();
+            switch (family) {
+                case C_LIKE:
+                case PYTHON:
+                case LUA:
+                case SQL:
+                case JSON:
+                    s.add('"');
+                    s.add('\'');
+                    break;
+                case SHELL:
+                    s.add('\'');
+                    s.add('"');
+                    break;
+                case XML:
+                case CSS:
+                case MARKDOWN:
+                    s.add('"');
+                    break;
+                case YAML:
+                case PROPERTIES:
+                case TOML:
+                case SMALI:
+                case LOG:
+                default:
+                    // Aucun — pas d'auto-close de guillemets.
+                    break;
+            }
+            return s;
+        }
+
+        /** Valeurs par défaut pour autoCloseBrackets selon la famille. */
+        private static Set<Character> defaultBrackets(SyntaxFamily family) {
+            Set<Character> s = new HashSet<>();
+            switch (family) {
+                case C_LIKE:
+                case PYTHON:
+                case LUA:
+                case JSON:
+                case SMALI:
+                case SQL:
+                    s.add('(');
+                    s.add('{');
+                    s.add('[');
+                    break;
+                case XML:
+                case CSS:
+                case MARKDOWN:
+                case YAML:
+                case SHELL:
+                case PROPERTIES:
+                case TOML:
+                case LOG:
+                default:
+                    // Aucun — pas d'auto-close de crochets.
+                    break;
+            }
+            return s;
+        }
+
+        /** Valeurs par défaut pour foldStrategy selon la famille. */
+        private static FoldStrategy defaultFoldStrategy(SyntaxFamily family) {
+            switch (family) {
+                case C_LIKE:
+                case JSON:
+                case SQL:
+                case SMALI:
+                    return FoldStrategy.BRACE;
+                case XML:
+                case CSS:
+                    return FoldStrategy.TAG;
+                case PYTHON:
+                case YAML:
+                    return FoldStrategy.INDENT;
+                case LUA:
+                    return FoldStrategy.KEYWORD;
+                case MARKDOWN:
+                    return FoldStrategy.HEADING;
+                case SHELL:
+                case PROPERTIES:
+                case TOML:
+                case LOG:
+                default:
+                    return FoldStrategy.OFF;
+            }
         }
 
         private static Set<String> normalize(String... values) {
