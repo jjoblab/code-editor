@@ -192,6 +192,61 @@ class EditorSessionTest {
         assertEquals("aaa\nbbb\nccc", s.getText());
     }
 
+    /**
+     * Lot 1 (audit v3.41.0) — Tab sur un bloc multi-lignes doit
+     * conserver la sélection (start/end recalés sur la nouvelle
+     * étendue). Avant le correctif, {@code replaceRange} réduisait
+     * la sélection à un caret, ce qui rendait les Maj+Tab
+     * successifs inopérants (le 2e Maj+Tab ne dédentait que la
+     * dernière ligne, faute de sélection multi-lignes).
+     */
+    @Test
+    void indent_multiLine_preservesSelection() {
+        EditorSession s = new SessionBuilder("aaa\nbbb\nccc").build();
+        s.setSelection(Selection.range(0, 11)); // tout sélectionner
+        s.indent();
+        // Après Tab, le texte fait 23 caractères (3×4 espaces + 11).
+        assertEquals("    aaa\n    bbb\n    ccc", s.getText());
+        // La sélection doit couvrir tout le bloc indenté.
+        assertEquals(0, s.getSelection().start);
+        assertEquals(23, s.getSelection().end);
+    }
+
+    @Test
+    void dedent_multiLine_preservesSelection() {
+        EditorSession s = new SessionBuilder("    aaa\n    bbb\n    ccc").build();
+        s.setSelection(Selection.range(0, 23));
+        s.dedent();
+        assertEquals("aaa\nbbb\nccc", s.getText());
+        assertEquals(0, s.getSelection().start);
+        assertEquals(11, s.getSelection().end);
+    }
+
+    /**
+     * Lot 1 (audit v3.41.0) — Tab ne doit PAS indenter les lignes
+     * vides (uniquement des espaces ou tabulations). les éditeurs de code de bureau ne le
+     * fait pas, et cela évite d'introduire du whitespace
+     * involontaire dans des lignes que l'utilisateur laissera
+     * probablement vides.
+     */
+    @Test
+    void indent_multiLine_skipsBlankLines() {
+        EditorSession s = new SessionBuilder("aaa\n\nccc").build();
+        s.setSelection(Selection.range(0, 8));
+        s.indent();
+        // La ligne du milieu reste vide (pas d'indent ajoutée).
+        assertEquals("    aaa\n\n    ccc", s.getText());
+    }
+
+    @Test
+    void indent_allBlankLines_noChange() {
+        EditorSession s = new SessionBuilder("\n\n\n").build();
+        s.setSelection(Selection.range(0, 3));
+        s.indent();
+        // Aucune ligne non-vide → pas de changement.
+        assertEquals("\n\n\n", s.getText());
+    }
+
     // ── Bascule de commentaires ─────────────────────────────────
 
     @Test

@@ -788,13 +788,27 @@ public class EditorSession {
     }
 
     private void indentLines(int startLine, int endLine, boolean indent) {
-        String indentUnit = EditOps.detectIndentUnit(doc.getText());
+        // Lot 1+3 (audit v3.41.0) : utiliser doc.charSequence() (rope,
+        // pas de copie) plutôt que doc.getText() (copie complète du
+        // document à chaque Tab) pour détecter l'unité d'indentation.
+        String indentUnit = EditOps.detectIndentUnit(doc.charSequence());
         StringBuilder sb = new StringBuilder();
         for (int i = startLine; i <= endLine; i++) {
             String line = doc.lineText(i);
             if (i > startLine) sb.append('\n');
             if (indent) {
-                sb.append(indentUnit).append(line);
+                // Lot 1 : ne pas indenter les lignes purement vides
+                // (uniquement des espaces/tabulations). les éditeurs de code de bureau ne le
+                // fait pas, et cela évite d'introduire du whitespace
+                // involontaire dans des lignes que l'utilisateur
+                // laissera probablement vides. Une ligne non-vide
+                // (contenant au moins un caractère non-blanc) reçoit
+                // l'indentation.
+                if (line.isEmpty() || line.trim().isEmpty()) {
+                    sb.append(line);
+                } else {
+                    sb.append(indentUnit).append(line);
+                }
             } else {
                 if (line.startsWith(indentUnit)) {
                     sb.append(line.substring(indentUnit.length()));
@@ -810,7 +824,40 @@ public class EditorSession {
         }
         int rangeStart = doc.lineStart(startLine);
         int rangeEnd = doc.lineEnd(endLine);
+        // Lot 1 : préserver la sélection après l'indentation. Sans
+        // cela, replaceRange() réduit la sélection à un caret, ce
+        // qui rendait les Maj+Tab successifs inopérants (le 2e
+        // Maj+Tab ne dédentait que la dernière ligne, faute de
+        // sélection multi-lignes).
+        int oldSelStart = selection.start;
+        int oldSelEnd = selection.end;
         replaceRange(rangeStart, rangeEnd, sb.toString());
+        // Recaler la sélection sur la nouvelle étendue. Le bloc a été
+        // remplacé : [rangeStart, rangeEnd] → [rangeStart, newRangeEnd].
+        // Les offsets à l'intérieur de la zone remplacée sont
+        // mappés aux bornes correspondantes (début/fin du nouveau
+        // bloc) ; les offsets après la zone sont décalés du delta.
+        int newRangeEnd = rangeStart + sb.length();
+        int delta = newRangeEnd - rangeEnd;
+        int newSelStart;
+        if (oldSelStart <= rangeStart) {
+            newSelStart = oldSelStart;
+        } else if (oldSelStart >= rangeEnd) {
+            newSelStart = oldSelStart + delta;
+        } else {
+            // L'offset était dans la zone remplacée — pinner au
+            // début du nouveau bloc (les éditeurs de code de bureau fait à peu près ça).
+            newSelStart = rangeStart;
+        }
+        int newSelEnd;
+        if (oldSelEnd <= rangeStart) {
+            newSelEnd = oldSelEnd;
+        } else if (oldSelEnd >= rangeEnd) {
+            newSelEnd = oldSelEnd + delta;
+        } else {
+            newSelEnd = newRangeEnd;
+        }
+        setSelection(Selection.range(newSelStart, Math.max(newSelStart, newSelEnd)));
     }
 
     // ── Bascule de commentaires (déléguée à CommentToggler) ──
