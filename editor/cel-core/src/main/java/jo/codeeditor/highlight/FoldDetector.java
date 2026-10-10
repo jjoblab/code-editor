@@ -1,5 +1,8 @@
 package jo.codeeditor.highlight;
 
+import jo.codeeditor.languages.FoldStrategy;
+import jo.codeeditor.languages.LanguageProfile;
+import jo.codeeditor.languages.LanguageRegistry;
 import jo.codeeditor.shift.DiagnosticShift;
 
 import java.util.ArrayList;
@@ -11,11 +14,22 @@ import java.util.List;
  *
  * <p>Détecte les blocs de code pliables pour :
  * <ul>
- *   <li>Langages à accolades (Java, Kotlin, JS, C, etc.) — {@code { ... }}</li>
+ *   <li>Langages à accolades (Java, Kotlin, JS, C, etc.) — {@code { ... }}
+ *       et tableaux {@code [ ... ]}, commentaires de bloc {@code /* … *\/}
+ *       et javadoc {@code /** … *\/}</li>
  *   <li>Lua — {@code function...end}, {@code do...end}, {@code if...then...end}</li>
- *   <li>Python — basé sur l'indentation ({@code def}, {@code class}, {@code if}, etc.)</li>
- *   <li>XML — blocs d'éléments ({@code <tag> ... </tag>})</li>
+ *   <li>Python, YAML — basé sur l'indentation</li>
+ *   <li>XML, HTML, SVG, HTM — blocs d'éléments ({@code <tag> ... </tag>})</li>
+ *   <li>Markdown — sections par titres</li>
  * </ul>
+ *
+ * <p><b>Lot 2 (audit v3.41.0)</b> : le routage se fait désormais par la
+ * {@link FoldStrategy stratégie de pliage} du {@link LanguageProfile
+ * profil de langage} (résolu via le {@link LanguageRegistry registre}),
+ * pas par une chaîne de comparaisons de strings. Les alias (html, htm,
+ * svg pour xml ; py pour python ; md pour markdown ; rs pour rust,
+ * etc.) et les langages contribués par l'hôte sont ainsi honorés
+ * automatiquement.</p>
  *
  * <p>Utilisation :
  * <pre>{@code
@@ -30,30 +44,62 @@ public final class FoldDetector {
     /**
      * Détecte les régions pliables pour le texte et le langage donnés.
      *
+     * <p>Le routage se fait via le {@link LanguageRegistry registre} :
+     * on résout le {@link LanguageProfile profil} de langage, puis on
+     * délègue à la méthode spécialisée selon la
+     * {@link FoldStrategy stratégie} du profil. Les langages non
+     * enregistrés retombent sur {@link FoldStrategy#BRACE} (comportement
+     * historique Java-first).</p>
+     *
      * @param text     le texte complet du document
      * @param language l'identifiant du langage ("java", "kotlin", "lua", "python", "xml", etc.)
      * @return une liste de régions pliables (peut être vide)
      */
     public static List<DiagnosticShift.FoldRegion> detect(String text, String language) {
         if (text == null || text.isEmpty()) return new ArrayList<>();
-        if (language == null) return detectBraceFolds(text);
-        switch (language.toLowerCase(java.util.Locale.ROOT)) {
-            case "lua": return detectLuaFolds(text);
-            case "python": case "py": return detectPythonFolds(text);
-            case "xml": return detectXmlFolds(text);
-            case "markdown": case "md": return detectMarkdownFolds(text);
-            default: return detectBraceFolds(text);
+        FoldStrategy strategy = resolveStrategy(language);
+        switch (strategy) {
+            case KEYWORD: return detectLuaFolds(text);
+            case INDENT: return detectIndentFolds(text);
+            case TAG: return detectXmlFolds(text);
+            case HEADING: return detectMarkdownFolds(text);
+            case OFF: return new ArrayList<>();
+            case BRACE:
+            default:
+                return detectBraceFolds(text);
         }
+    }
+
+    /**
+     * Résout la stratégie de pliage pour un identifiant de langage
+     * donné, en passant par le registre. Les langages inconnus
+     * retombent sur {@link FoldStrategy#BRACE} (comportement
+     * historique Java-first).
+     */
+    private static FoldStrategy resolveStrategy(String language) {
+        if (language == null) return FoldStrategy.BRACE;
+        LanguageProfile profile = LanguageRegistry.forName(language);
+        return profile != null ? profile.foldStrategy : FoldStrategy.BRACE;
     }
 
     // ── Langages à accolades : Java, Kotlin, JS, C, etc. ──────────────────
 
     /**
-     * Détecte les blocs { ... }. Ignore les accolades dans les chaînes et les commentaires.
+     * Détecte les blocs { ... } et [ ... ]. Ignore les accolades et
+     * crochets dans les chaînes et les commentaires.
+     *
+     * <p><b>Lot 2 (audit v3.41.0)</b> : détecte aussi les commentaires
+     * de bloc {@code /* … *\/} et les javadoc {@code /** … *\/}
+     * comme plis supplémentaires (kind "comment"). Le filtre « au
+     * moins 3 lignes » s'applique aussi aux commentaires.</p>
      */
     public static List<DiagnosticShift.FoldRegion> detectBraceFolds(String text) {
         List<DiagnosticShift.FoldRegion> folds = new ArrayList<>();
         ArrayDeque<int[]> stack = new ArrayDeque<>(); // [offset, index de ligne]
+        // Pile séparée pour les commentaires de bloc : on empile
+        // l'offset du /* et on dépile au */. Le filtre « au moins 3
+        // lignes » s'applique aussi aux commentaires de bloc.
+        ArrayDeque<int[]> commentStack = new ArrayDeque<>();
         String[] lines = text.split("\n", -1);
         boolean inString = false;
         boolean inLineComment = false;
@@ -70,7 +116,21 @@ public final class FoldDetector {
 
                 if (inLineComment) break;
                 if (inBlockComment) {
-                    if (c == '*' && next == '/') { inBlockComment = false; ci++; }
+                    if (c == '*' && next == '/') {
+                        inBlockComment = false;
+                        ci++; // consommer le '/'
+                        // Dépiler le commentaire de bloc ouvert
+                        // précédent et l'ajouter comme pli s'il
+                        // couvre au moins 3 lignes.
+                        if (!commentStack.isEmpty()) {
+                            int[] open = commentStack.pop();
+                            if (li - open[1] >= 2) {
+                                folds.add(new DiagnosticShift.FoldRegion(
+                                    open[0], offset + ci + 1,
+                                    "/*\u2026*/", "comment", false));
+                            }
+                        }
+                    }
                     continue;
                 }
                 if (inString) {
@@ -78,12 +138,18 @@ public final class FoldDetector {
                     if (c == stringChar) inString = false;
                     continue;
                 }
-                // Détection des commentaires.
+                // Détection des commentaires de ligne.
                 if (c == '/' && next == '/') { inLineComment = true; break; }
-                if (c == '/' && next == '*') { inBlockComment = true; ci++; continue; }
+                if (c == '/' && next == '*') {
+                    inBlockComment = true;
+                    ci++; // consommer le '*'
+                    commentStack.push(new int[]{offset + ci - 1, li});
+                    continue;
+                }
                 // Détection des chaînes.
                 if (c == '"' || c == '\'') { inString = true; stringChar = c; continue; }
 
+                // Détection des accolades.
                 if (c == '{') {
                     stack.push(new int[]{offset + ci, li});
                 } else if (c == '}' && !stack.isEmpty()) {
@@ -93,9 +159,22 @@ public final class FoldDetector {
                             open[0], offset + ci + 1, "{\u2026}", "block", false));
                     }
                 }
+                // Détection des crochets [ … ] (Lot 2).
+                else if (c == '[') {
+                    stack.push(new int[]{offset + ci, li});
+                } else if (c == ']' && !stack.isEmpty()) {
+                    int[] open = stack.pop();
+                    if (li - open[1] >= 2) {
+                        folds.add(new DiagnosticShift.FoldRegion(
+                            open[0], offset + ci + 1, "[\u2026]", "block", false));
+                    }
+                }
             }
             offset += lines[li].length() + 1;
         }
+        // Si un commentaire de bloc n'est jamais fermé, on l'ignore
+        // (pas de pli sur un bloc non terminé — peut être en cours
+        // d'édition).
         return folds;
     }
 
@@ -142,14 +221,23 @@ public final class FoldDetector {
         return folds;
     }
 
-    // ── Python : basé sur l'indentation ─────────────────────────────────────
+    // ── Python / YAML : basé sur l'indentation ─────────────────
 
     /**
-     * Détecte les blocs Python via l'indentation. Un bloc commence quand une
-     * ligne se terminant par ':' est suivie d'une ligne plus indentée, et se
-     * termine quand l'indentation revient au niveau de l'ouvrant du bloc.
+     * Détecte les blocs Python et YAML via l'indentation. Un bloc
+     * commence quand une ligne se terminant par {@code :} (Python)
+     * ou suivie d'une ligne plus indentée (YAML) est rencontrée, et
+     * se termine quand l'indentation revient au niveau de l'ouvrant
+     * du bloc.
+     *
+     * <p>Le cœur de l'algorithme suit la même logique que l'ancien
+     * {@code detectPythonFolds} : on empile les ouvrants et on
+     * dépile dès qu'une désindentation les ferme. Pour YAML, on
+     * n'exige pas que la ligne se termine par {@code :} — il suffit
+     * que la ligne suivante soit plus indentée pour ouvrir un
+     * bloc.</p>
      */
-    public static List<DiagnosticShift.FoldRegion> detectPythonFolds(String text) {
+    public static List<DiagnosticShift.FoldRegion> detectIndentFolds(String text) {
         List<DiagnosticShift.FoldRegion> folds = new ArrayList<>();
         String[] lines = text.split("\n", -1);
         ArrayDeque<int[]> stack = new ArrayDeque<>(); // [index de ligne, indentation, offset]
@@ -160,7 +248,9 @@ public final class FoldDetector {
             String trimmed = line.trim();
             int indent = line.length() - line.stripLeading().length();
 
-            // Dépile les blocs dont l'indentation >= l'indentation courante (une désindentation les ferme).
+            // Dépile les blocs dont l'indentation >= l'indentation
+            // courante (une désindentation les ferme). On ne ferme
+            // pas sur une ligne vide.
             while (!stack.isEmpty() && stack.peek()[1] >= indent && !trimmed.isEmpty()) {
                 int[] open = stack.pop();
                 if (li - open[0] >= 2) {
@@ -169,14 +259,29 @@ public final class FoldDetector {
                 }
             }
 
-            // Empile les ouvrants de bloc (lignes terminées par ':').
-            if (trimmed.endsWith(":") && (
+            // Empile les ouvrants de bloc.
+            // Pour Python : lignes terminées par ':' qui commencent
+            // par def/class/if/elif/for/while/try/with/except/else/finally.
+            // Pour YAML : toute ligne terminée par ':' suivie d'une
+            // ligne plus indentée est un ouvrant. On simplifie en
+            // empilant toutes les lignes terminées par ':' qui ne
+            // sont pas du code à leur suite (pas de valeur après ':').
+            boolean openPyBlock = trimmed.endsWith(":") && (
                 trimmed.startsWith("def ") || trimmed.startsWith("class ")
                 || trimmed.startsWith("if ") || trimmed.startsWith("elif ")
                 || trimmed.startsWith("for ") || trimmed.startsWith("while ")
                 || trimmed.startsWith("try:") || trimmed.startsWith("try :")
                 || trimmed.startsWith("with ") || trimmed.startsWith("except ")
-                || trimmed.startsWith("else:") || trimmed.startsWith("finally:"))) {
+                || trimmed.startsWith("else:") || trimmed.startsWith("finally:"));
+            // YAML : "key:" ou "key: value\n  nested" — détecté
+            // en deux passes : on empile la ligne "key:" et on
+            // dépile quand l'indentation revient. Pour YAML on
+            // accepte aussi bien "key: value" que "key:" tant que
+            // la ligne suivante est plus indentée.
+            boolean openYamlBlock = trimmed.endsWith(":")
+                    && !trimmed.startsWith("#") // pas un commentaire
+                    && !openPyBlock;
+            if (openPyBlock || openYamlBlock) {
                 stack.push(new int[]{li, indent, offset});
             }
             offset += lines[li].length() + 1;
@@ -192,10 +297,20 @@ public final class FoldDetector {
         return folds;
     }
 
+    /**
+     * @deprecated Utiliser {@link #detectIndentFolds(String)} (le nom
+     * reste pour compat binaire avec les tests existants).
+     */
+    @Deprecated
+    public static List<DiagnosticShift.FoldRegion> detectPythonFolds(String text) {
+        return detectIndentFolds(text);
+    }
+
     // ── XML : blocs d'éléments ──────────────────────────────────────
 
     /**
      * Détecte les blocs d'éléments XML : <tag ...> ... </tag>.
+     * Utilisé pour XML, HTML, SVG, HTM (alias xml dans le registre).
      */
     public static List<DiagnosticShift.FoldRegion> detectXmlFolds(String text) {
         List<DiagnosticShift.FoldRegion> folds = new ArrayList<>();
