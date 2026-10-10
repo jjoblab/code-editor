@@ -49,10 +49,18 @@ public class EditorSignaturePopup {
     void refreshSignatureHelp() {
         if (view.session == null) return;
         int caret = view.session.getSelection().start;
-        String text = view.session.getText();
+        // Lot 1+3 (audit v3.41.0) : getText() AVANT le gate
+        // faisait une copie complète du document sur le thread UI à
+        // chaque rafraîchissement, même quand le caret n'est pas
+        // dans un appel (le cas commun). Désormais on utilise la
+        // vue live doc.charSequence() (rope, pas de copie) pour le
+        // gate findCallOpen ; la copie String pour resolve() n'a
+        // lieu que si le gate passe (autrement dit, seulement quand
+        // on a réellement du travail à faire).
+        CharSequence liveText = view.session.getDocument().charSequence();
         if (view.signatureHelpResolver != null) {
             // Gate locale O(1) : hors appel ou dismissed → rien à demander.
-            int callOpen = jo.codeeditor.completion.SignatureHelpController.findCallOpen(text, caret);
+            int callOpen = jo.codeeditor.completion.SignatureHelpController.findCallOpen(liveText, caret);
             if (callOpen < 0 || view.signatureHelpController.isDismissed()) {
                 if (view.signatureHelpVisible || view.signatureHelpData != null) {
                     view.signatureHelpVisible = false;
@@ -61,8 +69,10 @@ public class EditorSignaturePopup {
                 }
                 return;
             }
+            // Gate passé → on snapshot maintenant pour la résolution
+            // asynchrone (resolve() a besoin d'une chaîne stable).
             final int gen = ++sigHelpGeneration;
-            final String fText = text;
+            final String fText = view.session.getText();
             final int fCaret = caret;
             EditorPopupManager.FEATURE_EXECUTOR.execute(() -> {
                 try {
@@ -86,14 +96,16 @@ public class EditorSignaturePopup {
                 if (h != null) h.post(apply); else apply.run();
             });
         } else {
-            int callOpen = jo.codeeditor.completion.SignatureHelpController.findCallOpen(text, caret);
+            int callOpen = jo.codeeditor.completion.SignatureHelpController.findCallOpen(liveText, caret);
             if (callOpen < 0 || view.signatureHelpController.isDismissed()) {
                 view.signatureHelpVisible = false;
                 view.signatureHelpData = null;
             } else {
+                // Pas de resolver : on peut faire la synthèse directement
+                // sur la vue live (pas de thread parallèle, pas de copie).
                 int paramIdx = jo.codeeditor.completion.SignatureHelpController
-                    .activeParameterIndex(text, callOpen, caret);
-                String name = extractFunctionName(text, callOpen);
+                    .activeParameterIndex(liveText, callOpen, caret);
+                String name = extractFunctionName(liveText, callOpen);
                 String label = name + "(…)";
                 java.util.List<jo.codeeditor.completion.SignatureHelpController.Parameter> params =
                     java.util.Collections.singletonList(
@@ -117,7 +129,7 @@ public class EditorSignaturePopup {
         refreshSignatureHelp();
     }
 
-    private static String extractFunctionName(String text, int callOpen) {
+    private static String extractFunctionName(CharSequence text, int callOpen) {
         if (callOpen <= 0) return "function";
         int end = callOpen;
         int start = end;
@@ -130,6 +142,6 @@ public class EditorSignaturePopup {
             }
         }
         if (start >= end) return "function";
-        return text.substring(start, end);
+        return text.subSequence(start, end).toString();
     }
 }
