@@ -13,10 +13,16 @@ final class CodeContext {
     static boolean isDanglingOperator(CharSequence text, int pos) {
         if (pos < 0 || pos >= text.length()) return false;
         char ch = text.charAt(pos);
+        // Lot 1 (audit v3.41.0) : la virgule n'est plus un opérateur
+        // « en suspension ». C'est un séparateur, pas un opérateur de
+        // continuation. La classer comme dangling déclenchait +1 niveau
+        // d'indentation après Entrée dans tous les contextes de
+        // séparation : listes d'arguments multi-lignes, énumérations
+        // Java, JSON « a »: 1,, paramètres Python, listes YAML —
+        // comportement non désiré signalé par l'audit.
         return ch == '+' || ch == '-' || ch == '*' || ch == '/'
             || ch == '&' || ch == '|' || ch == '^'
-            || ch == '=' || ch == '<' || ch == '>'
-            || ch == ',';
+            || ch == '=' || ch == '<' || ch == '>';
     }
 
     static boolean endsWithArrow(CharSequence text, int pos) {
@@ -24,17 +30,72 @@ final class CodeContext {
         return pos >= 1 && text.charAt(pos) == '>' && text.charAt(pos - 1) == '-';
     }
 
+    /**
+     * Indique si la position {@code pos} se trouve à l'intérieur d'un
+     * commentaire de bloc {@code /* … *\/}. Le prédicat est conscient
+     * des littéraux de chaîne/char et des commentaires de ligne :
+     * un {@code /*} apparaissant dans une chaîne ({@code "/*"}), dans
+     * un glob shell ({@code /tmp/*}), ou dans un commentaire de ligne
+     * ({@code // /*}) n'ouvre pas un commentaire de bloc.
+     *
+     * <p><b>Lot 1 (audit v3.41.0)</b> : l'ancien code balayait depuis
+     * l'offset 0 sans tenir compte des chaînes ni des commentaires de
+     * ligne ; un seul {@code /*} dans une chaîne activait
+     * {@code foundOpen = true} et marquait toutes les lignes suivantes
+     * comme dans un commentaire de bloc — chaque Entrée insérait
+     * alors {@code " * "} jusqu'à la fin du fichier. Le prédicat est
+     * désormais calculé par la même machine à états que
+     * {@link #isInString}, qui ignore correctement les chaînes et les
+     * commentaires de ligne. Le coût reste O(pos) par appel (comme
+     * avant), mais le résultat est correct.</p>
+     */
     static boolean isInBlockComment(CharSequence text, int pos) {
-        // Balayer à rebours pour trouver /* sans */ intermédiaire
-        boolean foundOpen = false;
-        for (int i = 0; i < pos - 1; i++) {
-            if (text.charAt(i) == '/' && i + 1 < text.length() && text.charAt(i + 1) == '*') {
-                foundOpen = true;
-            } else if (text.charAt(i) == '*' && i + 1 < text.length() && text.charAt(i + 1) == '/') {
-                foundOpen = false;
+        if (pos <= 0) return false;
+        boolean inString = false;
+        char quoteChar = '\0';
+        boolean inLineComment = false;
+        boolean inBlockComment = false;
+        for (int i = 0; i < pos; i++) {
+            char ch = text.charAt(i);
+            if (inLineComment) {
+                if (ch == '\n') inLineComment = false;
+                continue;
+            }
+            if (inBlockComment) {
+                if (ch == '*' && i + 1 < text.length() && text.charAt(i + 1) == '/') {
+                    inBlockComment = false;
+                    i++; // sauter le '/'
+                }
+                continue;
+            }
+            if (inString) {
+                if (ch == '\\') {
+                    i++; // sauter le caractère échappé
+                } else if (ch == quoteChar) {
+                    inString = false;
+                }
+                continue;
+            }
+            // Hors chaîne/commentaire : détecter les ouvertures.
+            if (ch == '/' && i + 1 < text.length()) {
+                char next = text.charAt(i + 1);
+                if (next == '/') {
+                    inLineComment = true;
+                    i++; // sauter le second '/'
+                    continue;
+                }
+                if (next == '*') {
+                    inBlockComment = true;
+                    i++; // sauter le '*'
+                    continue;
+                }
+            }
+            if (ch == '"' || ch == '\'') {
+                inString = true;
+                quoteChar = ch;
             }
         }
-        return foundOpen;
+        return inBlockComment;
     }
 
     static boolean isInString(CharSequence text, int pos) {
