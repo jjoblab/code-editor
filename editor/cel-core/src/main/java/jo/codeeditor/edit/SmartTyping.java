@@ -1,5 +1,8 @@
 package jo.codeeditor.edit;
 
+import jo.codeeditor.languages.LanguageProfile;
+import jo.codeeditor.languages.LanguageRegistry;
+
 /**
  * Saisie intelligente caractère par caractère : insertion avec skip-over et
  * auto-close (smartInsert), effacement arrière avec suppression de paire vide,
@@ -34,39 +37,34 @@ final class SmartTyping {
             return new RangeEdit(pos, pos, "", pos + 1);
         }
 
-        // Texte brut : simple insertion
+        // Texte brut : simple insertion (gardé pour compatibilité ;
+        // autoCloseBrackets est vide pour text/log/properties de
+        // toute façon).
         if (LanguageIds.isPlainText(language)) {
             return new RangeEdit(pos, pos, String.valueOf(ch), pos + 1);
         }
 
-        // Auto-close des crochets
-        if (BracketPairs.isOpener(ch) && ch != '"' && ch != '\'') {
+        // Lot 2 (audit v3.41.0) : auto-close des crochets et des
+        // guillemets piloté par les traits d'édition du profil de
+        // langage (autoCloseBrackets / autoCloseQuotes). L'ancien
+        // code gardait via LanguageIds.isJavaOrKotlin pour les
+        // guillemets (limitant l'auto-close à Java/Kotlin — C, Go,
+        // Rust, JS, TS, Python, Lua, Shell, SQL, JSON ne bénéficiaient
+        // pas) et via !isPlainText pour les crochets (appliquant
+        // ()/[] à XML, HTML, CSS, Markdown, YAML — sans sens dans
+        // ces langages).
+        LanguageProfile profile = LanguageRegistry.forName(language);
+
+        // Auto-close des crochets — seulement si le profil déclare
+        // ce crochet dans autoCloseBrackets.
+        boolean bracketsEnabled = profile != null
+                && profile.autoCloseBrackets.contains(ch);
+        if (bracketsEnabled && ch != '"' && ch != '\''
+                && BracketPairs.isOpener(ch)) {
             char closer = BracketPairs.closerFor(ch);
-            // Lot 1 (audit v3.41.0) : la garde « balance <
-            // BALANCE_SCAN_LIMIT » était toujours vraie pour des
-            // documents normaux (balance ~ 0, jamais 50k+), donc
-            // l'auto-close se déclenchait dans tous les contextes :
-            // ( devant un identifiant → (\|)foo (l'utilisateur veut
-            // en général envelopper foo, pas créer une paire vide) ;
-            // ( dans un commentaire // foo(\|) ; ( dans une chaîne.
-            //
-            // Désormais on applique deux gardes supplémentaires,
-            // calquées sur celles qui existent déjà pour les
-            // guillemets (afterIdent, ligne 54) :
-            //
-            // 1. Pas d'auto-close si le caractère suivant est un
-            //    caractère d'identifiant (lettre, chiffre, _ ou $).
-            //    L'utilisateur est probablement en train d'envelopper
-            //    un identifiant/expression.
-            // 2. Pas d'auto-close si la position courante est à
-            //    l'intérieur d'une chaîne ou d'un commentaire (ligne
-            //    ou bloc). On réutilise les prédicats de CodeContext,
-            //    déjà conscients des chaînes/commentaires.
-            //
-            // La garde balance < BALANCE_SCAN_LIMIT est conservée
-            // comme filet de sécurité pour les documents pathologiques
-            // (50k+ ouvreurs non fermés — probablement une erreur de
-            // syntaxe), mais elle n'est plus la seule condition.
+            // Lot 1 : gardes nextIsIdent et inStringOrComment
+            // (préservés — pas d'auto-close devant un identifiant
+            // ou dans une chaîne/commentaire).
             boolean nextIsIdent = pos < text.length()
                     && EditTextUtils.isIdentChar(text.charAt(pos));
             boolean inStringOrComment = CodeContext.isInStringOrComment(text, pos);
@@ -77,10 +75,21 @@ final class SmartTyping {
             }
         }
 
-        // Auto-close des guillemets (pas après un caractère d'identifiant, pas en texte brut)
-        if ((ch == '"' || ch == '\'') && LanguageIds.isJavaOrKotlin(language)) {
+        // Auto-close des guillemets — seulement si le profil déclare
+        // ce guillemet dans autoCloseQuotes. Lot 2 : élargi à tous les
+        // C_LIKE + Python + Lua + SQL + JSON + Shell + XML/CSS/Markdown
+        // (le profil porte la décision, plus LanguageIds). La garde
+        // isInStringOrComment (Lot 1) empêche l'auto-close dans une
+        // chaîne ou un commentaire — par exemple \" dans // foo n'est
+        // pas un ouvrant de chaîne mais la fermeture d'une chaîne
+        // déjà ouverte ; ou \" dans /* … */ n'est pas du tout du
+        // code.
+        boolean quotesEnabled = profile != null
+                && profile.autoCloseQuotes.contains(ch);
+        if (quotesEnabled && (ch == '"' || ch == '\'')) {
             boolean afterIdent = pos > 0 && EditTextUtils.isIdentChar(text.charAt(pos - 1));
-            if (!afterIdent) {
+            boolean inStringOrComment = CodeContext.isInStringOrComment(text, pos);
+            if (!afterIdent && !inStringOrComment) {
                 char closer = BracketPairs.closerFor(ch);
                 return new RangeEdit(pos, pos, "" + ch + closer, pos + 1);
             }
