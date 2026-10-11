@@ -106,6 +106,13 @@ public class IndentGuidesRenderTest {
                 out.add(new float[]{e.startX, e.startY, e.stopX, e.stopY});
             }
         }
+        // Les guides basés sur les blocs utilisent drawRect (approche l'éditeur de code de référence).
+        for (int i = 0; i < shadow.getRectPaintHistoryCount(); i++) {
+            ShadowCanvas.RectPaintHistoryEvent e = shadow.getDrawnRect(i);
+            if (e.paint != null && e.paint.getColor() == color) {
+                out.add(new float[]{e.rect.left, e.rect.top, e.rect.right, e.rect.bottom});
+            }
+        }
         return out;
     }
 
@@ -144,11 +151,14 @@ public class IndentGuidesRenderTest {
     }
 
     /**
-     * Cas 2 : un guide doit aussi être dessiné au niveau 8 (second
-     * niveau) pour la ligne « "b": 2 » (col 8).
+     * Cas 2 : un guide doit aussi être dessiné au niveau 4
+     * (premier niveau d'imbrication) pour le bloc
+     * « nested » qui contient la ligne à 8 colonnes.
+     * L'algorithme IndentRange (les éditeurs de code de bureau) crée un bloc de la
+     * ligne 2 (indent 4) à la ligne 4 (indent 4).
      */
     @Test
-    public void secondLevel_guideDrawnAtCol8_forDoubleIndentedLine() {
+    public void secondLevel_guideDrawnAtCol4_forNestedBlock() {
         EditorView view = newViewWithDoc(JSON_4SPACES, "json");
         int guideColor = view.theme.indentGuide;
 
@@ -157,18 +167,19 @@ public class IndentGuidesRenderTest {
 
         List<float[]> lines = linesOfColor(canvas, guideColor);
         float textAreaLeft = view.metrics.getGutterWidth() + view.metrics.getPadLeft();
-        float expectedX8 = textAreaLeft + 8 * CHAR_W - view.hOffset;
+        float expectedX4 = textAreaLeft + 4 * CHAR_W - view.hOffset;
 
-        boolean foundAt8 = false;
+        boolean foundAt4 = false;
         for (float[] l : lines) {
-            if (Math.abs(l[0] - expectedX8) < 1f) {
-                foundAt8 = true;
+            if (Math.abs(l[0] - expectedX4) < 1f) {
+                foundAt4 = true;
                 break;
             }
         }
-        assertTrue("Un guide doit être tracé au niveau 8 (second niveau) "
-                + "pour la ligne à indentation 8 — x attendu=" + expectedX8,
-                foundAt8);
+        assertTrue("Un guide doit être tracé au niveau 4 (premier "
+                + "niveau d'imbrication) pour le bloc « nested » "
+                + "— x attendu=" + expectedX4,
+                foundAt4);
     }
 
     /**
@@ -230,6 +241,15 @@ public class IndentGuidesRenderTest {
                 break;
             }
         }
+        if (observedStroke == 0f) {
+            for (int i = 0; i < shadow.getRectPaintHistoryCount(); i++) {
+                ShadowCanvas.RectPaintHistoryEvent e = shadow.getDrawnRect(i);
+                if (e.paint != null && e.paint.getColor() == guideColor) {
+                    observedStroke = e.rect.width();
+                    break;
+                }
+            }
+        }
         assertTrue("L'épaisseur du guide doit être en dp (~density pixels), "
                 + "observé=" + observedStroke + " density=" + density,
                 observedStroke > 0.5f);
@@ -256,6 +276,20 @@ public class IndentGuidesRenderTest {
             if (e.paint != null && e.paint.getColor() == guideColor) {
                 observedCap = e.paint.getStrokeCap();
                 break;
+            }
+        }
+        // Les guides basés sur les blocs utilisent drawRect, pas drawLine.
+        // drawRect n'a pas de notion de StrokeCap — le cap est
+        // implicitement BUTT (les rectangles n'ont pas d'extrémités).
+        // Si on a trouvé un drawRect avec la couleur du guide, c'est
+        // équivalent à BUTT.
+        if (observedCap == null) {
+            for (int i = 0; i < shadow.getRectPaintHistoryCount(); i++) {
+                ShadowCanvas.RectPaintHistoryEvent e = shadow.getDrawnRect(i);
+                if (e.paint != null && e.paint.getColor() == guideColor) {
+                    observedCap = Paint.Cap.BUTT;
+                    break;
+                }
             }
         }
         assertNotNull("Au moins un guide doit être tracé", observedCap);

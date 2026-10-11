@@ -355,56 +355,52 @@ public class EditorHighlightPainter {
      * </ul>
      */
     /**
-     * <p><b>Lot B refonte (audit v3.41.0) — guides d'indentation basés sur
-     * les paires d'accolades, approche l'éditeur de code de référence :</b></p>
+     * Lot B refonte : guides d'indentation basés sur les blocs
+     * de code (paires d'accolades pour C_LIKE, régions
+     * d'indentation pour non C_LIKE), avec cache par révision
+     * du document (approche l'éditeur de code de référence améliorée).
      *
-     * <p>Chaque paire d'accolades {@code { … }} crée un bloc de code.
-     * Un guide vertical est dessiné au centre de la colonne de
-     * l'accolade ouvrante, du bas de la ligne d'ouverture jusqu'au
-     * haut de la ligne de fermeture. Le guide ne déborde pas au-delà
-     * du bloc — il commence à {@code rowBottom(startLine)} et
-     * s'arrête à {@code rowTop(endLine)}.</p>
+     * <p><b>Cache (CodeBlockIndex) :</b> les blocs sont calculés
+     * une fois par révision du document et cachés. La clé de
+     * cache est {@code (session, doc.getRevision(), doc)}.
+     * Recalcul uniquement quand le document change — pas à
+     * chaque frame. C'est l'approche de l'éditeur de code de référence (qui
+     * calcule les blocs dans l'analyseur), adaptée à notre
+     * architecture (cache intégré à la vue, pas besoin
+     * d'analyseur de langage séparé).</p>
      *
-     * <p>Approche inspirée de l'éditeur de code de référence  :</p>
+     * <p><b>Deux modes (indentCountMode) :</b></p>
      * <ul>
-     *   <li>Les guides sont basés sur les <b>blocs</b> (paires
-     *       d'accolades), pas sur l'indentation ligne par ligne.
-     *       Chaque paire {@code { ... }} génère un guide.</li>
-     *   <li>Le guide est <b>centré</b> à la position de l'accolade
-     *       ouvrante : {@code centerX = offsetX + startColumn *
-     *       spaceWidth}, puis le rectangle fait
-     *       {@code [centerX - w/2, centerX + w/2]}.</li>
-     *   <li>Le guide s'étend du <b>bas de la ligne d'ouverture</b>
-     *       au <b>haut de la ligne de fermeture</b> — pas au-delà.</li>
-     *   <li>Le bloc actif (qui contient le caret) reçoit la couleur
-     *       d'accent ({@code theme.caret}) et une épaisseur
-     *       légèrement supérieure.</li>
+     *   <li><b>C_LIKE</b> (Java, Kotlin, etc.) : le guide est
+     *       centré à la position réelle du {@code {} dans la
+     *       ligne ({@code startCol * charWidth}). Mode l'éditeur de référence
+     *       {@code indentCountMode=false}.</li>
+     *   <li><b>Non C_LIKE</b> (Python, YAML, etc.) : le guide
+     *       est positionné à {@code indentLevel * spaceWidth}.
+     *       Mode l'éditeur de référence {@code indentCountMode=true}. Utilise
+     *       l'algorithme IndentRange de les éditeurs de code de bureau avec mode
+     *       {@code offSide} pour Python.</li>
      * </ul>
      *
-     * <p><b>Pour les langages non C_LIKE</b> (Python, YAML, etc.),
-     * on retombe sur l'approche par niveau d'indentation (l'ancien
-     * comportement). Les accolades ne sont pas significatives pour
-     * ces langages.</p>
+     * <p><b>Recherche binaire :</b> les blocs sont triés par
+     * {@code startLine}, ce qui permet une recherche binaire
+     * pour trouver le premier bloc visible en O(log blocs).</p>
      *
-     * <p><b>Performance</b> : la détection des paires d'accolades
-     * utilise {@link EditorView#braceScopeLevel} (déjà calculé
-     * pour la portée active si INDENT_WITH_SCOPE). Le balayage des
-     * lignes visibles est O(visible × profondeur) par frame. Pas
-     * d'allocation de chaîne — balayage direct sur la rope.</p>
+     * <p><b>Améliorations par rapport à l'éditeur de code de référence :</b></p>
+     * <ul>
+     *   <li>API publique {@link IndentGuideStyle} pour
+     *       activer/désactiver les guides (OFF/INDENT/INDENT_WITH_SCOPE)
+     *       — l'éditeur de référence n'a pas d'équivalent.</li>
+     *   <li>Portée active pour les langages non C_LIKE (basée
+     *       sur l'indentation) — l'éditeur de référence ne le fait pas.</li>
+     *   <li>Cache intégré à la vue, pas besoin d'analyseur de
+     *       langage dédié — fonctionne pour tous les langages
+     *       enregistrés dans le registre.</li>
+     * </ul>
      */
     void drawIndentGuides(Canvas canvas, EditorDocument doc,
                            int firstVisible, int lastVisible,
                            float textAreaLeft, float lineHeight, float paddingTop) {
-        CharSequence docChars = doc.charSequence();
-        String indentUnit = jo.codeeditor.edit.EditOps.detectIndentUnit(docChars);
-        int unitCols;
-        switch (indentUnit) {
-            case "\t": unitCols = jo.codeeditor.edit.EditOps.detectTabSize(docChars); break;
-            case "  ": unitCols = 2; break;
-            case "        ": unitCols = 8; break;
-            case "    ":
-            default: unitCols = 4; break;
-        }
         float charWidth = view.metrics.getCharWidth();
         float density = view.getResources().getDisplayMetrics().density;
         float baseStroke = Math.max(1f, 0.75f * density);
@@ -413,69 +409,57 @@ public class EditorHighlightPainter {
         view.guidePaint.setStrokeCap(Paint.Cap.BUTT);
         view.guidePaint.setAntiAlias(true);
 
-        // Pour les langages C_LIKE, utiliser l'approche par blocs
-        // (paires d'accolades). Pour les autres, retomber sur
-        // l'approche par niveau d'indentation.
-        jo.codeeditor.languages.LanguageProfile profile =
-                view.session != null ? view.session.getLanguageProfile() : null;
-        boolean useBlocks = profile != null
-                && profile.family == jo.codeeditor.languages.SyntaxFamily.C_LIKE;
+        // Récupérer les blocs cachés (recalcul uniquement si le
+        // document a changé).
+        int[][] blocks = view.getCodeBlocks();
+        boolean indentCountMode = view.isIndentCountMode();
 
-        if (useBlocks) {
-            drawBlockBasedGuides(canvas, doc, docChars, firstVisible, lastVisible,
-                    textAreaLeft, lineHeight, charWidth, baseStroke, activeStroke,
-                    indentUnit, unitCols);
-        } else {
-            drawIndentLevelGuides(canvas, doc, docChars, firstVisible, lastVisible,
-                    textAreaLeft, lineHeight, charWidth, baseStroke, activeStroke,
-                    unitCols);
-        }
-    }
-
-    /**
-     * Lot B refonte : guides basés sur les paires d'accolades
-     * (approche l'éditeur de code de référence). Chaque paire {@code { … }} génère
-     * un guide vertical centré à la colonne de l'accolade
-     * ouvrante, du bas de la ligne d'ouverture au haut de la
-     * ligne de fermeture.
-     */
-    private void drawBlockBasedGuides(Canvas canvas, EditorDocument doc,
-            CharSequence docChars, int firstVisible, int lastVisible,
-            float textAreaLeft, float lineHeight, float charWidth,
-            float baseStroke, float activeStroke,
-            String indentUnit, int unitCols) {
-        // Portée active : profondeur d'accolades du caret.
+        // Portée active.
         boolean scopeActive = view.indentGuideStyle
                 == jo.codeeditor.view.IndentGuideStyle.INDENT_WITH_SCOPE;
-        int caretBraceDepth = -1;
+        int caretDepth = -1;
         if (scopeActive && view.session != null) {
+            CharSequence docChars = doc.charSequence();
             int caret = view.session.getSelection().start;
-            caretBraceDepth = jo.codeeditor.view.EditorView
-                    .braceScopeLevel(docChars, caret);
+            if (indentCountMode) {
+                // Non C_LIKE : profondeur basée sur l'indentation.
+                int caretLine = doc.lineForOffset(caret);
+                int indent = leadingIndentOfLine(doc, doc.charSequence(), caretLine);
+                caretDepth = indent < 0 ? -1 : indent;
+            } else {
+                // C_LIKE : profondeur basée sur les accolades.
+                caretDepth = jo.codeeditor.view.EditorView
+                        .braceScopeLevel(docChars, caret);
+            }
         }
-
-        // Détecter les paires d'accolades visibles. On balaye
-        // les lignes visibles et pour chaque '{' trouvé (hors
-        // chaîne/commentaire), on cherche le '}' correspondant
-        // via une pile d'accolades.
-        // Optimisation : on ne balaye que les lignes visibles
-        // (firstVisible..lastVisible) plus les lignes après
-        // (jusqu'à trouver la fermeture).
-        java.util.List<int[]> blocks = detectBraceBlocks(
-                doc, docChars, firstVisible, lastVisible);
 
         float offsetX = textAreaLeft - view.hOffset;
 
-        for (int bi = 0; bi < blocks.size(); bi++) {
-            int[] block = blocks.get(bi);
+        // Recherche binaire : premier bloc dont startLine >= firstVisible.
+        // On balaye à partir de là — les blocs avant sont hors viewport.
+        int startIdx = findFirstVisibleBlock(blocks, firstVisible);
+
+        for (int bi = startIdx; bi < blocks.length; bi++) {
+            int[] block = blocks[bi];
             int startLine = block[0];
             int startCol = block[1];
             int endLine = block[2];
-            // int endCol = block[3]; // pas utilisé pour X
+            int endCol = block[3];
             boolean toBottomOfEndLine = block[4] == 1;
 
-            // X = centre de la colonne de l'accolade ouvrante.
-            float centerX = offsetX + startCol * charWidth;
+            // Arrêter si on dépasse le viewport (les blocs sont
+            // triés par startLine).
+            if (startLine > lastVisible) break;
+
+            // X : position centrée.
+            float centerX;
+            if (indentCountMode) {
+                // Non C_LIKE : indentLevel * spaceWidth.
+                centerX = offsetX + startCol * charWidth;
+            } else {
+                // C_LIKE : position réelle du { dans la ligne.
+                centerX = offsetX + startCol * charWidth;
+            }
             if (centerX < view.metrics.getGutterWidth()) continue;
 
             // Y : du bas de la ligne d'ouverture au haut de la
@@ -487,17 +471,18 @@ public class EditorHighlightPainter {
             } else {
                 bottom = view.docLineToY(endLine) - view.vOffset;
             }
-
             if (top >= bottom) continue;
 
+            // Profondeur du bloc pour la portée active.
+            int blockDepth = computeBlockDepth(blocks, bi);
+
             // Couleur : accent si c'est le bloc actif.
-            int blockDepth = getBlockDepth(blocks, bi);
-            boolean isActive = scopeActive && caretBraceDepth == blockDepth + 1;
+            boolean isActive = scopeActive && isBlockActive(
+                    indentCountMode, caretDepth, blockDepth, blocks, bi);
             view.guidePaint.setColor(isActive ? view.theme.caret : view.theme.indentGuide);
             view.guidePaint.setStrokeWidth(isActive ? activeStroke : baseStroke);
 
-            // Dessiner le guide comme un rectangle fin (approche
-            // l'éditeur de code de référence) pour un rendu net.
+            // Dessiner le guide comme un rectangle fin (approche l'éditeur de référence).
             float halfWidth = (isActive ? activeStroke : baseStroke) / 2f;
             canvas.drawRect(centerX - halfWidth, top,
                     centerX + halfWidth, bottom, view.guidePaint);
@@ -505,94 +490,31 @@ public class EditorHighlightPainter {
     }
 
     /**
-     * Détecte les paires d'accolades {@code { … }} dans les
-     * lignes visibles. Retourne une liste de
-     * {@code [startLine, startCol, endLine, endCol, toBottomOfEndLine]}.
-     *
-     * <p>Le balayage ignore les chaînes et les commentaires. Il
-     * est borné aux lignes visibles plus quelques lignes après
-     * pour trouver les fermetures.</p>
+     * Recherche binaire : premier bloc dont startLine >= firstVisible.
+     * Les blocs sont triés par startLine (cf. CodeBlockIndex).
      */
-    private java.util.List<int[]> detectBraceBlocks(EditorDocument doc,
-            CharSequence docChars, int firstVisible, int lastVisible) {
-        java.util.List<int[]> result = new java.util.ArrayList<>();
-        // Pile des '{' en attente de fermeture.
-        java.util.ArrayDeque<int[]> stack = new java.util.ArrayDeque<>();
-
-        // État lexer (conscient des chaînes/commentaires).
-        boolean inString = false;
-        char quoteChar = '\0';
-        boolean inLineComment = false;
-        boolean inBlockComment = false;
-
-        int lineCount = doc.lineCount();
-        int scanLimit = Math.min(lineCount, lastVisible + 200);
-
-        for (int li = 0; li < scanLimit; li++) {
-            int lineStart = doc.lineStart(li);
-            int lineEnd = doc.lineEnd(li);
-            inLineComment = false;
-
-            for (int ci = lineStart; ci < lineEnd; ci++) {
-                char c = docChars.charAt(ci);
-                char next = ci + 1 < docChars.length() ? docChars.charAt(ci + 1) : 0;
-
-                if (inLineComment) break;
-                if (inBlockComment) {
-                    if (c == '*' && next == '/') { inBlockComment = false; ci++; }
-                    continue;
-                }
-                if (inString) {
-                    if (c == '\\') { ci++; continue; }
-                    if (c == quoteChar) inString = false;
-                    continue;
-                }
-                if (c == '/' && next == '/') { inLineComment = true; break; }
-                if (c == '/' && next == '*') { inBlockComment = true; ci++; continue; }
-                if (c == '"' || c == '\'') { inString = true; quoteChar = c; continue; }
-
-                if (c == '{') {
-                    int col = ci - lineStart;
-                    stack.push(new int[]{li, col});
-                } else if (c == '}' && !stack.isEmpty()) {
-                    int[] open = stack.pop();
-                    int endCol = ci - lineStart;
-                    // On ne garde que les blocs visibles (startLine
-                    // dans la fenêtre visible).
-                    if (open[0] >= firstVisible && open[0] <= lastVisible) {
-                        // toBottomOfEndLine : true si le '}' est
-                        // le seul caractère non-blanc de sa ligne.
-                        boolean toBottom = isEndOfLineBrace(docChars, ci);
-                        result.add(new int[]{open[0], open[1], li, endCol, toBottom ? 1 : 0});
-                    }
-                }
+    private static int findFirstVisibleBlock(int[][] blocks, int firstVisible) {
+        int lo = 0, hi = blocks.length;
+        while (lo < hi) {
+            int mid = (lo + hi) >>> 1;
+            if (blocks[mid][0] < firstVisible) {
+                lo = mid + 1;
+            } else {
+                hi = mid;
             }
         }
-        // Les blocs non fermés (pile restante) sont ignorés —
-        // le document est en cours d'édition, le '}' n'existe pas.
-        return result;
+        return lo;
     }
 
-    /** Vérifie si le '}' à l'offset donné est le dernier
-     *  caractère non-blanc de sa ligne (→ toBottomOfEndLine=true). */
-    private static boolean isEndOfLineBrace(CharSequence text, int braceOffset) {
-        int lineEnd = braceOffset + 1;
-        while (lineEnd < text.length() && text.charAt(lineEnd) != '\n') lineEnd++;
-        for (int i = braceOffset + 1; i < lineEnd; i++) {
-            if (!Character.isWhitespace(text.charAt(i))) return false;
-        }
-        return true;
-    }
-
-    /** Calcule la profondeur d'un bloc (combien de blocs le contiennent). */
-    private static int getBlockDepth(java.util.List<int[]> blocks, int idx) {
-        int[] target = blocks.get(idx);
+    /**
+     * Calcule la profondeur d'un bloc (combien de blocs le contiennent).
+     */
+    private static int computeBlockDepth(int[][] blocks, int idx) {
+        int[] target = blocks[idx];
         int depth = 0;
-        for (int i = 0; i < blocks.size(); i++) {
+        for (int i = 0; i < blocks.length; i++) {
             if (i == idx) continue;
-            int[] other = blocks.get(i);
-            // 'other' contient 'target' si other.startLine < target.startLine
-            // et other.endLine > target.endLine (ou == avec endCol > ).
+            int[] other = blocks[i];
             if (other[0] < target[0]
                     && (other[2] > target[2]
                         || (other[2] == target[2] && other[3] > target[3]))) {
@@ -603,84 +525,20 @@ public class EditorHighlightPainter {
     }
 
     /**
-     * Ancienne approche par niveau d'indentation (pour les
-     * langages non C_LIKE : Python, YAML, XML, etc.).
+     * Détermine si un bloc est actif (contient le caret).
      */
-    private void drawIndentLevelGuides(Canvas canvas, EditorDocument doc,
-            CharSequence docChars, int firstVisible, int lastVisible,
-            float textAreaLeft, float lineHeight, float charWidth,
-            float baseStroke, float activeStroke, int unitCols) {
-        // Portée active : profondeur d'indentation du caret.
-        int caretIndent = -1;
-        boolean scopeActive = view.indentGuideStyle
-                == jo.codeeditor.view.IndentGuideStyle.INDENT_WITH_SCOPE;
-        if (scopeActive && view.session != null) {
-            int caret = view.session.getSelection().start;
-            int caretLine = doc.lineForOffset(caret);
-            caretIndent = leadingIndentOfLine(doc, docChars, caretLine);
-            if (caretIndent < 0) caretIndent = -1;
-        }
-
-        int maxLevel = 0;
-        for (int i = firstVisible; i <= lastVisible; i++) {
-            if (view.isLineFoldedCached(i)) continue;
-            int cols = leadingIndentOrBlank(doc, docChars, i);
-            if (cols < 0) {
-                cols = bridgeBlank(doc, docChars, i);
-            }
-            if (cols > maxLevel) maxLevel = cols;
-        }
-        for (int level = unitCols; level <= maxLevel; level += unitCols) {
-            boolean isActiveLevel = scopeActive
-                    && (caretIndent >= level && caretIndent < level + unitCols);
-            view.guidePaint.setColor(isActiveLevel ? view.theme.caret : view.theme.indentGuide);
-            view.guidePaint.setStrokeWidth(isActiveLevel ? activeStroke : baseStroke);
-            float x = textAreaLeft + level * charWidth - view.hOffset;
-            if (x < view.metrics.getGutterWidth()) continue;
-            float runStartY = -1;
-            float runEndY = -1;
-            for (int i = firstVisible; i <= lastVisible; i++) {
-                if (view.isLineFoldedCached(i)) {
-                    if (runStartY >= 0) {
-                        canvas.drawLine(x, runStartY, x, runEndY + lineHeight, view.guidePaint);
-                        runStartY = -1;
-                        runEndY = -1;
-                    }
-                    continue;
-                }
-                int cols = leadingIndentOrBlank(doc, docChars, i);
-                if (cols < 0) {
-                    cols = bridgeBlank(doc, docChars, i);
-                }
-                boolean hasGuide = cols >= level;
-                float y = view.docLineToY(i) - view.vOffset;
-                int rows = 1;
-                if (view.wordWrap && view.wrapModel != null) {
-                    rows = view.wrapModel.rowsOf(i);
-                    if (rows < 1) rows = 1;
-                }
-                if (hasGuide) {
-                    if (runStartY < 0) {
-                        runStartY = y;
-                        runEndY = y + (rows - 1) * lineHeight;
-                    } else if (y == runEndY + lineHeight) {
-                        runEndY = y + (rows - 1) * lineHeight;
-                    } else {
-                        canvas.drawLine(x, runStartY, x, runEndY + lineHeight, view.guidePaint);
-                        runStartY = y;
-                        runEndY = y + (rows - 1) * lineHeight;
-                    }
-                } else {
-                    if (runStartY >= 0) {
-                        canvas.drawLine(x, runStartY, x, runEndY + lineHeight, view.guidePaint);
-                        runStartY = -1;
-                        runEndY = -1;
-                    }
-                }
-            }
-            if (runStartY >= 0) {
-                canvas.drawLine(x, runStartY, x, runEndY + lineHeight, view.guidePaint);
-            }
+    private static boolean isBlockActive(boolean indentCountMode,
+            int caretDepth, int blockDepth, int[][] blocks, int idx) {
+        int[] block = blocks[idx];
+        // Pour C_LIKE : caretDepth = profondeur d'accolades.
+        // Le bloc est actif si caretDepth == blockDepth + 1.
+        // Pour non C_LIKE : caretDepth = niveau d'indentation.
+        // Le bloc est actif si caretDepth > block.startCol (le caret
+        // est plus profond que le bloc).
+        if (indentCountMode) {
+            return caretDepth >= 0 && caretDepth > block[1];
+        } else {
+            return caretDepth == blockDepth + 1;
         }
     }
 

@@ -86,6 +86,13 @@ public class IndentGuideStyleTest {
                 count++;
             }
         }
+        // Les guides basés sur les blocs utilisent drawRect.
+        for (int i = 0; i < shadow.getRectPaintHistoryCount(); i++) {
+            ShadowCanvas.RectPaintHistoryEvent e = shadow.getDrawnRect(i);
+            if (e.paint != null && e.paint.getColor() == color) {
+                count++;
+            }
+        }
         return count;
     }
 

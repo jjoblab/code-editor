@@ -254,6 +254,21 @@ public class EditorView extends View {
     // isLineFoldedCached() / countHiddenLinesAbove() ci-dessous et
     // docLineForScreenY() consomment l'index via relais.
     final EditorFoldIndex foldIndex = new EditorFoldIndex(this);
+    // Cache des blocs de code (paires d'accolades ou régions
+    // d'indentation) pour les guides d'indentation — mémoïsé
+    // par révision du document (approche l'éditeur de code de référence améliorée).
+    final CodeBlockIndex codeBlockIndex = new CodeBlockIndex(this);
+
+    /** Lot B : accède au cache des blocs de code (package render). */
+    public int[][] getCodeBlocks() {
+        return codeBlockIndex.get();
+    }
+
+    /** Lot B : indique si le dernier calcul était en mode
+     *  indentCountMode (non C_LIKE). */
+    public boolean isIndentCountMode() {
+        return codeBlockIndex.isIndentCountMode();
+    }
     // Géométrie du word wrap (rangées, docLine↔Y, colonnes de rangée)
     // — possédée par EditorWrapGeometry.
     final EditorWrapGeometry wrapGeometry = new EditorWrapGeometry(this);
