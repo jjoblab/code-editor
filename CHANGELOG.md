@@ -5,6 +5,43 @@ All notable changes to **code-editor-lib** are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.43.0] — 2026-10-11 — Guides d'indentation l'éditeur de code de référence (cache + IndentRange + recherche binaire)
+
+### Changed
+
+- **Guides d'indentation basés sur les blocs de code (approche
+  l'éditeur de code de référence)** — les guides sont désormais basés sur les
+  paires d'accolades `{ … }` pour les langages C_LIKE (Java,
+  Kotlin, C/C++, Go, Rust, JS/TS, etc.) et sur l'algorithme
+  `IndentRange` de les éditeurs de code de bureau pour les langages non C_LIKE
+  (Python, YAML, etc.) avec mode `offSide` pour Python.
+  Chaque paire d'accolades ou région d'indentation génère un
+  guide vertical centré à la position de l'accolade
+  ouvrante (ou de l'indentation), du bas de la ligne
+  d'ouverture au haut de la ligne de fermeture.
+
+- **`CodeBlockIndex` : cache des blocs par révision du
+  document** — les blocs sont calculés une seule fois par
+  révision du document et cachés. Recalcul uniquement quand
+  le document change — pas à chaque frame. Clé de cache :
+  `(session, doc.getRevision(), docIdentité)`. Amélioration
+  vs l'éditeur de code de référence : pas besoin d'analyseur de langage séparé.
+
+- **Recherche binaire** — les blocs sont triés par
+  `startLine`, permettant une recherche binaire O(log blocs)
+  pour trouver le premier bloc visible au lieu d'un balayage
+  linéaire à chaque frame.
+
+- **`indentCountMode`** — distinction explicite entre C_LIKE
+  (position réelle du `{` dans la ligne) et non C_LIKE
+  (`indentLevel * spaceWidth`), comme l'éditeur de code de référence.
+
+- **Améliorations vs l'éditeur de code de référence** :
+  - API publique `IndentGuideStyle` (OFF/INDENT/INDENT_WITH_SCOPE).
+  - Portée active pour les langages non C_LIKE.
+  - Cache intégré à la vue, pas besoin d'analyseur de langage
+    dédié.
+
 ## [v3.42.0] — 2026-10-11 — Édition contextuelle par langage + plis repliés + guides d'indentation professionnels
 
 ### Added
