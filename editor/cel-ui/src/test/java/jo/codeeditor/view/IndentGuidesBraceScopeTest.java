@@ -157,11 +157,19 @@ public class IndentGuidesBraceScopeTest {
         // Le guide actif doit être à la couleur d'accent (theme.caret).
         int activeColor = view.theme.caret;
         ShadowCanvas shadow = Shadows.shadowOf(canvas);
-        int activeLineCount = 0;
+        int activeCount = 0;
+        // Les guides basés sur les blocs utilisent drawRect (approche
+        // l'éditeur de code de référence), pas drawLine. Chercher les deux.
         for (int i = 0; i < shadow.getLinePaintHistoryCount(); i++) {
             ShadowCanvas.LinePaintHistoryEvent e = shadow.getDrawnLine(i);
             if (e.paint != null && e.paint.getColor() == activeColor) {
-                activeLineCount++;
+                activeCount++;
+            }
+        }
+        for (int i = 0; i < shadow.getRectPaintHistoryCount(); i++) {
+            ShadowCanvas.RectPaintHistoryEvent e = shadow.getDrawnRect(i);
+            if (e.paint != null && e.paint.getColor() == activeColor) {
+                activeCount++;
             }
         }
         // Avec le Lot B.10, la profondeur est 2 (caret dans bloc 2),
@@ -170,8 +178,8 @@ public class IndentGuidesBraceScopeTest {
         assertTrue("Lot B.10 : la portée active doit être basée sur les "
                 + "accolades pour Java (langage C_LIKE) — au moins 1 "
                 + "guide actif (couleur theme.caret), observé="
-                + activeLineCount,
-                activeLineCount > 0);
+                + activeCount,
+                activeCount > 0);
     }
 
     /**
@@ -205,6 +213,12 @@ public class IndentGuidesBraceScopeTest {
         int activeLineCount = 0;
         for (int i = 0; i < shadow.getLinePaintHistoryCount(); i++) {
             ShadowCanvas.LinePaintHistoryEvent e = shadow.getDrawnLine(i);
+            if (e.paint != null && e.paint.getColor() == activeColor) {
+                activeLineCount++;
+            }
+        }
+        for (int i = 0; i < shadow.getRectPaintHistoryCount(); i++) {
+            ShadowCanvas.RectPaintHistoryEvent e = shadow.getDrawnRect(i);
             if (e.paint != null && e.paint.getColor() == activeColor) {
                 activeLineCount++;
             }

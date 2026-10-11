@@ -355,58 +355,46 @@ public class EditorHighlightPainter {
      * </ul>
      */
     /**
-     * <p><b>Lot B (audit v3.41.0) — refonte des guides d'indentation :</b></p>
+     * <p><b>Lot B refonte (audit v3.41.0) — guides d'indentation basés sur
+     * les paires d'accolades, approche l'éditeur de code de référence :</b></p>
+     *
+     * <p>Chaque paire d'accolades {@code { … }} crée un bloc de code.
+     * Un guide vertical est dessiné au centre de la colonne de
+     * l'accolade ouvrante, du bas de la ligne d'ouverture jusqu'au
+     * haut de la ligne de fermeture. Le guide ne déborde pas au-delà
+     * du bloc — il commence à {@code rowBottom(startLine)} et
+     * s'arrête à {@code rowTop(endLine)}.</p>
+     *
+     * <p>Approche inspirée de l'éditeur de code de référence  :</p>
      * <ul>
-     *   <li><b>Niveaux dès la colonne 0</b> : la boucle part de
-     *       {@code unit} (et non plus {@code INDENT_UNIT_COLS = 4}) et
-     *       teste {@code level <= cols} (et non plus {@code < cols}) —
-     *       les lignes à 4 colonnes d'indentation (contenu direct de
-     *       l'objet racine d'un JSON) ont désormais un guide, comme
-     *       dans les IDE Android et les éditeurs de code de bureau.</li>
-     *   <li><b>Unité d'indentation réelle</b> : détectée via
-     *       {@link jo.codeeditor.edit.EditOps#detectIndentUnit}
-     *       (2/4/8 espaces ou tabulation). Pour les tabulations,
-     *       l'avancement est calculé avec la vraie largeur de
-     *       tabulation via {@link jo.codeeditor.edit.EditOps#detectTabSize}
-     *       au lieu de 4 colonnes à plat.</li>
-     *   <li><b>Tracé continu et propre</b> : extrémités
-     *       {@link Paint.Cap#BUTT} (au lieu de ROUND) — plus de
-     *       points aux jonctions de segments contigus.</li>
-     *   <li><b>Finesse nette</b> : épaisseur en dp (1 dp au lieu de
-     *       1 px), alignée sur la densité de l'écran.</li>
-     *   <li><b>Continuité</b> : le guide traverse les rangées de
-     *       continuation du retour à la ligne — la hauteur du trait
-     *       est {@code rowsForDocLine * lineHeight} (et non plus
-     *       {@code lineHeight} seul), pas de trous sur les lignes
-     *       enroulées.</li>
-     *   <li><b>Plis repliés</b> : le guide ne traverse pas la chip
-     *       (les lignes masquées sont sautées, comme avant).</li>
-     *   <li><b>Portée active</b> : le guide du bloc qui contient le
-     *       caret est dessiné avec la couleur {@code theme.caret}
-     *       (accent visible) et une épaisseur légèrement supérieure.
-     *       Recalcul uniquement quand le caret change de bloc, pas à
-     *       chaque frame (cf. ci-dessous).</li>
+     *   <li>Les guides sont basés sur les <b>blocs</b> (paires
+     *       d'accolades), pas sur l'indentation ligne par ligne.
+     *       Chaque paire {@code { ... }} génère un guide.</li>
+     *   <li>Le guide est <b>centré</b> à la position de l'accolade
+     *       ouvrante : {@code centerX = offsetX + startColumn *
+     *       spaceWidth}, puis le rectangle fait
+     *       {@code [centerX - w/2, centerX + w/2]}.</li>
+     *   <li>Le guide s'étend du <b>bas de la ligne d'ouverture</b>
+     *       au <b>haut de la ligne de fermeture</b> — pas au-delà.</li>
+     *   <li>Le bloc actif (qui contient le caret) reçoit la couleur
+     *       d'accent ({@code theme.caret}) et une épaisseur
+     *       légèrement supérieure.</li>
      * </ul>
      *
-     * <p><b>Performance</b> : pas d'allocation de chaîne par ligne et
-     * par frame — l'indentation des lignes visibles est calculée par
-     * balayage direct sur {@link EditorDocument#charSequence} (charAt
-     * O(log n) sur la rope) au lieu de {@link EditorDocument#lineText}
-     * qui alloue. Le pontage des lignes vides reste borné à 64 lignes
-     * de chaque côté (comportement historique, amorti).</p>
+     * <p><b>Pour les langages non C_LIKE</b> (Python, YAML, etc.),
+     * on retombe sur l'approche par niveau d'indentation (l'ancien
+     * comportement). Les accolades ne sont pas significatives pour
+     * ces langages.</p>
      *
-     * <p><b>Décision 4.2 point 3</b> (portée active) : implémentée via
-     * la couleur {@code theme.caret} comme accent — sans ajouter de
-     * champ public à {@link EditorTheme} (l'API a déjà plusieurs
-     * constructeurs, l'extension aurait été risquée). Le calcul est
-     * minimal : la profondeur d'indentation du caret est comparée à
-     * celle de chaque niveau — O(visible × niveaux) par frame, comme
-     * avant.</p>
+     * <p><b>Performance</b> : la détection des paires d'accolades
+     * utilise {@link EditorView#braceScopeLevel} (déjà calculé
+     * pour la portée active si INDENT_WITH_SCOPE). Le balayage des
+     * lignes visibles est O(visible × profondeur) par frame. Pas
+     * d'allocation de chaîne — balayage direct sur la rope.</p>
      */
     void drawIndentGuides(Canvas canvas, EditorDocument doc,
                            int firstVisible, int lastVisible,
                            float textAreaLeft, float lineHeight, float paddingTop) {
-        // Lot B : détection de l'unité d'indentation réelle.
         CharSequence docChars = doc.charSequence();
         String indentUnit = jo.codeeditor.edit.EditOps.detectIndentUnit(docChars);
         int unitCols;
@@ -417,100 +405,242 @@ public class EditorHighlightPainter {
             case "    ":
             default: unitCols = 4; break;
         }
-        // Lot B : portée active — la profondeur d'indentation du caret.
-        int caretLine = -1;
+        float charWidth = view.metrics.getCharWidth();
+        float density = view.getResources().getDisplayMetrics().density;
+        float baseStroke = Math.max(1f, 0.75f * density);
+        float activeStroke = Math.max(1.5f, 1.1f * density);
+
+        view.guidePaint.setStrokeCap(Paint.Cap.BUTT);
+        view.guidePaint.setAntiAlias(true);
+
+        // Pour les langages C_LIKE, utiliser l'approche par blocs
+        // (paires d'accolades). Pour les autres, retomber sur
+        // l'approche par niveau d'indentation.
+        jo.codeeditor.languages.LanguageProfile profile =
+                view.session != null ? view.session.getLanguageProfile() : null;
+        boolean useBlocks = profile != null
+                && profile.family == jo.codeeditor.languages.SyntaxFamily.C_LIKE;
+
+        if (useBlocks) {
+            drawBlockBasedGuides(canvas, doc, docChars, firstVisible, lastVisible,
+                    textAreaLeft, lineHeight, charWidth, baseStroke, activeStroke,
+                    indentUnit, unitCols);
+        } else {
+            drawIndentLevelGuides(canvas, doc, docChars, firstVisible, lastVisible,
+                    textAreaLeft, lineHeight, charWidth, baseStroke, activeStroke,
+                    unitCols);
+        }
+    }
+
+    /**
+     * Lot B refonte : guides basés sur les paires d'accolades
+     * (approche l'éditeur de code de référence). Chaque paire {@code { … }} génère
+     * un guide vertical centré à la colonne de l'accolade
+     * ouvrante, du bas de la ligne d'ouverture au haut de la
+     * ligne de fermeture.
+     */
+    private void drawBlockBasedGuides(Canvas canvas, EditorDocument doc,
+            CharSequence docChars, int firstVisible, int lastVisible,
+            float textAreaLeft, float lineHeight, float charWidth,
+            float baseStroke, float activeStroke,
+            String indentUnit, int unitCols) {
+        // Portée active : profondeur d'accolades du caret.
+        boolean scopeActive = view.indentGuideStyle
+                == jo.codeeditor.view.IndentGuideStyle.INDENT_WITH_SCOPE;
+        int caretBraceDepth = -1;
+        if (scopeActive && view.session != null) {
+            int caret = view.session.getSelection().start;
+            caretBraceDepth = jo.codeeditor.view.EditorView
+                    .braceScopeLevel(docChars, caret);
+        }
+
+        // Détecter les paires d'accolades visibles. On balaye
+        // les lignes visibles et pour chaque '{' trouvé (hors
+        // chaîne/commentaire), on cherche le '}' correspondant
+        // via une pile d'accolades.
+        // Optimisation : on ne balaye que les lignes visibles
+        // (firstVisible..lastVisible) plus les lignes après
+        // (jusqu'à trouver la fermeture).
+        java.util.List<int[]> blocks = detectBraceBlocks(
+                doc, docChars, firstVisible, lastVisible);
+
+        float offsetX = textAreaLeft - view.hOffset;
+
+        for (int bi = 0; bi < blocks.size(); bi++) {
+            int[] block = blocks.get(bi);
+            int startLine = block[0];
+            int startCol = block[1];
+            int endLine = block[2];
+            // int endCol = block[3]; // pas utilisé pour X
+            boolean toBottomOfEndLine = block[4] == 1;
+
+            // X = centre de la colonne de l'accolade ouvrante.
+            float centerX = offsetX + startCol * charWidth;
+            if (centerX < view.metrics.getGutterWidth()) continue;
+
+            // Y : du bas de la ligne d'ouverture au haut de la
+            // ligne de fermeture (ou au bas si toBottomOfEndLine).
+            float top = view.docLineToY(startLine) - view.vOffset + lineHeight;
+            float bottom;
+            if (toBottomOfEndLine) {
+                bottom = view.docLineToY(endLine) - view.vOffset + lineHeight;
+            } else {
+                bottom = view.docLineToY(endLine) - view.vOffset;
+            }
+
+            if (top >= bottom) continue;
+
+            // Couleur : accent si c'est le bloc actif.
+            int blockDepth = getBlockDepth(blocks, bi);
+            boolean isActive = scopeActive && caretBraceDepth == blockDepth + 1;
+            view.guidePaint.setColor(isActive ? view.theme.caret : view.theme.indentGuide);
+            view.guidePaint.setStrokeWidth(isActive ? activeStroke : baseStroke);
+
+            // Dessiner le guide comme un rectangle fin (approche
+            // l'éditeur de code de référence) pour un rendu net.
+            float halfWidth = (isActive ? activeStroke : baseStroke) / 2f;
+            canvas.drawRect(centerX - halfWidth, top,
+                    centerX + halfWidth, bottom, view.guidePaint);
+        }
+    }
+
+    /**
+     * Détecte les paires d'accolades {@code { … }} dans les
+     * lignes visibles. Retourne une liste de
+     * {@code [startLine, startCol, endLine, endCol, toBottomOfEndLine]}.
+     *
+     * <p>Le balayage ignore les chaînes et les commentaires. Il
+     * est borné aux lignes visibles plus quelques lignes après
+     * pour trouver les fermetures.</p>
+     */
+    private java.util.List<int[]> detectBraceBlocks(EditorDocument doc,
+            CharSequence docChars, int firstVisible, int lastVisible) {
+        java.util.List<int[]> result = new java.util.ArrayList<>();
+        // Pile des '{' en attente de fermeture.
+        java.util.ArrayDeque<int[]> stack = new java.util.ArrayDeque<>();
+
+        // État lexer (conscient des chaînes/commentaires).
+        boolean inString = false;
+        char quoteChar = '\0';
+        boolean inLineComment = false;
+        boolean inBlockComment = false;
+
+        int lineCount = doc.lineCount();
+        int scanLimit = Math.min(lineCount, lastVisible + 200);
+
+        for (int li = 0; li < scanLimit; li++) {
+            int lineStart = doc.lineStart(li);
+            int lineEnd = doc.lineEnd(li);
+            inLineComment = false;
+
+            for (int ci = lineStart; ci < lineEnd; ci++) {
+                char c = docChars.charAt(ci);
+                char next = ci + 1 < docChars.length() ? docChars.charAt(ci + 1) : 0;
+
+                if (inLineComment) break;
+                if (inBlockComment) {
+                    if (c == '*' && next == '/') { inBlockComment = false; ci++; }
+                    continue;
+                }
+                if (inString) {
+                    if (c == '\\') { ci++; continue; }
+                    if (c == quoteChar) inString = false;
+                    continue;
+                }
+                if (c == '/' && next == '/') { inLineComment = true; break; }
+                if (c == '/' && next == '*') { inBlockComment = true; ci++; continue; }
+                if (c == '"' || c == '\'') { inString = true; quoteChar = c; continue; }
+
+                if (c == '{') {
+                    int col = ci - lineStart;
+                    stack.push(new int[]{li, col});
+                } else if (c == '}' && !stack.isEmpty()) {
+                    int[] open = stack.pop();
+                    int endCol = ci - lineStart;
+                    // On ne garde que les blocs visibles (startLine
+                    // dans la fenêtre visible).
+                    if (open[0] >= firstVisible && open[0] <= lastVisible) {
+                        // toBottomOfEndLine : true si le '}' est
+                        // le seul caractère non-blanc de sa ligne.
+                        boolean toBottom = isEndOfLineBrace(docChars, ci);
+                        result.add(new int[]{open[0], open[1], li, endCol, toBottom ? 1 : 0});
+                    }
+                }
+            }
+        }
+        // Les blocs non fermés (pile restante) sont ignorés —
+        // le document est en cours d'édition, le '}' n'existe pas.
+        return result;
+    }
+
+    /** Vérifie si le '}' à l'offset donné est le dernier
+     *  caractère non-blanc de sa ligne (→ toBottomOfEndLine=true). */
+    private static boolean isEndOfLineBrace(CharSequence text, int braceOffset) {
+        int lineEnd = braceOffset + 1;
+        while (lineEnd < text.length() && text.charAt(lineEnd) != '\n') lineEnd++;
+        for (int i = braceOffset + 1; i < lineEnd; i++) {
+            if (!Character.isWhitespace(text.charAt(i))) return false;
+        }
+        return true;
+    }
+
+    /** Calcule la profondeur d'un bloc (combien de blocs le contiennent). */
+    private static int getBlockDepth(java.util.List<int[]> blocks, int idx) {
+        int[] target = blocks.get(idx);
+        int depth = 0;
+        for (int i = 0; i < blocks.size(); i++) {
+            if (i == idx) continue;
+            int[] other = blocks.get(i);
+            // 'other' contient 'target' si other.startLine < target.startLine
+            // et other.endLine > target.endLine (ou == avec endCol > ).
+            if (other[0] < target[0]
+                    && (other[2] > target[2]
+                        || (other[2] == target[2] && other[3] > target[3]))) {
+                depth++;
+            }
+        }
+        return depth;
+    }
+
+    /**
+     * Ancienne approche par niveau d'indentation (pour les
+     * langages non C_LIKE : Python, YAML, XML, etc.).
+     */
+    private void drawIndentLevelGuides(Canvas canvas, EditorDocument doc,
+            CharSequence docChars, int firstVisible, int lastVisible,
+            float textAreaLeft, float lineHeight, float charWidth,
+            float baseStroke, float activeStroke, int unitCols) {
+        // Portée active : profondeur d'indentation du caret.
         int caretIndent = -1;
-        // Lot B.11 : ne calculer la portée active que si le style
-        // est INDENT_WITH_SCOPE. Les styles OFF (rendu non appelé)
-        // et INDENT (pas de portée active) n'ont pas besoin de ce
-        // calcul — économise une lecture de caret par frame.
         boolean scopeActive = view.indentGuideStyle
                 == jo.codeeditor.view.IndentGuideStyle.INDENT_WITH_SCOPE;
         if (scopeActive && view.session != null) {
             int caret = view.session.getSelection().start;
-            caretLine = doc.lineForOffset(caret);
-            // Lot B.10 : pour les langages à accolades (C_LIKE :
-            // Java, Kotlin, C/C++, Go, Rust, JS/TS, PHP, Swift,
-            // Dart, Groovy, Scala), ancrer la portée active sur la
-            // paire d'accolades plutôt que sur l'indentation seule.
-            // Reste correct quand l'indentation du fichier est
-            // incohérente (code mal formaté, snippets copiés).
-            // Pour les autres langages (Python, YAML, XML, etc.),
-            // retomber sur l'indentation — pas d'accolades
-            // significatives.
-            jo.codeeditor.languages.LanguageProfile profile =
-                    view.session.getLanguageProfile();
-            boolean useBraces = profile != null
-                    && profile.family == jo.codeeditor.languages.SyntaxFamily.C_LIKE;
-            if (useBraces) {
-                // Lot B.10 : la profondeur d'imbrication des
-                // accolades est multipliée par unitCols pour
-                // obtenir une position en colonnes cohérente avec
-                // level. Une profondeur de 1 = niveau unitCols,
-                // 2 = 2×unitCols, etc.
-                caretIndent = jo.codeeditor.view.EditorView
-                        .braceScopeLevel(docChars, caret) * unitCols;
-            } else {
-                caretIndent = leadingIndentOfLine(doc, docChars, caretLine);
-            }
-            if (caretIndent < 0) {
-                // Caret sur une ligne vide — pas de portée active.
-                caretIndent = -1;
-            }
+            int caretLine = doc.lineForOffset(caret);
+            caretIndent = leadingIndentOfLine(doc, docChars, caretLine);
+            if (caretIndent < 0) caretIndent = -1;
         }
-        float charWidth = view.metrics.getCharWidth();
-        float density = view.getResources().getDisplayMetrics().density;
-        float baseStroke = Math.max(1f, 0.75f * density); // ~0.75 dp
-        float activeStroke = Math.max(1.5f, 1.1f * density); // ~1.1 dp
 
-        // Lot B : un seul paint configuré, recoloré par niveau.
-        // Plus de Paint.Cap.ROUND — BUTT pour un trait continu.
-        view.guidePaint.setStrokeCap(Paint.Cap.BUTT);
-        view.guidePaint.setAntiAlias(true);
-
-        // Lot B : pour chaque niveau d'indentation (1..max), tracer un
-        // segment par run de lignes contiguës à ce niveau. Plus de
-        // drawLine par ligne : on fusionne les segments contigus en
-        // un seul drawLine par run. Cela réduit le nombre d'appels
-        // de dessin de ~lignes×niveaux à ~runs×niveaux.
-        //
-        // On itère par niveau pour pouvoir fusionner les runs. Pour
-        // chaque niveau, on balaye les lignes visibles et on dessine
-        // un segment par run de lignes qui ont ce niveau.
         int maxLevel = 0;
         for (int i = firstVisible; i <= lastVisible; i++) {
             if (view.isLineFoldedCached(i)) continue;
             int cols = leadingIndentOrBlank(doc, docChars, i);
             if (cols < 0) {
-                // Ligne vide — pontage (cf. ci-dessous).
                 cols = bridgeBlank(doc, docChars, i);
             }
             if (cols > maxLevel) maxLevel = cols;
         }
-        // Pour chaque niveau, tracer les runs.
         for (int level = unitCols; level <= maxLevel; level += unitCols) {
-            // Couleur du niveau : accent si c'est le niveau actif
-            // (profondeur du caret), couleur de base sinon.
-            // Lot B.11 : si le style est INDENT (pas INDENT_WITH_SCOPE),
-            // scopeActive=false et isActiveLevel est toujours false —
-            // tous les guides ont la couleur de base.
             boolean isActiveLevel = scopeActive
                     && (caretIndent >= level && caretIndent < level + unitCols);
             view.guidePaint.setColor(isActiveLevel ? view.theme.caret : view.theme.indentGuide);
             view.guidePaint.setStrokeWidth(isActiveLevel ? activeStroke : baseStroke);
             float x = textAreaLeft + level * charWidth - view.hOffset;
             if (x < view.metrics.getGutterWidth()) continue;
-            // Lot B : fusion des segments contigus — on accumule les
-            // lignes visibles qui ont un guide à ce niveau, et on
-            // dessine un seul segment par run contigu (même Y de début
-            // et de fin, sans trous).
             float runStartY = -1;
             float runEndY = -1;
             for (int i = firstVisible; i <= lastVisible; i++) {
                 if (view.isLineFoldedCached(i)) {
-                    // Lot B : sauter les lignes masquées — le guide
-                    // ne traverse pas la chip. Si un run était en
-                    // cours, le fermer ici.
                     if (runStartY >= 0) {
                         canvas.drawLine(x, runStartY, x, runEndY + lineHeight, view.guidePaint);
                         runStartY = -1;
@@ -524,9 +654,6 @@ public class EditorHighlightPainter {
                 }
                 boolean hasGuide = cols >= level;
                 float y = view.docLineToY(i) - view.vOffset;
-                // Lot B : le guide traverse les rangées de continuation
-                // du retour à la ligne — la hauteur est rowsForDocLine ×
-                // lineHeight, pas lineHeight seul.
                 int rows = 1;
                 if (view.wordWrap && view.wrapModel != null) {
                     rows = view.wrapModel.rowsOf(i);
@@ -537,16 +664,13 @@ public class EditorHighlightPainter {
                         runStartY = y;
                         runEndY = y + (rows - 1) * lineHeight;
                     } else if (y == runEndY + lineHeight) {
-                        // Ligne contiguë — étendre le run.
                         runEndY = y + (rows - 1) * lineHeight;
                     } else {
-                        // Trou — fermer le run et en commencer un nouveau.
                         canvas.drawLine(x, runStartY, x, runEndY + lineHeight, view.guidePaint);
                         runStartY = y;
                         runEndY = y + (rows - 1) * lineHeight;
                     }
                 } else {
-                    // Pas de guide à ce niveau — fermer le run.
                     if (runStartY >= 0) {
                         canvas.drawLine(x, runStartY, x, runEndY + lineHeight, view.guidePaint);
                         runStartY = -1;
@@ -554,7 +678,6 @@ public class EditorHighlightPainter {
                     }
                 }
             }
-            // Fermer le dernier run.
             if (runStartY >= 0) {
                 canvas.drawLine(x, runStartY, x, runEndY + lineHeight, view.guidePaint);
             }
