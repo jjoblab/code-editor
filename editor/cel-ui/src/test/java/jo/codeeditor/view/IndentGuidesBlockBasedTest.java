@@ -191,12 +191,11 @@ public class IndentGuidesBlockBasedTest {
         assertTrue("Au moins un guide doit être tracé", lines.size() > 0);
 
         // Le guide pour le bloc de la classe doit commencer au
-        // BAS de la ligne 0 (y = paddingTop + lineHeight) et
-        // finir au HAUT ou au BAS de la ligne 2 selon
-        // toBottomOfEndLine (si le } est seul sur sa ligne,
-        // le guide descend jusqu'au bas de la ligne 2).
+        // HAUT de la ligne 0 (devant l'accolade, pas derrière)
+        // et finir au HAUT ou au BAS de la ligne 2 selon
+        // toBottomOfEndLine.
         float padTop = view.metrics.getPadTop();
-        float expectedTop = padTop + LINE_H;     // bas de la ligne 0
+        float expectedTop = padTop;               // haut de la ligne 0
         // Le } est seul sur la ligne 2 → toBottomOfEndLine=true
         // → bottom = docLineToY(2) + lineHeight = padTop + 3*LINE_H
         float expectedBottomTop = padTop + 2 * LINE_H;  // haut de la ligne 2
@@ -212,7 +211,7 @@ public class IndentGuidesBlockBasedTest {
                 break;
             }
         }
-        assertTrue("Le guide doit s'étendre du bas de la ligne "
+        assertTrue("Le guide doit s'étendre du HAUT de la ligne "
                 + "d'ouverture (y=" + expectedTop + ") au haut/bas de "
                 + "la ligne de fermeture (y=" + expectedBottomTop
                 + " ou " + expectedBottomFull + ") — "
