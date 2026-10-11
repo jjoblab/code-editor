@@ -315,6 +315,11 @@ public final class LanguageProfile {
         private static FoldStrategy defaultFoldStrategy(SyntaxFamily family) {
             switch (family) {
                 case C_LIKE:
+                    // Lot 2/3 : Java, Kotlin, C/C++, Go, etc. ont
+                    // des imports en haut de fichier qui méritent
+                    // un pli. La stratégie IMPORTS détecte les
+                    // imports ET les blocs d'accolades.
+                    return FoldStrategy.IMPORTS;
                 case JSON:
                 case SQL:
                 case SMALI:

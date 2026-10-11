@@ -42,6 +42,9 @@ public enum FoldStrategy {
     KEYWORD,
     /** Pliage par titres Markdown. */
     HEADING,
+    /** Pliage des imports Java en haut de fichier (séquence
+     *  {@code import … ;} consécutive). Lot 2/3. */
+    IMPORTS,
     /** Pas de pliage (texte brut, log, properties, toml). */
     OFF;
 }

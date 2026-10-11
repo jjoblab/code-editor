@@ -63,6 +63,15 @@ public final class FoldDetector {
             case INDENT: return detectIndentFolds(text);
             case TAG: return detectXmlFolds(text);
             case HEADING: return detectMarkdownFolds(text);
+            case IMPORTS: {
+                // Lot 2/3 : détecter les imports ET les blocs
+                // d'accolades (la stratégie IMPORTS est un
+                // supplément au BRACE, pas un remplacement — Java
+                // a besoin des deux).
+                List<DiagnosticShift.FoldRegion> importFolds = detectImportFolds(text);
+                importFolds.addAll(detectBraceFolds(text));
+                return importFolds;
+            }
             case OFF: return new ArrayList<>();
             case BRACE:
             default:
@@ -304,6 +313,65 @@ public final class FoldDetector {
     @Deprecated
     public static List<DiagnosticShift.FoldRegion> detectPythonFolds(String text) {
         return detectIndentFolds(text);
+    }
+
+    // ── Imports Java : séquence import … ; en haut de fichier ──
+
+    /**
+     * Lot 2/3 (audit v3.41.0) : détecte une séquence
+     * d'instructions {@code import … ;} (ou {@code #include …}
+     * pour C/C++) consécutives en haut du fichier et les
+     * regroupe en une seule région pliable. Le pli couvre du
+     * premier au dernier import (bornes incluses). Filtre « au
+     * moins 3 imports » pour éviter de plier un seul import.
+     */
+    public static List<DiagnosticShift.FoldRegion> detectImportFolds(String text) {
+        List<DiagnosticShift.FoldRegion> folds = new ArrayList<>();
+        String[] lines = text.split("\n", -1);
+        int offset = 0;
+        int firstImportLine = -1;
+        int lastImportLine = -1;
+        int firstImportOffset = -1;
+        int lastImportEndOffset = -1;
+        boolean inBlockComment = false;
+        for (int li = 0; li < lines.length; li++) {
+            String line = lines[li];
+            String trimmed = line.trim();
+            // Skip block comments.
+            if (inBlockComment) {
+                if (trimmed.contains("*/")) inBlockComment = false;
+                offset += lines[li].length() + 1;
+                continue;
+            }
+            if (trimmed.startsWith("/*")) {
+                if (!trimmed.contains("*/")) inBlockComment = true;
+                offset += lines[li].length() + 1;
+                continue;
+            }
+            boolean isImport = trimmed.startsWith("import ")
+                    || trimmed.startsWith("import\t")
+                    || trimmed.startsWith("#include ")
+                    || trimmed.startsWith("#include\t");
+            if (isImport) {
+                if (firstImportLine < 0) {
+                    firstImportLine = li;
+                    firstImportOffset = offset;
+                }
+                lastImportLine = li;
+                lastImportEndOffset = offset + line.length();
+            } else if (firstImportLine >= 0 && !trimmed.isEmpty()
+                    && !trimmed.startsWith("//") && !trimmed.startsWith("package")) {
+                // On a passé les imports — arrêter.
+                break;
+            }
+            offset += lines[li].length() + 1;
+        }
+        if (firstImportLine >= 0 && lastImportLine > firstImportLine + 1) {
+            folds.add(new DiagnosticShift.FoldRegion(
+                firstImportOffset, lastImportEndOffset,
+                "import…", "imports", false));
+        }
+        return folds;
     }
 
     // ── XML : blocs d'éléments ──────────────────────────────────────
