@@ -5,7 +5,7 @@ All notable changes to **code-editor-lib** are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [v3.42.0] — 2026-10-11 — Édition contextuelle par langage + plis repliés + guides d'indentation professionnels
 
 ### Added
 
@@ -22,6 +22,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `BRACKET_SCAN_LIMIT`. Utilisé par les guides d'indentation
   pour ancrer la portée active sur la paire d'accolades pour
   les langages C_LIKE.
+- **`FoldStrategy.IMPORTS`** (Lot 2/3) — nouvelle stratégie de
+  pliage qui détecte une séquence d'imports en haut de fichier
+  et les regroupe en une seule région pliable. Utilisée par
+  défaut pour la famille C_LIKE (Java, Kotlin, C/C++, Go,
+  Rust, JS/TS, etc.). Détecte aussi les blocs d'accolades en
+  complément.
+- **Indent triggers `:`/`then`/`do`** (Lot 2/3) — indentation
+  automatique +1 niveau après une ligne se terminant par
+  `:` (Python, YAML) ou `then`/`do` (Shell, Lua).
+- **Dédentation électrique `}`** (Lot 2/3) — quand l'utilisateur
+  tape `}` sur une ligne qui ne contient que de l'indentation,
+  le caret est déplacé au début de l'indentation avant
+  l'insertion du `}`. Pour les langages C_LIKE.
+- **Fermeture de balise sur `>`** (Lot 2/3) — auto-fermeture
+  automatique des balises XML/HTML/SVG : taper `>` après
+  `<div` insère `></div>`.
 - **`FoldRegions.expandInRange(int, int)`** (Lot A) — déplie tous
   les plis repliés dont l'intérieur est touché par une zone
   d'édition. Inclut les bornes (contrairement à
@@ -36,7 +52,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`FoldStrategy` enum** (Lot 2) — nouvelle enum qui route le
   `FoldDetector` : `BRACE` (C-like, JSON, SQL), `TAG` (XML, HTML,
   SVG, HTM), `INDENT` (Python, YAML), `KEYWORD` (Lua), `HEADING`
-  (Markdown), `OFF` (text, log, properties, toml, shell).
+  (Markdown), `IMPORTS` (Java/C/C++), `OFF` (text, log, properties, toml, shell).
 - **Traits d'édition dans `LanguageProfile`** (Lot 2) — 3 nouveaux
   champs immuables : `autoCloseQuotes` (`Set<Character>`),
   `autoCloseBrackets` (`Set<Character>`), `foldStrategy`
