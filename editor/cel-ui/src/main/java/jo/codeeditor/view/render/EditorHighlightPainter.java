@@ -429,7 +429,30 @@ public class EditorHighlightPainter {
         if (scopeActive && view.session != null) {
             int caret = view.session.getSelection().start;
             caretLine = doc.lineForOffset(caret);
-            caretIndent = leadingIndentOfLine(doc, docChars, caretLine);
+            // Lot B.10 : pour les langages à accolades (C_LIKE :
+            // Java, Kotlin, C/C++, Go, Rust, JS/TS, PHP, Swift,
+            // Dart, Groovy, Scala), ancrer la portée active sur la
+            // paire d'accolades plutôt que sur l'indentation seule.
+            // Reste correct quand l'indentation du fichier est
+            // incohérente (code mal formaté, snippets copiés).
+            // Pour les autres langages (Python, YAML, XML, etc.),
+            // retomber sur l'indentation — pas d'accolades
+            // significatives.
+            jo.codeeditor.languages.LanguageProfile profile =
+                    view.session.getLanguageProfile();
+            boolean useBraces = profile != null
+                    && profile.family == jo.codeeditor.languages.SyntaxFamily.C_LIKE;
+            if (useBraces) {
+                // Lot B.10 : la profondeur d'imbrication des
+                // accolades est multipliée par unitCols pour
+                // obtenir une position en colonnes cohérente avec
+                // level. Une profondeur de 1 = niveau unitCols,
+                // 2 = 2×unitCols, etc.
+                caretIndent = jo.codeeditor.view.EditorView
+                        .braceScopeLevel(docChars, caret) * unitCols;
+            } else {
+                caretIndent = leadingIndentOfLine(doc, docChars, caretLine);
+            }
             if (caretIndent < 0) {
                 // Caret sur une ligne vide — pas de portée active.
                 caretIndent = -1;

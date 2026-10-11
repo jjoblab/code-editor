@@ -158,4 +158,72 @@ final class EditorBracketMatcher {
             default: return 0;
         }
     }
+
+    /**
+     * Lot B.10 (audit v3.41.0) — calcule la profondeur d'imbrication
+     * des accolades {@code {} à la position {@code caret}. Utilisé
+     * par les guides d'indentation pour ancrer la portée active sur
+     * la paire d'accolades plutôt que sur l'indentation seule —
+     * reste correct quand l'indentation du fichier est incohérente
+     * (code mal formaté, snippets copiés, etc.).
+     *
+     * <p>Le balayage est FORWARD depuis le début du document jusqu'à
+     * {@code caret}, en ignorant les littéraux de chaîne/char et
+     * les commentaires (ligne et bloc). Borné par
+     * {@link EditorView#BRACKET_SCAN_LIMIT} pour qu'une accolade
+     * non appariée dans un énorme fichier ne coûte pas O(N) par
+     * frame.</p>
+     *
+     * @return le nombre d'accolades ouvrantes non fermées à la
+     *         position {@code caret} (>= 0). 0 si le caret n'est
+     *         dans aucun bloc {@code {}.
+     */
+    static int braceScopeLevel(CharSequence text, int caret) {
+        if (text == null || caret <= 0) return 0;
+        int limit = Math.min(caret, text.length());
+        // Lot B.10 : borne le scan pour éviter O(N) sur les très
+        // gros fichiers. BRACKET_SCAN_LIMIT est déjà utilisé par
+        // matchingBracket — cohérent.
+        int start = Math.max(0, limit - EditorView.BRACKET_SCAN_LIMIT);
+        int depth = 0;
+        boolean inString = false;
+        char quoteChar = '\0';
+        boolean inLineComment = false;
+        boolean inBlockComment = false;
+        for (int i = start; i < limit; i++) {
+            char c = text.charAt(i);
+            if (inLineComment) {
+                if (c == '\n') inLineComment = false;
+                continue;
+            }
+            if (inBlockComment) {
+                if (c == '*' && i + 1 < text.length() && text.charAt(i + 1) == '/') {
+                    inBlockComment = false;
+                    i++;
+                }
+                continue;
+            }
+            if (inString) {
+                if (c == '\\') {
+                    i++;
+                } else if (c == quoteChar) {
+                    inString = false;
+                }
+                continue;
+            }
+            if (c == '/' && i + 1 < text.length()) {
+                char next = text.charAt(i + 1);
+                if (next == '/') { inLineComment = true; i++; continue; }
+                if (next == '*') { inBlockComment = true; i++; continue; }
+            }
+            if (c == '"' || c == '\'') {
+                inString = true;
+                quoteChar = c;
+                continue;
+            }
+            if (c == '{') depth++;
+            else if (c == '}') depth = Math.max(0, depth - 1);
+        }
+        return depth;
+    }
 }

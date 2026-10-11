@@ -676,6 +676,17 @@ public class EditorView extends View {
     }
 
     /**
+     * Lot B.10 : profondeur d'imbrication des accolades à la
+     * position {@code caret} (délégué à
+     * {@link EditorBracketMatcher#braceScopeLevel}). Utilisé par
+     * les guides d'indentation pour ancrer la portée active sur
+     * la paire d'accolades pour les langages C_LIKE.
+     */
+    public static int braceScopeLevel(CharSequence text, int caret) {
+        return EditorBracketMatcher.braceScopeLevel(text, caret);
+    }
+
+    /**
      * Recalcule {@link #bracketPair} depuis la sélection courante.
      * Appelé de façon synchrone aux déplacements du caret, éditions et
      * changements de langage/session — le balayage est borné et s'arrête
