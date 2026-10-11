@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`IndentGuideStyle` enum + `EditorView.setIndentGuideStyle` /
+  `getIndentGuideStyle`** (Lot B.11) — nouvelle API publique
+  pour contrôler le rendu des guides d'indentation : `OFF`
+  (désactivé), `INDENT` (guides seuls, sans portée active),
+  `INDENT_WITH_SCOPE` (défaut — guides + portée active mise en
+  évidence). Documenté dans `USAGE.md`.
+- **`EditorView.braceScopeLevel(text, caret)`** (Lot B.10) —
+  relais public pour `EditorBracketMatcher.braceScopeLevel` :
+  profondeur d'imbrication des accolades `{` à une position
+  donnée, en ignorant les chaînes/commentaires, borné par
+  `BRACKET_SCAN_LIMIT`. Utilisé par les guides d'indentation
+  pour ancrer la portée active sur la paire d'accolades pour
+  les langages C_LIKE.
 - **`FoldRegions.expandInRange(int, int)`** (Lot A) — déplie tous
   les plis repliés dont l'intérieur est touché par une zone
   d'édition. Inclut les bornes (contrairement à
@@ -159,6 +172,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   complète du document.
 
 ### Fixed
+
+- **Navigation clavier déplie les plis (Lot A.4)** —
+  `EditorSession.setSelection` déplie désormais
+  automatiquement le pli si le caret (start ou end de la
+  sélection) se retrouve à l'intérieur strict d'un pli replié
+  (`r.start < offset < r.end`). Sans ce correctif, les
+  déplacements purs de caret (moveHorizontal, moveVertical,
+  moveLineStart, moveLineEnd, moveDocBoundary) pouvaient
+  laisser le caret sur une position invisible (à l'intérieur
+  d'un pli masqué). Le Lot A.2 couvrait les mutations via
+  `replaceRangeWithCaret`, mais pas les déplacements purs qui
+  passent par `setSelection`. Les positions `r.start` et
+  `r.end` (visibles) ne déclenchent pas le dépliage.
+  Tests : `FoldNavigationSafetyTest` (7 cas Jupiter).
+
+- **Portée active ancrée sur la paire d'accolades (Lot B.10)** —
+  pour les langages C_LIKE (Java, Kotlin, C/C++, Go, Rust,
+  JS/TS, PHP, Swift, Dart, Groovy, Scala), la portée active
+  des guides d'indentation est désormais calculée sur la
+  profondeur d'imbrication des accolades `{` plutôt que sur
+  l'indentation seule. Reste correct quand l'indentation du
+  fichier est incohérente (code mal formaté, snippets copiés).
+  Pour les autres langages (Python, YAML, XML, etc.), la
+  portée active retombe sur l'indentation — pas d'accolades
+  significatives. Nouvelle méthode
+  `EditorBracketMatcher.braceScopeLevel` (relais public
+  `EditorView.braceScopeLevel`).
+  Tests : `IndentGuidesBraceScopeTest` (5 cas Robolectric).
+
+- **Réglage activer/désactiver les guides d'indentation (Lot B.11)** —
+  nouvelle API publique `EditorView.setIndentGuideStyle(
+  IndentGuideStyle)` avec trois options : `OFF` (désactivé),
+  `INDENT` (guides seuls), `INDENT_WITH_SCOPE` (défaut —
+  guides + portée active). Documenté dans `USAGE.md`.
+  Tests : `IndentGuideStyleTest` (6 cas Robolectric).
 
 - **Caret mal placé après une chip repliée (Lot A)** —
   `EditorHitMapper.caretScreenPos` calculait `y =

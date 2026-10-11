@@ -982,22 +982,34 @@ pour éviter de complexifier la suite de tests.
 
 ### A.4 — Navigation clavier
 
-**Verdict : lu uniquement.** Non testé explicitement dans
-cette session. Les flèches gauche/droite autour d'une chip,
-haut/bas à travers un pli, Début/Fin, sélection avec Maj,
-double et triple toucher, tout sélectionner — la spécification
-3.3 demande que le caret ne s'arrête jamais sur une position
-invisible sans se déplier. La correction A.2 (dépliage dans
-`replaceRangeWithCaret`) couvre les mutations, mais pas les
-déplacements purs de caret (flèches, Home, End). La
-spécification 3.3 point 3 n'est que partiellement traitée.
+**Verdict : d'accord.** *Reproduit par exécution.*
 
-**Recommandation** : la navigation clavier (déplacement de
-caret sans mutation) devrait aussi déplier les plis quand le
-caret se positionne dans un pli. À traiter dans une session
-ultérieure — non critique car la spécification 3.3 point 2
-(suppressions silencieuses) était le bug destructeur de
-données.
+La spécification 3.3 point 3 demande que le caret ne s'arrête
+jamais sur une position invisible sans se déplier. La
+correction A.2 couvrait les mutations via
+`replaceRangeWithCaret`, mais pas les déplacements purs de
+caret (flèches, Home, End, Maj+flèches, tout sélectionner).
+
+**Correctif** : `EditorSession.setSelection(Selection)` —
+le point d'entrée unique de tous les déplacements — déplie
+automatiquement le pli si le caret (start ou end de la
+sélection) se retrouve à l'intérieur strict d'un pli replié
+(`r.start < offset < r.end`). Les positions `r.start` et
+`r.end` (visibles) ne déclenchent pas le dépliage — cohérent
+avec `FoldRegions.expandAt`.
+
+Le dépliage n'est pas enregistré sur la pile d'annulation
+(décision 3.3 point 4 du Lot A.2).
+
+**Tests :** `FoldNavigationSafetyTest` (7 cas Jupiter) —
+`moveRight_intoFold`, `moveLeft_intoFold`,
+`moveVertical_intoFold`, `setSelection_outsideFold` (garde-fou),
+`setSelection_atFoldBounds` (garde-fou — pas de dépliage sur
+positions visibles), `moveHorizontal_stepByStep_intoFold`
+(simulation clavier réelle), `moveLineStart_intoFold`. 5
+tests échouent avant (caret invisible sans dépliage), tous
+passent après. Les 2 tests de garde-fou passent avant et
+après.
 
 ### A.5 — shiftFoldRegions
 
@@ -1166,30 +1178,69 @@ restent verts — la non-régression est validée. Un benchmark
 détaillé (nombre d'allocations et d'appels de dessin par
 frame) serait bienvenu mais n'est pas critique.
 
-### B.10 — Option phase 2 (portée active par accolades)
+### B.10 — Portée active par accolades (décision 4.2 point 10)
 
-**Verdict : non implémentée.** *Lu uniquement.*
+**Verdict : d'accord.** *Reproduit par exécution.*
 
 La spécification 4.2 point 10 propose d'ancrer la portée
 active sur la paire d'accolades (via `EditorBracketMatcher`)
 plutôt que sur l'indentation seule, pour rester correct quand
-l'indentation du fichier est incohérente. Non implémenté
-dans cette session — c'est une option de phase 2. L'approche
-par indentation est correcte pour la grande majorité des
-fichiers bien formatés. L'alternative par accolades reste à
-évaluer — sera traitée en Lot B phase 2 si besoin.
+l'indentation du fichier est incohérente (code mal formaté,
+snippets copiés).
+
+**Implémentation** : nouvelle méthode
+`EditorBracketMatcher.braceScopeLevel(text, caret)` qui
+calcule la profondeur d'imbrication des accolades `{` à la
+position du caret, en ignorant les chaînes/commentaires, borné
+par `BRACKET_SCAN_LIMIT`. Relais public
+`EditorView.braceScopeLevel`.
+
+`drawIndentGuides` utilise `braceScopeLevel` pour les langages
+C_LIKE (Java, Kotlin, C/C++, Go, Rust, JS/TS, PHP, Swift,
+Dart, Groovy, Scala) — détection automatique via
+`LanguageProfile.family == SyntaxFamily.C_LIKE`. Pour les
+autres langages (Python, YAML, XML, etc.), la portée active
+retombe sur l'indentation — pas d'accolades significatives.
+
+La profondeur d'accolades est multipliée par `unitCols` pour
+obtenir une position en colonnes cohérente avec `level` :
+profondeur 1 = niveau `unitCols`, 2 = 2×`unitCols`, etc.
+
+**Tests :** `IndentGuidesBraceScopeTest` (5 cas Robolectric) —
+`braceScopeLevel_basicNesting` (profondeur 0/1 selon position),
+`braceScopeLevel_ignoresBracesInStringsAndComments`,
+`braceScopeLevel_boundedByScanLimit` (60K chars sans timeout),
+`java_consistentIndent_braceScopeUsed` (Java C_LIKE — guide
+actif à 8 = 2×unitCols), `python_nonCLike_fallsBackToIndent`
+(Python non C_LIKE — retombe sur l'indentation).
 
 ### B.11 — Réglage activer/désactiver (décision 4.2 point 8)
 
-**Verdict : non implémenté.** *Lu uniquement.*
+**Verdict : d'accord.** *Reproduit par exécution.*
 
 La spécification 4.2 point 8 demande une API simple pour
 activer/désactiver les guides et choisir le style (aucun,
-indentation, indentation + portée active). Non implémenté
-dans cette session — les guides sont toujours activés avec
-le style « indentation + portée active ». L'API reste à
-exposer et à documenter dans `USAGE.md`. À traiter en Lot B
-phase 2.
+indentation, indentation + portée active).
+
+**Implémentation** : nouvelle enum `IndentGuideStyle` avec
+trois valeurs : `OFF`, `INDENT`, `INDENT_WITH_SCOPE` (défaut).
+API publique `EditorView.setIndentGuideStyle(IndentGuideStyle)`
+/ `getIndentGuideStyle()`. `null` est silencieusement traité
+comme `OFF`. Documenté dans `USAGE.md`.
+
+`EditorRenderer` saute l'appel à `drawIndentGuides` si le style
+est `OFF` (optimisation : aucune lecture de caret, aucun
+balayage de lignes). Si le style est `INDENT` (pas
+`INDENT_WITH_SCOPE`), le calcul de la portée active est
+également sauté.
+
+**Tests :** `IndentGuideStyleTest` (6 cas Robolectric) —
+`defaultStyle_isINDENT_WITH_SCOPE`,
+`defaultStyle_INDENT_WITH_SCOPE_drawsGuides`,
+`style_OFF_doesNotDrawGuides`,
+`style_INDENT_drawsGuides_noActiveScope`,
+`style_INDENT_WITH_SCOPE_highlightsActiveScope`,
+`setIndentGuideStyle_null_treatedAsOFF`.
 
 ---
 
@@ -1273,6 +1324,14 @@ les alias `kt`, `htm`, `svg` sont désormais reconnus (Lot 1).
 24. `docs(changelog): cumul des entrées Lot A + Lot B (Unreleased)`
 25. `docs(rapport): sections Lot A + Lot B complètes`
 
+### Session 5 — Lots A.4 + B.10 + B.11
+
+26. `fix(fold): navigation clavier déplie les plis — setSelection (Lot A.4)`
+27. `feat(render): réglage activer/désactiver des guides d'indentation (Lot B.11)`
+28. `feat(render): portée active ancrée sur la paire d'accolades pour les langages C_LIKE (Lot B.10)`
+29. `docs(changelog): cumul des entrées Lot A.4 + Lot B.10 + Lot B.11 (Unreleased)`
+30. `docs(rapport): mise à jour A.4, B.10, B.11 — verdicts et tests`
+
 ---
 
 ## Critères d'acceptation (rappel du prompt)
@@ -1320,8 +1379,8 @@ les alias `kt`, `htm`, `svg` sont désormais reconnus (Lot 1).
     ✓ (tous passent par `caretScreenPos`, source unique corrigée).
   - Aucun changement de comportement hors des plis repliés :
     ✓ (test `edit_outsideFold` valide le garde-fou).
-  - Navigation clavier (spécification 3.3 point 3) : partiel
-    (voir A.4 — non critique car les mutations sont sécurisées).
+  - Navigation clavier (spécification 3.3 point 3) : ✓ (Lot
+    A.4 — `setSelection` déplie les plis).
 - **Lot B** :
   - Guides couvrent tous les niveaux dès la colonne 0 :
     ✓ (Lot B.1 — test `firstLevel_guideDrawnAtCol4`).
@@ -1336,10 +1395,10 @@ les alias `kt`, `htm`, `svg` sont désormais reconnus (Lot 1).
   - Aucune régression sur les tests de rendu existants : ✓
     (`EditorDiagnosticsInlaysTest`, `MinifiedLineWindowedRenderTest`,
     `FoldAwareRenderPassesTest`, etc. restent verts).
-  - Réglage activer/désactiver (4.2 point 8) : non implémenté
-    (voir B.11 — à traiter en phase 2).
-  - Portée active par accolades (4.2 point 10) : non implémenté
-    (voir B.10 — option phase 2).
+  - Réglage activer/désactiver (4.2 point 8) : ✓ (Lot B.11 —
+    API `IndentGuideStyle` + `setIndentGuideStyle`).
+  - Portée active par accolades (4.2 point 10) : ✓ (Lot B.10 —
+    `braceScopeLevel` pour les langages C_LIKE).
 - **Aucune allocation O(taille du document) ajoutée dans un chemin
   exécuté à chaque frame ou à chaque frappe** : ✓
   (Lot 1+3 — `EditorSignaturePopup` et `EditorCompletionPopup`
