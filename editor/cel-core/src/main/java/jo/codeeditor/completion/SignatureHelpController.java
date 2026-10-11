@@ -299,27 +299,91 @@ public class SignatureHelpController {
     /**
      * Trouve la position de la '(' non appariée avant le caret.
      * Renvoie -1 si le caret n'est pas dans un appel.
+     *
+     * <p><b>Lot 3 (audit v3.41.0)</b> : le scan ignore désormais les
+     * littéraux de chaîne/char, les commentaires de ligne et les
+     * commentaires de bloc. Avant ce correctif, un {@code (} dans
+     * une chaîne ({@code "abc(def"}), dans un commentaire
+     * ({@code // foo(bar)} ou {@code /* foo( *\/}), ou un
+     * {@code ;} dans une chaîne ({@code "abc;def"}) étaient
+     * traités comme des frontières d'instruction/appel — faux
+     * positifs et faux négatifs pour l'aide de signature.</p>
+     *
+     * <p>Le scan est forward depuis le début du document, tracking
+     * l'état string/comment, et reset sur {@code ;} et {@code {}}
+     * (uniquement hors chaîne/commentaire). La complexité est
+     * O(caret) par appel, comme {@code isInString} — acceptable
+     * pour le thread UI car les debounces limitent la fréquence.</p>
      */
     public static int findCallOpen(CharSequence chars, int caret) {
-        int depth = 0;
+        if (caret <= 0) return -1;
         int limit = Math.min(caret, chars.length());
-        for (int i = limit - 1; i >= 0; i--) {
+        int depth = 0;
+        int callOpen = -1;
+        boolean inString = false;
+        char quoteChar = '\0';
+        boolean inLineComment = false;
+        boolean inBlockComment = false;
+        for (int i = 0; i < limit; i++) {
             char ch = chars.charAt(i);
-            if (ch == ')') depth++;
-            else if (ch == '(') {
-                if (depth == 0) return i;
+            if (inLineComment) {
+                if (ch == '\n') inLineComment = false;
+                continue;
+            }
+            if (inBlockComment) {
+                if (ch == '*' && i + 1 < chars.length() && chars.charAt(i + 1) == '/') {
+                    inBlockComment = false;
+                    i++;
+                }
+                continue;
+            }
+            if (inString) {
+                if (ch == '\\') {
+                    i++; // sauter le caractère échappé
+                } else if (ch == quoteChar) {
+                    inString = false;
+                }
+                continue;
+            }
+            // Hors chaîne/commentaire.
+            if (ch == '/' && i + 1 < chars.length()) {
+                char next = chars.charAt(i + 1);
+                if (next == '/') { inLineComment = true; i++; continue; }
+                if (next == '*') { inBlockComment = true; i++; continue; }
+            }
+            if (ch == '"' || ch == '\'') {
+                inString = true;
+                quoteChar = ch;
+                continue;
+            }
+            // Frontières d'instruction/bloc (hors chaîne/commentaire).
+            if (ch == ';' || ch == '{') {
+                depth = 0;
+                callOpen = -1;
+                continue;
+            }
+            if (ch == '(') {
+                if (depth == 0) callOpen = i;
+                depth++;
+            } else if (ch == ')') {
                 depth--;
-            } else if (ch == ';' || ch == '{') {
-                // Arrête le scan aux frontières d'instruction/bloc
-                break;
+                if (depth == 0) callOpen = -1;
             }
         }
-        return -1;
+        // Si le caret lui-même est dans une chaîne ou un commentaire,
+        // ne pas déclencher l'aide de signature.
+        if (inString || inLineComment || inBlockComment) return -1;
+        return callOpen;
     }
 
     /**
      * Compte le nombre de virgules entre la parenthèse ouvrante et le
      * caret pour déterminer l'index du paramètre actif.
+     *
+     * <p><b>Lot 3 (audit v3.41.0)</b> : le scan ignore les littéraux
+     * de chaîne/char, les commentaires de ligne et de bloc. Une
+     * virgule dans {@code "hello, world"} ou dans
+     * {@code // une, virgule} n'incrémente plus l'index du paramètre.</p>
      *
      * @param chars    texte du document
      * @param callOpen position de la '('
@@ -332,8 +396,41 @@ public class SignatureHelpController {
         int commas = 0;
         int start = callOpen + 1;
         int end = Math.min(caret, chars.length());
+        boolean inString = false;
+        char quoteChar = '\0';
+        boolean inLineComment = false;
+        boolean inBlockComment = false;
         for (int i = start; i < end; i++) {
             char ch = chars.charAt(i);
+            if (inLineComment) {
+                if (ch == '\n') inLineComment = false;
+                continue;
+            }
+            if (inBlockComment) {
+                if (ch == '*' && i + 1 < chars.length() && chars.charAt(i + 1) == '/') {
+                    inBlockComment = false;
+                    i++;
+                }
+                continue;
+            }
+            if (inString) {
+                if (ch == '\\') {
+                    i++;
+                } else if (ch == quoteChar) {
+                    inString = false;
+                }
+                continue;
+            }
+            if (ch == '/' && i + 1 < chars.length()) {
+                char next = chars.charAt(i + 1);
+                if (next == '/') { inLineComment = true; i++; continue; }
+                if (next == '*') { inBlockComment = true; i++; continue; }
+            }
+            if (ch == '"' || ch == '\'') {
+                inString = true;
+                quoteChar = ch;
+                continue;
+            }
             if (ch == '(' || ch == '[' || ch == '{') depth++;
             else if (ch == ')' || ch == ']' || ch == '}') depth--;
             else if (ch == ',' && depth == 0) commas++;

@@ -99,6 +99,110 @@ class SignatureHelpControllerTest {
         assertEquals(1, SignatureHelpController.activeParameterIndex("foo(bar(a, b), ", 3, 15));
     }
 
+    // ── Lot 3 (audit v3.41.0) — ignore les chaînes et les commentaires ──
+
+    /**
+     * Un {@code (} dans une chaîne ne doit pas être traité comme
+     * ouvrant d'appel. Avant le Lot 3, {@code findCallOpen} faisait
+     * un scan naïf sans ignorer les chaînes — un {@code (} dans
+     * {@code "abc(def"} était confondu avec un ouvrant d'appel,
+     * déclenchant l'aide de signature dans une chaîne.
+     */
+    @Test
+    void findCallOpen_parenInString_doesNotTrigger() {
+        // "abc(def" + foo(ar|g) — le ( dans la chaîne ne compte pas.
+        // Le vrai ouvrant est à foo(. Caret à l'intérieur de foo(arg).
+        String text = "String s = \"abc(def\";\nfoo(arg)";
+        int fooOpen = text.indexOf("foo(") + 3; // 25
+        // Caret à l'intérieur de l'appel (entre 'r' et 'g' de arg).
+        int caret = fooOpen + 4; // 25 + 4 = 29, dans "arg"
+        int callOpen = SignatureHelpController.findCallOpen(text, caret);
+        assertEquals(fooOpen, callOpen,
+                "Le ( dans une chaîne ne doit pas ouvrir d'appel");
+    }
+
+    @Test
+    void findCallOpen_semicolonInString_doesNotBreak() {
+        // Un ; dans une chaîne ne doit pas arrêter le scan.
+        String text = "String s = \"abc;def\";\nfoo(arg";
+        int fooOpen = text.indexOf("foo(") + 3;
+        // Caret à la fin (appel non fermé).
+        int callOpen = SignatureHelpController.findCallOpen(text, text.length());
+        assertEquals(fooOpen, callOpen,
+                "Le ; dans une chaîne ne doit pas arrêter le scan");
+    }
+
+    @Test
+    void findCallOpen_parenInLineComment_doesNotTrigger() {
+        // Un ( dans un commentaire de ligne ne compte pas.
+        String text = "// un commentaire (avec parenthèses)\nfoo(arg";
+        int callOpen = SignatureHelpController.findCallOpen(text, text.length());
+        int fooOpen = text.indexOf("foo(") + 3;
+        assertEquals(fooOpen, callOpen,
+                "Le ( dans un commentaire de ligne ne doit pas ouvrir d'appel");
+    }
+
+    @Test
+    void findCallOpen_parenInBlockComment_doesNotTrigger() {
+        // Un ( dans un commentaire de bloc ne compte pas.
+        String text = "/* un (commentaire) de bloc */\nfoo(arg";
+        int callOpen = SignatureHelpController.findCallOpen(text, text.length());
+        int fooOpen = text.indexOf("foo(") + 3;
+        assertEquals(fooOpen, callOpen,
+                "Le ( dans un commentaire de bloc ne doit pas ouvrir d'appel");
+    }
+
+    @Test
+    void findCallOpen_inStringItself_returnsNegativeOne() {
+        // Le caret lui-même est dans une chaîne — pas d'appel.
+        String text = "String s = \"hello, world";
+        // Caret à la fin, dans la chaîne non fermée.
+        int callOpen = SignatureHelpController.findCallOpen(text, text.length());
+        assertEquals(-1, callOpen,
+                "Si le caret est dans une chaîne, pas d'aide de signature");
+    }
+
+    /**
+     * Une virgule dans une chaîne ne doit pas incrémenter l'index
+     * du paramètre actif. Avant le Lot 3, {@code activeParameterIndex}
+     * faisait un scan naïf — une virgule dans {@code "hello, world"}
+     * était comptée à tort.
+     */
+    @Test
+    void activeParameterIndex_commaInString_doesNotCount() {
+        // foo("hello, world", — la virgule dans la chaîne ne compte pas.
+        String text = "foo(\"hello, world\", ";
+        // callOpen à foo( = position 3.
+        // caret à la fin = position text.length() = 19.
+        int commas = SignatureHelpController.activeParameterIndex(text, 3, text.length());
+        assertEquals(1, commas,
+                "La virgule dans une chaîne ne doit pas incrémenter l'index");
+    }
+
+    @Test
+    void activeParameterIndex_commaInLineComment_doesNotCount() {
+        // foo(a, // comment, with comma
+        //     b  — caret à la fin
+        // La virgule dans // ... ne doit pas compter.
+        String text = "foo(a, // comment, with comma\n     b";
+        int callOpen = 3;
+        int caret = text.length();
+        int commas = SignatureHelpController.activeParameterIndex(text, callOpen, caret);
+        assertEquals(1, commas,
+                "La virgule dans un commentaire de ligne ne doit pas compter");
+    }
+
+    @Test
+    void activeParameterIndex_commaInBlockComment_doesNotCount() {
+        // foo(a, /* comment, with comma */ b  — caret à la fin
+        String text = "foo(a, /* comment, with comma */ b";
+        int callOpen = 3;
+        int caret = text.length();
+        int commas = SignatureHelpController.activeParameterIndex(text, callOpen, caret);
+        assertEquals(1, commas,
+                "La virgule dans un commentaire de bloc ne doit pas compter");
+    }
+
     // ── Comportement du résolveur / déclencheur ───────────────────────────────
 
     @Test
