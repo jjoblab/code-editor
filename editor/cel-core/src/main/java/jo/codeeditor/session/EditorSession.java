@@ -183,12 +183,41 @@ public class EditorSession {
     public EditorDocument getDocument() { return doc; }
     public Selection getSelection() { return selection; }
     public void setSelection(Selection sel) {
+        // Lot A.4 (audit v3.41.0) : déplie le pli si le caret
+        // (start ou end de la sélection) se retrouve à l'intérieur
+        // strict d'un pli replié. Sans ce correctif, les
+        // déplacements purs de caret (moveHorizontal, moveVertical,
+        // moveLineStart, moveLineEnd, moveDocBoundary) pouvaient
+        // laisser le caret sur une position invisible (à
+        // l'intérieur d'un pli masqué). Le Lot A.2 couvrait les
+        // mutations via replaceRangeWithCaret, mais pas les
+        // déplacements purs qui passent par setSelection.
+        //
+        // On déplie le pli AVANT d'appliquer la sélection pour que
+        // le rendu suivant affiche le caret au bon endroit. Le
+        // dépliage n'est PAS enregistré sur la pile d'annulation
+        // (cohérent avec la décision 3.3 point 4 du Lot A.2).
+        //
+        // Bornes : on déplie si start OU end est dans l'intérieur
+        // STRICT du pli (r.start < offset < r.end). Les positions
+        // r.start (juste avant la chip) et r.end (juste après la
+        // chip, sur le fermant du suffixe) sont visibles et ne
+        // déclenchent pas le dépliage.
+        if (folds != null && folds.hasCollapsed()) {
+            folds.expandAt(sel.start);
+            if (sel.start != sel.end) {
+                folds.expandAt(sel.end);
+            }
+            // La vue est notifiée via le mécanisme existant
+            // (getFoldRegions est appelé à chaque frame par le
+            // renderer ; foldRev est incrémenté par expandAt pour
+            // invalider les caches dérivés de la vue).
+        }
         this.selection = sel;
         notifySelectionChanged();
     }
     public void setSelection(int offset) {
-        this.selection = Selection.cursor(offset);
-        notifySelectionChanged();
+        setSelection(Selection.cursor(offset));
     }
     public String getText() { return doc.getText(); }
     public String getLanguage() { return language; }
