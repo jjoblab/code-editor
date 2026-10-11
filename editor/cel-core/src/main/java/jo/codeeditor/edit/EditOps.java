@@ -124,4 +124,21 @@ public final class EditOps {
     public static int detectTabSize(CharSequence text) {
         return IndentDetection.detectTabSize(text);
     }
+
+    /**
+     * Lot 3 (audit v3.41.0) — vrai si la position {@code pos} se
+     * trouve à l'intérieur d'un littéral de chaîne/char, d'un
+     * commentaire de ligne ou d'un commentaire de bloc. Wrapper
+     * public pour {@code CodeContext.isInStringOrComment} (qui est
+     * package-private). Utilisé par la couche UI pour le context
+     * gate de la complétion et de l'aide de signature.
+     *
+     * <p>Le prédicat est conscient des chaînes échappées et des
+     * commentaires de bloc non terminés (renvoie true si la position
+     * est dans une chaîne ouverte). Le coût est O(pos) par appel —
+     * acceptable car les debounces limitent la fréquence.</p>
+     */
+    public static boolean isInStringOrComment(CharSequence text, int pos) {
+        return CodeContext.isInStringOrComment(text, pos);
+    }
 }

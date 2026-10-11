@@ -252,6 +252,20 @@ public class EditorCompletionPopup {
         int tokenStart = tokenStartAt(text, caret);
         String prefix = view.session.getDocument().subText(tokenStart, caret);
 
+        // ── Lot 3 (audit v3.41.0) : context gate — pas de complétion
+        // dans les chaînes, les commentaires ou les fichiers de log.
+        // Le popup n'apporte rien dans du texte non-code et clignote
+        // intempestivement quand l'utilisateur tape dans une chaîne.
+        // On réutilise CodeContext.isInStringOrComment (Lot 1) pour
+        // la détection string/comment. Pour log, on vérifie la
+        // famille lexicale via le registre.
+        if (isInCodeContext(text, caret)) {
+            // OK, on continue.
+        } else {
+            dismissCompletion();
+            return;
+        }
+
         // ── Étendre : même token, base en cache → filtrage local pur. ──
         if (!prefix.isEmpty()
                 && view.completionBaseTokenStart == tokenStart
@@ -291,6 +305,48 @@ public class EditorCompletionPopup {
         // SYNCHRONE).
         // Gain perçu : ~80 ms de latence supprimés sur chaque frappe de ".".
         scheduleAsyncFetch(tokenStart, triggeredByTriggerChar);
+    }
+
+    /**
+     * Lot 3 (audit v3.41.0) — détermine si l'ouverture du popup de
+     * complétion est légitime à la position du caret. Renvoie
+     * {@code false} dans les contextes non-code :
+     * <ul>
+     *   <li>Le caret est à l'intérieur d'une chaîne ou d'un commentaire
+     *       (ligne ou bloc) — délégué à
+     *       {@code CodeContext.isInStringOrComment}.</li>
+     *   <li>Le langage courant est « log » (famille LOG) — un fichier
+     *       de log n'est pas du code, la complétion n'a aucun sens.</li>
+     * </ul>
+     * Le test est O(caret) sur le thread UI (comme findCallOpen et
+     * isInString), acceptable car la frappe est debouncée. Si le
+     * caret est hors d'un token valide (au début d'une ligne ou
+     * après un séparateur), la complétion reste légitime (le popup
+     * s'ouvrira après le prochain caractère).
+     */
+    private boolean isInCodeContext(CharSequence text, int caret) {
+        if (view.session == null) return false;
+        // Fichier de log : pas de complétion.
+        String lang = view.session.getLanguage();
+        if (lang != null) {
+            jo.codeeditor.languages.LanguageProfile profile =
+                    jo.codeeditor.languages.LanguageRegistry.forName(lang);
+            if (profile != null
+                    && profile.family == jo.codeeditor.languages.SyntaxFamily.LOG) {
+                return false;
+            }
+        }
+        // Caret dans une chaîne ou un commentaire : pas de complétion.
+        // CodeContext est package-private dans cel-core — on utilise
+        // une approche simple : si le caret est dans une chaîne ou un
+        // commentaire, isInStringOrComment renvoie true. Le prédicat
+        // est conscient des chaînes, des commentaires de ligne et de
+        // bloc, et est déjà utilisé par SmartTyping pour l'auto-close.
+        // CodeContext n'est pas directement accessible depuis cel-ui
+        // (package-private), mais EditOps expose les helpers
+        // d'édition qui délèguent. On ajoute un wrapper public pour
+        // isInStringOrComment.
+        return !jo.codeeditor.edit.EditOps.isInStringOrComment(text, caret);
     }
 
     /** Point d'entrée hôte (Ctrl+Espace / bouton Cmplt) — SANS debounce. */
