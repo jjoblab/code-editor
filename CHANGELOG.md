@@ -5,6 +5,24 @@ All notable changes to **code-editor-lib** are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v3.44.0] — 2026-10-11 — Guide devant l'accolade + menu démo guides d'indentation
+
+### Changed
+
+- **Guide commence devant l'accolade** — le guide vertical d'un
+  bloc d'accolades commence désormais au HAUT de la ligne
+  d'ouverture (devant l'accolade `{`), pas au bas (derrière).
+  Comme les éditeurs de code de bureau et les IDE Android. Mieux que l'éditeur de code de référence qui
+  commence au bas de la ligne (`RowBottom`).
+
+### Added
+
+- **Menu démo : guides d'indentation** — l'application démo
+  expose désormais un menu « Guides d'indentation » avec trois
+  options : « Indentation + portée active » (défaut),
+  « Indentation seule », « Désactivés ». Permet de tester les
+  nouveaux styles `IndentGuideStyle` directement sur l'appareil.
+
 ## [v3.43.0] — 2026-10-11 — Guides d'indentation l'éditeur de code de référence (cache + IndentRange + recherche binaire)
 
 ### Changed

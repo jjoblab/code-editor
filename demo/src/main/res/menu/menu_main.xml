@@ -8,6 +8,23 @@
         app:showAsAction="always" />
 
     <item
+        android:id="@+id/action_indent_guides"
+        android:title="Guides d'indentation"
+        app:showAsAction="never">
+        <menu>
+            <item
+                android:id="@+id/indent_guides_scope"
+                android:title="Indentation + portée active" />
+            <item
+                android:id="@+id/indent_guides_indent"
+                android:title="Indentation seule" />
+            <item
+                android:id="@+id/indent_guides_off"
+                android:title="Désactivés" />
+        </menu>
+    </item>
+
+    <item
         android:id="@+id/action_reset"
         android:title="@string/menu_reset"
         app:showAsAction="never" />

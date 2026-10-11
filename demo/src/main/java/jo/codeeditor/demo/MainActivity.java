@@ -192,6 +192,18 @@ public class MainActivity extends AppCompatActivity {
             showLanguagePicker();
             return true;
         }
+        if (id == R.id.indent_guides_scope) {
+            editor.setIndentGuideStyle(jo.codeeditor.view.IndentGuideStyle.INDENT_WITH_SCOPE);
+            return true;
+        }
+        if (id == R.id.indent_guides_indent) {
+            editor.setIndentGuideStyle(jo.codeeditor.view.IndentGuideStyle.INDENT);
+            return true;
+        }
+        if (id == R.id.indent_guides_off) {
+            editor.setIndentGuideStyle(jo.codeeditor.view.IndentGuideStyle.OFF);
+            return true;
+        }
         if (id == R.id.action_reset) {
             loadLanguage(languageLabel, languageId);
             return true;
