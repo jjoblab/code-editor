@@ -39,6 +39,18 @@ class EditorHitMapper {
     /**
      * Retourne les coordonnées écran du caret de l'offset donné,
      * utilisées pour positionner les poignées de sélection.
+     *
+     * <p><b>Lot A (audit v3.41.0)</b> : lorsque l'offset appartient à
+     * la ligne de FIN d'un pli replié (ou plus généralement à une
+     * ligne masquée), Y est calculé à partir de la ligne de DÉBUT du
+     * pli correspondant, pas de la ligne masquée. Sans ce correctif,
+     * le caret tapé juste après la chip {@code {…}} était dessiné sur
+     * la rangée suivante (celle qui suit le pli), à la bonne
+     * abscisse mais au mauvais Y — l'utilisateur voyait le caret
+     * « sauter » une ligne. La cause : {@code offsetAt} retourne
+     * un offset sur endLine (ligne masquée), et
+     * {@code docLineToY(ligne masquée)} retourne la rangée qui suit
+     * le pli.</p>
      */
     float[] caretScreenPos(int offset) {
         EditorDocument doc = view.session.getDocument();
@@ -46,15 +58,41 @@ class EditorHitMapper {
         int col = offset - doc.lineStart(line);
         float charWidth = view.metrics.getCharWidth();
         float x;
-        float y = view.docLineToY(line) - view.vOffset;
+        // Lot A : Y doit être celui de la ligne VISIBLE qui porte le
+        // caret. Si la ligne calculée est masquée (intérieur strict ou
+        // ligne de fin d'un pli replié), on remonte Y à la ligne de
+        // DÉBUT du pli correspondant.
+        int visibleLine = line;
+        if (view.session != null && view.session.hasCollapsedFolds()) {
+            DiagnosticShift.FoldRegion fold = foldContainingLine(line);
+            if (fold != null) {
+                visibleLine = doc.lineForOffset(fold.start);
+            }
+        }
+        float y = view.docLineToY(visibleLine) - view.vOffset;
         if (view.wordWrap && view.wrapModel != null) {
             // Mapping rangée/colonne via wrapRowsFor (les rangées de
             // continuation sont PLUS ÉTROITES que la première — un simple
             // col/maxColsPerRow placerait le caret une rangée trop haut dès
             // que l'indent de continuation > 0).
-            EditorView.WrapRows wr = view.wrapRowsFor(line, doc.lineEnd(line) - doc.lineStart(line));
-            int rowInLine = wr.rowForCol(col);
-            int colInRow = col - wr.rowStartCol(rowInLine);
+            // Lot A : avec un pli replié, la ligne de fin (masquée) ne
+            // peut pas servir au calcul de rangée — on utilise la ligne
+            // visible (début du pli). La position du caret au-delà de la
+            // chip est sur la rangée 0 de cette ligne composite.
+            EditorView.WrapRows wr = view.wrapRowsFor(visibleLine,
+                    doc.lineEnd(visibleLine) - doc.lineStart(visibleLine));
+            int rowInLine;
+            int colInRow;
+            if (visibleLine != line) {
+                // Ligne de fin masquée : on est dans le suffixe (au-delà
+                // de la chip). rowInLine = 0, colInRow calculé plus bas
+                // via le chemin de correction du X (suffixe composite).
+                rowInLine = 0;
+                colInRow = 0; // sera surchargé par le calcul X du suffixe
+            } else {
+                rowInLine = wr.rowForCol(col);
+                colInRow = col - wr.rowStartCol(rowInLine);
+            }
             y += rowInLine * view.metrics.getLineHeight();
             x = view.metrics.getGutterWidth() + view.metrics.getPadLeft()
                     + (rowInLine > 0 ? wr.wrapIndentCols * charWidth : 0)
@@ -106,6 +144,37 @@ class EditorHitMapper {
             }
         }
         return new float[]{x, y};
+    }
+
+    /**
+     * Lot A : retrouve le pli replié dont la ligne {@code docLine}
+     * appartient à l'intérieur (lignes strictement masquées :
+     * {@code startLine < docLine <= endLine}) OU est la ligne de
+     * FIN ({@code docLine == endLine}). Renvoie null si la ligne est
+     * visible ou si aucun pli ne la contient.
+     *
+     * <p>La recherche est linéaire en nombre de plis (cf.
+     * {@code collapsedFoldStartingAtLine}, même patron). Sur des
+     * fichiers à peu de plis, le coût est négligeable ; pour des
+     * fichiers à beaucoup de plis, un index trié par startLine
+     * permettrait une recherche binaire — non fait ici pour ne pas
+     * casser l'API publique.</p>
+     */
+    private DiagnosticShift.FoldRegion foldContainingLine(int docLine) {
+        if (view.session == null) return null;
+        EditorDocument doc = view.session.getDocument();
+        for (DiagnosticShift.FoldRegion r : view.session.getFoldRegions()) {
+            if (!r.collapsed) continue;
+            int sLine = doc.lineForOffset(r.start);
+            int eLine = doc.lineForOffset(r.end);
+            // Lignes masquées : startLine < l <= endLine. La ligne
+            // de fin est masquée (le pli se termine à r.end qui est
+            // AVANT la fin de la ligne de fin — donc la fin de la
+            // ligne de fin est visible, mais sa position Y est
+            // celle de la ligne de début du pli, voir lot A).
+            if (docLine > sLine && docLine <= eLine) return r;
+        }
+        return null;
     }
 
     /** Mappe un point écran (x, y) en offset document, borné à la fin de ligne.
