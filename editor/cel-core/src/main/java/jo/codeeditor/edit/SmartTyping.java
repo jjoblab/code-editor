@@ -100,6 +100,22 @@ final class SmartTyping {
             return SmartNewline.smartEnter(text, pos, language);
         }
 
+        // Lot 2/3 (audit v3.41.0) : dédentation électrique pour
+        // les langages C_LIKE. Quand l'utilisateur tape `}` sur
+        // une ligne qui ne contient que de l'indentation avant le
+        // caret, déplacer le caret au début de l'indentation AVANT
+        // l'insertion du `}`. Cela évite d'avoir une ligne comme
+        // «    } » quand l'utilisateur veut « } ».
+        if (ch == '}' && isCLikeLanguage(language)) {
+            int lineStart = EditTextUtils.lineStartForOffset(text, pos);
+            String indent = EditTextUtils.extractIndent(text, lineStart);
+            if (pos == lineStart + indent.length() && !indent.isEmpty()) {
+                // Le caret est à la fin de l'indentation — dédenter
+                // avant d'insérer le `}`.
+                return new RangeEdit(lineStart, pos, "}", lineStart + 1);
+            }
+        }
+
         // Défaut : insertion simple
         return new RangeEdit(pos, pos, String.valueOf(ch), pos + 1);
     }
@@ -238,5 +254,18 @@ final class SmartTyping {
             }
         }
         return -1;
+    }
+
+    /**
+     * Lot 2/3 : vrai si le langage est de famille C_LIKE
+     * (Java, Kotlin, C/C++, Go, Rust, PHP, Swift, Dart,
+     * Groovy, JS/TS, Scala). Résolu via le registre.
+     */
+    private static boolean isCLikeLanguage(String language) {
+        if (language == null || language.isEmpty()) return false;
+        jo.codeeditor.languages.LanguageProfile profile =
+                jo.codeeditor.languages.LanguageRegistry.forName(language);
+        return profile != null
+                && profile.family == jo.codeeditor.languages.SyntaxFamily.C_LIKE;
     }
 }
