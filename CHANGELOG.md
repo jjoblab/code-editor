@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`EditOps.isInStringOrComment`** (Lot 3) — wrapper public pour
+  `CodeContext.isInStringOrComment` (package-private). Permet à la
+  couche UI d'utiliser le prédicat (context gate de complétion,
+  future extension d'aide de signature).
 - **`FoldStrategy` enum** (Lot 2) — nouvelle enum qui route le
   `FoldDetector` : `BRACE` (C-like, JSON, SQL), `TAG` (XML, HTML,
   SVG, HTM), `INDENT` (Python, YAML), `KEYWORD` (Lua), `HEADING`
@@ -45,6 +49,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **`builtinKeywordCompletions` piloté par le registre** (Lot 3) —
+  `EditorCompletionPopup.builtinKeywordCompletions` ne couvrait
+  que 4 langages (java, kotlin, xml, markdown) avec une liste
+  hardcoded. Tous les autres langages enregistrés retombaient
+  sur une liste vide. Désormais la méthode interroge
+  `LanguageRegistry.forName` pour obtenir les mots-clés du
+  profil — tous les langages enregistrés (C, C++, Go, Rust,
+  Python, JS, TS, SQL, Shell, YAML, JSON, Lua, Ruby, PHP, Swift,
+  Dart, Groovy, Scala, Smali, etc.) bénéficient de la complétion
+  de mots-clés. Markdown reste une exception — ses « mots-clés »
+  sont des snippets (# , ## , - , ```java, etc.) qui ne sont pas
+  des mots-clés au sens du registre.
+- **Retrait de la liste XML trompeuse** (Lot 3) — l'ancien code
+  proposait `android:layout_padding` (attribut INVENTÉ — le
+  vrai est `android:padding`) et des vues Android
+  (LinearLayout, TextView, etc.) pour tout fichier XML.
+  Désormais le popup XML ne propose que les 6 mots-clés XML de
+  base enregistrés (xmlns, android, app, tools, schema, layout).
+  Les hôtes qui veulent des attributs Android peuvent enregistrer
+  un profile dédié « android-xml ».
 - **`FoldDetector.detect` route via le registre** (Lot 2) —
   résout le `LanguageProfile` du langage via
   `LanguageRegistry.forName` puis délègue à la méthode
@@ -184,6 +208,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (Lot 1) — Kotlin n'utilise pas de point-virgule de façon
   idiomatique. L'insertion d'un `;` final était un bruit syntaxique.
 
+- **`SignatureHelpController.findCallOpen` / `activeParameterIndex`
+  ignorent les chaînes et les commentaires** (Lot 3) —
+  l'aide de signature ne se déclenche plus dans une chaîne
+  littérale, un commentaire de ligne ou un commentaire de bloc.
+  Une virgule dans une chaîne (`"hello, world"`) ou un
+  commentaire (`// une, virgule`) n'incrémente plus l'index du
+  paramètre actif — l'aide de signature montrait le mauvais
+  paramètre surligné. Un `(` dans une chaîne ou un commentaire
+  n'est plus confondu avec un ouvrant d'appel.
+
+- **Complétion désactivée dans les chaînes, les commentaires et
+  les logs** (Lot 3) — `EditorCompletionPopup.refreshCompletion`
+  désormais verrouille l'ouverture du popup par un context
+  gate : pas de complétion si le caret est dans une chaîne, un
+  commentaire (ligne ou bloc), ou si le langage est « log »
+  (famille LOG). Avant, le popup s'ouvrait dans tous ces
+  contextes — clignotement intempestif pendant la frappe dans
+  une chaîne, fausses propositions dans un commentaire, popup
+  parasite dans un log.
+
+- **Liste XML trompeuse (`android:layout_padding`)** (Lot 3) —
+  voir Changed.
+
 ### Performance
 
 - **`EditorSignaturePopup` — `getText()` après le gate, pas avant**
@@ -193,6 +240,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`indentLines` utilise `doc.charSequence()` au lieu de
   `doc.getText()`** (Lot 1+3) — la détection de l'unité d'indentation
   se fait sur la rope (pas de copie complète du document).
+- **`CodeContext` borne les scans O(n) à 10 000 caractères**
+  (Lot 3) — `isInString`, `isInBlockComment`, `isInLineComment`
+  et `isInStringOrComment` démarrent désormais le scan à
+  `max(0, pos - 10_000)` au lieu de `0`. Sur un document de
+  100K+ caractères, chaque frappe déclenchait 100K itérations
+  — désormais borné à 10K. Le faux négatif potentiel (chaîne
+  ou commentaire ouvert il y a plus de 10K caractères) est
+  acceptable — une chaîne de 10K+ est extrême (e.g. minified
+  JS). Constante `CodeContext.SCAN_LIMIT` partagée avec
+  `IndentDetection`.
 
 ## [v3.41.0] — 2026-09-30 — Scans feuille par feuille (rope) + cycle de vie session→vue (B21h) + demo à jour
 
