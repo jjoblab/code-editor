@@ -16,6 +16,13 @@ final class SmartNewline {
 
     /**
      * Smart Enter : poursuite de l'indentation, plus profonde après les ouvreurs, expansion de crochets, etc.
+     *
+     * <p>Lot 2/3 (audit v3.41.0) : indent triggers pour les langages
+     * à indentation par mots-clés (Python, YAML, Shell, Lua). Quand
+     * l'utilisateur appuie sur Entrée après une ligne se terminant
+     * par {@code :} (Python, YAML) ou {@code then}/{@code do}
+     * (Shell, Lua), la ligne suivante est indentée +1 niveau.
+     * Voir {@link #indentTriggerMatch} pour le périmètre minimal.</p>
      */
     static RangeEdit smartEnter(CharSequence text, int pos, String language) {
         if (LanguageIds.isXml(language)) {
@@ -24,8 +31,97 @@ final class SmartNewline {
         if ("kotlin".equals(language)) {
             return kotlinNewline(text, pos, language);
         }
+        // Lot 2/3 : indent triggers pour Python/YAML/Shell/Lua.
+        // Vérifié avant le dispatch Java/défaut car ces langages
+        // ne sont pas XML ni Kotlin, et leur indentation après `:`/
+        // `then`/`do` doit primer sur le comportement par défaut.
+        String indentUnit = IndentDetection.detectIndentUnit(text);
+        if (indentTriggerMatch(text, pos, language)) {
+            int lineStart = EditTextUtils.lineStartForOffset(text, pos);
+            String currentIndent = EditTextUtils.extractIndent(text, lineStart);
+            String deeperIndent = currentIndent + indentUnit;
+            return new RangeEdit(pos, pos, "\n" + deeperIndent,
+                    pos + 1 + deeperIndent.length());
+        }
         // Java et défaut
         return javaNewline(text, pos, language);
+    }
+
+    /**
+     * Lot 2/3 (audit v3.41.0) — détermine si la ligne avant le
+     * caret se termine par un trigger d'indentation pour le
+     * langage donné. Périmètre minimal (décision 4.4) :
+     * <ul>
+     *   <li><b>Python</b> ({@code python}, {@code py}) : ligne
+     *       se terminant par {@code :} qui commence par un
+     *       mot-clé de bloc ({@code def}, {@code class},
+     *       {@code if}, {@code elif}, {@code for},
+     *       {@code while}, {@code try}, {@code with},
+     *       {@code except}, {@code else}, {@code finally}).
+     *       Évite les faux positifs : dictionnaires
+     *       {@code {1: 2}}, annotations, slices.</li>
+     *   <li><b>YAML</b> ({@code yaml}, {@code yml}) : ligne
+     *       se terminant par {@code :} SANS valeur après le
+     *       deux-points (clé sans valeur = bloc imbriqué
+     *       attendu sur la ligne suivante). {@code key: value}
+     *       ne déclenche pas (la valeur est sur la même ligne).</li>
+     *   <li><b>Shell</b> ({@code shell}, {@code bash},
+     *       {@code sh}) : ligne se terminant par
+     *       {@code then} ou {@code do}.</li>
+     *   <li><b>Lua</b> ({@code lua}) : ligne se terminant par
+     *       {@code then} ou {@code do}.</li>
+     * </ul>
+     *
+     * <p><b>Risque de faux positifs évalué</b> : Java/Kotlin/
+     * JS/TS sont C_LIKE et ne sont pas affectés (pas de
+     * trigger {@code :} pour C_LIKE). JSON n'est ni PYTHON/
+     * YAML/SHELL/LUA. Le ternaire Java {@code cond ? a : b} ne
+     * déclenche pas car Java est C_LIKE.</p>
+     */
+    private static boolean indentTriggerMatch(CharSequence text, int pos, String language) {
+        if (language == null) return false;
+        String lang = language.trim().toLowerCase(java.util.Locale.ROOT);
+        // Résoudre l'alias via le registre pour reconnaître py,
+        // yml, bash, sh comme leurs formes longues.
+        LanguageProfile profile = LanguageRegistry.forName(lang);
+        String canonical = profile != null ? profile.name : lang;
+
+        int lineStart = EditTextUtils.lineStartForOffset(text, pos);
+        String lineText = EditTextUtils.extractLineText(text, lineStart).trim();
+
+        if (lineText.isEmpty()) return false;
+
+        switch (canonical) {
+            case "python":
+                // Python : ligne se terminant par `:` qui commence
+                // par un mot-clé de bloc. Évite les dictionnaires,
+                // annotations, slices.
+                if (!lineText.endsWith(":")) return false;
+                String[] pyKeywords = {"def ", "class ", "if ", "elif ",
+                    "for ", "while ", "try:", "try :", "with ", "except ",
+                    "else:", "finally:"};
+                for (String kw : pyKeywords) {
+                    if (lineText.startsWith(kw)) return true;
+                }
+                return false;
+            case "yaml":
+                // YAML : ligne se terminant par `:` SANS valeur
+                // après le deux-points. « key: value » ne déclenche
+                // pas ; « key: » déclenche.
+                if (!lineText.endsWith(":")) return false;
+                // Vérifier qu'il n'y a rien après le `:` (juste le
+                // deux-points final, pas de valeur).
+                // lineText est déjà trimé, doncendsWith(":") suffit.
+                return true;
+            case "shell":
+                // Shell : ligne se terminant par `then` ou `do`.
+                return lineText.endsWith("then") || lineText.endsWith("do");
+            case "lua":
+                // Lua : ligne se terminant par `then` ou `do`.
+                return lineText.endsWith("then") || lineText.endsWith("do");
+            default:
+                return false;
+        }
     }
 
     /**
