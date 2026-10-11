@@ -679,7 +679,160 @@ par défaut TAG), `contributedLanguage_offStrategy_noFolds`
 
 ## Lot 3 — Contexte et performance
 
-Partiellement traité :
+**Appliqué dans cette session.** Le Lot 3 traite les
+fonctionnalités contextuelles (complétion, aide de signature
+hors chaînes/commentaires/logs) et l'optimisation des scans
+O(n).
+
+### 1. `findCallOpen` / `activeParameterIndex` ignorent chaînes et commentaires
+
+**Verdict : d'accord.** *Reproduit par exécution.*
+
+`SignatureHelpController.findCallOpen` et `activeParameterIndex`
+faisaient un scan naïf sans ignorer les littéraux de chaîne, les
+commentaires de ligne ni les commentaires de bloc :
+- Un `(` dans une chaîne (`"abc(def"`) était confondu avec un
+  ouvrant d'appel — faux positif.
+- Un `;` dans une chaîne (`"abc;def"`) arrêtait le scan — faux
+  négatif pour les appels qui suivent.
+- Une virgule dans une chaîne (`"hello, world"`) incrémentait
+  l'index du paramètre actif — l'aide de signature montrait
+  le mauvais paramètre surligné.
+
+Désormais le scan est forward depuis le début du document,
+tracking l'état string/comment (comme `CodeContext.isInString`
+et `isInBlockComment`). La complexité est O(caret) par appel,
+comme `isInString` — acceptable pour le thread UI car les
+debounces limitent la fréquence.
+
+Si le caret lui-même est dans une chaîne ou un commentaire,
+`findCallOpen` renvoie -1 (pas d'aide de signature dans du
+texte non-code).
+
+**Tests :** 8 nouveaux cas dans `SignatureHelpControllerTest`
+— `parenInString_doesNotTrigger`, `semicolonInString_doesNotBreak`,
+`parenInLineComment_doesNotTrigger`, `parenInBlockComment_doesNotTrigger`,
+`inStringItself_returnsNegativeOne`, `commaInString_doesNotCount`,
+`commaInLineComment_doesNotCount`, `commaInBlockComment_doesNotCount`.
+Tous échouent avant, passent après. Les 7 tests existants
+restent verts.
+
+### 2. Complétion désactivée dans chaînes, commentaires, logs (context gate)
+
+**Verdict : d'accord.** *Reproduit par exécution.*
+
+`EditorCompletionPopup.refreshCompletion` désormais verrouille
+l'ouverture du popup par un context gate :
+- Pas de complétion si le caret est dans une chaîne littérale.
+- Pas de complétion si le caret est dans un commentaire de
+  ligne `// …` ou de bloc `/* … */`.
+- Pas de complétion si le langage est « log » (famille LOG
+  via le registre).
+
+Avant le Lot 3, le popup s'ouvrait dans tous ces contextes —
+clignotement intempestif pendant la frappe dans une chaîne,
+fausses propositions dans un commentaire, popup parasite dans
+un log.
+
+**Implémentation :**
+- `EditOps.isInStringOrComment(text, pos)` : wrapper public
+  pour `CodeContext.isInStringOrComment` (package-private dans
+  cel-core). Permet à la couche UI d'utiliser le prédicat sans
+  dépendances internes.
+- `EditorCompletionPopup.isInCodeContext(text, caret)` :
+  vérifie la famille LOG via le registre + `isInStringOrComment`.
+  Coût O(caret) par appel, acceptable car la frappe est
+  debouncée.
+- `refreshCompletion` appelle `isInCodeContext` au début ; si
+  false, `dismissCompletion` et return.
+
+**Tests :** `CompletionContextGateTest` (5 cas Robolectric) —
+`notTriggeredInString`, `notTriggeredInLineComment`,
+`notTriggeredInBlockComment`, `notTriggeredInLogFile`,
+`triggeredInCode_regression` (code Java normal).
+
+### 3. Dictionnaires de mots-clés par langage via le registre
+
+**Verdict : d'accord.** *Reproduit par exécution.*
+
+`EditorCompletionPopup.builtinKeywordCompletions` ne couvrait
+que 4 langages (java, kotlin, xml, markdown) avec une liste
+hardcoded. Tous les autres langages enregistrés (C, C++, Go,
+Rust, Python, JS, TS, SQL, Shell, YAML, JSON, Lua, Ruby, PHP,
+Swift, Dart, Groovy, Scala, Smali, etc.) retombaient sur une
+liste vide alors que leurs mots-clés sont enregistrés dans
+`LanguageProfile.keywords`.
+
+Désormais la méthode interroge `LanguageRegistry.forName` pour
+obtenir les mots-clés du profil. Tous les langages enregistrés
+bénéficient de la complétion de mots-clés. Markdown reste une
+exception — ses « mots-clés » sont des snippets (# , ## , - ,
+\`\`\`java, etc.) qui ne sont pas des mots-clés au sens du
+registre. La liste hardcoded des snippets Markdown est
+conservée.
+
+**Tests :** `BuiltinKeywordCompletionsTest` (12 cas Robolectric)
+— Python (`def`), Go (`func`), Rust, C (`int`), JavaScript
+(`function`), TypeScript (`interface`), XML sans attribut
+inventé, XML avec mots-clés du registre, Java (`public`),
+Kotlin (`fun`), Markdown (`# ` snippet), langage inconnu (vide).
+
+### 4. Retrait de la liste XML trompeuse
+
+**Verdict : d'accord.** *Reproduit par exécution.*
+
+L'ancien code proposait `android:layout_padding` (attribut
+INVENTÉ — le vrai est `android:padding`) et des vues Android
+(LinearLayout, TextView, etc.) pour tout fichier XML. Trois
+problèmes :
+- `android:layout_padding` n'existe pas — c'est trompeur.
+- La liste n'a de sens que pour du XML Android ; un fichier
+  SVG, XHTML, ou pom.xml recevait ces attributs Android à
+  tort.
+- Les attributs Android sont trop nombreux pour être utiles
+  en popup — l'utilisateur sait ce qu'il cherche.
+
+Désormais le popup XML ne propose que les 6 mots-clés XML de
+base enregistrés dans le profil (xmlns, android, app, tools,
+schema, layout). Les hôtes qui veulent des complétions
+d'attributs Android peuvent enregistrer un profile dédié
+« android-xml » avec leurs propres mots-clés.
+
+### 5. Bornage des scans O(n) à 10 000 caractères
+
+**Verdict : d'accord.** *Démontré par test.*
+
+`CodeContext.isInString`, `isInBlockComment`, `isInLineComment`
+et `isInStringOrComment` parcouraient le document depuis
+l'offset 0 jusqu'à la position du caret, sans borne. Sur un
+document de 100 000+ caractères, chaque frappe déclenchait
+100 000 itérations — pression GC et latence perceptible sur
+le thread UI. Le Lot 1 avait déjà ajouté la conscience des
+chaînes et des commentaires (pour l'auto-close), aggravant
+le coût par itération.
+
+Désormais le scan démarre à `max(0, pos - SCAN_LIMIT)` où
+`SCAN_LIMIT = 10 000` (constante partagée avec
+`IndentDetection`). Le faux négatif potentiel (chaîne ou
+commentaire ouvert il y a plus de 10 000 caractères) est
+acceptable — une chaîne de 10K+ est extrême (e.g. minified
+JS), et l'utilisateur l'édite justement en partie, les autres
+régions du document n'ont pas besoin du prédicat pendant
+l'édition.
+
+Cas particulier `isInString` : le saut en avant pour trouver
+la fin d'un commentaire de bloc (`indexOf "*/"`) est
+désormais borné à `pos` ; si la fin du bloc est au-delà de
+`pos`, on considère qu'on est dans le bloc (pas dans une
+chaîne).
+
+**Tests :** `CodeContextBoundedScanTest` (8 cas Jupiter) —
+vérifie que les prédicats renvoient `false` sur 50 000
+caractères sans chaîne/commentaire (sans timeout), et
+détectent correctement les chaînes/commentaires récents (à
+moins de 10K du caret).
+
+### 6. Vérifications déjà faites en Lot 1+3 (rappel)
 
 - **`EditorSignaturePopup.refreshSignatureHelp`** : `getText()`
   déplacé après le gate (Lot 1+3). ✓
@@ -687,27 +840,20 @@ Partiellement traité :
   si provider externe (Lot 1+3). ✓
 - **`indentLines`** : `doc.charSequence()` au lieu de
   `doc.getText()` (Lot 1+3). ✓
+- **`IndentDetection`** : déjà borné à 10K caractères (pas de
+  changement nécessaire).
 
-Reste à traiter en Lot 3 :
-- Complétion et aide de signature désactivées dans les chaînes,
-  commentaires et logs (context gating via les prédicats
-  `CodeContext.isInStringOrComment`) ;
-- Dictionnaires de mots-clés par langage (actuellement
-  `builtinKeywordCompletions` ne couvre que `java`/`kotlin`/
-  `xml`/`markdown` — étendre aux autres langages via
-  `LanguageRegistry.forName(lang).keywords`) ;
-- Correction de la liste XML trompeuse
-  (`android:layout_padding` est un attribut inventé — devrait
-  être `android:padding` ; mieux : remplacer par une table
-  d'attributs réels ou par les keywords du registre) ;
-- `indentLines` copie tout le document pour détecter
-  l'indentation — désormais utilise `doc.charSequence()` (Lot 1+3)
-  mais le scan reste O(10K chars) — une borne plus stricte ou un
-  cache incrémental reste à évaluer ;
-- `isInString` / `isInBlockComment` parcourent le fichier depuis
-  le début à chaque Entrée — Lot 3 : borner à ~10 000 caractères
-  (ou rendre incrémental, avec mesure avant/après sur un gros
-  fichier).
+### Non traité en Lot 3 (features nouvelles reportées)
+
+Voir Lot 2 « Non traité en Lot 2 » :
+- Dédentation électrique (`dedentKeywords`).
+- Indentation après `:`/`then`/`do` (`indentTriggers`).
+- Fermeture de balise sur `>` (`tagAutoClose`).
+- Pliage imports Java (stratégie `IMPORTS`).
+
+Ces features sont nouvelles (pas des corrections) — le
+prompt demande de les évaluer et recommander un périmètre
+minimal. Voir décision 4.4.
 
 ---
 
@@ -774,6 +920,14 @@ les alias `kt`, `htm`, `svg` sont désormais reconnus (Lot 1).
 13. `feat(fold): FoldDetector route via le registre + pliage YAML, JSON arrays, javadoc (Lot 2)`
 14. `feat(edit): auto-close quotes/brackets piloté par les traits du profil (Lot 2)`
 15. `docs(changelog): cumul des entrées Lot 2 (Unreleased)`
+
+### Session 3 — Lot 3
+
+16. `fix(completion): findCallOpen/activeParameterIndex ignore chaînes et commentaires (Lot 3)`
+17. `feat(completion): context gate — pas de complétion dans chaînes, commentaires, logs (Lot 3)`
+18. `feat(completion): mots-clés par langage via le registre + retrait de la liste XML trompeuse (Lot 3)`
+19. `perf(edit): CodeContext borne les scans O(n) à 10 000 caractères (Lot 3)`
+20. `docs(changelog): cumul des entrées Lot 3 (Unreleased)`
 
 ---
 
