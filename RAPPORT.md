@@ -502,20 +502,180 @@ l'existant.
 
 ## Lot 2 — Capacités par langage
 
-**Non appliqué dans cette session.** Voir RAPPORT Lot 1, décision
-4.4 « Extension de LanguageProfile » pour le modèle retenu. Les
-points traités en Lot 1 (normalisation des ids via le registre,
-`SmartTyping` garde d'auto-close par contexte) préparent le
-terrain pour le Lot 2 mais n'introduisent pas encore les traits
-d'édition dans `LanguageProfile`.
+**Appliqué dans cette session.** Le modèle retenu (décision 4.4)
+est implémenté : un `FoldStrategy` enum route le `FoldDetector`,
+et trois traits d'édition (`autoCloseQuotes`, `autoCloseBrackets`,
+`foldStrategy`) sont ajoutés au `LanguageProfile` avec des valeurs
+par défaut calculées par famille.
 
-Lot 2 reste à traiter dans une session ultérieure :
-- traits d'édition dans `LanguageProfile` (paires, quotes, indent
-  triggers, dedent, stratégie de pliage) ;
-- brancher auto-close, indentation, pliage, balises (HTML/SVG/XML)
-  sur ces traits ;
-- pliage HTML/SVG/htm, YAML (indent-based), tableaux JSON,
-  javadoc, commentaires de bloc, imports.
+### 1. `FoldStrategy` enum + traits d'édition dans `LanguageProfile`
+
+**Verdict : d'accord.** *Reproduit par exécution.*
+
+Nouvelle enum `jo.codeeditor.languages.FoldStrategy` avec 6
+valeurs : `BRACE`, `TAG`, `INDENT`, `KEYWORD`, `HEADING`, `OFF`.
+
+`LanguageProfile` gagne 3 champs immuables :
+- `autoCloseQuotes` (`Set<Character>`) : guillemets à auto-fermer.
+- `autoCloseBrackets` (`Set<Character>`) : crochets à auto-fermer.
+- `foldStrategy` (`FoldStrategy`) : stratégie de pliage.
+
+Le `Builder` gagne 3 méthodes optionnelles. Les profils existants
+qui ne les appellent pas reçoivent les valeurs par défaut selon
+leur famille — pas de rupture de compatibilité. Les hôtes peuvent
+raffiner :
+
+```java
+LanguageProfile.builder("mylang")
+    .family(SyntaxFamily.C_LIKE)
+    .autoCloseQuotes('"', '\'')
+    .foldStrategy(FoldStrategy.BRACE)
+    .build();
+```
+
+### 2. `FoldDetector.detect` route via le registre
+
+**Verdict : d'accord.** *Reproduit par exécution.*
+
+`FoldDetector.detect` résout le `LanguageProfile` via
+`LanguageRegistry.forName` puis délègue à la méthode spécialisée
+selon la `foldStrategy` du profil (un switch d'enum au lieu d'une
+chaîne de comparaisons de strings). Les alias (`html`, `htm`,
+`svg` pour `xml` ; `py` pour `python` ; `md` pour `markdown` ;
+`rs` pour `rust`, etc.) et les langages contribués par l'hôte
+sont honorés automatiquement. Les langages inconnus retombent
+sur `BRACE` (comportement historique Java-first).
+
+**Test :** `FoldStrategyTest` (10 cas Jupiter) — couvre HTML,
+SVG, HTM (alias XML), YAML (indent-based), JSON arrays,
+javadoc + commentaires de bloc, langage contribué de famille
+XML, langage contribué avec `foldStrategy OFF`, text/log (OFF).
+
+### 3. Pliage YAML (indent-based)
+
+**Verdict : d'accord.** *Reproduit par exécution.*
+
+`detectIndentFolds` (nouveau nom) unifie Python et YAML. Les
+blocs sont détectés par indentation. Pour YAML : une ligne
+terminée par `:` ouvre un bloc qui se ferme quand l'indentation
+revient. Pour Python : les lignes `def`/`class`/`if`/`elif`/
+`for`/`while`/`try`/`with`/`except`/`else`/`finally` terminées
+par `:` ouvrent un bloc. Auparavant, YAML tombait sur
+`detectBraceFolds` (aucun pli).
+
+**Test :** `yaml_foldsByIndentation` — document YAML avec des
+blocs imbriqués `services:` / `- name:` / etc., asserte au
+moins 1 pli.
+
+### 4. Pliage JSON tableaux `[ … ]`
+
+**Verdict : d'accord.** *Reproduit par exécution.*
+
+`detectBraceFolds` détecte désormais les crochets `[ … ]` en
+plus des accolades `{ … }`, avec une pile unique. Pratique
+pour les tableaux JSON multi-lignes. Auparavant, seules les
+accolades `{ … }` étaient détectées.
+
+**Test :** `json_foldsArrays_alongWithObjects` — document
+JSON avec un objet racine contenant un tableau d'objets.
+Asserte au moins 2 plis (objet + tableau) et qu'au moins un
+pli démarre à `[`.
+
+### 5. Pliage commentaires de bloc et javadoc
+
+**Verdict : d'accord.** *Reproduit par exécution.*
+
+`detectBraceFolds` détecte aussi les `/* … */` et `/** … */`
+comme plis (`kind "comment"`), avec une pile séparée
+`commentStack`. Le filtre « au moins 3 lignes » s'applique
+aussi aux commentaires. Auparavant, seuls les blocs `{ … }`
+et `[ … ]` étaient détectés.
+
+**Test :** `java_foldsJavadocAndBlockComments` — document
+Java avec une javadoc, un commentaire de bloc et une classe.
+Asserte au moins 3 plis et qu'au moins un pli démarre à `/*`.
+
+### 6. Auto-close des guillemets élargi aux C_LIKE et au-delà
+
+**Verdict : d'accord.** *Reproduit par exécution.*
+
+`SmartTyping.smartInsert` n'utilise plus
+`LanguageIds.isJavaOrKotlin` pour garder l'auto-close des
+guillemets. La décision est désormais portée par le trait
+`autoCloseQuotes` du `LanguageProfile` (résolu via le
+registre). Élargit l'auto-close à :
+- C_LIKE : C, C++, Go, Rust, PHP, Swift, Dart, Groovy, JS/TS,
+  Scala (avant : Java/Kotlin seulement).
+- PYTHON, LUA, SQL, JSON : `"` et `'` (avant : aucun).
+- SHELL : `'` et `"` (avant : aucun).
+- XML, CSS, MARKDOWN : `"` seulement (avant : aucun).
+
+La garde `isInStringOrComment` (Lot 1) est désormais
+appliquée aussi aux guillemets, pas seulement aux crochets —
+un guillemet tapé dans un commentaire ou une chaîne ne
+déclenche plus l'auto-close.
+
+**Test :** `SmartTypingLot2QuoteBracketTest` (24 cas Jupiter)
+— couvre C, Go, Rust, JS, TS, Python, Lua, SQL, JSON, Shell,
+text, log, properties, toml, yaml, Java/Kotlin/kt (régression),
+XML, HTML, CSS, Markdown, YAML, Shell (pas d'auto-close
+crochets), Java/Python/JSON (régression auto-close crochets),
+garde contexte (quote dans commentaire).
+
+### 7. Auto-close des crochets restreint aux langages de code
+
+**Verdict : d'accord.** *Reproduit par exécution.*
+
+`SmartTyping.smartInsert` n'utilise plus `!isPlainText` pour
+garder l'auto-close des crochets. La décision est portée par
+le trait `autoCloseBrackets` du `LanguageProfile`. Restreint
+l'auto-close des crochets à : C_LIKE, PYTHON, LUA, JSON,
+SMALI, SQL (avant : tous sauf `text`). XML, HTML, CSS,
+Markdown, YAML, properties, toml, log ne reçoivent plus
+d'auto-close de `(`/`{`/`[`.
+
+### 8. Langages contribués par l'hôte
+
+**Verdict : d'accord.** *Reproduit par exécution.*
+
+Un hôte peut désormais enregistrer un langage avec sa
+stratégie de pliage personnalisée et ses traits d'édition :
+
+```java
+LanguageRegistry.register(LanguageProfile.builder("mylang")
+    .family(SyntaxFamily.C_LIKE)
+    .foldStrategy(FoldStrategy.OFF)  // pas de pliage
+    .autoCloseQuotes('"', '\'')
+    .build());
+```
+
+`FoldDetector.detect("texte", "mylang")` honorera
+`foldStrategy = OFF` (aucun pli). `SmartTyping.smartInsert`
+honorera `autoCloseQuotes` pour `"` et `'`.
+
+**Test :** `contributedLanguage_xmlFamily_foldsByTag` (langage
+contribué de famille XML, plie par balises via la stratégie
+par défaut TAG), `contributedLanguage_offStrategy_noFolds`
+(langage contribué avec `OFF`, aucun pli).
+
+### Non traité en Lot 2
+
+- **Dédentation électrique** (`}` pour C-like, `end`/`fi` pour
+  les langages à mots-clés) : feature nouvelle, non appliquée.
+  Voir décision 4.4 — recommandation : traiter en Lot 3 via
+  un nouveau trait `dedentKeywords` dans `LanguageProfile`.
+- **Indentation après `:` / `then` / `do`** (Python, YAML, Lua,
+  Shell, Ruby) : feature nouvelle, non appliquée. Voir
+  décision 4.4 — recommandation : traiter en Lot 3 via un
+  trait `indentTriggers` dans `LanguageProfile`.
+- **Fermeture de balise sur `>`, guillemets sur `=`** (XML,
+  HTML, SVG) : feature nouvelle, non appliquée. Recommandation
+  Lot 3 : ajouter un trait `tagAutoClose` (booléen) pour
+  XML/CSS/MARKDOWN.
+- **Pliage imports Java** : non appliqué. Le pliage actuel
+  détecte les blocs `{ … }` et les commentaires, pas les
+  imports. Recommandation Lot 3 : une stratégie `IMPORTS`
+  qui détecte une séquence `import … ;` en haut du fichier.
 
 ## Lot 3 — Contexte et performance
 
@@ -594,6 +754,8 @@ les alias `kt`, `htm`, `svg` sont désormais reconnus (Lot 1).
 
 ## Commits (un par changement, convention AGENT.md)
 
+### Session 1 — Lot 0 + Lot 1 + Lot 1+3
+
 1. `fix(gutter): numéros de ligne qui disparaissent au défilement (Lot 0)`
 2. `fix(edit): normalisation des ids de langue via le registre (Lot 1)`
 3. `fix(edit): virgule n'est plus dangling et isInBlockComment ignore chaînes et // (Lot 1)`
@@ -605,6 +767,13 @@ les alias `kt`, `htm`, `svg` sont désormais reconnus (Lot 1).
 9. `perf(popup): EditorCompletionPopup — getText() seulement si provider externe (Lot 1+3)`
 10. `fix(session): indentLines préserve la sélection et ignore les lignes vides (Lot 1)`
 11. `docs(changelog): cumul des entrées Lot 0 + Lot 1 + Lot 1+3 (Unreleased)`
+
+### Session 2 — Lot 2
+
+12. `feat(languages): FoldStrategy enum + traits d'édition dans LanguageProfile (Lot 2)`
+13. `feat(fold): FoldDetector route via le registre + pliage YAML, JSON arrays, javadoc (Lot 2)`
+14. `feat(edit): auto-close quotes/brackets piloté par les traits du profil (Lot 2)`
+15. `docs(changelog): cumul des entrées Lot 2 (Unreleased)`
 
 ---
 
@@ -632,6 +801,18 @@ les alias `kt`, `htm`, `svg` sont désormais reconnus (Lot 1).
   - Garde d'équilibre corrigée dans `SmartTyping` : ✓ (Lot 1.6).
   - Kotlin : pas de `;` ajouté par « compléter l'instruction » :
     ✓ (Lot 1.5).
+- **Lot 2** :
+  - Traits d'édition dans `LanguageProfile` (paires, quotes,
+    stratégie de pliage) : ✓ (Lot 2.1). Indent triggers,
+    dedent et tag auto-close reportés au Lot 3 (voir Non
+    traité en Lot 2).
+  - Brancher auto-close, pliage, balises (HTML/SVG/XML) sur
+    ces traits : ✓ (Lots 2.2, 2.6, 2.7). Balises HTML/SVG/htm
+    routées via la famille XML (alias reconnus via registre).
+  - Pliage HTML/SVG/htm, YAML, tableaux JSON, javadoc,
+    commentaires de bloc, imports : ✓ pour les 4 premiers
+    (Lots 2.2, 2.3, 2.4, 2.5). Imports Java reporté au Lot 3
+    (voir Non traité en Lot 2).
 - **Aucune allocation O(taille du document) ajoutée dans un chemin
   exécuté à chaque frame ou à chaque frappe** : ✓
   (Lot 1+3 — `EditorSignaturePopup` et `EditorCompletionPopup`
