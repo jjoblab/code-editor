@@ -258,6 +258,11 @@ public class EditorView extends View {
     // d'indentation) pour les guides d'indentation — mémoïsé
     // par révision du document (approche l'éditeur de code de référence améliorée).
     final CodeBlockIndex codeBlockIndex = new CodeBlockIndex(this);
+    // Détecteur de lignes sticky (en-têtes collés en haut pendant
+    // le scroll) — inspiré d'les IDE de bureau 2024.x.
+    final StickyLineDetector stickyLineDetector = new StickyLineDetector(this);
+    // Sticky lines activées/désactivées (défaut : true).
+    public boolean stickyLinesEnabled = true;
 
     /** Lot B : accède au cache des blocs de code (package render). */
     public int[][] getCodeBlocks() {
@@ -1607,6 +1612,35 @@ public class EditorView extends View {
 
     /** @return le style courant des guides d'indentation. */
     public IndentGuideStyle getIndentGuideStyle() { return indentGuideStyle; }
+
+    // ════════════════════════════════════════════════════════════════
+    // Sticky lines (en-têtes collés en haut — les IDE de bureau 2024.x)
+    // ════════════════════════════════════════════════════════════════
+
+    /**
+     * Active ou désactive les sticky lines (en-têtes de bloc de
+     * code qui restent visibles en haut pendant le scroll).
+     *
+     * <p>Inspiré d'les IDE de bureau 2024.x. Sur mobile, garde au plus
+     * 2 lignes sticky (classe + méthode) pour ne pas consommer
+     * trop d'espace.</p>
+     *
+     * @param enabled {@code true} pour activer (défaut), {@code false}
+     *                pour désactiver
+     */
+    public void setStickyLinesEnabled(boolean enabled) {
+        if (this.stickyLinesEnabled == enabled) return;
+        this.stickyLinesEnabled = enabled;
+        invalidate();
+    }
+
+    /** @return {@code true} si les sticky lines sont activées. */
+    public boolean isStickyLinesEnabled() { return stickyLinesEnabled; }
+
+    /** Lot B : détecte les lignes sticky du document (package render). */
+    public java.util.List<int[]> detectStickyLines(EditorDocument doc) {
+        return stickyLineDetector.detect(doc);
+    }
 
     // ════════════════════════════════════════════════════════════════
     // Mode aperçu

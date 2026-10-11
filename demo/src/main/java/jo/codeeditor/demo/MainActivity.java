@@ -204,6 +204,14 @@ public class MainActivity extends AppCompatActivity {
             editor.setIndentGuideStyle(jo.codeeditor.view.IndentGuideStyle.OFF);
             return true;
         }
+        if (id == R.id.sticky_on) {
+            editor.setStickyLinesEnabled(true);
+            return true;
+        }
+        if (id == R.id.sticky_off) {
+            editor.setStickyLinesEnabled(false);
+            return true;
+        }
         if (id == R.id.action_reset) {
             loadLanguage(languageLabel, languageId);
             return true;

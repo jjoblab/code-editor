@@ -395,6 +395,126 @@ public class EditorRenderer {
         if (view.minimapEnabled) {
             chrome.drawMinimap(canvas);
         }
+
+        // Sticky lines (en-têtes collés en haut pendant le scroll).
+        // Dessiné EN DERNIER pour être par-dessus tout le reste.
+        if (view.stickyLinesEnabled && view.session != null) {
+            drawStickyLines(canvas, doc, lineHeight, paddingTop,
+                    textAreaLeft, firstDocVisible, view.detectStickyLines(doc));
+        }
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    // Sticky lines (en-têtes collés en haut pendant le scroll)
+    // ════════════════════════════════════════════════════════════════
+
+    /**
+     * Dessine les lignes sticky — les en-têtes de bloc de code qui
+     * sont scrollés hors du viewport mais redessinés en haut pour
+     * garder le contexte.
+     *
+     * <p>Algorithme :</p>
+     * <ol>
+     *   <li>Détecter toutes les lignes sticky du document (lignes
+     *       contenant un en-tête de classe/méthode/fonction).</li>
+     *   <li>Parcourir les lignes sticky de bas en haut.</li>
+     *   <li>Pour chaque ligne sticky dont le Y (après vOffset) est
+     *       au-dessus du viewport (y < paddingTop), la redessiner
+     *       en haut, empilée par-dessus la précédente.</li>
+     *   <li>Limiter à 2 lignes sticky maximum (classe + méthode).</li>
+     *   <li>Détacher une ligne sticky quand la suivante entre dans
+     *       le viewport — elle n'est plus sticky car elle est visible.</li>
+     * </ol>
+     */
+    private void drawStickyLines(Canvas canvas, EditorDocument doc,
+            float lineHeight, float paddingTop,
+            float textAreaLeft, int firstDocVisible,
+            java.util.List<int[]> stickyLines) {
+        if (stickyLines.isEmpty()) return;
+
+        float gutterWidth = view.metrics.getGutterWidth();
+        float editorWidth = view.getWidth();
+        float vOffset = view.vOffset;
+
+        // Trouver les lignes sticky qui sont au-dessus du viewport.
+        // Une ligne sticky est "active" si son Y écran est négatif
+        // (scrollée hors du viewport).
+        java.util.List<int[]> activeSticky = new java.util.ArrayList<>();
+        for (int i = stickyLines.size() - 1; i >= 0; i--) {
+            int[] sticky = stickyLines.get(i);
+            int docLine = sticky[0];
+            float lineY = view.docLineToY(docLine) - vOffset;
+            // La ligne est au-dessus du viewport si son Y écran est
+            // avant le paddingTop (haut de la zone de texte).
+            if (lineY < paddingTop - 1f) {
+                // Vérifier que la ligne n'est pas repliée.
+                if (!view.isLineFoldedCached(docLine)) {
+                    activeSticky.add(0, sticky);
+                    if (activeSticky.size() >= 2) break; // max 2 lignes
+                }
+            }
+        }
+
+        if (activeSticky.isEmpty()) return;
+
+        // Dessiner les lignes sticky empilées en haut.
+        float stickyY = paddingTop;
+        for (int[] sticky : activeSticky) {
+            int docLine = sticky[0];
+
+            // Fond : recouvrir la zone avec le fond de l'éditeur.
+            view.guidePaint.setColor(view.theme.editorBg);
+            view.guidePaint.setStyle(android.graphics.Paint.Style.FILL);
+            canvas.drawRect(0, stickyY, editorWidth, stickyY + lineHeight,
+                    view.guidePaint);
+
+            // Bordure inférieure fine pour séparer du texte normal.
+            view.guidePaint.setColor(view.theme.gutterBorder);
+            view.guidePaint.setStyle(android.graphics.Paint.Style.FILL);
+            canvas.drawRect(0, stickyY + lineHeight - 1f,
+                    editorWidth, stickyY + lineHeight, view.guidePaint);
+
+            // Dessiner le texte de la ligne sticky.
+            drawStickyLineText(canvas, doc, docLine, stickyY,
+                    lineHeight, textAreaLeft);
+
+            stickyY += lineHeight;
+        }
+
+        // Restaurer le style du paint.
+        view.guidePaint.setStyle(android.graphics.Paint.Style.STROKE);
+    }
+
+    /**
+     * Dessine le texte d'une ligne sticky à la position Y donnée.
+     * Réutilise le texte stylé de la ligne si disponible, sinon
+     * dessine en texte simple.
+     */
+    private void drawStickyLineText(Canvas canvas, EditorDocument doc,
+            int docLine, float y, float lineHeight,
+            float textAreaLeft) {
+        // Texte de la ligne.
+        int lineStart = doc.lineStart(docLine);
+        int lineEnd = doc.lineEnd(docLine);
+        String lineText = doc.subText(lineStart, lineEnd);
+
+        // Numéro de ligne dans le gutter.
+        view.guidePaint.setColor(view.theme.gutterText);
+        view.guidePaint.setTextSize(view.metrics.getTextSize());
+        view.guidePaint.setFakeBoldText(false);
+        view.guidePaint.setAntiAlias(true);
+        String lineStr = String.valueOf(docLine + 1);
+        float lineNumberX = view.metrics.getGutterWidth()
+                - view.metrics.getCharWidth() * 0.5f
+                - view.guidePaint.measureText(lineStr);
+        canvas.drawText(lineStr, lineNumberX, y + lineHeight * 0.75f,
+                view.guidePaint);
+
+        // Texte de la ligne.
+        view.guidePaint.setColor(view.theme.textColor);
+        canvas.drawText(lineText, 0, Math.min(lineText.length(), 120),
+                textAreaLeft - view.hOffset, y + lineHeight * 0.75f,
+                view.guidePaint);
     }
 
     // ════════════════════════════════════════════════════════════════
