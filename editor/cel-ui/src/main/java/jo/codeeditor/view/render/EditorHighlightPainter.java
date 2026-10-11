@@ -463,17 +463,24 @@ public class EditorHighlightPainter {
             if (centerX < view.metrics.getGutterWidth()) continue;
 
             // Y : du HAUT de la ligne SUIVANT l'ouverture au
-            // HAUT de la ligne de fermeture (ou au bas si
-            // toBottomOfEndLine).
+            // HAUT de la ligne de fermeture.
             // Le guide commence SOUS la ligne d'accolade
             // ouvrante et s'arrête AU-DESSUS de la ligne
             // d'accolade fermante — pas sur les lignes
             // contenant { et }.
             float top = view.docLineToY(startLine) - view.vOffset + lineHeight;
+            // Pour C_LIKE : s'arrête au HAUT de la ligne du }
+            // (avant le }). Pour non C_LIKE (indentation) :
+            // s'arrête au BAS de la dernière ligne (toBottomOfEndLine
+            // est toujours true pour les blocs d'indentation car
+            // il n'y a pas d'accolade fermante — la "ligne de fin"
+            // est la dernière ligne indentée).
             float bottom;
-            if (toBottomOfEndLine) {
+            if (indentCountMode) {
+                // Non C_LIKE : aller jusqu'au bas de la dernière ligne.
                 bottom = view.docLineToY(endLine) - view.vOffset + lineHeight;
             } else {
+                // C_LIKE : s'arrêter au haut de la ligne du }.
                 bottom = view.docLineToY(endLine) - view.vOffset;
             }
             if (top >= bottom) continue;
