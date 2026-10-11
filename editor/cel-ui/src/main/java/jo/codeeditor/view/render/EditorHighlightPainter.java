@@ -462,12 +462,14 @@ public class EditorHighlightPainter {
             }
             if (centerX < view.metrics.getGutterWidth()) continue;
 
-            // Y : du HAUT de la ligne d'ouverture au HAUT de la
-            // ligne de fermeture (ou au bas si toBottomOfEndLine).
-            // Le guide commence DEVANT l'accolade (au début de la
-            // ligne d'ouverture), pas derrière — comme les éditeurs de code de bureau
-            // et les IDE Android.
-            float top = view.docLineToY(startLine) - view.vOffset;
+            // Y : du HAUT de la ligne SUIVANT l'ouverture au
+            // HAUT de la ligne de fermeture (ou au bas si
+            // toBottomOfEndLine).
+            // Le guide commence SOUS la ligne d'accolade
+            // ouvrante et s'arrête AU-DESSUS de la ligne
+            // d'accolade fermante — pas sur les lignes
+            // contenant { et }.
+            float top = view.docLineToY(startLine) - view.vOffset + lineHeight;
             float bottom;
             if (toBottomOfEndLine) {
                 bottom = view.docLineToY(endLine) - view.vOffset + lineHeight;
