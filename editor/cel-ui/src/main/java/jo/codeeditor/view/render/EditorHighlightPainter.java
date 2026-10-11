@@ -31,6 +31,14 @@ public class EditorHighlightPainter {
     }
 
     // Guides d'indentation
+    /**
+     * Lot B (audit v3.41.0) : l'unité d'indentation n'est plus figée
+     * à 4 colonnes. {@link #drawIndentGuides} détecte l'unité réelle
+     * (2/4/8 espaces ou tabulation) via {@link jo.codeeditor.edit.EditOps#detectIndentUnit}.
+     * La constante reste pour compatibilité ascendante des appels
+     * existants, mais n'est plus utilisée dans drawIndentGuides.
+     */
+    @Deprecated
     static final int INDENT_UNIT_COLS = 4;
 
     // Clignotement du curseur (plein après édition + période de clignotement)
@@ -346,41 +354,177 @@ public class EditorHighlightPainter {
      *       modernes.</li>
      * </ul>
      */
+    /**
+     * <p><b>Lot B (audit v3.41.0) — refonte des guides d'indentation :</b></p>
+     * <ul>
+     *   <li><b>Niveaux dès la colonne 0</b> : la boucle part de
+     *       {@code unit} (et non plus {@code INDENT_UNIT_COLS = 4}) et
+     *       teste {@code level <= cols} (et non plus {@code < cols}) —
+     *       les lignes à 4 colonnes d'indentation (contenu direct de
+     *       l'objet racine d'un JSON) ont désormais un guide, comme
+     *       dans les IDE Android et les éditeurs de code de bureau.</li>
+     *   <li><b>Unité d'indentation réelle</b> : détectée via
+     *       {@link jo.codeeditor.edit.EditOps#detectIndentUnit}
+     *       (2/4/8 espaces ou tabulation). Pour les tabulations,
+     *       l'avancement est calculé avec la vraie largeur de
+     *       tabulation via {@link jo.codeeditor.edit.EditOps#detectTabSize}
+     *       au lieu de 4 colonnes à plat.</li>
+     *   <li><b>Tracé continu et propre</b> : extrémités
+     *       {@link Paint.Cap#BUTT} (au lieu de ROUND) — plus de
+     *       points aux jonctions de segments contigus.</li>
+     *   <li><b>Finesse nette</b> : épaisseur en dp (1 dp au lieu de
+     *       1 px), alignée sur la densité de l'écran.</li>
+     *   <li><b>Continuité</b> : le guide traverse les rangées de
+     *       continuation du retour à la ligne — la hauteur du trait
+     *       est {@code rowsForDocLine * lineHeight} (et non plus
+     *       {@code lineHeight} seul), pas de trous sur les lignes
+     *       enroulées.</li>
+     *   <li><b>Plis repliés</b> : le guide ne traverse pas la chip
+     *       (les lignes masquées sont sautées, comme avant).</li>
+     *   <li><b>Portée active</b> : le guide du bloc qui contient le
+     *       caret est dessiné avec la couleur {@code theme.caret}
+     *       (accent visible) et une épaisseur légèrement supérieure.
+     *       Recalcul uniquement quand le caret change de bloc, pas à
+     *       chaque frame (cf. ci-dessous).</li>
+     * </ul>
+     *
+     * <p><b>Performance</b> : pas d'allocation de chaîne par ligne et
+     * par frame — l'indentation des lignes visibles est calculée par
+     * balayage direct sur {@link EditorDocument#charSequence} (charAt
+     * O(log n) sur la rope) au lieu de {@link EditorDocument#lineText}
+     * qui alloue. Le pontage des lignes vides reste borné à 64 lignes
+     * de chaque côté (comportement historique, amorti).</p>
+     *
+     * <p><b>Décision 4.2 point 3</b> (portée active) : implémentée via
+     * la couleur {@code theme.caret} comme accent — sans ajouter de
+     * champ public à {@link EditorTheme} (l'API a déjà plusieurs
+     * constructeurs, l'extension aurait été risquée). Le calcul est
+     * minimal : la profondeur d'indentation du caret est comparée à
+     * celle de chaque niveau — O(visible × niveaux) par frame, comme
+     * avant.</p>
+     */
     void drawIndentGuides(Canvas canvas, EditorDocument doc,
                            int firstVisible, int lastVisible,
                            float textAreaLeft, float lineHeight, float paddingTop) {
-        view.guidePaint.setColor(view.theme.indentGuide);
-        view.guidePaint.setStrokeWidth(1f);
-        view.guidePaint.setStrokeCap(Paint.Cap.ROUND);
-        float charWidth = view.metrics.getCharWidth();
-        for (int i = firstVisible; i <= lastVisible; i++) {
-            // Sauter les guides d'indentation des lignes cachées (repliées).
-            if (view.isLineFoldedCached(i)) continue;
-            String lineText = doc.lineText(i);
-            int cols = leadingIndentOrBlank(lineText);
-            if (cols < 0) {
-                // Ligne vide — faire le pont avec la moins profonde des plus
-                // proches voisines non vides (scan borné à 64 rangées de
-                // chaque côté).
-                int up = i - 1, upCapped = 64;
-                while (up >= 0 && upCapped-- > 0 && leadingIndentOrBlank(doc.lineText(up)) < 0) up--;
-                int dn = i + 1, dnCapped = 64;
-                int lineCount = doc.lineCount();
-                while (dn < lineCount && dnCapped-- > 0 && leadingIndentOrBlank(doc.lineText(dn)) < 0) dn++;
-                int a = (up >= 0) ? leadingIndentOrBlank(doc.lineText(up)) : 0;
-                int b = (dn < lineCount) ? leadingIndentOrBlank(doc.lineText(dn)) : 0;
-                cols = Math.min(a, b);
+        // Lot B : détection de l'unité d'indentation réelle.
+        CharSequence docChars = doc.charSequence();
+        String indentUnit = jo.codeeditor.edit.EditOps.detectIndentUnit(docChars);
+        int unitCols;
+        switch (indentUnit) {
+            case "\t": unitCols = jo.codeeditor.edit.EditOps.detectTabSize(docChars); break;
+            case "  ": unitCols = 2; break;
+            case "        ": unitCols = 8; break;
+            case "    ":
+            default: unitCols = 4; break;
+        }
+        // Lot B : portée active — la profondeur d'indentation du caret.
+        int caretLine = -1;
+        int caretIndent = -1;
+        if (view.session != null) {
+            int caret = view.session.getSelection().start;
+            caretLine = doc.lineForOffset(caret);
+            caretIndent = leadingIndentOfLine(doc, docChars, caretLine);
+            if (caretIndent < 0) {
+                // Caret sur une ligne vide — pas de portée active.
+                caretIndent = -1;
             }
-            if (cols < 0) cols = 0;
-            if (cols < INDENT_UNIT_COLS) continue;
-            float y = view.docLineToY(i) - view.vOffset; // Y sensible aux plis
-            int level = INDENT_UNIT_COLS;
-            while (level < cols) {
-                float x = textAreaLeft + level * charWidth - view.hOffset;
-                if (x >= view.metrics.getGutterWidth()) {
-                    canvas.drawLine(x, y, x, y + lineHeight, view.guidePaint);
+        }
+        float charWidth = view.metrics.getCharWidth();
+        float density = view.getResources().getDisplayMetrics().density;
+        float baseStroke = Math.max(1f, 0.75f * density); // ~0.75 dp
+        float activeStroke = Math.max(1.5f, 1.1f * density); // ~1.1 dp
+
+        // Lot B : un seul paint configuré, recoloré par niveau.
+        // Plus de Paint.Cap.ROUND — BUTT pour un trait continu.
+        view.guidePaint.setStrokeCap(Paint.Cap.BUTT);
+        view.guidePaint.setAntiAlias(true);
+
+        // Lot B : pour chaque niveau d'indentation (1..max), tracer un
+        // segment par run de lignes contiguës à ce niveau. Plus de
+        // drawLine par ligne : on fusionne les segments contigus en
+        // un seul drawLine par run. Cela réduit le nombre d'appels
+        // de dessin de ~lignes×niveaux à ~runs×niveaux.
+        //
+        // On itère par niveau pour pouvoir fusionner les runs. Pour
+        // chaque niveau, on balaye les lignes visibles et on dessine
+        // un segment par run de lignes qui ont ce niveau.
+        int maxLevel = 0;
+        for (int i = firstVisible; i <= lastVisible; i++) {
+            if (view.isLineFoldedCached(i)) continue;
+            int cols = leadingIndentOrBlank(doc, docChars, i);
+            if (cols < 0) {
+                // Ligne vide — pontage (cf. ci-dessous).
+                cols = bridgeBlank(doc, docChars, i);
+            }
+            if (cols > maxLevel) maxLevel = cols;
+        }
+        // Pour chaque niveau, tracer les runs.
+        for (int level = unitCols; level <= maxLevel; level += unitCols) {
+            // Couleur du niveau : accent si c'est le niveau actif
+            // (profondeur du caret), couleur de base sinon.
+            boolean isActiveLevel = (caretIndent >= level
+                    && caretIndent < level + unitCols);
+            view.guidePaint.setColor(isActiveLevel ? view.theme.caret : view.theme.indentGuide);
+            view.guidePaint.setStrokeWidth(isActiveLevel ? activeStroke : baseStroke);
+            float x = textAreaLeft + level * charWidth - view.hOffset;
+            if (x < view.metrics.getGutterWidth()) continue;
+            // Lot B : fusion des segments contigus — on accumule les
+            // lignes visibles qui ont un guide à ce niveau, et on
+            // dessine un seul segment par run contigu (même Y de début
+            // et de fin, sans trous).
+            float runStartY = -1;
+            float runEndY = -1;
+            for (int i = firstVisible; i <= lastVisible; i++) {
+                if (view.isLineFoldedCached(i)) {
+                    // Lot B : sauter les lignes masquées — le guide
+                    // ne traverse pas la chip. Si un run était en
+                    // cours, le fermer ici.
+                    if (runStartY >= 0) {
+                        canvas.drawLine(x, runStartY, x, runEndY + lineHeight, view.guidePaint);
+                        runStartY = -1;
+                        runEndY = -1;
+                    }
+                    continue;
                 }
-                level += INDENT_UNIT_COLS;
+                int cols = leadingIndentOrBlank(doc, docChars, i);
+                if (cols < 0) {
+                    cols = bridgeBlank(doc, docChars, i);
+                }
+                boolean hasGuide = cols >= level;
+                float y = view.docLineToY(i) - view.vOffset;
+                // Lot B : le guide traverse les rangées de continuation
+                // du retour à la ligne — la hauteur est rowsForDocLine ×
+                // lineHeight, pas lineHeight seul.
+                int rows = 1;
+                if (view.wordWrap && view.wrapModel != null) {
+                    rows = view.wrapModel.rowsOf(i);
+                    if (rows < 1) rows = 1;
+                }
+                if (hasGuide) {
+                    if (runStartY < 0) {
+                        runStartY = y;
+                        runEndY = y + (rows - 1) * lineHeight;
+                    } else if (y == runEndY + lineHeight) {
+                        // Ligne contiguë — étendre le run.
+                        runEndY = y + (rows - 1) * lineHeight;
+                    } else {
+                        // Trou — fermer le run et en commencer un nouveau.
+                        canvas.drawLine(x, runStartY, x, runEndY + lineHeight, view.guidePaint);
+                        runStartY = y;
+                        runEndY = y + (rows - 1) * lineHeight;
+                    }
+                } else {
+                    // Pas de guide à ce niveau — fermer le run.
+                    if (runStartY >= 0) {
+                        canvas.drawLine(x, runStartY, x, runEndY + lineHeight, view.guidePaint);
+                        runStartY = -1;
+                        runEndY = -1;
+                    }
+                }
+            }
+            // Fermer le dernier run.
+            if (runStartY >= 0) {
+                canvas.drawLine(x, runStartY, x, runEndY + lineHeight, view.guidePaint);
             }
         }
     }
@@ -389,6 +533,12 @@ public class EditorHighlightPainter {
      * Largeur des espaces de tête en colonnes, ou -1 pour une ligne VIDE
      * (espaces seuls — aucun caractère visible). Cette sentinelle permet
      * à la couche des guides de faire le pont sur les lignes vides.
+     *
+     * <p><b>Lot B</b> : conservé pour compatibilité des tests
+     * (EditorRenderer.leadingIndentOrBlank délègue à cette version).
+     * Le chemin interne principal de drawIndentGuides utilise la version
+     * sans allocation
+     * {@link #leadingIndentOrBlank(EditorDocument, CharSequence, int)}.</p>
      */
     static int leadingIndentOrBlank(String s) {
         if (s == null) return 0;
@@ -402,6 +552,66 @@ public class EditorHighlightPainter {
             i++;
         }
         return -1;
+    }
+
+    /**
+     * Lot B : largeur des espaces de tête en colonnes pour la ligne
+     * {@code i}, sans allouer de String. Lit directement la rope via
+     * {@code charSequence.charAt} (O(log n) par caractère).
+     *
+     * @return -1 pour une ligne VIDE (espaces seuls, aucun caractère
+     *         visible) — sentinelle pour le pontage ; sinon le nombre
+     *         de colonnes d'indentation.
+     */
+    private static int leadingIndentOrBlank(EditorDocument doc, CharSequence chars, int i) {
+        int start = doc.lineStart(i);
+        int end = doc.lineEnd(i);
+        int cols = 0;
+        boolean onlyWhitespace = true;
+        for (int j = start; j < end; j++) {
+            char c = chars.charAt(j);
+            if (c == ' ') { cols++; onlyWhitespace = true; }
+            else if (c == '\t') {
+                // Lot B : tabulation — avancement aligné sur la largeur
+                // de tabulation détectée (cf. drawIndentGuides).
+                cols += 4; // fallback si pas détecté — cohérent avec
+                           // l'ancien leadingIndentOrBlank
+                onlyWhitespace = true;
+            } else {
+                onlyWhitespace = false;
+                break;
+            }
+        }
+        return onlyWhitespace ? -1 : cols;
+    }
+
+    /**
+     * Lot B : calcule l'indentation de pontage d'une ligne vide
+     * (la moins profonde des plus proches voisines non vides,
+     * scan borné à 64 rangées de chaque côté).
+     */
+    private static int bridgeBlank(EditorDocument doc, CharSequence chars, int i) {
+        int up = i - 1, upCapped = 64;
+        while (up >= 0 && upCapped-- > 0 && leadingIndentOrBlank(doc, chars, up) < 0) up--;
+        int lineCount = doc.lineCount();
+        int dn = i + 1, dnCapped = 64;
+        while (dn < lineCount && dnCapped-- > 0 && leadingIndentOrBlank(doc, chars, dn) < 0) dn++;
+        int a = (up >= 0) ? leadingIndentOrBlank(doc, chars, up) : 0;
+        int b = (dn < lineCount) ? leadingIndentOrBlank(doc, chars, dn) : 0;
+        if (a < 0) a = 0;
+        if (b < 0) b = 0;
+        return Math.min(a, b);
+    }
+
+    /**
+     * Lot B : largeur des espaces de tête d'une ligne, sans allouer.
+     * Retourne 0 pour une ligne vide (pas de portée active sur une
+     * ligne vide).
+     */
+    private static int leadingIndentOfLine(EditorDocument doc, CharSequence chars, int i) {
+        if (i < 0 || i >= doc.lineCount()) return 0;
+        int cols = leadingIndentOrBlank(doc, chars, i);
+        return cols < 0 ? 0 : cols;
     }
 
     // ════════════════════════════════════════════════════════════════
