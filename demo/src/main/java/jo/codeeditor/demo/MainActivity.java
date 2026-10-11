@@ -220,6 +220,14 @@ public class MainActivity extends AppCompatActivity {
             editor.setColorSwatchesEnabled(false);
             return true;
         }
+        if (id == R.id.var_colors_on) {
+            editor.setVariableColorsEnabled(true);
+            return true;
+        }
+        if (id == R.id.var_colors_off) {
+            editor.setVariableColorsEnabled(false);
+            return true;
+        }
         if (id == R.id.action_reset) {
             loadLanguage(languageLabel, languageId);
             return true;

@@ -265,6 +265,10 @@ public class EditorView extends View {
     public boolean stickyLinesEnabled = true;
     // Carrés colorés inline pour #RGB/#RRGGBB/#AARRGGBB (défaut : true).
     public boolean colorSwatchesEnabled = true;
+    // Variable-specific colors : chaque variable reçoit une teinte
+    // unique basée sur son nom (défaut : false — opt-in car
+    // nécessite des semantic tokens LSP pour bien fonctionner).
+    public boolean variableColorsEnabled = false;
 
     /** Lot B : accède au cache des blocs de code (package render). */
     public int[][] getCodeBlocks() {
@@ -1659,6 +1663,33 @@ public class EditorView extends View {
 
     /** @return {@code true} si les carrés colorés sont activés. */
     public boolean isColorSwatchesEnabled() { return colorSwatchesEnabled; }
+
+    /**
+     * Active ou désactive les couleurs par variable (variable-specific
+     * colors). Chaque variable reçoit une teinte unique basée sur son
+     * nom — comme les IDE de bureau IDEA.
+     *
+     * <p>Nécessite des semantic tokens (LSP) pour fonctionner — sans
+     * LSP, les variables ne sont pas identifiées et la fonction n'a
+     * aucun effet.</p>
+     *
+     * @param enabled {@code true} pour activer, {@code false} (défaut)
+     *                pour désactiver
+     */
+    public void setVariableColorsEnabled(boolean enabled) {
+        if (this.variableColorsEnabled == enabled) return;
+        this.variableColorsEnabled = enabled;
+        // Invalider le cache de rendu pour recalculer les couleurs
+        // des spans sémantiques.
+        renderCache.clear();
+        invalidate();
+    }
+
+    /** @return {@code true} si les couleurs par variable sont activées. */
+    public boolean isVariableColorsEnabled() { return variableColorsEnabled; }
+
+    /** @return {@code true} si le thème courant est sombre. */
+    public boolean isDarkTheme() { return schemeDarkMode; }
 
     // ════════════════════════════════════════════════════════════════
     // Mode aperçu

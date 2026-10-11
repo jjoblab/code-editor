@@ -53,6 +53,20 @@
     </item>
 
     <item
+        android:id="@+id/action_variable_colors"
+        android:title="Couleurs par variable"
+        app:showAsAction="never">
+        <menu>
+            <item
+                android:id="@+id/var_colors_on"
+                android:title="Activées" />
+            <item
+                android:id="@+id/var_colors_off"
+                android:title="Désactivées" />
+        </menu>
+    </item>
+
+    <item
         android:id="@+id/action_reset"
         android:title="@string/menu_reset"
         app:showAsAction="never" />

@@ -165,6 +165,17 @@ class EditorLineLayoutResolver {
             TokenType ttype = semanticTypeToTokenType(t.type);
             if (ttype == null) continue;
             int color = view.theme.colorForToken(ttype);
+            // Variable-specific colors : si le token est une variable
+            // et que la fonction est activée, remplacer la couleur
+            // par une teinte unique basée sur le nom de la variable.
+            if (view.variableColorsEnabled && ttype == TokenType.VARIABLE) {
+                String varName = lineText.substring(
+                        Math.min(startCol, lineText.length()),
+                        Math.min(endCol, lineText.length()));
+                int varColor = jo.codeeditor.view.VariableColorizer
+                        .colorForVariable(varName, view.isDarkTheme());
+                if (varColor != 0) color = varColor;
+            }
             semSpans.add(new LineRenderCache.SemSpan(startCol, endCol, color));
         }
         // Construit les tables colonnes brutes↔visuelles depuis les inlays.
