@@ -212,6 +212,14 @@ public class MainActivity extends AppCompatActivity {
             editor.setStickyLinesEnabled(false);
             return true;
         }
+        if (id == R.id.swatch_on) {
+            editor.setColorSwatchesEnabled(true);
+            return true;
+        }
+        if (id == R.id.swatch_off) {
+            editor.setColorSwatchesEnabled(false);
+            return true;
+        }
         if (id == R.id.action_reset) {
             loadLanguage(languageLabel, languageId);
             return true;

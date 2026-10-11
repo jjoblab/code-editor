@@ -301,6 +301,10 @@ public class EditorRenderer {
         // semblerait flotter au-dessus au lieu d'être masqué derrière elle.
         diagnostics.drawSquiggles(canvas, doc, firstDocVisible, lastDocVisible, textAreaLeft, lineHeight, paddingTop);
 
+        // Carrés colorés inline pour les couleurs hex (#RGB, #RRGGBB, #AARRGGBB).
+        drawColorSwatches(canvas, doc, firstDocVisible, lastDocVisible,
+                textAreaLeft, lineHeight, paddingTop);
+
         // Encadrés de parenthèses appariées — rectangle de CONTOUR 1 px
         // autour de chaque parenthèse de la paire sous/derrière le curseur,
         // dans la couleur d'accent à 45 % d'alpha. Dessinés après les
@@ -401,6 +405,61 @@ public class EditorRenderer {
         if (view.stickyLinesEnabled && view.session != null) {
             drawStickyLines(canvas, doc, lineHeight, paddingTop,
                     textAreaLeft, firstDocVisible, view.detectStickyLines(doc));
+        }
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    // Color swatches (carrés colorés inline pour #RGB)
+    // ════════════════════════════════════════════════════════════════
+
+    /**
+     * Dessine des petits carrés colorés à côté des couleurs
+     * hexadécimales (#RGB, #RRGGBB, #AARRGGBB) dans chaque ligne
+     * visible. Inspiré d'les IDE de bureau.
+     */
+    private void drawColorSwatches(Canvas canvas, EditorDocument doc,
+            int firstDocVisible, int lastDocVisible,
+            float textAreaLeft, float lineHeight, float paddingTop) {
+        if (!view.colorSwatchesEnabled) return;
+        float charWidth = view.metrics.getCharWidth();
+        float density = view.getResources().getDisplayMetrics().density;
+        float swatchSize = lineHeight * 0.65f;
+        float swatchOffset = density * 4f; // 4dp après le hex
+
+        for (int i = firstDocVisible; i <= lastDocVisible; i++) {
+            if (view.isLineFoldedCached(i)) continue;
+            int lineStart = doc.lineStart(i);
+            int lineEnd = doc.lineEnd(i);
+            if (lineEnd - lineStart > 500) continue; // ligne trop longue
+
+            CharSequence lineText = doc.charSequence().subSequence(lineStart, lineEnd);
+            java.util.List<jo.codeeditor.view.ColorPicker.ColorMatch> matches =
+                    jo.codeeditor.view.ColorPicker.findColorsInLine(lineText);
+            if (matches.isEmpty()) continue;
+
+            float y = view.docLineToY(i) - view.vOffset;
+            float swatchY = y + (lineHeight - swatchSize) / 2f;
+
+            for (jo.codeeditor.view.ColorPicker.ColorMatch m : matches) {
+                float x = textAreaLeft - view.hOffset
+                        + (m.end) * charWidth + swatchOffset;
+                // Vérifier que le carré est dans le viewport horizontal.
+                if (x < view.metrics.getGutterWidth() || x > view.getWidth()) continue;
+
+                // Fond avec bordure.
+                view.guidePaint.setStyle(android.graphics.Paint.Style.FILL);
+                view.guidePaint.setColor(m.color);
+                canvas.drawRect(x, swatchY, x + swatchSize, swatchY + swatchSize,
+                        view.guidePaint);
+                // Bordure fine.
+                view.guidePaint.setStyle(android.graphics.Paint.Style.STROKE);
+                view.guidePaint.setStrokeWidth(1f);
+                view.guidePaint.setColor(0x33000000);
+                canvas.drawRect(x, swatchY, x + swatchSize, swatchY + swatchSize,
+                        view.guidePaint);
+            }
+            // Restaurer le style.
+            view.guidePaint.setStyle(android.graphics.Paint.Style.STROKE);
         }
     }
 

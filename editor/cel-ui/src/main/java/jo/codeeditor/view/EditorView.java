@@ -263,6 +263,8 @@ public class EditorView extends View {
     final StickyLineDetector stickyLineDetector = new StickyLineDetector(this);
     // Sticky lines activées/désactivées (défaut : true).
     public boolean stickyLinesEnabled = true;
+    // Carrés colorés inline pour #RGB/#RRGGBB/#AARRGGBB (défaut : true).
+    public boolean colorSwatchesEnabled = true;
 
     /** Lot B : accède au cache des blocs de code (package render). */
     public int[][] getCodeBlocks() {
@@ -1641,6 +1643,22 @@ public class EditorView extends View {
     public java.util.List<int[]> detectStickyLines(EditorDocument doc) {
         return stickyLineDetector.detect(doc);
     }
+
+    /**
+     * Active ou désactive les carrés colorés inline pour les
+     * couleurs hexadécimales (#RGB, #RRGGBB, #AARRGGBB).
+     *
+     * @param enabled {@code true} pour activer (défaut), {@code false}
+     *                pour désactiver
+     */
+    public void setColorSwatchesEnabled(boolean enabled) {
+        if (this.colorSwatchesEnabled == enabled) return;
+        this.colorSwatchesEnabled = enabled;
+        invalidate();
+    }
+
+    /** @return {@code true} si les carrés colorés sont activés. */
+    public boolean isColorSwatchesEnabled() { return colorSwatchesEnabled; }
 
     // ════════════════════════════════════════════════════════════════
     // Mode aperçu

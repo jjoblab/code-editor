@@ -39,6 +39,20 @@
     </item>
 
     <item
+        android:id="@+id/action_color_swatches"
+        android:title="Carrés de couleur"
+        app:showAsAction="never">
+        <menu>
+            <item
+                android:id="@+id/swatch_on"
+                android:title="Activés" />
+            <item
+                android:id="@+id/swatch_off"
+                android:title="Désactivés" />
+        </menu>
+    </item>
+
+    <item
         android:id="@+id/action_reset"
         android:title="@string/menu_reset"
         app:showAsAction="never" />
