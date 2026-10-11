@@ -765,6 +765,23 @@ public class EditorView extends View {
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
     public boolean minimapEnabled = false;
 
+    /**
+     * Lot B.11 (audit v3.41.0) — style des guides d'indentation :
+     * <ul>
+     *   <li>{@link IndentGuideStyle#OFF} — aucun guide.</li>
+     *   <li>{@link IndentGuideStyle#INDENT} — guides d'indentation
+     *       seuls (couleur de base, pas de mise en évidence de la
+     *       portée active).</li>
+     *   <li>{@link IndentGuideStyle#INDENT_WITH_SCOPE} (défaut) —
+     *       guides d'indentation + mise en évidence de la portée
+     *       active (bloc contenant le caret) en couleur d'accent.</li>
+     * </ul>
+     * Piloté par {@link #setIndentGuideStyle(IndentGuideStyle)} /
+     * {@link #getIndentGuideStyle()}.
+     */
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public IndentGuideStyle indentGuideStyle = IndentGuideStyle.INDENT_WITH_SCOPE;
+
     // ── Couches de surcharge ─────────────────────────────────────
     // Overlays légers dessinés au Canvas : chips de diagnostic, toolbar
     // de sélection, popup go-to-line, popup rename, feuille de diagnostic.
@@ -1538,6 +1555,32 @@ public class EditorView extends View {
 
     /** @return {@code true} si la minimap est actuellement visible. */
     public boolean isMinimapEnabled() { return minimapEnabled; }
+
+    // ════════════════════════════════════════════════════════════════
+    // Lot B.11 (audit v3.41.0) — Style des guides d'indentation
+    // ════════════════════════════════════════════════════════════════
+
+    /**
+     * Définit le style d'affichage des guides d'indentation.
+     *
+     * <p>Voir {@link IndentGuideStyle} pour les options. Le style
+     * par défaut est {@link IndentGuideStyle#INDENT_WITH_SCOPE}
+     * (guides d'indentation + portée active mise en évidence,
+     * cohérent avec les IDE Android et les éditeurs de code de bureau).</p>
+     *
+     * @param style le style à appliquer ; {@code null} est
+     *              silencieusement traité comme
+     *              {@link IndentGuideStyle#OFF}
+     */
+    public void setIndentGuideStyle(IndentGuideStyle style) {
+        IndentGuideStyle s = (style != null) ? style : IndentGuideStyle.OFF;
+        if (this.indentGuideStyle == s) return;
+        this.indentGuideStyle = s;
+        invalidate();
+    }
+
+    /** @return le style courant des guides d'indentation. */
+    public IndentGuideStyle getIndentGuideStyle() { return indentGuideStyle; }
 
     // ════════════════════════════════════════════════════════════════
     // Mode aperçu

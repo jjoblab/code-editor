@@ -420,7 +420,13 @@ public class EditorHighlightPainter {
         // Lot B : portée active — la profondeur d'indentation du caret.
         int caretLine = -1;
         int caretIndent = -1;
-        if (view.session != null) {
+        // Lot B.11 : ne calculer la portée active que si le style
+        // est INDENT_WITH_SCOPE. Les styles OFF (rendu non appelé)
+        // et INDENT (pas de portée active) n'ont pas besoin de ce
+        // calcul — économise une lecture de caret par frame.
+        boolean scopeActive = view.indentGuideStyle
+                == jo.codeeditor.view.IndentGuideStyle.INDENT_WITH_SCOPE;
+        if (scopeActive && view.session != null) {
             int caret = view.session.getSelection().start;
             caretLine = doc.lineForOffset(caret);
             caretIndent = leadingIndentOfLine(doc, docChars, caretLine);
@@ -462,8 +468,11 @@ public class EditorHighlightPainter {
         for (int level = unitCols; level <= maxLevel; level += unitCols) {
             // Couleur du niveau : accent si c'est le niveau actif
             // (profondeur du caret), couleur de base sinon.
-            boolean isActiveLevel = (caretIndent >= level
-                    && caretIndent < level + unitCols);
+            // Lot B.11 : si le style est INDENT (pas INDENT_WITH_SCOPE),
+            // scopeActive=false et isActiveLevel est toujours false —
+            // tous les guides ont la couleur de base.
+            boolean isActiveLevel = scopeActive
+                    && (caretIndent >= level && caretIndent < level + unitCols);
             view.guidePaint.setColor(isActiveLevel ? view.theme.caret : view.theme.indentGuide);
             view.guidePaint.setStrokeWidth(isActiveLevel ? activeStroke : baseStroke);
             float x = textAreaLeft + level * charWidth - view.hOffset;

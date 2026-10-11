@@ -149,7 +149,13 @@ public class EditorRenderer {
         //        de sélection, les surlignages de recherche, les soulignés et
         //        les guides s'arrêtaient trop tôt (bas du viewport non
         //        dessiné).
-        highlights.drawIndentGuides(canvas, doc, firstDocVisible, lastDocVisible, textAreaLeft, lineHeight, paddingTop);
+        // Lot B.11 : sauter l'appel si l'utilisateur a désactivé les
+        // guides (style OFF). L'appel à drawIndentGuides reste pour
+        // les styles INDENT et INDENT_WITH_SCOPE (différence gérée
+        // en interne par drawIndentGuides).
+        if (view.indentGuideStyle != jo.codeeditor.view.IndentGuideStyle.OFF) {
+            highlights.drawIndentGuides(canvas, doc, firstDocVisible, lastDocVisible, textAreaLeft, lineHeight, paddingTop);
+        }
 
         // La gouttière est dessinée APRÈS le texte (en overlay
         // semi-transparent) pour que le texte qui défile derrière reste

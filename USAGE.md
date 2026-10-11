@@ -208,6 +208,35 @@ editorView.setTouchHoverEnabled(true);     // hover par appui long (500 ms)
 editorView.setDiagnosticChipsEnabled(true);// chips de diagnostics dans le gutter
 ```
 
+### Guides d'indentation (Lot B)
+
+Les guides d'indentation sont les fins traits verticaux tracés dans
+les blocs indentés, à la les IDE Android / les éditeurs de code de bureau. Trois styles sont
+disponibles via `IndentGuideStyle` :
+
+```java
+import jo.codeeditor.view.IndentGuideStyle;
+
+// Défaut : guides + portée active mise en évidence (bloc contenant
+// le caret en couleur d'accent + épaisseur légèrement supérieure).
+editorView.setIndentGuideStyle(IndentGuideStyle.INDENT_WITH_SCOPE);
+
+// Guides d'indentation seuls, sans mise en évidence de la portée
+// active (tous les guides ont la même couleur de base).
+editorView.setIndentGuideStyle(IndentGuideStyle.INDENT);
+
+// Aucun guide (désactivé).
+editorView.setIndentGuideStyle(IndentGuideStyle.OFF);
+
+// Lecture du style courant.
+IndentGuideStyle current = editorView.getIndentGuideStyle();
+```
+
+L'unité d'indentation (2/4/8 espaces ou tabulation) est détectée
+automatiquement à partir du contenu du document via
+`EditOps.detectIndentUnit`. La portée active est calculée à partir
+de la profondeur d'indentation du caret.
+
 ## Diagnostics et décorations
 
 ### Diagnostics (erreurs / avertissements)
