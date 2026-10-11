@@ -451,15 +451,15 @@ public class EditorHighlightPainter {
             // triés par startLine).
             if (startLine > lastVisible) break;
 
-            // X : position centrée.
-            float centerX;
-            if (indentCountMode) {
-                // Non C_LIKE : indentLevel * spaceWidth.
-                centerX = offsetX + startCol * charWidth;
-            } else {
-                // C_LIKE : position réelle du { dans la ligne.
-                centerX = offsetX + startCol * charWidth;
-            }
+            // X : position du guide = minimum des positions du { et
+            // du }. l'éditeur de code de référence fait : offset = Math.min(offsetEnd,
+            // offsetStart). Si le } est à la colonne 0 et le { à la
+            // colonne 25, le guide est à la colonne 0 (le début).
+            // C'est pourquoi le guide apparaît à gauche, pas sous
+            // l'accolade.
+            float offsetStart = startCol * charWidth;
+            float offsetEnd = endCol * charWidth;
+            float centerX = offsetX + Math.min(offsetStart, offsetEnd);
             if (centerX < view.metrics.getGutterWidth()) continue;
 
             // Y : du HAUT de la ligne SUIVANT l'ouverture au

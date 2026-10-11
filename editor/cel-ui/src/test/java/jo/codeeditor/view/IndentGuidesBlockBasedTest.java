@@ -124,16 +124,13 @@ public class IndentGuidesBlockBasedTest {
     }
 
     /**
-     * Le guide doit être CENTRÉ dans la colonne d'indentation,
-     * pas à gauche. l'éditeur de code de référence centre le guide avec
-     * `centerX - width/2` à `centerX + width/2`.
-     * Pour une indentation de 4 espaces, le guide doit être à
-     * (4 * charWidth) / 2 = 2 * charWidth du début de la zone
-     * de texte.
+     * Le guide est positionné au MINIMUM des positions du { et
+     * du }. Pour « class Foo { » (startCol=10) et « } » (endCol=0),
+     * le guide est à min(10, 0) = 0 (col 0). C'est l'approche
+     * l'éditeur de code de référence : Math.min(offsetEnd, offsetStart).
      */
     @Test
     public void guide_isCenteredInIndentColumn() {
-        // Document simple : une classe avec un corps à 4 espaces.
         String java =
                 "class Foo {\n"       // 0
               + "    int x;\n"        // 1 — indent 4
@@ -147,27 +144,22 @@ public class IndentGuidesBlockBasedTest {
         List<float[]> lines = linesOfColor(canvas, guideColor);
         assertTrue("Au moins un guide doit être tracé", lines.size() > 0);
 
-        // Le guide pour la classe (indent 0 → { à colonne 10)
-        // doit être centré. Avec l'approche l'éditeur de référence, le guide est à
-        // la colonne min(startColumn, endColumn) * spaceWidth.
-        // Pour "class Foo {", startColumn = 10 (position du {).
-        // Le guide est centré à cette position.
+        // Le guide pour la classe (startCol=10, endCol=0) doit être
+        // à min(10, 0) = 0 (col 0), pas à la position du { (col 10).
         float textAreaLeft = view.metrics.getGutterWidth() + view.metrics.getPadLeft();
-        // Le guide doit être proche de textAreaLeft + 10*CHAR_W
-        // (la position de l'accolade ouvrante), pas à textAreaLeft
-        // + 4*CHAR_W (qui serait l'indentation de la ligne 1).
-        boolean foundNearBrace = false;
+        float expectedX = textAreaLeft;  // col 0
+
+        boolean foundAtCol0 = false;
         for (float[] l : lines) {
-            float expectedBraceX = textAreaLeft + 10 * CHAR_W - view.hOffset;
-            if (Math.abs(l[0] - expectedBraceX) < CHAR_W) {
-                foundNearBrace = true;
+            if (Math.abs(l[0] - expectedX) < CHAR_W) {
+                foundAtCol0 = true;
                 break;
             }
         }
-        assertTrue("Le guide doit être centré à la position de "
-                + "l'accolade ouvrante (col 10), pas à la colonne "
-                + "d'indentation (col 0 ou 4)",
-                foundNearBrace);
+        assertTrue("Le guide doit être au minimum des positions du "
+                + "{ et du } — ici min(10, 0) = 0 (col 0), pas à la "
+                + "position du { (col 10)",
+                foundAtCol0);
     }
 
     /**
