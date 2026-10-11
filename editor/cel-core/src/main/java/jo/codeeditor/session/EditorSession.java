@@ -517,6 +517,33 @@ public class EditorSession {
             notifySelectionChanged();
             return;
         }
+        // Lot A (audit v3.41.0) : si l'édition touche l'intérieur d'un
+        // pli replié, bornes incluses (start <= r.end ET end >= r.start,
+        // c.-à-d. que la zone éditée chevauche l'intérieur du pli),
+        // déplier ce pli AVANT d'appliquer l'édition. Sans ce correctif,
+        // l'utilisateur pouvait détruire silencieusement plusieurs
+        // lignes masquées en appuyant sur Retour arrière alors que le
+        // caret était à r.end (juste après la chip, sur le } fermant).
+        //
+        // Le dépliage est un effet de bord visuel : il n'est PAS enregistré
+        // sur la pile d'annulation (pas d'étape de texte), donc l'undo
+        // annule l'édition mais laisse le pli déplié. C'est cohérent
+        // avec les éditeurs de code de bureau : l'utilisateur voit le contenu et peut refaire
+        // le pli manuellement s'il le souhaite.
+        //
+        // On déplie tous les plis touchés par la zone d'édition. Une
+        // édition peut traverser plusieurs plis (sélection large), il
+        // faut tous les déplier. La recherche est linéaire en nombre de
+        // plis — négligeable sur des fichiers à peu de plis.
+        if (folds.hasCollapsed()) {
+            // Lot A : déplie les plis touchés par la zone d'édition.
+            // La vue est notifiée via le mécanisme existant
+            // (getFoldRegions() est appelé à chaque frame par le
+            // renderer ; foldRev est incrémenté par expandInRange
+            // pour invalider les caches dérivés de la vue, e.g.
+            // l'index de sommes préfixes de plis).
+            folds.expandInRange(start, end);
+        }
         // L'IME était-il en composition quand cette édition est arrivée ?
         // Le cas échéant, il faudra forcer un restartInput ensuite — l'IME
         // garde son propre tampon de composition (le préfixe pré-acceptation)

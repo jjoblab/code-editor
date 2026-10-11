@@ -223,4 +223,44 @@ final class FoldRegions {
             }
         }
     }
+
+    /**
+     * Lot A (audit v3.41.0) : déplie tous les plis repliés dont
+     * l'intérieur est touché par la zone d'édition
+     * [{@code editStart}, {@code editEnd}).
+     *
+     * <p>Contrairement à {@link #expandAt}, cette méthode :</p>
+     * <ul>
+     *   <li>Accepte une zone, pas un seul offset — une édition peut
+     *       traverser plusieurs plis.</li>
+     *   <li>Inclut les bornes {@code r.start} et {@code r.end} : un
+     *       backspace à {@code r.end} (juste après la chip, sur le
+     *       fermant du suffixe) touche l'intérieur du pli car le
+     *       caractère à r.end est dans la zone composite affichée.
+     *       Sans cette extension, le backspace à r.end supprimait
+     *       silencieusement le caractère masqué précédent (cf.
+     *       analyse Lot A).</li>
+     * </ul>
+     *
+     * @return {@code true} si au moins un pli a été déplié.
+     */
+    boolean expandInRange(int editStart, int editEnd) {
+        boolean expandedAny = false;
+        for (int i = 0; i < foldRegions.size(); i++) {
+            DiagnosticShift.FoldRegion r = foldRegions.get(i);
+            if (!r.collapsed) continue;
+            // La zone d'édition touche l'intérieur du pli si elle
+            // chevauche [r.start, r.end].
+            boolean touches = (editStart >= r.start && editStart <= r.end)
+                    || (editEnd >= r.start && editEnd <= r.end)
+                    || (editStart <= r.start && editEnd >= r.end);
+            if (touches) {
+                foldRegions.set(i, new DiagnosticShift.FoldRegion(
+                    r.start, r.end, r.placeholder, r.kind, false));
+                expandedAny = true;
+            }
+        }
+        if (expandedAny) foldRev++;
+        return expandedAny;
+    }
 }
