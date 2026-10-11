@@ -286,7 +286,9 @@ final class CodeBlockIndex {
 
     /**
      * Calcule le niveau d'indentation d'une ligne.
-     * @return -1 si la ligne ne contient que des blancs.
+     * @return -1 si la ligne ne contient que des blancs OU si la
+     *         ligne est un commentaire (traité comme ligne vide,
+     *         comme les IDE de bureau — IndentGuideCalculator.isComment).
      */
     private static int computeIndentLevel(CharSequence chars, int start, int end, int tabSize) {
         int indent = 0;
@@ -299,6 +301,19 @@ final class CodeBlockIndex {
             i++;
         }
         if (i == end) return -1; // ligne vide
+        // les IDE de bureau : les lignes commentées sont traitées comme
+        // des lignes vides (indentation déduite des voisines).
+        // Détecter les préfixes de commentaire courants.
+        if (i + 1 < end) {
+            char c0 = chars.charAt(i);
+            char c1 = chars.charAt(i + 1);
+            // // commentaire de ligne (C-like, JS, etc.)
+            if (c0 == '/' && c1 == '/') return -1;
+            // # commentaire (Python, YAML, Shell, etc.)
+            if (c0 == '#') return -1;
+            // -- commentaire (Lua, SQL, etc.)
+            if (c0 == '-' && c1 == '-') return -1;
+        }
         return indent;
     }
 

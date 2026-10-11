@@ -445,42 +445,28 @@ public class EditorHighlightPainter {
             int startCol = block[1];
             int endLine = block[2];
             int endCol = block[3];
-            boolean toBottomOfEndLine = block[4] == 1;
 
             // Arrêter si on dépasse le viewport (les blocs sont
             // triés par startLine).
             if (startLine > lastVisible) break;
 
-            // X : position du guide = minimum des positions du { et
-            // du }. l'éditeur de code de référence fait : offset = Math.min(offsetEnd,
-            // offsetStart). Si le } est à la colonne 0 et le { à la
-            // colonne 25, le guide est à la colonne 0 (le début).
-            // C'est pourquoi le guide apparaît à gauche, pas sous
-            // l'accolade.
-            float offsetStart = startCol * charWidth;
-            float offsetEnd = endCol * charWidth;
-            float centerX = offsetX + Math.min(offsetStart, offsetEnd);
+            // X : les IDE de bureau centre le guide au MILIEU de la colonne
+            // d'indentation : x = (col_x + (col+1)_x) / 2.
+            // On utilise min(startCol, endCol) pour la position de
+            // base (comme l'éditeur de code de référence), puis on ajoute un demi-
+            // caractère pour centrer.
+            int baseCol = Math.min(startCol, endCol);
+            float centerX = offsetX + (baseCol + 0.5f) * charWidth;
             if (centerX < view.metrics.getGutterWidth()) continue;
 
-            // Y : du HAUT de la ligne SUIVANT l'ouverture au
-            // HAUT de la ligne de fermeture.
-            // Le guide commence SOUS la ligne d'accolade
-            // ouvrante et s'arrête AU-DESSUS de la ligne
-            // d'accolade fermante — pas sur les lignes
-            // contenant { et }.
+            // Y : du BAS de la ligne d'ouverture au HAUT de la
+            // ligne de fermeture (C_LIKE) ou au BAS de la dernière
+            // ligne (non C_LIKE).
             float top = view.docLineToY(startLine) - view.vOffset + lineHeight;
-            // Pour C_LIKE : s'arrête au HAUT de la ligne du }
-            // (avant le }). Pour non C_LIKE (indentation) :
-            // s'arrête au BAS de la dernière ligne (toBottomOfEndLine
-            // est toujours true pour les blocs d'indentation car
-            // il n'y a pas d'accolade fermante — la "ligne de fin"
-            // est la dernière ligne indentée).
             float bottom;
             if (indentCountMode) {
-                // Non C_LIKE : aller jusqu'au bas de la dernière ligne.
                 bottom = view.docLineToY(endLine) - view.vOffset + lineHeight;
             } else {
-                // C_LIKE : s'arrêter au haut de la ligne du }.
                 bottom = view.docLineToY(endLine) - view.vOffset;
             }
             if (top >= bottom) continue;
@@ -488,15 +474,122 @@ public class EditorHighlightPainter {
             // Profondeur du bloc pour la portée active.
             int blockDepth = computeBlockDepth(blocks, bi);
 
-            // Couleur : accent si c'est le bloc actif.
-            boolean isActive = scopeActive && isBlockActive(
-                    indentCountMode, caretDepth, blockDepth, blocks, bi);
-            view.guidePaint.setColor(isActive ? view.theme.caret : view.theme.indentGuide);
-            view.guidePaint.setStrokeWidth(isActive ? activeStroke : baseStroke);
+            // Couleur : 3 niveaux comme les IDE de bureau —
+            // 1. MATCHED_BRACES : si l'accolade appariée du caret
+            //    est sur ce bloc (accolade ouvrante ou fermante).
+            // 2. SELECTED : si le caret est à l'intérieur de ce
+            //    bloc (portée active).
+            // 3. NORMAL : sinon.
+            int guideColor = view.theme.indentGuide;
+            float stroke = baseStroke;
+            if (scopeActive) {
+                int activeState = getBlockActiveState(
+                        indentCountMode, caretDepth, blockDepth,
+                        blocks, bi, view, doc);
+                if (activeState == 2) {
+                    // MATCHED_BRACES : accolade appariée du caret.
+                    guideColor = view.theme.caret;
+                    stroke = activeStroke;
+                } else if (activeState == 1) {
+                    // SELECTED : caret à l'intérieur du bloc.
+                    guideColor = view.theme.caret;
+                    stroke = activeStroke;
+                }
+            }
+            view.guidePaint.setColor(guideColor);
+            view.guidePaint.setStrokeWidth(stroke);
 
-            // Dessiner le guide comme un rectangle fin (approche l'éditeur de référence).
-            float halfWidth = (isActive ? activeStroke : baseStroke) / 2f;
-            canvas.drawRect(centerX - halfWidth, top,
+            // Soft wraps : les IDE de bureau interrompt le guide aux points
+            // de soft wrap. On vérifie si le guide traverse des
+            // lignes enroulées et on dessine segment par segment.
+            if (view.wordWrap && view.wrapModel != null) {
+                drawGuideWithSoftWraps(canvas, centerX, top, bottom,
+                        startLine, endLine, stroke);
+            } else {
+                // Pas de soft wrap : un seul rectangle.
+                float halfWidth = stroke / 2f;
+                canvas.drawRect(centerX - halfWidth, top,
+                        centerX + halfWidth, bottom, view.guidePaint);
+            }
+        }
+    }
+
+    /**
+     * Détermine l'état actif d'un bloc.
+     * @return 0 = normal, 1 = sélectionné (caret à l'intérieur),
+     *         2 = accolade appariée (caret sur { ou } du bloc).
+     */
+    private static int getBlockActiveState(boolean indentCountMode,
+            int caretDepth, int blockDepth, int[][] blocks, int idx,
+            EditorView view, EditorDocument doc) {
+        int[] block = blocks[idx];
+        int startLine = block[0];
+        int endLine = block[2];
+
+        if (view.session == null) return 0;
+        int caret = view.session.getSelection().start;
+        int caretLine = doc.lineForOffset(caret);
+
+        // MATCHED_BRACES : le caret est sur la ligne du { ou du }.
+        if (!indentCountMode) {
+            if (caretLine == startLine || caretLine == endLine) {
+                // Vérifier que le caret est proche de l'accolade.
+                int startCol = block[1];
+                int endCol = block[3];
+                int caretCol = caret - doc.lineStart(caretLine);
+                if (caretLine == startLine && caretCol >= startCol
+                        && caretCol <= startCol + 1) {
+                    return 2;
+                }
+                if (caretLine == endLine && caretCol >= endCol
+                        && caretCol <= endCol + 1) {
+                    return 2;
+                }
+            }
+        }
+
+        // SELECTED : le caret est à l'intérieur du bloc.
+        if (indentCountMode) {
+            return caretDepth >= 0 && caretDepth > block[1] ? 1 : 0;
+        } else {
+            return caretDepth == blockDepth + 1 ? 1 : 0;
+        }
+    }
+
+    /**
+     * Dessine le guide en tenant compte des soft wraps.
+     * les IDE de bureau interrompt le guide aux points de soft wrap pour
+     * éviter qu'il traverse le texte enroulé.
+     */
+    private void drawGuideWithSoftWraps(Canvas canvas, float centerX,
+            float top, float bottom, int startLine, int endLine,
+            float stroke) {
+        float halfWidth = stroke / 2f;
+        float segmentTop = top;
+
+        for (int li = startLine + 1; li <= endLine; li++) {
+            float lineY = view.docLineToY(li) - view.vOffset;
+            if (lineY > top && lineY < bottom) {
+                // Vérifier si cette ligne est une continuation de
+                // soft wrap (rangée > 0 de la ligne précédente).
+                int prevRows = view.wrapModel.rowsOf(li - 1);
+                if (prevRows > 1) {
+                    // La ligne précédente a plusieurs rangées —
+                    // le guide s'arrête avant le soft wrap et
+                    // reprend après.
+                    float softWrapY = lineY;
+                    if (segmentTop < softWrapY) {
+                        canvas.drawRect(centerX - halfWidth, segmentTop,
+                                centerX + halfWidth, softWrapY,
+                                view.guidePaint);
+                    }
+                    segmentTop = softWrapY;
+                }
+            }
+        }
+        // Dessiner le dernier segment.
+        if (segmentTop < bottom) {
+            canvas.drawRect(centerX - halfWidth, segmentTop,
                     centerX + halfWidth, bottom, view.guidePaint);
         }
     }

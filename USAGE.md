@@ -34,10 +34,10 @@ dependencyResolutionManagement {
 // app/build.gradle.kts
 dependencies {
     // Le module UI embarque transitivement cel-core et cel-lsp-api.
-    implementation("jo.codeeditor:cel-ui:3.44.3")
+    implementation("jo.codeeditor:cel-ui:3.45.0")
 
     // Optionnel — intégration Language Server Protocol (LSP4J).
-    implementation("jo.codeeditor:cel-lsp:3.44.3")
+    implementation("jo.codeeditor:cel-lsp:3.45.0")
 }
 ```
 
@@ -49,7 +49,7 @@ maven { url = uri("https://jitpack.io") }
 
 // app/build.gradle.kts
 dependencies {
-    implementation("com.github.jjoblab:cel-ui:v3.44.3")
+    implementation("com.github.jjoblab:cel-ui:v3.45.0")
 }
 ```
 

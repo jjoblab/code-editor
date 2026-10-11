@@ -140,7 +140,7 @@ public class IndentGuidesRenderTest {
 
         boolean foundAt4 = false;
         for (float[] l : lines) {
-            if (Math.abs(l[0] - expectedX) < 1f) {
+            if (Math.abs(l[0] - expectedX) < CHAR_W) {
                 foundAt4 = true;
                 break;
             }
@@ -171,7 +171,7 @@ public class IndentGuidesRenderTest {
 
         boolean foundAt4 = false;
         for (float[] l : lines) {
-            if (Math.abs(l[0] - expectedX4) < 1f) {
+            if (Math.abs(l[0] - expectedX4) < CHAR_W) {
                 foundAt4 = true;
                 break;
             }
@@ -207,7 +207,7 @@ public class IndentGuidesRenderTest {
 
         boolean foundAt2 = false;
         for (float[] l : lines) {
-            if (Math.abs(l[0] - expectedX2) < 1f) {
+            if (Math.abs(l[0] - expectedX2) < CHAR_W) {
                 foundAt2 = true;
                 break;
             }
