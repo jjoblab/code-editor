@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`FoldRegions.expandInRange(int, int)`** (Lot A) — déplie tous
+  les plis repliés dont l'intérieur est touché par une zone
+  d'édition. Inclut les bornes (contrairement à
+  `expandAt(offset)` qui exige `r.start < offset && offset < r.end`).
+  Un backspace à `r.end` (juste après la chip, sur le fermant
+  du suffixe) touche l'intérieur du pli — dépliage avant la
+  mutation.
 - **`EditOps.isInStringOrComment`** (Lot 3) — wrapper public pour
   `CodeContext.isInStringOrComment` (package-private). Permet à la
   couche UI d'utiliser le prédicat (context gate de complétion,
@@ -152,6 +159,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   complète du document.
 
 ### Fixed
+
+- **Caret mal placé après une chip repliée (Lot A)** —
+  `EditorHitMapper.caretScreenPos` calculait `y =
+  view.docLineToY(line) - view.vOffset` où `line` est la ligne
+  de FIN du pli (puisque `offsetAt` retourne un offset sur
+  endLine pour la zone chip/suffixe). `docLineToY` d'une ligne
+  masquée retourne la rangée visuelle qui suit le pli — le
+  caret tapé juste après la chip apparaissait sur la ligne
+  suivante, à la bonne abscisse mais au mauvais Y. Correctif :
+  on calcule `visibleLine` = ligne de DÉBUT du pli
+  correspondant (via `foldContainingLine`) si la ligne est
+  masquée, et on calcule Y à partir de `visibleLine`. Le X
+  est inchangé (déjà correct). Mode wordWrap géré.
+  Tests : `FoldedCaretPositionTest` (3 cas Robolectric).
+
+- **Suppressions silencieuses dans un pli replié (Lot A)** —
+  l'utilisateur pouvait détruire silencieusement plusieurs
+  lignes masquées en appuyant sur Retour arrière alors que le
+  caret était à `r.end` (juste après la chip, sur le fermant
+  du suffixe). `FoldRegions.expandAt` exigeait des bornes
+  strictes (`r.start < offset && offset < r.end`) et ne
+  dépliait pas. `EditorSession.replaceRangeWithCaret`
+  (point d'entrée unique de toutes les mutations : frappe,
+  backspace, deleteForward, paste, cut, tab, commentaire,
+  undo/redo) déplie désormais automatiquement les plis touchés
+  par la zone d'édition AVANT d'appliquer la mutation, via la
+  nouvelle méthode `FoldRegions.expandInRange(int, int)`.
+  Le dépliage n'est PAS enregistré sur la pile d'annulation
+  (pas d'étape de texte) — l'undo annule l'édition mais
+  laisse le pli déplié (cohérent avec les éditeurs de code de bureau).
+  Tests : `FoldEditSafetyTest` (6 cas Jupiter).
+
+- **Guides d'indentation : niveaux dès colonne 0, unité réelle,
+  BUTT, dp, fusion runs, portée active (Lot B)** —
+  `EditorHighlightPainter.drawIndentGuides` refondu pour
+  atteindre un niveau de finition comparable à Android
+  Studio et les éditeurs de code de bureau : (1) niveaux dès la colonne 0 — les
+  lignes à 4 colonnes d'indentation ont désormais un guide au
+  niveau 4 (avant, level < cols échouait pour cols=4) ;
+  (2) unité d'indentation réelle détectée via
+  `EditOps.detectIndentUnit` (2/4/8 espaces ou tabulation)
+  au lieu de `INDENT_UNIT_COLS = 4` figé ; (3) extrémités
+  `Paint.Cap.BUTT` (au lieu de ROUND) — plus de points aux
+  jonctions ; (4) épaisseur en dp (~0.75 dp pour inactif,
+  ~1.1 dp pour actif) au lieu de 1 px ; (5) continuité à
+  travers les rangées de continuation du retour à la ligne ;
+  (6) plis repliés sautés ; (7) fusion des runs contigus en
+  un seul `drawLine` par run ; (8) portée active mise en
+  évidence via la couleur `theme.caret` (décision 4.2 point 3
+  sans ajouter de champ public à EditorTheme) ;
+  (9) performance : pas d'allocation de chaîne par ligne et
+  par frame — balayage direct sur `doc.charSequence` (charAt
+  O(log n) sur la rope) au lieu de `doc.lineText`.
+  Tests : `IndentGuidesRenderTest` (5 cas Robolectric).
 
 - **Gutter : numéros de ligne qui disparaissent au défilement (Lot 0)** —
   `GutterView.draw` passait `scrollTop` (= `view.vOffset`) à
