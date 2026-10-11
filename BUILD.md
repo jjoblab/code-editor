@@ -54,7 +54,7 @@ sdk.dir=/path/to/android-sdk
 ```
 code-editor/
 ├── settings.gradle.kts        — inclut les 4 modules editor/
-├── build.gradle.kts           — AGP 9.0.0, group/version Maven (jo.codeeditor:3.49.0)
+├── build.gradle.kts           — AGP 9.0.0, group/version Maven (jo.codeeditor:3.49.1)
 ├── gradle/wrapper/            — Gradle 9.5.1
 ├── gradle.properties          — jvmargs, parallélisme, cache
 ├── jitpack.yml                — JDK 17 pour les builds JitPack
@@ -101,16 +101,16 @@ un jar de sources :
 
 | Module | Coordonnées |
 |--------|-------------|
-| `:cel-core` | `jo.codeeditor:cel-core:3.49.0` |
-| `:cel-lsp-api` | `jo.codeeditor:cel-lsp-api:3.49.0` |
-| `:cel-lsp` | `jo.codeeditor:cel-lsp:3.49.0` |
-| `:cel-ui` | `jo.codeeditor:cel-ui:3.49.0` |
+| `:cel-core` | `jo.codeeditor:cel-core:3.49.1` |
+| `:cel-lsp-api` | `jo.codeeditor:cel-lsp-api:3.49.1` |
+| `:cel-lsp` | `jo.codeeditor:cel-lsp:3.49.1` |
+| `:cel-ui` | `jo.codeeditor:cel-ui:3.49.1` |
 
 ### Publication locale (validation)
 
 ```bash
 ./gradlew publishToMavenLocal
-# → ~/.m2/repository/jo/codeeditor/<module>/3.49.0/ (AAR + sources + POM)
+# → ~/.m2/repository/jo/codeeditor/<module>/3.49.1/ (AAR + sources + POM)
 ```
 
 ### Publication sur GitHub Packages (méthode principale)
@@ -132,9 +132,9 @@ Procédure :
 ```bash
 # 1. incrémenter version = "…" dans build.gradle.kts (racine), committer
 # 2. créer le tag annoté correspondant et pousser
-git tag -a v3.49.0 -m "v3.49.0"
+git tag -a v3.49.1 -m "v3.49.1"
 git push origin main --tags   # main → ci.yml build ; tag → ci.yml release + publish.yml
-# (pour différer : git push origin main, puis plus tard git push origin v3.49.0)
+# (pour différer : git push origin main, puis plus tard git push origin v3.49.1)
 ```
 
 **B. En local**, avec un jeton d'accès personnel :
@@ -173,7 +173,7 @@ JitPack construit la bibliothèque à la demande depuis un tag Git
 JDK 17 côté JitPack. Poussez simplement un tag `v*` :
 
 ```bash
-git tag v3.49.0 && git push origin v3.49.0
+git tag v3.49.1 && git push origin v3.49.1
 ```
 
 La CI valide sur ce tag `assembleRelease` + `publishToMavenLocal` avant que

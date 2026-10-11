@@ -413,9 +413,10 @@ public class EditorRenderer {
     // ════════════════════════════════════════════════════════════════
 
     /**
-     * Dessine des petits carrés colorés à côté des couleurs
-     * hexadécimales (#RGB, #RRGGBB, #AARRGGBB) dans chaque ligne
-     * visible. Inspiré d'les IDE de bureau.
+     * Dessine un fond coloré derrière les codes couleur hexadécimaux
+     * (#RGB, #RRGGBB, #AARRGGBB) dans chaque ligne visible. Le texte
+     * du code couleur est entouré par sa propre couleur — comme
+     * les IDE de bureau.
      */
     private void drawColorSwatches(Canvas canvas, EditorDocument doc,
             int firstDocVisible, int lastDocVisible,
@@ -423,14 +424,15 @@ public class EditorRenderer {
         if (!view.colorSwatchesEnabled) return;
         float charWidth = view.metrics.getCharWidth();
         float density = view.getResources().getDisplayMetrics().density;
-        float swatchSize = lineHeight * 0.65f;
-        float swatchOffset = density * 4f; // 4dp après le hex
+        // Padding autour du texte coloré (2dp de chaque côté).
+        float padX = density * 2f;
+        float padY = density * 1f;
 
         for (int i = firstDocVisible; i <= lastDocVisible; i++) {
             if (view.isLineFoldedCached(i)) continue;
             int lineStart = doc.lineStart(i);
             int lineEnd = doc.lineEnd(i);
-            if (lineEnd - lineStart > 500) continue; // ligne trop longue
+            if (lineEnd - lineStart > 500) continue;
 
             CharSequence lineText = doc.charSequence().subSequence(lineStart, lineEnd);
             java.util.List<jo.codeeditor.view.ColorPicker.ColorMatch> matches =
@@ -438,25 +440,31 @@ public class EditorRenderer {
             if (matches.isEmpty()) continue;
 
             float y = view.docLineToY(i) - view.vOffset;
-            float swatchY = y + (lineHeight - swatchSize) / 2f;
 
             for (jo.codeeditor.view.ColorPicker.ColorMatch m : matches) {
-                float x = textAreaLeft - view.hOffset
-                        + (m.end) * charWidth + swatchOffset;
-                // Vérifier que le carré est dans le viewport horizontal.
-                if (x < view.metrics.getGutterWidth() || x > view.getWidth()) continue;
+                // Position X du début et de la fin du code couleur.
+                float startX = textAreaLeft - view.hOffset
+                        + m.start * charWidth - padX;
+                float endX = textAreaLeft - view.hOffset
+                        + m.end * charWidth + padX;
+                float topY = y + padY;
+                float botY = y + lineHeight - padY;
 
-                // Fond avec bordure.
+                // Vérifier que c'est dans le viewport.
+                if (endX < view.metrics.getGutterWidth() || startX > view.getWidth())
+                    continue;
+
+                // Fond coloré (la couleur elle-même) avec alpha
+                // réduit pour rester lisible.
                 view.guidePaint.setStyle(android.graphics.Paint.Style.FILL);
-                view.guidePaint.setColor(m.color);
-                canvas.drawRect(x, swatchY, x + swatchSize, swatchY + swatchSize,
-                        view.guidePaint);
-                // Bordure fine.
+                view.guidePaint.setColor(view.applyAlphaToColor(m.color, 0.25f));
+                canvas.drawRect(startX, topY, endX, botY, view.guidePaint);
+
+                // Bordure fine dans la couleur pleine.
                 view.guidePaint.setStyle(android.graphics.Paint.Style.STROKE);
                 view.guidePaint.setStrokeWidth(1f);
-                view.guidePaint.setColor(0x33000000);
-                canvas.drawRect(x, swatchY, x + swatchSize, swatchY + swatchSize,
-                        view.guidePaint);
+                view.guidePaint.setColor(m.color);
+                canvas.drawRect(startX, topY, endX, botY, view.guidePaint);
             }
             // Restaurer le style.
             view.guidePaint.setStyle(android.graphics.Paint.Style.STROKE);
