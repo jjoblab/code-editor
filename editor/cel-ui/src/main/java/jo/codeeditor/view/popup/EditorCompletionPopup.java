@@ -581,50 +581,47 @@ public class EditorCompletionPopup {
     private static List<jo.codeeditor.completion.CompletionSession.Item> builtinKeywordCompletions(
             String language, String prefix) {
         List<jo.codeeditor.completion.CompletionSession.Item> out = new ArrayList<>();
-        String[] kws;
-        switch (language == null ? "" : language) {
-            case "java": kws = new String[]{
-                "public", "private", "protected", "static", "final", "void", "int", "long",
-                "double", "float", "boolean", "char", "byte", "short", "class", "interface",
-                "enum", "extends", "implements", "import", "package", "new", "return", "if",
-                "else", "for", "while", "do", "switch", "case", "break", "continue",
-                "try", "catch", "finally", "throw", "throws", "this", "super", "null",
-                "true", "false", "instanceof", "synchronized", "volatile", "transient",
-                "abstract", "default"
-            }; break;
-            case "kotlin": kws = new String[]{
-                "fun", "val", "var", "class", "object", "interface", "enum", "sealed",
-                "data", "when", "is", "as", "in", "out", "by", "init", "constructor",
-                "companion", "override", "open", "abstract", "final", "private", "protected",
-                "public", "internal", "import", "package", "return", "if", "else", "for",
-                "while", "do", "break", "continue", "try", "catch", "finally", "throw",
-                "this", "super", "null", "true", "false", "typealias", "operator", "infix",
-                "inline", "suspend", "lateinit"
-            }; break;
-            case "xml": kws = new String[]{
-                "android:layout_width", "android:layout_height", "android:layout_margin",
-                "android:layout_padding", "android:id", "android:text", "android:textSize",
-                "android:textColor", "android:background", "android:orientation",
-                "android:gravity", "android:layout_gravity", "android:layout_weight",
-                "android:src", "android:visibility", "android:enabled", "android:onClick",
-                "android:hint", "android:inputType", "android:maxLines", "android:minLines",
-                "LinearLayout", "RelativeLayout", "FrameLayout", "ConstraintLayout",
-                "TextView", "Button", "EditText", "ImageView", "ScrollView", "RecyclerView"
-            }; break;
-            case "markdown": kws = new String[]{
+        // Lot 3 (audit v3.41.0) : la liste est désormais pilotée
+        // par le registre des langages. Tous les langages
+        // enregistrés (java, kotlin, c, c++, go, rust, python, js,
+        // ts, sql, shell, yaml, json, lua, ruby, php, swift, dart,
+        // groovy, scala, smali, etc.) bénéficient désormais de la
+        // complétion de mots-clés — ils n'étaient que 4 avant
+        // (java, kotlin, xml, markdown).
+        String lowerPrefix = prefix.toLowerCase(java.util.Locale.ROOT);
+        // Snippets Markdown : liste hardcoded conservée car les
+        // « mots-clés » Markdown sont des snippets (# , ## , - , etc.)
+        // qui ne sont pas des mots-clés au sens du registre.
+        if ("markdown".equals(language) || "md".equals(language)) {
+            String[] mdSnippets = {
                 "# ", "## ", "### ", "- ", "* ", "1. ", "> ", "```", "```java", "```kotlin",
                 "```xml", "[", "](", "![", "*italic*", "**bold**", "---", "| ", "---|---"
-            }; break;
-            default: kws = new String[0];
+            };
+            for (String s : mdSnippets) {
+                if (s.toLowerCase(java.util.Locale.ROOT).startsWith(lowerPrefix)
+                        && s.length() > prefix.length()) {
+                    out.add(new jo.codeeditor.completion.CompletionSession.Item(
+                        s, "snippet", s, "s", 15, 0, false, false, null));
+                }
+            }
+            return out;
         }
-        String lowerPrefix = prefix.toLowerCase(java.util.Locale.ROOT);
-        for (String kw : kws) {
-            if (kw.toLowerCase(java.util.Locale.ROOT).startsWith(lowerPrefix) && kw.length() > prefix.length()) {
+        // Mots-clés du registre : tous langages enregistrés.
+        jo.codeeditor.languages.LanguageProfile profile =
+                jo.codeeditor.languages.LanguageRegistry.forName(language);
+        if (profile == null) return out;
+        if (profile.keywords == null || profile.keywords.isEmpty()) {
+            return out;
+        }
+        for (String kw : profile.keywords) {
+            if (kw == null || kw.isEmpty()) continue;
+            if (kw.toLowerCase(java.util.Locale.ROOT).startsWith(lowerPrefix)
+                    && kw.length() > prefix.length()) {
                 out.add(new jo.codeeditor.completion.CompletionSession.Item(
                     // ★ Kind 14 (Keyword, numérotation LSP moderne) — le
                     // badge du popup en dépend. isKeyword=true reste
                     // inchangé.
-                    kw, "keyword", kw, "k", 14, 0, true, false));
+                    kw, "keyword", kw, "k", 14, 0, true, false, null));
             }
         }
         return out;
