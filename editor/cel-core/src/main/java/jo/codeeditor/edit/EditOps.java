@@ -141,4 +141,38 @@ public final class EditOps {
     public static boolean isInStringOrComment(CharSequence text, int pos) {
         return CodeContext.isInStringOrComment(text, pos);
     }
+
+    /**
+     * Tente de déclencher une complétion postfix à la position
+     * donnée. Wrapper public pour
+     * {@link PostfixCompletion#tryComplete}.
+     *
+     * @param text le texte complet du document
+     * @param pos la position du caret
+     * @param language l'identifiant de langage
+     * @return un tableau {@code [start, end, caret]} + le texte à
+     *         insérer, ou null si pas de postfix détecté. Le texte
+     *         est obtenu via {@link #getPostfixInsertText()}.
+     */
+    private static PostfixCompletion.Result lastPostfixResult;
+
+    /**
+     * Tente de déclencher une complétion postfix. Si un postfix est
+     * détecté (.if, .for, .notnull, .return, .var, .while, .try,
+     * .else), retourne un tableau [start, end, caret]. Le texte à
+     * insérer est disponible via {@link #getPostfixInsertText()}.
+     *
+     * @return [start, end, caret] ou null si pas de postfix
+     */
+    public static int[] tryPostfixCompletion(CharSequence text, int pos, String language) {
+        PostfixCompletion.Result r = PostfixCompletion.tryComplete(text, pos, language);
+        if (r == null) return null;
+        lastPostfixResult = r;
+        return new int[]{r.start, r.end, r.caret};
+    }
+
+    /** Récupère le texte à insérer du dernier appel à tryPostfixCompletion. */
+    public static String getPostfixInsertText() {
+        return lastPostfixResult != null ? lastPostfixResult.insertText : null;
+    }
 }

@@ -724,9 +724,32 @@ public class EditorSession {
 
     /**
      * Insère du texte au curseur. Utilise smartInsert pour un seul caractère,
-     * insertion simple pour plusieurs.
+     * insertion simple pour plusieurs. Tente aussi la complétion postfix
+     * avant l'insertion.
      */
     public void commitText(String text) {
+        // Postfix completion : si le texte inséré complète un postfix
+        // (.if, .for, .notnull, .return, .var, .while, .try, .else),
+        // déclencher la complétion postfix au lieu de l'insertion
+        // simple.
+        if (text.length() >= 2) {
+            CharSequence docChars = doc.charSequence();
+            int pos = selection.start;
+            // Simuler le texte après insertion.
+            String simulated = docChars.subSequence(0, pos).toString()
+                    + text;
+            int simulatedPos = pos + text.length();
+            int[] pc = jo.codeeditor.edit.EditOps.tryPostfixCompletion(
+                    simulated, simulatedPos, language);
+            if (pc != null) {
+                String insertText = jo.codeeditor.edit.EditOps.getPostfixInsertText();
+                int realStart = pc[0];
+                int realEnd = Math.min(pc[1], pos + text.length());
+                replaceRangeWithCaret(realStart, realEnd,
+                        insertText, pc[2]);
+                return;
+            }
+        }
         if (text.length() == 1) {
             typeChar(text.charAt(0));
             return;

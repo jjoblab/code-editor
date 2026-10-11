@@ -58,25 +58,26 @@ public final class FoldDetector {
     public static List<DiagnosticShift.FoldRegion> detect(String text, String language) {
         if (text == null || text.isEmpty()) return new ArrayList<>();
         FoldStrategy strategy = resolveStrategy(language);
+        List<DiagnosticShift.FoldRegion> folds;
         switch (strategy) {
-            case KEYWORD: return detectLuaFolds(text);
-            case INDENT: return detectIndentFolds(text);
-            case TAG: return detectXmlFolds(text);
-            case HEADING: return detectMarkdownFolds(text);
+            case KEYWORD: folds = detectLuaFolds(text); break;
+            case INDENT: folds = detectIndentFolds(text); break;
+            case TAG: folds = detectXmlFolds(text); break;
+            case HEADING: folds = detectMarkdownFolds(text); break;
             case IMPORTS: {
-                // Lot 2/3 : détecter les imports ET les blocs
-                // d'accolades (la stratégie IMPORTS est un
-                // supplément au BRACE, pas un remplacement — Java
-                // a besoin des deux).
-                List<DiagnosticShift.FoldRegion> importFolds = detectImportFolds(text);
-                importFolds.addAll(detectBraceFolds(text));
-                return importFolds;
+                folds = detectImportFolds(text);
+                folds.addAll(detectBraceFolds(text));
+                break;
             }
-            case OFF: return new ArrayList<>();
+            case OFF: folds = new ArrayList<>(); break;
             case BRACE:
             default:
-                return detectBraceFolds(text);
+                folds = detectBraceFolds(text); break;
         }
+        // Ajouter les régions nommées (// region ... // endregion,
+        // // <editor-fold> ... // </editor-fold>).
+        folds.addAll(detectNamedRegions(text));
+        return folds;
     }
 
     /**
@@ -313,6 +314,75 @@ public final class FoldDetector {
     @Deprecated
     public static List<DiagnosticShift.FoldRegion> detectPythonFolds(String text) {
         return detectIndentFolds(text);
+    }
+
+    // ── Régions nommées (// region ... // endregion) ───────────
+
+    /**
+     * Détecte les régions nommées pliables. Supporte les syntaxes
+     * les IDE de bureau et les éditeurs de code de bureau :
+     * <ul>
+     *   <li>{@code // region Nom} ... {@code // endregion}</li>
+     *   <li>{@code // <editor-fold desc="Nom">} ... {@code // </editor-fold>}</li>
+     *   <li>{@code # region Nom} ... {@code # endregion} (Python, YAML)</li>
+     * </ul>
+     */
+    public static List<DiagnosticShift.FoldRegion> detectNamedRegions(String text) {
+        List<DiagnosticShift.FoldRegion> folds = new ArrayList<>();
+        String[] lines = text.split("\n", -1);
+        int offset = 0;
+        // Pile des régions ouvertes : [startOffset, startLine]
+        ArrayDeque<int[]> stack = new ArrayDeque<>();
+
+        for (int li = 0; li < lines.length; li++) {
+            String trimmed = lines[li].trim();
+            // Détecter les ouvertures.
+            if (trimmed.startsWith("// region")
+                    || trimmed.startsWith("// <editor-fold")
+                    || trimmed.startsWith("# region")) {
+                stack.push(new int[]{offset, li});
+            }
+            // Détecter les fermetures.
+            else if (trimmed.startsWith("// endregion")
+                    || trimmed.startsWith("// </editor-fold>")
+                    || trimmed.startsWith("# endregion")) {
+                if (!stack.isEmpty()) {
+                    int[] open = stack.pop();
+                    if (li - open[1] >= 2) {
+                        String name = extractRegionName(lines[open[1]]);
+                        folds.add(new DiagnosticShift.FoldRegion(
+                            open[0], offset + lines[li].length(),
+                            name, "region", false));
+                    }
+                }
+            }
+            offset += lines[li].length() + 1;
+        }
+        return folds;
+    }
+
+    private static String extractRegionName(String line) {
+        String t = line.trim();
+        // // region Nom → "Nom"
+        if (t.startsWith("// region")) {
+            String name = t.substring(8).trim();
+            return name.isEmpty() ? "region" : name;
+        }
+        // // <editor-fold desc="Nom"> → "Nom"
+        if (t.startsWith("// <editor-fold")) {
+            int idx = t.indexOf("desc=\"");
+            if (idx >= 0) {
+                int end = t.indexOf('"', idx + 6);
+                if (end > idx) return t.substring(idx + 6, end);
+            }
+            return "region";
+        }
+        // # region Nom → "Nom"
+        if (t.startsWith("# region")) {
+            String name = t.substring(7).trim();
+            return name.isEmpty() ? "region" : name;
+        }
+        return "region";
     }
 
     // ── Imports Java : séquence import … ; en haut de fichier ──
