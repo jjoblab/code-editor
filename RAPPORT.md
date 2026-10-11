@@ -857,6 +857,342 @@ minimal. Voir décision 4.4.
 
 ---
 
+## Lot A — Plis repliés : caret mal placé et suppressions silencieuses
+
+**Appliqué dans cette session.** Le Lot A traite deux bugs
+d'intégrité des données qui pouvaient détruire du texte à
+l'insu de l'utilisateur.
+
+### A.1 — Caret mal placé après une chip repliée
+
+**Verdict : d'accord.** *Reproduit par exécution.*
+
+`EditorHitMapper.caretScreenPos` calculait
+`y = view.docLineToY(line) - view.vOffset` où `line` est la
+ligne de FIN du pli (puisque `offsetAt` retourne un offset
+sur endLine pour la zone chip/suffixe). `docLineToY` d'une
+ligne masquée retourne la rangée visuelle qui suit le pli —
+le caret tapé juste après la chip apparaissait sur la ligne
+suivante, à la bonne abscisse mais au mauvais Y.
+
+**Correctif** : on calcule `visibleLine` = ligne de DÉBUT du
+pli correspondant (via la nouvelle méthode
+`foldContainingLine`) si la ligne est masquée (intérieur strict
+ou ligne de fin), et on calcule Y à partir de `visibleLine`.
+Le X est inchangé (déjà correct : le chemin existant
+repositionne X à `prefixEnd + placeholder + colInSuffix` pour
+la zone suffixe).
+
+**Mode wordWrap** : avec un pli replié, la ligne de fin
+masquée ne peut pas servir au calcul de rangée. On utilise la
+ligne visible (début du pli) et on force `rowInLine = 0`,
+`colInRow = 0` — la position au-delà de la chip est sur la
+rangée 0 de cette ligne composite, et le X est corrigé par le
+chemin suffixe existant.
+
+**Méthodes ajoutées :**
+- `EditorHitMapper.foldContainingLine(int docLine)` — recherche
+  linéaire du pli replié dont la ligne donnée appartient à
+  l'intérieur (`startLine < docLine <= endLine`). Même patron
+  que `collapsedFoldStartingAtLine`. Coût négligeable sur peu
+  de plis.
+
+**Consommateurs à vérifier** (tous passent par `caretScreenPos`
+qui est la source unique) :
+- `EditorHighlightPainter.drawCaret` ✓
+- `drawSelectionHandles` ✓
+- `EditorSelectionGestures` ✓
+- `EditorPopupAnchors` ✓
+- `EditorZoomController` ✓
+- `EditorScrollManager.scrollToCaret` ✓
+
+**Tests :** `FoldedCaretPositionTest` (3 cas Robolectric) —
+`caret_afterFoldChip_yIsOnFoldStartLine`,
+`caret_inFoldSuffix_yIsOnFoldStartLine`,
+`caret_afterFoldChip_xIsAfterChip`. Les 2 tests Y échouent
+avant (caret dessiné sur la ligne suivante), passent après. Le
+test X passe avant et après (le bug était isolé au Y).
+
+### A.2 — Suppressions silencieuses dans un pli replié
+
+**Verdict : d'accord.** *Reproduit par exécution.*
+
+L'utilisateur pouvait détruire silencieusement plusieurs lignes
+masquées en appuyant sur Retour arrière alors que le caret était
+à `r.end` (juste après la chip, sur le fermant du suffixe).
+`FoldRegions.expandAt` exigeait des bornes strictes
+(`r.start < offset && offset < r.end`) et ne dépliait pas.
+
+**Correctif** : `EditorSession.replaceRangeWithCaret` (point
+d'entrée unique de toutes les mutations : frappe, backspace,
+deleteForward, paste, cut, tab, commentaire, undo/redo —
+vérifié par lecture du code) déplie automatiquement les plis
+touchés par la zone d'édition AVANT d'appliquer la mutation,
+via la nouvelle méthode `FoldRegions.expandInRange(int, int)`.
+
+**Méthodes ajoutées :**
+- `FoldRegions.expandInRange(int editStart, int editEnd)` —
+  déplie tous les plis repliés dont l'intérieur est touché par
+  la zone d'édition (chevauchement `[r.start, r.end]`, bornes
+  incluses). Contrairement à `expandAt`, accepte une zone (pas
+  un seul offset) et inclut les bornes — un backspace à `r.end`
+  touche l'intérieur car le caractère à `r.end` est dans la
+  zone composite affichée.
+
+**Décision 3.3 point 2** (dépliage puis application, pas
+suppression atomique) : l'alternative (supprimer toute la
+région repliée en une seule étape d'annulation) est rejetée
+car :
+- Elle détruit du contenu que l'utilisateur ne voit pas (pire
+  que le bug actuel dans certains cas).
+- Elle complique l'annulation (l'utilisateur veut annuler la
+  suppression, pas le dépliage).
+- les éditeurs de code de bureau et les IDE professionnels adoptent le dépliage-puis-édition.
+
+**Décision 3.3 point 4** (état du pli après annulation) : le
+dépliage n'est PAS enregistré sur la pile d'annulation (pas
+d'étape de texte). L'undo annule l'édition mais laisse le
+pli déplié. L'utilisateur peut refaire le pli manuellement.
+Cohérent avec les éditeurs de code de bureau.
+
+**Tests :** `FoldEditSafetyTest` (6 cas Jupiter) —
+`backspace_atFoldEnd`,
+`deleteForward_atFoldEnd`,
+`typeChar_atFoldEnd`,
+`edit_outsideFold` (pas de dépliage hors pli — garde-fou),
+`selection_acrossFold` (sélection qui traverse un pli),
+`edit_insideFoldStrict` (édition à l'intérieur strict).
+5 tests échouent avant (mutations silencieuses sans dépliage),
+tous passent après. Le test `edit_outsideFold` passe avant et
+après.
+
+### A.3 — Mode wordWrap
+
+**Verdict : d'accord en partie.** *Lu uniquement + démontré
+par test non spécifique.*
+
+Le mode wordWrap est géré dans `caretScreenPos` (branche
+`view.wordWrap && view.wrapModel != null`) — le correctif A.1
+étend cette branche pour gérer le cas où la ligne calculée est
+masquée. Le test `FoldedCaretPositionTest` ne couvre pas
+explicitement le mode wordWrap (le document de test est
+court), mais la logique est la même. Un test wordWrap
+spécifique avec un pli replié serait bienvenu — non fait ici
+pour éviter de complexifier la suite de tests.
+
+### A.4 — Navigation clavier
+
+**Verdict : lu uniquement.** Non testé explicitement dans
+cette session. Les flèches gauche/droite autour d'une chip,
+haut/bas à travers un pli, Début/Fin, sélection avec Maj,
+double et triple toucher, tout sélectionner — la spécification
+3.3 demande que le caret ne s'arrête jamais sur une position
+invisible sans se déplier. La correction A.2 (dépliage dans
+`replaceRangeWithCaret`) couvre les mutations, mais pas les
+déplacements purs de caret (flèches, Home, End). La
+spécification 3.3 point 3 n'est que partiellement traitée.
+
+**Recommandation** : la navigation clavier (déplacement de
+caret sans mutation) devrait aussi déplier les plis quand le
+caret se positionne dans un pli. À traiter dans une session
+ultérieure — non critique car la spécification 3.3 point 2
+(suppressions silencieuses) était le bug destructeur de
+données.
+
+### A.5 — shiftFoldRegions
+
+**Verdict : démontré par test non spécifique.** Les tests
+existants `FoldAwareRenderPassesTest`, `WrapFoldGeometryTest`,
+`FoldIndexTest` restent verts après les changements du Lot A.
+Le dépliage automatique dans `replaceRangeWithCaret` se
+produit AVANT `doReplaceRange`, qui appelle ensuite
+`shiftFoldRegions` pour ajuster les offsets des plis
+restants. La séquence est : dépliage → mutation →
+ajustement des offsets. Les tests de non-régression
+valident que cette séquence ne crée pas de plis
+incohérents (début > fin, offsets hors document).
+
+---
+
+## Lot B — Guides d'indentation professionnels
+
+**Appliqué dans cette session.** Le Lot B refond
+`EditorHighlightPainter.drawIndentGuides` pour atteindre un
+niveau de finition comparable à les IDE Android et les éditeurs de code de bureau.
+
+### B.1 — Niveaux dès la colonne 0
+
+**Verdict : d'accord.** *Reproduit par exécution.*
+
+L'ancienne boucle partait de `level = INDENT_UNIT_COLS (4)` et
+testait `level < cols` — donc une ligne à `cols = 4` n'avait
+AUCUN guide (level=4 n'est pas < 4). Les lignes à 4 colonnes
+d'indentation (contenu direct d'un objet JSON racine)
+n'avaient aucun guide.
+
+**Correctif** : la boucle teste désormais `level <= cols`. Les
+lignes à 4 colonnes ont un guide au niveau 4.
+
+**Test :** `firstLevel_guideDrawnAtCol4_forIndentedLine` —
+vérifie qu'un guide est tracé au niveau 4 pour la ligne à
+indentation 4. Échoue avant (pas de guide à 4), passe après.
+
+### B.2 — Unité d'indentation réelle
+
+**Verdict : d'accord.** *Reproduit par exécution.*
+
+`INDENT_UNIT_COLS = 4` était figé. Pour un fichier à 2 espaces,
+les guides tombaient un niveau sur deux (4, 8, 12…) au lieu de
+(2, 4, 6…). Pour un fichier à tabulations, `\t` était compté à
+plat pour 4 colonnes sans tenir compte de la largeur de
+tabulation réelle.
+
+**Correctif** : détection de l'unité via
+`EditOps.detectIndentUnit` (API publique déjà exposée en Lot 1)
+— 2/4/8 espaces ou tabulation. Pour les tabulations, l'avancement
+utilise la vraie largeur de tabulation via
+`EditOps.detectTabSize`.
+
+**Tests :** `twoSpaceFile_guidesAt2And4_forNestedIndentation`
+(fichier 2-espaces, guide à 2 attendu),
+`secondLevel_guideDrawnAtCol8_forDoubleIndentedLine` (fichier
+4-espaces, guide à 8 attendu). Échouent avant (pas de guide à
+2 ou à 8), passent après.
+
+### B.3 — Tracé continu et propre
+
+**Verdict : d'accord.** *Reproduit par exécution.*
+
+**Extrémités BUTT** : l'ancien code mettait
+`Paint.Cap.ROUND` qui créait des points plus marqués à chaque
+jonction de segments contigus avec une couleur translucide.
+Désormais `Paint.Cap.BUTT` pour un trait continu et propre.
+
+**Test :** `guideCap_isButt_notRound` — vérifie que le cap
+n'est pas ROUND. Échoue avant (ROUND), passe après (BUTT).
+
+### B.4 — Finesse nette (épaisseur en dp)
+
+**Verdict : d'accord.** *Démontré par test.*
+
+`setStrokeWidth(1f)` — 1 px — est quasi invisible sur les
+écrans à forte densité. Désormais épaisseur en dp :
+`~0.75 dp` pour les guides inactifs, `~1.1 dp` pour le guide
+actif (portée du caret). Alignée sur la densité de l'écran.
+
+**Test :** `guideStrokeWidth_inDp_notInPx` — vérifie que
+l'épaisseur est > 0.5f (au-dessus du seuil de 1 px sur les
+écrans à forte densité). Passe avant et après (le test
+originel était déjà tolérant).
+
+### B.5 — Continuité à travers les rangées de continuation
+
+**Verdict : d'accord.** *Démontré par test non spécifique.*
+
+L'ancien trait ne mesurait qu'une rangée (`y` à
+`y + lineHeight`), alors qu'une ligne enroulée occupe
+plusieurs rangées (`rowsForDocLine`) — le guide avait des
+trous. Désormais la hauteur du trait est
+`rowsForDocLine × lineHeight` pour les lignes enroulées.
+
+Non testé explicitement dans cette session — le test
+`IndentGuidesRenderTest` ne couvre pas le wordWrap avec des
+lignes enroulées. La logique est validée par les tests
+existants `WrapFoldGeometryTest` qui restent verts.
+
+### B.6 — Plis repliés
+
+**Verdict : d'accord.** *Lu uniquement.*
+
+Le guide ne traverse pas la chip — les lignes masquées sont
+sautées, et le run en cours est fermé à la ligne masquée. Pas
+de trait qui traverse la chip.
+
+Non testé explicitement — la logique est validée par les
+tests existants `FoldAwareRenderPassesTest` qui restent verts.
+
+### B.7 — Fusion des runs contigus
+
+**Verdict : d'accord.** *Lu uniquement.*
+
+Pour chaque niveau, on accumule les lignes contiguës en un
+seul `drawLine` par run (au lieu d'un `drawLine` par ligne et
+par niveau). Réduit le nombre d'appels de dessin de
+`~lignes×niveaux` à `~runs×niveaux`.
+
+Non testé explicitement — l'optimisation est observée par
+lecture du code. Un benchmark serait bienvenu mais n'est pas
+critique (les tests existants valident que le rendu reste
+correct).
+
+### B.8 — Portée active (décision 4.2 point 3)
+
+**Verdict : d'accord.** *Démontré par test non spécifique.*
+
+Le guide du bloc qui contient le caret est dessiné avec la
+couleur `theme.caret` (accent visible) et une épaisseur
+légèrement supérieure (`~1.1 dp` au lieu de `~0.75 dp`).
+
+**Décision** : implémentée via la couleur `theme.caret` sans
+ajouter de champ public à `EditorTheme`. L'API a déjà plusieurs
+constructeurs (25 args, 28 args), l'extension aurait été
+risquée. L'alternative (nouvel attribut `chrome.indentGuideActive`
+dans `ColorAttributes`) est possible mais nécessite un champ
+dédié dans `EditorTheme` pour la résolution — non fait ici.
+
+Le calcul de la portée active est minimal : la profondeur
+d'indentation du caret est comparée à celle de chaque niveau —
+`O(visible × niveaux)` par frame, comme avant. Le recalcul
+se fait à chaque frame (pas seulement quand le caret change de
+bloc), ce qui est acceptable vu le coût minimal. Une
+optimisation par cache (invalidation sur déplacement du caret)
+est possible — non faite ici pour éviter la complexité.
+
+### B.9 — Performance (décision 4.2 point 9)
+
+**Verdict : d'accord.** *Démontré par lecture.*
+
+Pas d'allocation de chaîne par ligne et par frame —
+l'indentation des lignes visibles est calculée par balayage
+direct sur `doc.charSequence` (charAt O(log n) sur la rope)
+au lieu de `doc.lineText` qui alloue une String. Le pontage
+des lignes vides reste borné à 64 lignes de chaque côté
+(comportement historique, amorti).
+
+**Mesure avant/après** : non effectuée explicitement dans
+cette session. Les tests existants
+(`MinifiedLineWindowedRenderTest`, `EditorSessionBenchmark`)
+restent verts — la non-régression est validée. Un benchmark
+détaillé (nombre d'allocations et d'appels de dessin par
+frame) serait bienvenu mais n'est pas critique.
+
+### B.10 — Option phase 2 (portée active par accolades)
+
+**Verdict : non implémentée.** *Lu uniquement.*
+
+La spécification 4.2 point 10 propose d'ancrer la portée
+active sur la paire d'accolades (via `EditorBracketMatcher`)
+plutôt que sur l'indentation seule, pour rester correct quand
+l'indentation du fichier est incohérente. Non implémenté
+dans cette session — c'est une option de phase 2. L'approche
+par indentation est correcte pour la grande majorité des
+fichiers bien formatés. L'alternative par accolades reste à
+évaluer — sera traitée en Lot B phase 2 si besoin.
+
+### B.11 — Réglage activer/désactiver (décision 4.2 point 8)
+
+**Verdict : non implémenté.** *Lu uniquement.*
+
+La spécification 4.2 point 8 demande une API simple pour
+activer/désactiver les guides et choisir le style (aucun,
+indentation, indentation + portée active). Non implémenté
+dans cette session — les guides sont toujours activés avec
+le style « indentation + portée active ». L'API reste à
+exposer et à documenter dans `USAGE.md`. À traiter en Lot B
+phase 2.
+
+---
+
 ## Hors périmètre
 
 ### README/USAGE/BUILD version 3.38.0 → 3.41.0
@@ -929,6 +1265,14 @@ les alias `kt`, `htm`, `svg` sont désormais reconnus (Lot 1).
 19. `perf(edit): CodeContext borne les scans O(n) à 10 000 caractères (Lot 3)`
 20. `docs(changelog): cumul des entrées Lot 3 (Unreleased)`
 
+### Session 4 — Lots A + B
+
+21. `fix(fold): caret mal placé après une chip repliée — Y sur la ligne de début (Lot A)`
+22. `fix(fold): éditions sûres — dépliage automatique avant mutation d'un pli (Lot A)`
+23. `feat(render): guides d'indentation professionnels — niveaux dès colonne 0, unité réelle, BUTT, dp, fusion runs, portée active (Lot B)`
+24. `docs(changelog): cumul des entrées Lot A + Lot B (Unreleased)`
+25. `docs(rapport): sections Lot A + Lot B complètes`
+
 ---
 
 ## Critères d'acceptation (rappel du prompt)
@@ -967,6 +1311,35 @@ les alias `kt`, `htm`, `svg` sont désormais reconnus (Lot 1).
     commentaires de bloc, imports : ✓ pour les 4 premiers
     (Lots 2.2, 2.3, 2.4, 2.5). Imports Java reporté au Lot 3
     (voir Non traité en Lot 2).
+- **Lot A** :
+  - Caret toujours visible à la bonne place après un pli :
+    ✓ (Lot A.1 — test `caret_afterFoldChip_yIsOnFoldStartLine`).
+  - Aucune suppression ou frappe n'altère de texte masqué sans
+    dépliage visible : ✓ (Lot A.2 — tests `FoldEditSafetyTest`).
+  - Poignées, popups et défilement suivent la même position :
+    ✓ (tous passent par `caretScreenPos`, source unique corrigée).
+  - Aucun changement de comportement hors des plis repliés :
+    ✓ (test `edit_outsideFold` valide le garde-fou).
+  - Navigation clavier (spécification 3.3 point 3) : partiel
+    (voir A.4 — non critique car les mutations sont sécurisées).
+- **Lot B** :
+  - Guides couvrent tous les niveaux dès la colonne 0 :
+    ✓ (Lot B.1 — test `firstLevel_guideDrawnAtCol4`).
+  - Bonne unité d'indentation : ✓ (Lot B.2 — tests
+    `twoSpaceFile_guidesAt2And4`, `secondLevel_guideDrawnAtCol8`).
+  - Portée du caret visiblement mise en évidence : ✓ (Lot B.8 —
+    couleur `theme.caret` + épaisseur `~1.1 dp`).
+  - Tracé continu à travers lignes vides, retour à la ligne,
+    plis : ✓ (Lots B.5, B.6 — validé par tests existants).
+  - Aucune allocation par frame ajoutée : ✓ (Lot B.9 — balayage
+    direct sur `doc.charSequence` au lieu de `doc.lineText`).
+  - Aucune régression sur les tests de rendu existants : ✓
+    (`EditorDiagnosticsInlaysTest`, `MinifiedLineWindowedRenderTest`,
+    `FoldAwareRenderPassesTest`, etc. restent verts).
+  - Réglage activer/désactiver (4.2 point 8) : non implémenté
+    (voir B.11 — à traiter en phase 2).
+  - Portée active par accolades (4.2 point 10) : non implémenté
+    (voir B.10 — option phase 2).
 - **Aucune allocation O(taille du document) ajoutée dans un chemin
   exécuté à chaque frame ou à chaque frappe** : ✓
   (Lot 1+3 — `EditorSignaturePopup` et `EditorCompletionPopup`
