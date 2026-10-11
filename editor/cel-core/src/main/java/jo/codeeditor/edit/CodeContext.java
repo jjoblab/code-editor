@@ -8,6 +8,26 @@ package jo.codeeditor.edit;
  */
 final class CodeContext {
 
+    /**
+     * Lot 3 (audit v3.41.0) — borne du scan O(n) en arrière. Avant
+     * ce correctif, les prédicats {@link #isInString},
+     * {@link #isInBlockComment}, {@link #isInLineComment} et
+     * {@link #isInStringOrComment} parcouraient le document depuis
+     * l'offset 0 jusqu'à la position du caret, sans borne. Sur un
+     * document de 100 000+ caractères, chaque frappe déclenchait
+     * 100 000 itérations — pression GC et latence perceptible sur
+     * le thread UI.
+     *
+     * <p>La borne de 10 000 caractères est identique à celle de
+     * {@link IndentDetection#detectIndentUnit} — un compromis
+     * raisonnable : une chaîne ou un commentaire de plus de 10 000
+     * caractères est extrême (e.g. minified JS), et l'utilisateur
+     * l'édite justement en partie — les autres régions du document
+     * n'ont pas besoin du prédicat pendant l'édition. Le faux
+     * négatif potentiel est acceptable.</p>
+     */
+    static final int SCAN_LIMIT = 10_000;
+
     private CodeContext() {}
 
     static boolean isDanglingOperator(CharSequence text, int pos) {
@@ -55,7 +75,14 @@ final class CodeContext {
         char quoteChar = '\0';
         boolean inLineComment = false;
         boolean inBlockComment = false;
-        for (int i = 0; i < pos; i++) {
+        // Lot 3 : borne du scan à SCAN_LIMIT caractères en arrière.
+        // Le faux négatif potentiel (commentaire de bloc ouvert il y
+        // a plus de SCAN_LIMIT caractères) est acceptable — un
+        // commentaire de 10K+ chars est extrême.
+        int start = Math.max(0, pos - SCAN_LIMIT);
+        // Si on a tronqué le début, on suppose qu'on n'est PAS dans
+        // un bloc ouvert avant ce point. C'est une approximation.
+        for (int i = start; i < pos; i++) {
             char ch = text.charAt(i);
             if (inLineComment) {
                 if (ch == '\n') inLineComment = false;
@@ -115,7 +142,9 @@ final class CodeContext {
         char quoteChar = '\0';
         boolean inLineComment = false;
         boolean inBlockComment = false;
-        for (int i = 0; i < pos; i++) {
+        // Lot 3 : borne du scan à SCAN_LIMIT caractères en arrière.
+        int start = Math.max(0, pos - SCAN_LIMIT);
+        for (int i = start; i < pos; i++) {
             char ch = text.charAt(i);
             if (inLineComment) {
                 if (ch == '\n') inLineComment = false;
@@ -175,7 +204,12 @@ final class CodeContext {
     static boolean isInString(CharSequence text, int pos) {
         boolean inString = false;
         char quoteChar = '\0';
-        for (int i = 0; i < pos; i++) {
+        // Lot 3 : borne du scan à SCAN_LIMIT caractères en arrière.
+        // Le faux négatif potentiel (chaîne ouverte il y a plus de
+        // SCAN_LIMIT caractères) est acceptable — une chaîne de 10K+
+        // est extrême (e.g. minified JS).
+        int start = Math.max(0, pos - SCAN_LIMIT);
+        for (int i = start; i < pos; i++) {
             char ch = text.charAt(i);
             if (!inString) {
                 // Commentaire de ligne : sauter jusqu'à la fin de ligne, jamais dans une chaîne à cet endroit.
@@ -186,9 +220,10 @@ final class CodeContext {
                     continue;
                 }
                 // Ouverture de commentaire de bloc : sauter jusqu'au */ correspondant
+                // (borné à pos, pour rester dans la fenêtre de scan)
                 if (ch == '/' && i + 1 < text.length() && text.charAt(i + 1) == '*') {
                     int close = EditTextUtils.indexOf(text, "*/", i + 2);
-                    if (close < 0) return false; // commentaire de bloc non terminé → pas dans une chaîne
+                    if (close < 0 || close >= pos) return false; // bloc non fermé avant pos → pas dans une chaîne
                     i = close + 1; // passer "*/" ; le i++ de la boucle avance encore d'un
                     continue;
                 }
