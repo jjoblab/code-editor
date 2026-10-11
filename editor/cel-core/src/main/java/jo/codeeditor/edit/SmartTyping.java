@@ -100,6 +100,18 @@ final class SmartTyping {
             return SmartNewline.smartEnter(text, pos, language);
         }
 
+        // Lot 2/3 (audit v3.41.0) : fermeture de balise sur >
+        // pour les langages de famille XML (xml, html, htm, svg).
+        // Quand l'utilisateur tape > après un nom de balise ouvrant
+        // non auto-fermant, la balise fermante est insérée
+        // automatiquement. Exemple : <div| → > → <div></div>
+        if (ch == '>' && LanguageIds.isXml(language)) {
+            String autoClose = xmlTagAutoClose(text, pos);
+            if (autoClose != null) {
+                return new RangeEdit(pos, pos, autoClose, pos + 1);
+            }
+        }
+
         // Lot 2/3 (audit v3.41.0) : dédentation électrique pour
         // les langages C_LIKE. Quand l'utilisateur tape `}` sur
         // une ligne qui ne contient que de l'indentation avant le
@@ -118,6 +130,50 @@ final class SmartTyping {
 
         // Défaut : insertion simple
         return new RangeEdit(pos, pos, String.valueOf(ch), pos + 1);
+    }
+
+    /**
+     * Lot 2/3 : génère le texte à insérer pour la fermeture
+     * automatique d'une balise XML/HTML/SVG. Retourne
+     * {@code null} si pas de balise à fermer (balise
+     * auto-fermante, balise fermante, ou pas de balise
+     * ouvrante trouvée).
+     *
+     * @param text le texte du document
+     * @param pos  la position où {@code >} va être inséré
+     * @return le texte à insérer (e.g. {@code ">"} ou
+     *         {@code "></div>"}), ou {@code null}
+     */
+    private static String xmlTagAutoClose(CharSequence text, int pos) {
+        // Chercher en arrière le dernier '<' avant le caret.
+        int lt = -1;
+        for (int i = pos - 1; i >= 0; i--) {
+            char c = text.charAt(i);
+            if (c == '<') { lt = i; break; }
+            if (c == '>') return null; // une autre balise avant — pas une balise ouvrante
+        }
+        if (lt < 0) return null;
+        // Vérifier que ce n'est pas une balise fermante (</)
+        if (lt + 1 < text.length() && text.charAt(lt + 1) == '/') return null;
+        // Extraire le contenu de la balise entre '<' et pos.
+        // Le nom de la balise est le premier mot avant un espace ou '/'.
+        StringBuilder tagName = new StringBuilder();
+        for (int i = lt + 1; i < pos; i++) {
+            char c = text.charAt(i);
+            if (c == ' ' || c == '\t' || c == '\n' || c == '/') break;
+            if (!isXmlNameChar(c)) return null;
+            tagName.append(c);
+        }
+        if (tagName.length() == 0) return null;
+        // Vérifier que la balise n'est pas auto-fermante (se
+        // termine par '/' juste avant le caret).
+        if (pos > 0 && text.charAt(pos - 1) == '/') return null;
+        // Insérer > puis </tag>.
+        return ">" + "</" + tagName + ">";
+    }
+
+    private static boolean isXmlNameChar(char c) {
+        return Character.isLetterOrDigit(c) || c == '_' || c == '-' || c == ':' || c == '.';
     }
 
     /**
