@@ -319,10 +319,12 @@ final class EditorLanguageBridge {
 
             // Rename — remplace le repli par correspondance de
             // sous-chaîne quand le serveur de langage supporte le rename
-            // LSP.
+            // LSP ; la pré-validation (placeholder / refus propre à
+            // l'ouverture) est branchée sur le même provider.
             if (language.getRenameProvider() != null) {
                 final jo.codeeditor.lang.provider.RenameProvider spiRename =
                     language.getRenameProvider();
+                view.renamePrepareResolver = spiRename::prepareRename;
                 view.setRenameResolver((text, offset, newName) -> {
                     jo.codeeditor.lang.model.RenameResult result = spiRename.rename(text, offset, newName);
                     if (result == null) return null;
@@ -344,6 +346,7 @@ final class EditorLanguageBridge {
                 });
             } else {
                 view.setRenameResolver(null);
+                view.renamePrepareResolver = null;
             }
 
             // Formatter
