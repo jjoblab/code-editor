@@ -559,27 +559,28 @@ public class EditorAssistPopupPainter {
 
     /**
      * Dessine une ampoule 💡 dans la bande de plis pour chaque ligne
-     * visible ayant des code actions. Taper sur l'ampoule ouvre le popup
-     * d'actions.
+     * visible portant un diagnostic Erreur/Avertissement.
      *
      * <p>L'ampoule est un vrai glyphe d'ampoule (cercle rempli + petit
      * rectangle de base, en ambre) centré dans la colonne de la bande de
      * plis — elle ne chevauche pas les numéros de ligne car cette bande est
      * une colonne dédiée.
      *
-     * <p>L'ampoule n'est dessinée que sur les lignes portant un diagnostic
-     * (Erreur/Avertissement) — elle est liée aux quick-fixes sur erreurs,
-     * pas affichée sur chaque ligne.
+     * <p>Pilotée par les DIAGNOSTICS (leur publication la déclenche —
+     * correcte après défilement, immédiate, sans fenêtre de debounce) :
+     * le CONTENU du popup, lui, est résolu à la demande au tap (une
+     * requête par invocation). Sans résolveur d'actions branché, pas
+     * d'ampoule (aucune action possible).
      */
     void drawCodeActionsBulbs(Canvas canvas, int firstVisible, int lastVisible,
                                float lineHeight, float paddingTop) {
-        if (view.codeActionsByLine.isEmpty()) return;
+        if (view.codeActionsResolver == null || view.session == null) return;
         float density = view.getResources().getDisplayMetrics().density;
         float bulbR = LIGHTBULB_RADIUS_DP * density;
         // Centre de la colonne de la bande de plis.
         float bulbX = view.metrics.getGutterWidth() - view.metrics.getFoldStripWidth() * 0.5f;
         view.selPaint.setAntiAlias(true);
-        // Construire l'ensemble des lignes portant un diagnostic (Erreur/Avertissement uniquement).
+        // Lignes portant un diagnostic (Erreur/Avertissement uniquement).
         java.util.Set<Integer> diagLines = new java.util.HashSet<>();
         for (DiagnosticShift.Diagnostic d : view.session.getDiagnostics()) {
             if (d.severity == 3 || d.severity == 2) { // erreur ou avertissement
@@ -587,14 +588,8 @@ public class EditorAssistPopupPainter {
                 diagLines.add(ln);
             }
         }
-        for (java.util.Map.Entry<Integer, List<EditorView.CodeAction>> e : view.codeActionsByLine.entrySet()) {
-            int line = e.getKey();
+        for (Integer line : diagLines) {
             if (line < firstVisible || line > lastVisible) continue;
-            // Ne montrer l'ampoule que sur les lignes portant un diagnostic.
-            // Sans cette porte, un resolver qui renvoie des actions pour
-            // chaque ligne (comme le resolver de démo) spammerait des
-            // ampoules partout, noyant les chevrons de pli.
-            if (!diagLines.contains(line)) continue;
             // Sauter l'ampoule des lignes cachées (repliées) + Y sensible aux plis.
             if (view.isLineFoldedCached(line)) continue;
             float cy = view.docLineToY(line) - view.vOffset + lineHeight * 0.5f; // sensible aux plis

@@ -93,6 +93,122 @@ final class LspTextUtils {
     }
 
     /**
+     * Offset → Position LSP (ligne, colonne) calculé sur le TEXTE fourni
+     * (unités de code UTF-16, convention de {@link #positionToOffset}).
+     * Indépendant de toute vue : la conversion reste correcte même quand
+     * aucun éditeur n'est lié (chemins de test et d'arrière-plan).
+     *
+     * <p>L'offset est borné à la longueur du texte ; la colonne compte
+     * depuis le dernier {@code \n} (le {@code \r} d'une fin CRLF
+     * appartient à la ligne au-dessus).</p>
+     */
+    static Position offsetToPosition(String text, int offset) {
+        if (text == null || text.isEmpty()) return new Position(0, 0);
+        int borne = Math.max(0, Math.min(offset, text.length()));
+        int line = 0;
+        int lineStart = 0;
+        for (int i = 0; i < borne; i++) {
+            char c = text.charAt(i);
+            if (c == '\n') {
+                line++;
+                lineStart = i + 1;
+            }
+        }
+        return new Position(line, borne - lineStart);
+    }
+
+    /**
+     * Offset de début (inclus) de la ligne 0-based demandée — borne au
+     * texte : une ligne au-delà de la dernière ramène le début de la
+     * dernière ligne existante.
+     */
+    static int lineStartOffset(String text, int line) {
+        if (text == null || text.isEmpty() || line <= 0) return 0;
+        int lineStart = 0;
+        for (int i = 0; i < line; i++) {
+            int nl = text.indexOf('\n', lineStart);
+            if (nl < 0) break;
+            lineStart = nl + 1;
+        }
+        return lineStart;
+    }
+
+    /**
+     * Ordre lexicographique des positions LSP (ligne, puis colonne) —
+     * aux offsets UTF-16 près.
+     */
+    static int comparePositions(Position a, Position b) {
+        if (a == null || b == null) return 0;
+        int c = Integer.compare(a.getLine(), b.getLine());
+        return c != 0 ? c : Integer.compare(a.getCharacter(), b.getCharacter());
+    }
+
+    /**
+     * Les deux plages se chevauchent-elles (bornes INCLUSES : une plage
+     * vide au caret intersecte le diagnostic qui couvre ce caret —
+     * c'est la sémantique d'ancrage d'une action au point d'invocation).
+     */
+    static boolean rangesIntersect(org.eclipse.lsp4j.Range a, org.eclipse.lsp4j.Range b) {
+        if (a == null || b == null) return false;
+        return comparePositions(a.getEnd(), b.getStart()) >= 0
+                && comparePositions(a.getStart(), b.getEnd()) <= 0;
+    }
+
+    /**
+     * La plage LSP VISÉE par une invocation d'actions de code :
+     * sélection non vide → la sélection (terrain des refactorings
+     * d'extraction) ; sinon le MOT sous le caret (ou juste avant, si le
+     * caret est posé après le mot) ; sinon la ligne entière du caret.
+     */
+    static org.eclipse.lsp4j.Range effectiveRange(String text, int caret,
+            int selectionStart, int selectionEnd) {
+        if (text == null) {
+            return new org.eclipse.lsp4j.Range(new Position(0, 0),
+                    new Position(0, Integer.MAX_VALUE));
+        }
+        if (selectionEnd > selectionStart) {
+            int start = Math.max(0, Math.min(selectionStart, text.length()));
+            int end = Math.max(start, Math.min(selectionEnd, text.length()));
+            return new org.eclipse.lsp4j.Range(
+                    offsetToPosition(text, start), offsetToPosition(text, end));
+        }
+        int[] word = wordRangeAt(text, caret);
+        if (word[1] > word[0]) {
+            return new org.eclipse.lsp4j.Range(
+                    offsetToPosition(text, word[0]), offsetToPosition(text, word[1]));
+        }
+        // Mot vide (caret sur un séparateur d'une ligne vide) : la ligne.
+        Position start = offsetToPosition(text, caret);
+        return new org.eclipse.lsp4j.Range(
+                new Position(start.getLine(), 0),
+                new Position(start.getLine(), Integer.MAX_VALUE));
+    }
+
+    /**
+     * Le mot (lettres/chiffres/souligné) CONTENANT l'offset — si
+     * l'offset est posé juste APRÈS le mot (frappe suivie du curseur
+     * avancé), le mot précédent est retourné. Tableau {début, fin} ;
+     * vide si aucun mot autour.
+     */
+    static int[] wordRangeAt(String text, int offset) {
+        if (text == null || text.isEmpty()) return new int[]{0, 0};
+        int probe = Math.max(0, Math.min(offset, text.length()));
+        if (probe >= text.length() || !isWordChar(text.charAt(probe))) {
+            if (probe > 0 && isWordChar(text.charAt(probe - 1))) probe--;
+        }
+        int start = probe;
+        int end = probe;
+        while (start > 0 && isWordChar(text.charAt(start - 1))) start--;
+        while (end < text.length() && isWordChar(text.charAt(end))) end++;
+        return new int[]{start, end};
+    }
+
+    /** Caractère de mot (identifiant : lettre, chiffre, souligné). */
+    private static boolean isWordChar(char c) {
+        return Character.isLetterOrDigit(c) || c == '_';
+    }
+
+    /**
      * Décide si des éditions renvoyées par le serveur sont PÉRIMÉES par
      * rapport à la version du document synchronisée.
      *

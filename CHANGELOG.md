@@ -5,7 +5,85 @@ All notable changes to **code-editor-lib** are documented in this file.
 Le format suit la convention [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Non publié] — Durcissement : sécurité des écritures LSP, synchronisation, cycle de vie, performance
+## [3.50.0] — 2026-10-12 — Actions de code au point d'invocation
+
+Le modèle des quick actions change de camp : le contenu est calculé AU
+MOMENT où l'utilisateur le demande, au point qu'il vise (caret,
+sélection), avec l'identité complète des diagnostics — contre un
+balayage d'une requête par ligne visible dont le contexte amputé
+vidait structurellement la réponse des serveurs.
+
+### Added
+
+- **Identité des diagnostics transportée** — le contexte
+  `textDocument/codeAction` retransmet les diagnostics TELS QUELS
+  (code, données structurées `data`, source, tags, sévérité), filtrés
+  par intersection de plage : les serveurs qui dérivent leurs
+  quick-fixes de cette identité (famille de problème, arguments du
+  compilateur) redeviennent parlants. Un diagnostic multi-lignes
+  couvrant le caret est transmis (l'ancien filtre « ligne de début »
+  le perdait).
+- **Demande au point d'invocation** — nouvelle méthode du SPI
+  `CodeActionsProvider` (caret, sélection, kinds demandés ;
+  implémentation par défaut déléguant à la méthode ligne — aucune
+  implémentation existante ne casse) : la plage LSP est la SÉLECTION
+  active (terrain des refactorings d'extraction), sinon le mot sous
+  le caret, sinon la ligne ; UNE requête par invocation,
+  `triggerKind` d'invocation, familles `only` transmises.
+- **`workspace/applyEdit` implémenté côté client** — le serveur peut
+  pousser ses éditions : application par la voie commune (confinement
+  au workspace, tout-ou-rien, écriture atomique, thread UI) et
+  réponse STRUCTURÉE (appliqué, ou motif de refus) — jamais
+  d'exception.
+- **`workspace/executeCommand` pour les actions à commande** —
+  l'application d'une action `Command` émet la requête (bornée) ;
+  l'édition éventuellement retournée est appliquée ; plus de no-op
+  silencieux.
+- **Résolution différée `codeAction/resolve`** — une action sans
+  édition mais avec données, sur un serveur qui annonce
+  `resolveProvider`, est résolue à l'APPLICATION ; les actions
+  désactivées restent listées avec leur motif (application no-op
+  expliqué).
+- **Pré-validation de renommage (`textDocument/prepareRename`)** —
+  SPI `RenameProvider.prepareRename`, requête bornée, popup de
+  renommage pré-rempli par le nom proposé et REFUSÉ proprement quand
+  le caret n'est pas un identifiant renommable.
+- **Carte des capacités clientes complétée** — applyEdit,
+  executeCommand, codeAction (littéral + kinds, data, resolve,
+  isPreferred, disabled), rename.prepareSupport, publishDiagnostics
+  (tags, codeDescription, data), completion/signatureHelp context,
+  documentSymbol hiérarchique, foldingRange, inlayHint — uniquement
+  ce qui est réellement consommé.
+
+### Changed
+
+- **Le popup d'actions se calcule à l'invocation** — Ctrl+.,
+  Ctrl+Shift+L, tap sur l'ampoule, menu contextuel « Actions ⋯ »,
+  fiche de diagnostic : une résolution au point visé, asynchrone
+  (voie features, garde de génération). Le balayage d'une requête
+  par ligne visible (800 ms de debounce) est retiré.
+- **L'ampoule de gouttière est pilotée par les diagnostics** —
+  correcte dès leur publication, correcte après défilement, sans
+  fenêtre de debounce ; sans résolveur branché, pas d'ampoule.
+- **Cache d'actions mono-ligne** — remplacé à chaque résolution,
+  vidé à l'édition ; `CodeActionsResolver.resolveAtCaret` (repli par
+  défaut : méthode ligne, résolveurs hôtes inchangés).
+- **Classement du menu** — corrections (`quickfix.*`) d'abord, puis
+  refactorings, puis source ; au sein de chaque groupe, l'action
+  marquée préférée par le serveur en tête (tri stable).
+- **Ctrl+. résout toujours** — la frappe consomme la résolution au
+  caret (avant : seulement si la ligne portait des actions
+  pré-calculées) ; l'état vide reste silencieux.
+
+### Performance
+
+- Requêtes `codeAction` : ×(lignes visibles) toutes les 800 ms →
+  exactement UNE par invocation (sur un écran et demi de texte, la
+  charge serveur typique tombe de ~60 requêtes par cycle à 1) ;
+  ampoules immédiates à l'arrivée des diagnostics, plus de fenêtre
+  de debounce.
+
+## [v3.49.2] — 2026-10-12 — Durcissement : sécurité des écritures LSP, synchronisation, cycle de vie, performance
 
 ### Security
 

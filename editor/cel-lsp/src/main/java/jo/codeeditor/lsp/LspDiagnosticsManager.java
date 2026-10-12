@@ -22,6 +22,17 @@ class LspDiagnosticsManager {
 
     private volatile List<Diagnostic> cachedDiagnostics = new CopyOnWriteArrayList<>();
 
+    /**
+     * Diagnostics LSP BRUTS (tels que poussés par le serveur, identité
+     * complète : plage, sévérité, code, données structurées, source,
+     * tags) — conservés tels quels pour reconstituer fidèlement le
+     * contexte d'une future requête textDocument/codeAction : le serveur
+     * dérive ses quick-fixes de cette identité, la reconstruire à la
+     * main depuis le modèle offset l'amputerait.
+     */
+    private volatile List<org.eclipse.lsp4j.Diagnostic> cachedLspDiagnostics =
+            new CopyOnWriteArrayList<>();
+
     LspDiagnosticsManager(LspEditor editor) {
         this.editor = editor;
     }
@@ -46,6 +57,9 @@ class LspDiagnosticsManager {
             }
         }
         cachedDiagnostics = new CopyOnWriteArrayList<>(diags);
+        cachedLspDiagnostics = params.getDiagnostics() != null
+                ? new CopyOnWriteArrayList<>(params.getDiagnostics())
+                : new CopyOnWriteArrayList<>();
         android.util.Log.i("LspEditor", "publishDiagnostics: " + diags.size() + " diagnostics received");
         final LspLogSink sink = editor.getProject().getLogSink();
         if (sink != null) {
@@ -94,5 +108,13 @@ class LspDiagnosticsManager {
     /** Retourne les diagnostics en cache venant du serveur. */
     List<Diagnostic> getCachedDiagnostics() {
         return new ArrayList<>(cachedDiagnostics);
+    }
+
+    /**
+     * Les diagnostics LSP bruts en cache (identité complète) — copie
+     * défensive : la liste de travail reste immuable pour ses lecteurs.
+     */
+    List<org.eclipse.lsp4j.Diagnostic> getCachedLspDiagnostics() {
+        return new ArrayList<>(cachedLspDiagnostics);
     }
 }

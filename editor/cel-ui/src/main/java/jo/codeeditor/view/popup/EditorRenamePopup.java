@@ -109,6 +109,42 @@ public class EditorRenamePopup {
         });
         renamePopup.showAtLocation(view, Gravity.TOP | Gravity.CENTER_HORIZONTAL, 0, view.dp(48));
         field.requestFocus();
+        // Pré-validation du serveur (textDocument/prepareRename) : HORS
+        // thread UI — la réponse remonte au champ : placeholder proposé,
+        // ou REFUS PROPRE (popup refermé) si le symbole n'est pas
+        // renommable — plus d'échec dix secondes plus tard.
+        final EditorView.RenamePrepareResolver prepare = view.renamePrepareResolver;
+        if (prepare != null) {
+            final String texte = view.session.getText().toString();
+            final int ancreCaret = caret;
+            jo.codeeditor.view.EditorTaskLanes.submitFeature(() -> {
+                String proposé = null;
+                try {
+                    proposé = prepare.prepareRename(texte, ancreCaret);
+                } catch (Exception t) {
+                    // Pré-validation défaillante : l'heuristique locale reste.
+                    jo.codeeditor.util.EditorLog.warn("EditorRename",
+                            "pré-validation du renommage échouée", t);
+                }
+                final String placeholder = proposé;
+                android.os.Handler h = view.getHandler();
+                Runnable apply = () -> {
+                    if (!renameVisible || renamePopup == null) return;
+                    if (placeholder == null || placeholder.isEmpty()) {
+                        // Le serveur refuse ce caret : pas un identifiant
+                        // renommable — le popup se referme proprement.
+                        dismissRename();
+                        return;
+                    }
+                    if (!placeholder.equals(renameText)) {
+                        renameText = placeholder;
+                        field.setText(placeholder);
+                        field.selectAll();
+                    }
+                };
+                if (h != null) h.post(apply); else apply.run();
+            });
+        }
     }
 
     boolean acceptRenameInput(String newName) {
