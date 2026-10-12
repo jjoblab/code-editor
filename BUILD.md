@@ -54,7 +54,7 @@ sdk.dir=/path/to/android-sdk
 ```
 code-editor/
 ├── settings.gradle.kts        — inclut les 4 modules editor/
-├── build.gradle.kts           — AGP 9.0.0, group/version Maven (jo.codeeditor:3.52.0)
+├── build.gradle.kts           — AGP 9.0.0, group/version Maven (jo.codeeditor:3.53.0)
 ├── gradle/wrapper/            — Gradle 9.5.1
 ├── gradle.properties          — jvmargs, parallélisme, cache
 ├── jitpack.yml                — JDK 17 pour les builds JitPack
@@ -101,10 +101,10 @@ un jar de sources :
 
 | Module | Coordonnées |
 |--------|-------------|
-| `:cel-core` | `jo.codeeditor:cel-core:3.52.0` |
-| `:cel-lsp-api` | `jo.codeeditor:cel-lsp-api:3.52.0` |
-| `:cel-lsp` | `jo.codeeditor:cel-lsp:3.52.0` |
-| `:cel-ui` | `jo.codeeditor:cel-ui:3.52.0` |
+| `:cel-core` | `jo.codeeditor:cel-core:3.53.0` |
+| `:cel-lsp-api` | `jo.codeeditor:cel-lsp-api:3.53.0` |
+| `:cel-lsp` | `jo.codeeditor:cel-lsp:3.53.0` |
+| `:cel-ui` | `jo.codeeditor:cel-ui:3.53.0` |
 
 ### Publication locale (validation)
 

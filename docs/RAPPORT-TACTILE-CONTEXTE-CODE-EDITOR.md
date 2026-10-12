@@ -20,15 +20,26 @@
 > publique (le SPI et la surface `EditorView` consommés par CodeIDE restent
 > compatibles binairement), garde-fous verts (figures de tests, budgets de
 > lignes, baseline lint), un commit conventionné par changement logique.
-> **Statut** : **jalon J1 LIVRÉ** (3.52.0) — les deux P0 du plan sont
-> implémentés : **D1** (popup ancré au tap sur le squiggle : bords ±1
-> exclus, parité caret par re-tap, mini-liste multi-diagnostics,
-> quick-fixes résolus à l'ouverture, « See all » vers la fiche basse)
-> et **T1** (SPI `addSelectionAction`/`removeSelectionAction`,
-> métrique dynamique, débordement « ⋯ » → section « MORE » du NavMenu).
-> 23 tests dédiés (SquiggleTap\*, SelectionToolbar\*), 1 452 tests
-> verts. Les chantiers restants (P1/P2 : sticky, loupe, inlays, T2…)
-> ne sont PAS encore livrés — ce document reste le plan de référence.
+> **Statut** : **jalons J1 et J2 LIVRÉS** (3.52.0 / 3.53.0) — J1 a
+> implémenté les deux P0 : **D1** (popup ancré au tap sur le
+> squiggle : bords ±1 exclus, parité caret par re-tap, mini-liste
+> multi-diagnostics, quick-fixes résolus à l'ouverture, « See all »
+> vers la fiche basse) et **T1** (SPI
+> `addSelectionAction`/`removeSelectionAction`, métrique dynamique,
+> débordement « ⋯ » → section « MORE » du NavMenu). J2 « la lieue
+> visuelle » (3.53.0) a livré **S1** (cache de détection sticky par
+> révision — zéro scan et zéro allocation par frame de scroll,
+> invalidation automatique à l'édition et au changement de langue),
+> **S2** (lignes collées rendues stylées par le pipeline de la ligne
+> visible, inlays exclus, ellipse « … » au-delà du viewport) et
+> **M1** (la loupe montre la bande de sélection, le squiggle du
+> diagnostic et la barre de caret — peintres du pipeline principal,
+> mêmes géométries wrap/inlay/plis). 36 tests dédiés sur les deux
+> jalons (SquiggleTap\*, SelectionToolbar\*, StickyDetectCached,
+> StickyStyledRender, MagnifierShows\*), 1 465 tests verts. Les
+> chantiers restants (I1, I2, T2, S3-S5, M2-M3 et les autres P2)
+> ne sont PAS encore livrés — ce document reste le plan de
+> référence.
 > Conformément à la convention établie avec le rapport du lot 1, ce document
 > est archivé dans `docs/` et remis en copie à l'extérieur du dépôt ; la
 > règle d'interdiction des noms externes (`AGENT.md` §93) s'applique au code,
