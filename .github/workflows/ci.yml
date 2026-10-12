@@ -85,6 +85,11 @@ jobs:
         # silencieusement dériver.
         run: sh scripts/check-doc-figures.sh
 
+      - name: Budget des classes orchestrateurs
+        # La décomposition (docs/plans/01, 02) ne doit jamais régresser :
+        # plafonds ratchet — voir scripts/check-class-budgets.sh.
+        run: sh scripts/check-class-budgets.sh
+
       - name: Lint (tous les modules, bloquant)
         run: ./gradlew lint --stacktrace
 
