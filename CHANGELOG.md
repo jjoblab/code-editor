@@ -928,6 +928,16 @@ fais glisser » — est corrigé à la racine.
   ligne — chaque frappe avec word-wrap actif sur un gros fichier
   gelait l'UI.
 
+## [v3.37.0.n / v3.37.0.n2] — 2026-09-17 — Balises internes de nettoyage
+
+### Notes
+
+- Balises de maintenance (commits « nettoyage ») posées après la
+  v3.37.0 : elles ne publient pas (le filtre de publication ignore
+  les tags à quatrième composante) et ne contiennent aucune entrée
+  fonctionnelle — marquage de gradlew exécutable et nettoyage de
+  l'arbre.
+
 ## [v3.37.0] — 2026-09-17 — Chords, hygiène B13 & CI (fin de roadmap)
 
 Quatrième itération post-rapport : les trois points restants de la
