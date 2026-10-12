@@ -537,9 +537,16 @@ public final class EditorPopupAnchors {
         jo.codeeditor.document.Selection sel = view.session.getSelection();
         float density = view.getResources().getDisplayMetrics().density;
 
-        // Ancre = extrémité ACTIVE de la sélection (le bout qui suit le
-        // doigt — la pill suit la borne active de la sélection).
-        float[] anchor = view.caretScreenPos(sel.end);
+        // T4 (lot 2, J5) — ancre = borne EN DÉPLACEMENT pendant le drag
+        // (poignée ou drag-select au doigt : la pill suit le geste),
+        // extrémité finale au repos. La sélection étant NORMALISÉE
+        // (start ≤ end), l'ancrage brut sur sel.end collait la pill à
+        // la borne DROITE même pendant le drag de la poignée GAUCHE ;
+        // l'état du geste (borne mobile = celle qui n'est pas l'ancre
+        // figée) vit dans EditorSelectionGestures, via le relais
+        // view.selectionToolbarAnchorOffset().
+        int anchorOffset = view.selectionToolbarAnchorOffset();
+        float[] anchor = view.caretScreenPos(anchorOffset >= 0 ? anchorOffset : sel.end);
 
         boolean hasSelection = !sel.isCursor();
 

@@ -31,6 +31,12 @@ public class EditorSelectionGestures {
      *  doigt au MOVE suivant). */
     private int handleDragAnchor = -1;
 
+    /** T4 (lot 2, J5) — borne MOBILE du drag-select au doigt (celle du
+     *  doigt, mémorisée à chaque application de la sélection) : l'ancre
+     *  de la pill suit le geste au lieu de rester figée sur la borne
+     *  droite. Remise à NO_DRAG_SELECT par {@link #disarmDragSelect()}. */
+    private int dragSelectMobileEdge = NO_DRAG_SELECT;
+
     // ── Drag-select au doigt, armé par l'APPUI LONG ──
     // Modèle d'ancrage (beginDragSelect/handleDragSelect, armé
     // après l'appui long) :
@@ -191,6 +197,7 @@ public class EditorSelectionGestures {
         dragSelectLeft = NO_DRAG_SELECT;
         dragSelectRight = NO_DRAG_SELECT;
         dragSelectEngaged = false;
+        dragSelectMobileEdge = NO_DRAG_SELECT;
     }
 
     /** Vrai si le drag-select est armé (appui long déclenché, pas encore
@@ -240,6 +247,9 @@ public class EditorSelectionGestures {
         }
         view.session.setSelection(Selection.range(
             Math.min(anchor, offset), Math.max(anchor, offset)));
+        // T4 : mémorise la borne du DOIGT pour l'ancrage de la pill.
+        dragSelectMobileEdge = offset < anchor
+                ? Math.min(anchor, offset) : Math.max(anchor, offset);
         view.magnifierActive = true;
         view.magnifierX = x;
         view.magnifierY = y;
@@ -291,6 +301,42 @@ public class EditorSelectionGestures {
             handleDragAnchor = handleMode == 1 ? sel.end : sel.start;
         }
         return handleDragAnchor;
+    }
+
+    /**
+     * T4 (lot 2, J5) — offset de la borne d'ancrage de la pill de
+     * sélection : la borne <b>en déplacement</b> pendant un drag, la
+     * borne droite au repos.
+     *
+     * <p>Avant T4, la pill suivait TOUJOURS {@code sel.end} (la borne
+     * droite — la sélection est normalisée) : tirer la poignée GAUCHE
+     * envoyait la pill à l'opposé du doigt (« je tire la poignée
+     * gauche, la pill part à droite »). Règle depuis T4 :</p>
+     * <ul>
+     *   <li>drag de poignée (mode 1/2) : la borne MOBILE est celle qui
+     *       n'est PAS l'ancre figée du DOWN — elle suit le doigt, y
+     *       compris après renormalisation quand le doigt franchit
+     *       l'autre poignée ;</li>
+     *   <li>poignée de caret repliée (mode 3) : le caret lui-même ;</li>
+     *   <li>drag-select au doigt : la borne du doigt
+     *       ({@code dragSelectMobileEdge}, mémorisée à l'application) ;</li>
+     *   <li>au repos : {@code sel.end} (comportement historique).</li>
+     * </ul>
+     *
+     * @return l'offset d'ancrage, ou -1 (repli sur {@code sel.end})
+     */
+    int pillAnchorOffset() {
+        if (view.session == null) return -1;
+        Selection sel = view.session.getSelection();
+        if (view.handleDragMode == 1 || view.handleDragMode == 2) {
+            return handleDragAnchor == sel.start ? sel.end : sel.start;
+        }
+        if (view.handleDragMode == 3) return sel.end; // caret replié
+        if (dragSelectMobileEdge != NO_DRAG_SELECT) {
+            // Défensif : borne mémorisée toujours dans [start, end].
+            return Math.max(Math.min(dragSelectMobileEdge, sel.end), sel.start);
+        }
+        return sel.end;
     }
 
     int hitTestHandle(float x, float y) {

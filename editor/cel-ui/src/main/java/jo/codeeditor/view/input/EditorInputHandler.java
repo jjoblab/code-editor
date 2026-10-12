@@ -628,6 +628,20 @@ public class EditorInputHandler {
     // ── Accès d'état du dispatcher pour les collaborateurs ──
 
     /**
+     * T4 (lot 2, J5) — offset d'ancrage de la pill de sélection : la
+     * borne MOBILE pendant un drag (poignée ou drag-select au doigt),
+     * {@code sel.end} au repos. Délègue à l'état du geste
+     * ({@code EditorSelectionGestures.pillAnchorOffset}) — consommé par
+     * {@code EditorPopupAnchors.selectionToolbarMetrics}.
+     *
+     * @return l'offset d'ancrage, ou -1 (repli sur {@code sel.end})
+     */
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public int pillAnchorOffset() {
+        return selectionGestures.pillAnchorOffset();
+    }
+
+    /**
      * Marque l'appui long comme déclenché et arrête tout drag/scroll en
      * cours — état du dispatcher écrit par EditorSelectionGestures
      * (corps historique de handleLongPress, déplacé à l'identique).

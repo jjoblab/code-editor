@@ -2202,6 +2202,19 @@ public class EditorView extends View {
         return EditorPopupAnchors.selectionToolbarMetrics(this);
     }
 
+    /**
+     * T4 (lot 2, J5) — offset d'ancrage de la pill de sélection : la
+     * borne MOBILE pendant un drag (poignée ou drag-select au doigt —
+     * la pill suit le geste), {@code sel.end} au repos. Relais vers
+     * l'état du geste ({@code EditorSelectionGestures.pillAnchorOffset}).
+     *
+     * @return l'offset d'ancrage, ou -1 (repli sur {@code sel.end})
+     */
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public int selectionToolbarAnchorOffset() {
+        return inputHandler.pillAnchorOffset();
+    }
+
     
 
     // ════════════════════════════════════════════════════════════════
