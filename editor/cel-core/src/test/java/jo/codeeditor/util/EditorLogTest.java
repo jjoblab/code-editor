@@ -95,4 +95,21 @@ class EditorLogTest {
         // Aucune exception : le contrat est la sûreté d'exécution
         // concurrente des appels.
     }
+
+    @Test
+    void installIfAbsent_hotePrioritaireSurInstallationAutomatique() {
+        Recording hote = new Recording();
+        EditorLog.install(hote);
+        // L'installation automatique d'EditorView ne doit PAS écraser
+        // le logger de l'hôte déjà installé.
+        assertFalse(EditorLog.installIfAbsent(new Recording()));
+        EditorLog.warn("prio", "message de l'hôte");
+        assertEquals(1, hote.events.size());
+        assertTrue(hote.events.get(0).contains("message de l'hôte"));
+
+        // Une fois remis à l'état inerte (install(null)), l'installation
+        // automatique redevient possible.
+        EditorLog.install(null);
+        assertTrue(EditorLog.installIfAbsent(new Recording()));
+    }
 }

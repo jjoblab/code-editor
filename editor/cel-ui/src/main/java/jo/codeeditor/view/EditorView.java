@@ -91,8 +91,9 @@ public class EditorView extends View {
 
     static {
         // Première vue créée ⇒ journal Android installé pour toute la
-        // bibliothèque (modules purs inclus, via EditorLog).
-        jo.codeeditor.util.EditorLog.install(
+        // bibliothèque (modules purs inclus, via EditorLog) — sauf si
+        // l'hôte a déjà installé le sien : il a priorité.
+        jo.codeeditor.util.EditorLog.installIfAbsent(
                 new jo.codeeditor.view.log.AndroidEditorLogger());
     }
 
