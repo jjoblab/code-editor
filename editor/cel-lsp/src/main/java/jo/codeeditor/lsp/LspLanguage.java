@@ -163,7 +163,7 @@ public class LspLanguage implements Language {
      * {@code textDocument/implementation} — les héritiers DIRECTS du
      * type en contexte au caret (section GO TO « Implementations » du menu
      * contextuel unifié). Méthode LSP STANDARD — tout serveur qui l'annonce
-     * (le serveur LSP tiers, le serveur LSP tiers…) fonctionne.
+     * fonctionne.
      */
     @Override
     public ImplementationsProvider getImplementationsProvider() {
@@ -175,8 +175,8 @@ public class LspLanguage implements Language {
     /**
      * {@code textDocument/superDefinition} — méthode LSP
      * PERSONNALISÉE (aucun équivalent standard pour le GO TO Super) annoncée
-     * via la capability {@code experimental.superDefinitionProvider}
-     * (pattern du serveur tiers). Seul le serveur :lspjava de CodeIDE l'implémente ;
+     * via la capability {@code experimental.superDefinitionProvider}.
+     * Seul le serveur :lspjava de CodeIDE l'implémente ;
      * les serveurs tiers ne l'annoncent pas → l'option n'apparaît pas.
      */
     @Override
@@ -205,8 +205,9 @@ public class LspLanguage implements Language {
                 return o.has("superDefinitionProvider")
                         && o.get("superDefinitionProvider").getAsBoolean();
             }
-        } catch (Throwable ignored) {
-            // Capability expérimentale absente/mal formée.
+        } catch (Exception ignored) {
+            // Capability expérimentale absente/mal formée : absence
+            // attendue chez les serveurs tiers, pas un défaut.
         }
         return false;
     }

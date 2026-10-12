@@ -62,7 +62,7 @@ public class EditorChordKeyHandlerTest {
         return new KeyEvent(KeyEvent.ACTION_DOWN, keyCode);
     }
 
-    /** Ctrl+K → Ctrl+C = TOGGLE_LINE_COMMENT (convention les IDE de bureau). */
+    /** Ctrl+K → Ctrl+C = TOGGLE_LINE_COMMENT (accord consécutif). */
     private static void bindCommentChord(EditorView view) {
         EditorKeymap km = EditorKeymap.defaults()
             .bindChord(EditorCommands.TOGGLE_LINE_COMMENT,

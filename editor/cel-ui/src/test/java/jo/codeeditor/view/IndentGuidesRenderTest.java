@@ -106,7 +106,7 @@ public class IndentGuidesRenderTest {
                 out.add(new float[]{e.startX, e.startY, e.stopX, e.stopY});
             }
         }
-        // Les guides basés sur les blocs utilisent drawRect (approche l'éditeur de code de référence).
+        // Les guides basés sur les blocs utilisent drawRect.
         for (int i = 0; i < shadow.getRectPaintHistoryCount(); i++) {
             ShadowCanvas.RectPaintHistoryEvent e = shadow.getDrawnRect(i);
             if (e.paint != null && e.paint.getColor() == color) {
@@ -154,7 +154,7 @@ public class IndentGuidesRenderTest {
      * Cas 2 : un guide doit aussi être dessiné au niveau 4
      * (premier niveau d'imbrication) pour le bloc
      * « nested » qui contient la ligne à 8 colonnes.
-     * L'algorithme IndentRange (les éditeurs de code de bureau) crée un bloc de la
+     * L'algorithme IndentRange crée un bloc de la
      * ligne 2 (indent 4) à la ligne 4 (indent 4).
      */
     @Test

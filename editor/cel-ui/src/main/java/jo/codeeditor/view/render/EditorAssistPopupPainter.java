@@ -94,8 +94,8 @@ public class EditorAssistPopupPainter {
         int rowsToShow = Math.min(SIGNATURE_HELP_MAX_ROWS, view.signatureHelpData.signatures.size());
 
         // ── ★ Documentation de la signature ACTIVE (javadoc de sa
-        // déclaration source) : bande sous la liste des surcharges, motif
-        // les IDE de bureau. Parsée par QuickDoc (description + sections compactées),
+        // déclaration source) : bande sous la liste des surcharges.
+        // Parsée par QuickDoc (description + sections compactées),
         // plafonnée à SIGNATURE_DOC_MAX_LINES lignes.
         //
         // ── ★ L'index actif vient du controller (override clavier Up/Down

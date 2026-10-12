@@ -5,8 +5,8 @@ import androidx.annotation.Nullable;
 /**
  * Attribut de couleur du registre — une « case » réglable du thème.
  *
- * <p>Port du scheme de couleurs modifiable (audit §1D lot 4 #25, approche
- * amont <em></em> en version Java compacte) : chaque attribut a
+ * <p>Scheme de couleurs modifiable (audit §1D lot 4 #25, version Java
+ * compacte) : chaque attribut a
  * une clé stable (sérialisée telle quelle dans le JSON du scheme), un
  * libellé (écran de réglages), un groupe (navigation de l'écran) et un
  * <b>parent</b> optionnel exprimant l'héritage visuel.</p>

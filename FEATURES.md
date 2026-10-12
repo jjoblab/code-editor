@@ -335,11 +335,11 @@ parallèle.
   `EditorRenderer`, `EditorSession`…) en collaborateurs — désormais
   effective — facilite l'intégration de ce plan.
 
-### Références
+### Références de comportement
 
-- les éditeurs de code de bureau : Cmd+Click (desktop), Alt+Click (alternative)
-- les IDE de bureau : Cmd+G (ajouter une sélection à l'occurrence suivante)
-- Sublime Text : clic milieu + drag (sélection colonne)
+- Aller à la définition : Cmd+Click (desktop), Alt+Click (alternative)
+- Ajouter une sélection à l'occurrence suivante : Cmd+G
+- Sélection en colonne : clic milieu + drag
 
 ---
 
@@ -350,7 +350,7 @@ parallèle.
 | Fichiers source | 205 (`:cel-core` 68 · `:cel-lsp-api` 38 · `:cel-lsp` 36 · `:cel-ui` 63) |
 | Fichiers de test | 67 |
 | Lignes de code (main) | ≈ 37 000 |
-| Tests unitaires | 934 (`:cel-core` 655 · `:cel-lsp-api` 22 · `:cel-lsp` 27 · `:cel-ui` 230) |
+| Tests unitaires | 1 370 (`:cel-core` 887 · `:cel-lsp-api` 22 · `:cel-lsp` 93 · `:cel-ui` 361 · `demo` 7) |
 | Langages colorés intégrés | 27 |
 | Tokéniseurs intégrés | 14 (+ utilitaires SpanUtils, KeywordTables) |
 | Interfaces de providers LSP | 17 |

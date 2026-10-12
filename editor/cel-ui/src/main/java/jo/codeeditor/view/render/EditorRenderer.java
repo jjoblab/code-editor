@@ -169,6 +169,8 @@ public class EditorRenderer {
             try {
                 highlights.drawSelection(canvas, doc, sel, textAreaLeft, lineHeight, paddingTop, firstDocVisible, lastDocVisible);
             } catch (RuntimeException ignored) {
+                // Frontière de rendu : une exception de surlignage n'a pas
+                // le droit de planter la frame — dessin sans ce calque.
             }
         }
 
@@ -179,7 +181,9 @@ public class EditorRenderer {
             try {
                 highlights.drawFindHighlights(canvas, doc, textAreaLeft, lineHeight, paddingTop,
                                     firstDocVisible, lastDocVisible);
-            } catch (RuntimeException ignored) {}
+            } catch (RuntimeException ignored) {
+                // Frontière de rendu : voir surlignage de sélection.
+            }
         }
 
         // 6.5. Surlignages de document — occurrences LSP du symbole sous le
@@ -189,7 +193,9 @@ public class EditorRenderer {
             try {
                 highlights.drawDocumentHighlights(canvas, doc, textAreaLeft, lineHeight,
                     paddingTop, firstDocVisible, lastDocVisible);
-            } catch (RuntimeException ignored) {}
+            } catch (RuntimeException ignored) {
+                // Frontière de rendu : voir surlignage de sélection.
+            }
         }
 
         // Quand le mode aperçu est actif, la zone de texte est clippée pour
@@ -279,7 +285,7 @@ public class EditorRenderer {
                     }
                 } else {
                     view.textPaint.setColor(view.theme.textColor);
-                    // Fenêtré (comportement de référence) : une ligne minifiée sans
+                    // Fenêtré : une ligne minifiée sans
                     // style ne dessine que sa tranche visible.
                     text.drawPlainLine(canvas, lineText,
                             textAreaLeft - view.hOffset,
@@ -415,8 +421,7 @@ public class EditorRenderer {
     /**
      * Dessine un fond coloré derrière les codes couleur hexadécimaux
      * (#RGB, #RRGGBB, #AARRGGBB) dans chaque ligne visible. Le texte
-     * du code couleur est entouré par sa propre couleur — comme
-     * les IDE de bureau.
+     * du code couleur est entouré par sa propre couleur.
      */
     private void drawColorSwatches(Canvas canvas, EditorDocument doc,
             int firstDocVisible, int lastDocVisible,

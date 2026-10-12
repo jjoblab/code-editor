@@ -74,13 +74,15 @@ public class EditorSignaturePopup {
             final int gen = ++sigHelpGeneration;
             final String fText = view.session.getText();
             final int fCaret = caret;
-            EditorPopupManager.FEATURE_EXECUTOR.execute(() -> {
+            jo.codeeditor.view.EditorTaskLanes.submitFeature(() -> {
                 try {
                     // Le contrôleur invoque lui-même le resolver LSP (via
                     // son listener) — c'est CET appel bloquant qui vit
                     // maintenant en dehors du thread UI.
                     view.signatureHelpController.resolve(fText, fCaret);
-                } catch (Throwable ignored) {
+                } catch (Exception e) {
+                    jo.codeeditor.util.EditorLog.warn("EditorSignature",
+                        "résolution de l'aide de signature échouée", e);
                 }
                 final jo.codeeditor.completion.SignatureHelpController.SignatureHelp help =
                         view.signatureHelpController.getHelp();

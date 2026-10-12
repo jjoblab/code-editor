@@ -27,22 +27,6 @@ public class EditorCompletionPopup {
         this.popups = popups;
     }
 
-    // ── Exécuteurs dédiés (un par popup) ─────────────────────
-    /**
-     * Lane « interactive » côté éditeur : la complétion possède son propre
-     * worker mono-thread daemon — AUCUN autre consommateur (hover,
-     * highlights, inlays…) ne peut la retarder. Toute la mécanique de
-     * requête/réponse LSP se déroule ici : le thread UI n'y touche plus
-     * jamais un {@code future.get()}.
-     */
-    private static final java.util.concurrent.ExecutorService COMPLETION_EXECUTOR =
-            java.util.concurrent.Executors.newSingleThreadExecutor(r -> {
-                Thread t = new Thread(r, "code-editor-completion");
-                t.setDaemon(true);
-                t.setPriority(Thread.NORM_PRIORITY + 1);
-                return t;
-            });
-
     // ════════════════════════════════════════════════════════════════
     // Completion popup
     // ════════════════════════════════════════════════════════════════
@@ -106,7 +90,11 @@ public class EditorCompletionPopup {
             if (view.language != null && view.language.getCompletionProvider() != null) {
                 return view.language.getCompletionProvider().getTriggerCharacters();
             }
-        } catch (Throwable ignored) {
+        } catch (Exception e) {
+            // Provider de complétion défaillant : repli sur « aucun
+            // caractère déclencheur », journalisé.
+            jo.codeeditor.util.EditorLog.warn("EditorCompletion",
+                "lecture des caractères déclencheurs échouée", e);
         }
         return java.util.Collections.emptyList();
     }
@@ -151,9 +139,9 @@ public class EditorCompletionPopup {
             view.completionScrollOffset = view.completionSelected - rowsVisible + 1;
         }
         view.completionVisible = true;
-        // Parité l'éditeur de référence : la complétion qui s'ouvre referme le hover
-        // (exclusion mutuelle — l'éditeur de référence dismiss le tooltip quand la complétion
-        // s'ouvre, et refuse le hover tant qu'elle est ouverte).
+        // La complétion qui s'ouvre referme le hover
+        // (exclusion mutuelle — le tooltip est refermé quand la complétion
+        // s'ouvre, et le hover est refusé tant qu'elle est ouverte).
         if (view.quickDocVisible) popups.dismissQuickDoc();
         view.invalidate();
     }
@@ -217,7 +205,10 @@ public class EditorCompletionPopup {
         if (item.attachment instanceof Runnable) {
             try {
                 ((Runnable) item.attachment).run();
-            } catch (Throwable ignored) {
+            } catch (Exception e) {
+                // Ligne de token illisible (offsets périmés) — ignorée.
+                jo.codeeditor.util.EditorLog.warn("EditorCompletion",
+                    "analyse du token échouée", e);
             }
         }
         return true;
@@ -389,7 +380,7 @@ public class EditorCompletionPopup {
         final String prefix = view.session.getDocument().subText(safeTokenStart, snapCaret);
         final String snapText = (provider != null) ? view.session.getText() : null;
 
-        COMPLETION_EXECUTOR.execute(() -> {
+        jo.codeeditor.view.EditorTaskLanes.submitCompletion(() -> {
             java.util.List<jo.codeeditor.completion.CompletionSession.Item> result = null;
             try {
                 if (provider != null) {
@@ -397,7 +388,9 @@ public class EditorCompletionPopup {
                 } else {
                     result = builtinKeywordCompletions(langName, prefix);
                 }
-            } catch (Throwable ignored) {
+            } catch (Exception e) {
+                jo.codeeditor.util.EditorLog.warn("EditorCompletion",
+                    "récupération des complétions échouée", e);
                 result = null;
             }
             final java.util.List<jo.codeeditor.completion.CompletionSession.Item> fetched =

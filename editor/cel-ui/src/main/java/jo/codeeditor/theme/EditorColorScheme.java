@@ -15,8 +15,7 @@ import java.util.Map;
 import jo.codeeditor.view.chrome.EditorTheme;
 
 /**
- * Scheme de couleurs modifiable par l'utilisateur (audit §1D lot 4 #25 —
- * port compact de l'approche amont <em></em>).
+ * Scheme de couleurs modifiable par l'utilisateur (audit §1D lot 4 #25).
  *
  * <p><b>Principe</b> : un scheme ne décrit JAMAIS un thème complet — il
  * porte deux maps éparses (une pour le mode sombre, une pour le mode

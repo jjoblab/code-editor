@@ -32,14 +32,14 @@ class LspModuleTest {
 
     @Test
     void languageServerDefinition_creation() {
-        LanguageServerDefinition def = new LanguageServerDefinition("java", "le serveur LSP tiers") {
+        LanguageServerDefinition def = new LanguageServerDefinition("java", "serveur-java") {
             @Override
             public StreamConnectionProvider createConnectionProvider(String workingDir) {
                 return new SocketConnectionProvider("localhost", 5007);
             }
         };
         assertEquals("java", def.getExt());
-        assertEquals("le serveur LSP tiers", def.getName());
+        assertEquals("serveur-java", def.getName());
         assertNotNull(def.createConnectionProvider("/tmp"));
         assertNull(def.expectedCapabilities());
         assertNull(def.getInitializationOptions());
@@ -55,7 +55,7 @@ class LspModuleTest {
     @Test
     void lspProject_addServerDefinition() {
         LspProject project = new LspProject("/tmp/workspace");
-        LanguageServerDefinition def = new LanguageServerDefinition("java", "le serveur LSP tiers") {
+        LanguageServerDefinition def = new LanguageServerDefinition("java", "serveur-java") {
             @Override
             public StreamConnectionProvider createConnectionProvider(String workingDir) {
                 return new SocketConnectionProvider("localhost", 5007);
@@ -69,7 +69,7 @@ class LspModuleTest {
     @Test
     void lspProject_createEditor() {
         LspProject project = new LspProject("/tmp/workspace");
-        LanguageServerDefinition def = new LanguageServerDefinition("java", "le serveur LSP tiers") {
+        LanguageServerDefinition def = new LanguageServerDefinition("java", "serveur-java") {
             @Override
             public StreamConnectionProvider createConnectionProvider(String workingDir) {
                 return new SocketConnectionProvider("localhost", 5007);
@@ -129,7 +129,7 @@ class LspModuleTest {
 
     @Test
     void languageServerDefinition_defaultSingleExtension() {
-        LanguageServerDefinition def = new LanguageServerDefinition("java", "le serveur LSP tiers") {
+        LanguageServerDefinition def = new LanguageServerDefinition("java", "serveur-java") {
             @Override
             public StreamConnectionProvider createConnectionProvider(String workingDir) {
                 return null;

@@ -1,0 +1,30 @@
+# Dependabot : mises à jour des dépendances et des actions.
+# Les actions sont épinglées par SHA (ci.yml / publish.yml) — Dependabot
+# sait mettre à jour un SHA épinglé et son commentaire de version.
+version: 2
+
+updates:
+  # Dépendances Gradle (AGP, LSP4J, Gson, JUnit, Robolectric…).
+  - package-ecosystem: "gradle"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    labels:
+      - "dependencies"
+
+  # Actions GitHub (épinglage SHA).
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "chore(ci)"
+    labels:
+      - "dependencies"
+      - "ci"

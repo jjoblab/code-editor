@@ -6,6 +6,7 @@ import org.eclipse.lsp4j.services.LanguageServer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -48,7 +49,7 @@ class LspDocumentHighlightProvider implements DocumentHighlightProvider {
             for (org.eclipse.lsp4j.DocumentHighlight dh : result) {
                 int start = editor.positionToOffset(dh.getRange().getStart());
                 int end = editor.positionToOffset(dh.getRange().getEnd());
-                String kind = dh.getKind() != null ? dh.getKind().name().toLowerCase() : "text";
+                String kind = dh.getKind() != null ? dh.getKind().name().toLowerCase(Locale.ROOT) : "text";
                 out.add(new DocumentHighlight(start, end, kind));
             }
             return out;

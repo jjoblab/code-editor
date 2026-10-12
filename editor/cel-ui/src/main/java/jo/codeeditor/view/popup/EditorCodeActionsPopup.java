@@ -44,14 +44,16 @@ public class EditorCodeActionsPopup {
         final String text = view.session.getText();
         final int first = firstVisible;
         final int last = lastVisible;
-        EditorPopupManager.FEATURE_EXECUTOR.execute(() -> {
+        jo.codeeditor.view.EditorTaskLanes.submitFeature(() -> {
             java.util.Map<Integer, List<EditorView.CodeAction>> found =
                     new java.util.HashMap<>();
             for (int line = first; line <= last; line++) {
                 List<EditorView.CodeAction> actions;
                 try {
                     actions = view.codeActionsResolver.resolve(text, line);
-                } catch (Throwable t) {
+                } catch (Exception t) {
+                    jo.codeeditor.util.EditorLog.warn("EditorCodeActions",
+                        "récupération des actions de code échouée", t);
                     actions = null;
                 }
                 if (actions != null && !actions.isEmpty()) {

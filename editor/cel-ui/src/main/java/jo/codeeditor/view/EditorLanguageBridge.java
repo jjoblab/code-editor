@@ -76,9 +76,11 @@ final class EditorLanguageBridge {
                 view.session.setFoldRegions(regions);
                 view.invalidate();
             }
-        } catch (Throwable t) {
-            // Silencieux — l'analyzer peut ne pas implémenter computeBlocks
-            // de façon fiable.
+        } catch (Exception t) {
+            // L'analyzer peut ne pas implémenter computeBlocks de façon
+            // fiable — journalisé, les plis existants restent.
+            jo.codeeditor.util.EditorLog.warn("EditorLanguage",
+                "calcul des blocs de code échoué", t);
         }
     }
 
@@ -107,9 +109,11 @@ final class EditorLanguageBridge {
             // invalider les lignes affectées.
             try {
                 language.getAnalyzer().setReceiver(styleReceiver);
-            } catch (Throwable t) {
+            } catch (Exception t) {
                 // Certains analyzers peuvent ne pas supporter setReceiver
-                // (legacy).
+                // (legacy) — journalisé.
+                jo.codeeditor.util.EditorLog.warn("EditorLanguage",
+                    "setReceiver non supporté par l'analyzer", t);
             }
             language.getAnalyzer().reset(view.session.getText());
 
@@ -362,11 +366,15 @@ final class EditorLanguageBridge {
                     final CharSequence text = view.session.getText();
                     final int fFirst = first;
                     final int fLast = last;
-                    EditorPopupManager.FEATURE_EXECUTOR.execute(() -> {
+                    jo.codeeditor.view.EditorTaskLanes.submitFeature(() -> {
                         java.util.List<jo.codeeditor.lang.model.InlayHint> spiHints = null;
                         try {
                             spiHints = inlayHintProviderSpi.inlayHints(text, fFirst, fLast);
-                        } catch (Exception ignored) {
+                        } catch (Exception e) {
+                            // Provider d'indications en ligne défaillant :
+                            // journalisé, pas d'indications cette fenêtre.
+                            jo.codeeditor.util.EditorLog.warn("EditorInlay",
+                                "calcul des indications en ligne échoué", e);
                         }
                         java.util.List<DiagnosticShift.InlayHint> legacy =
                                 new java.util.ArrayList<>();
@@ -454,11 +462,15 @@ final class EditorLanguageBridge {
             final int gen = ++docHighlightGeneration;
             final String text = view.session.getText().toString();
             final int caret = sel.start;
-            EditorPopupManager.FEATURE_EXECUTOR.execute(() -> {
+            jo.codeeditor.view.EditorTaskLanes.submitFeature(() -> {
                 List<int[]> result = null;
                 try {
                     result = view.documentHighlightResolver.resolve(text, caret);
-                } catch (Exception ignored) {
+                } catch (Exception e) {
+                    // Résolveur d'hôte défaillant : journalisé, pas de
+                    // surlignage de document cette occurrence.
+                    jo.codeeditor.util.EditorLog.warn("EditorHighlight",
+                        "résolution des occurrences du symbole échouée", e);
                 }
                 final List<int[]> fetched = result;
                 Runnable apply = () -> {

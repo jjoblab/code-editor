@@ -89,6 +89,14 @@ import jo.codeeditor.view.chrome.GutterView;
  */
 public class EditorView extends View {
 
+    static {
+        // Première vue créée ⇒ journal Android installé pour toute la
+        // bibliothèque (modules purs inclus, via EditorLog) — sauf si
+        // l'hôte a déjà installé le sien : il a priorité.
+        jo.codeeditor.util.EditorLog.installIfAbsent(
+                new jo.codeeditor.view.log.AndroidEditorLogger());
+    }
+
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
     public EditorSession session;
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
@@ -256,10 +264,10 @@ public class EditorView extends View {
     final EditorFoldIndex foldIndex = new EditorFoldIndex(this);
     // Cache des blocs de code (paires d'accolades ou régions
     // d'indentation) pour les guides d'indentation — mémoïsé
-    // par révision du document (approche l'éditeur de code de référence améliorée).
+    // par révision du document.
     final CodeBlockIndex codeBlockIndex = new CodeBlockIndex(this);
     // Détecteur de lignes sticky (en-têtes collés en haut pendant
-    // le scroll) — inspiré d'les IDE de bureau 2024.x.
+    // le scroll, comme les éditeurs de code de bureau).
     final StickyLineDetector stickyLineDetector = new StickyLineDetector(this);
     // Sticky lines activées/désactivées (défaut : true).
     public boolean stickyLinesEnabled = true;
@@ -794,7 +802,7 @@ public class EditorView extends View {
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
     public boolean fontLigatures = false;
 
-    // Minimap — rendu miniature à la les éditeurs de code de bureau du fichier entier, dessiné
+    // Minimap — rendu miniature du fichier entier, dessiné
     // dans une bande étroite sur le bord droit. Montre la structure du
     // document d'un coup d'œil + indique le rectangle du viewport courant.
     // Tap/drag pour scroller. La géométrie (constantes + bornes) vit dans
@@ -1603,7 +1611,7 @@ public class EditorView extends View {
      * <p>Voir {@link IndentGuideStyle} pour les options. Le style
      * par défaut est {@link IndentGuideStyle#INDENT_WITH_SCOPE}
      * (guides d'indentation + portée active mise en évidence,
-     * cohérent avec les IDE Android et les éditeurs de code de bureau).</p>
+     * cohérent avec les éditeurs de code de bureau).</p>
      *
      * @param style le style à appliquer ; {@code null} est
      *              silencieusement traité comme
@@ -1620,14 +1628,14 @@ public class EditorView extends View {
     public IndentGuideStyle getIndentGuideStyle() { return indentGuideStyle; }
 
     // ════════════════════════════════════════════════════════════════
-    // Sticky lines (en-têtes collés en haut — les IDE de bureau 2024.x)
+    // Sticky lines (en-têtes collés en haut pendant le scroll)
     // ════════════════════════════════════════════════════════════════
 
     /**
      * Active ou désactive les sticky lines (en-têtes de bloc de
      * code qui restent visibles en haut pendant le scroll).
      *
-     * <p>Inspiré d'les IDE de bureau 2024.x. Sur mobile, garde au plus
+     * <p>Sur mobile, garde au plus
      * 2 lignes sticky (classe + méthode) pour ne pas consommer
      * trop d'espace.</p>
      *
@@ -1667,7 +1675,7 @@ public class EditorView extends View {
     /**
      * Active ou désactive les couleurs par variable (variable-specific
      * colors). Chaque variable reçoit une teinte unique basée sur son
-     * nom — comme les IDE de bureau IDEA.
+     * nom.
      *
      * <p>Nécessite des semantic tokens (LSP) pour fonctionner — sans
      * LSP, les variables ne sont pas identifiées et la fonction n'a
@@ -2603,8 +2611,7 @@ public class EditorView extends View {
     public boolean isFontLigatures() { return fontLigatures; }
 
     /**
-     * Bascule du survol par appui long maintenu (parité l'éditeur de référence
-     * "alwaysShowOnTouchHover").
+     * Bascule du survol par appui long maintenu.
      *
      * <p>Activé, un maintien de 500 ms sans mouvement ni relâchement affiche
      * le popup quick doc à l'offset touché — SANS déclencher la sélection

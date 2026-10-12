@@ -42,14 +42,33 @@ class LspDocumentSynchronizer {
      */
     private volatile String lastSyncedText = null;
 
-    private int documentVersion = 0;
+    /**
+     * Version du document LSP — strictement croissante, thread-safe :
+     * les envois viennent du thread de debounce, de
+     * {@code flushPendingChange} (exécuteur de complétion) et de
+     * didOpen ; un simple int produisait des versions dupliquées sous
+     * charge (la spécification LSP exige une croissance stricte).
+     */
+    private final VersionCounter documentVersion = new VersionCounter();
 
-    /** Le texte en attente d'envoi via didChange. */
-    private volatile String pendingText = null;
-    private volatile long lastDidChangeSchedule = 0;
     private static final long DID_CHANGE_DEBOUNCE_MS = 300;
 
-    private volatile Thread didChangeThread;
+    /**
+     * Le texte en attente d'envoi via didChange — RÉFÉRENCE (pas de
+     * copie) : le EditorDocument est immuable par révision, la chaîne
+     * n'est matérialisée qu'AU MOMENT DE L'ENVOI, sur le thread du
+     * débounceur (plus de copie complète du document à chaque frappe sur
+     * le thread appelant).
+     */
+    private volatile CharSequence pendingText = null;
+
+    private static final long DID_SAVE_DEBOUNCE_MS = 800;
+
+    /** Débounce didChange/didSave : exécuteur mono-thread daemon. */
+    private final LspDebouncer didChangeDebouncer =
+            new LspDebouncer("didchange-debounce", DID_CHANGE_DEBOUNCE_MS);
+    private final LspDebouncer didSaveDebouncer =
+            new LspDebouncer("didsave-debounce", DID_SAVE_DEBOUNCE_MS);
 
     /**
      * Appelé quand le texte de l'éditeur change. Envoie une notification
@@ -67,33 +86,25 @@ class LspDocumentSynchronizer {
         // Débounce — stocke le dernier texte et programme un didChange
         // après DID_CHANGE_DEBOUNCE_MS. Une frappe rapide (10+ touches/s)
         // ne spammera pas le serveur d'un didChange par frappe.
-        pendingText = text.toString();
+        pendingText = text;
         scheduleDebouncedDidChange();
     }
 
     /**
-     * Programme un didChange débouncé sur un thread de fond. Se
-     * déclenche DID_CHANGE_DEBOUNCE_MS après le dernier appel à
-     * onTextChanged.
+     * Programme un didChange débouncé. Se déclenche
+     * DID_CHANGE_DEBOUNCE_MS après le dernier appel à
+     * onTextChanged — reprogrammation par {@link LspDebouncer}
+     * (un seul exécuteur daemon, jamais de thread par frappe, jamais
+     * d'interruption d'un envoi en cours). La tâche RELIT le texte en
+     * attente à l'exécution : la valeur la plus récente gagne toujours.
      */
     private void scheduleDebouncedDidChange() {
-        lastDidChangeSchedule = System.currentTimeMillis();
-        final long scheduledAt = lastDidChangeSchedule;
-        final String textToSend = pendingText;
-        if (didChangeThread != null) didChangeThread.interrupt();
-        didChangeThread = new Thread(() -> {
-            try {
-                Thread.sleep(DID_CHANGE_DEBOUNCE_MS);
-            } catch (InterruptedException e) {
-                return; // supplanté par un didChange plus récent
-            }
-            // Ne tire que si aucun autre onTextChanged n'est survenu pendant
-            // l'attente.
-            if (scheduledAt != lastDidChangeSchedule) return;
-            sendDidChange(textToSend);
-        }, "lsp-didchange-debounce");
-        didChangeThread.setDaemon(true);
-        didChangeThread.start();
+        didChangeDebouncer.debounce(() -> {
+            CharSequence text = pendingText;
+            if (text == null) return; // déjà flushed
+            pendingText = null;
+            sendDidChange(text);
+        });
     }
 
     /**
@@ -119,7 +130,7 @@ class LspDocumentSynchronizer {
      * <p><b>Mécanisme</b> : interrompt le thread debounce en cours (le
      * didChange différé ne sera PAS envoyé en double), puis appelle
      * {@link #sendDidChange(String)} SYNCHRONEMENT sur le thread
-     * appelant (typiquement {@code COMPLETION_EXECUTOR}). La notification
+     * appelant (typiquement la voie complétion de l'hôte). La notification
      * didChange est SÉRIALISÉE et mise dans la file LSP4J AVANT le
      * retour de cette méthode. La requête completion qui suit est mise
      * dans la même file APRÈS le didChange — le serveur traite donc
@@ -132,12 +143,12 @@ class LspDocumentSynchronizer {
         if (!editor.isConnected()) return;
         LanguageServerWrapper wrapper = editor.currentWrapper();
         if (wrapper == null || wrapper.getServer() == null) return;
-        // ★ Annule le debounce différé : son envoi serait en double du nôtre.
-        if (didChangeThread != null) {
-            didChangeThread.interrupt();
-            didChangeThread = null;
-        }
-        String pending = pendingText;
+        // ★ Annule le debounce différé : son envoi serait en double du
+        // nôtre. cancel(false) n'interrompt JAMAIS une tâche démarrée :
+        // celle-ci relit pendingText (null après notre flush) et rendra
+        // la main sans rien envoyer.
+        didChangeDebouncer.cancel();
+        CharSequence pending = pendingText;
         if (pending == null) return;
         pendingText = null;
         // ★ Envoi SYNCHRONE sur le thread appelant : la notification
@@ -203,11 +214,15 @@ class LspDocumentSynchronizer {
      * Toute anomalie (base inconnue, bornes incohérentes) retombe sur un
      * event complet SANS RANGE, que tout serveur LSP accepte.
      */
-    private void sendDidChange(String text) {
+    private void sendDidChange(CharSequence raw) {
+        // Matérialisation UNIQUE, sur le thread de l'envoi (débouncer ou
+        // flush) : jamais sur le thread UI.
+        final String text = raw.toString();
         DidChangeTextDocumentParams params = new DidChangeTextDocumentParams();
         VersionedTextDocumentIdentifier id = new VersionedTextDocumentIdentifier();
         id.setUri(editor.getFileUri());
-        id.setVersion(++documentVersion);
+        int v = documentVersion.next();
+        id.setVersion(v);
         params.setTextDocument(id);
         TextDocumentContentChangeEvent change = new TextDocumentContentChangeEvent();
         String baseline = lastSyncedText;
@@ -226,9 +241,11 @@ class LspDocumentSynchronizer {
                 change.setRange(new Range(positionOfIn(baseline, edit.start),
                         positionOfIn(baseline, edit.end())));
                 change.setText(insertion);
-            } catch (Throwable t) {
+            } catch (Exception t) {
+                // Diff incohérent (textes divergés) — repli universel
+                // texte complet, que tout serveur accepte.
                 change.setRange(null);
-                change.setText(text);  // repli universel texte complet
+                change.setText(text);
             }
         } else {
             change.setText(text);
@@ -237,10 +254,10 @@ class LspDocumentSynchronizer {
         try {
             editor.currentWrapper().getServer().getTextDocumentService().didChange(params);
             lastSyncedText = text;  // ★ R1 : la nouvelle base devient synced.
-            android.util.Log.i("LspEditor", "didChange v" + documentVersion + " ("
+            android.util.Log.i("LspEditor", "didChange v" + v + " ("
                     + (change.getRange() != null ? "range " + editDeltaHint(baseline, text) : text.length() + " chars") + ")");
             final LspLogSink sink = editor.getProject().getLogSink();
-            if (sink != null) sink.log("didChange v" + documentVersion + " (" + text.length() + " chars)");
+            if (sink != null) sink.log("didChange v" + v + " (" + text.length() + " chars)");
         } catch (Exception e) {
             android.util.Log.e("LspEditor", "didChange FAILED: " + e.getMessage(), e);
             final LspLogSink sink = editor.getProject().getLogSink();
@@ -249,7 +266,7 @@ class LspDocumentSynchronizer {
         // Ne programme un didSave débouncé que si le serveur a réellement
         // annoncé un SaveProvider dans ses capabilities. Un didSave
         // systématique après chaque didChange est nécessaire pour certains
-        // serveurs (le serveur LSP tiers relance l'inspection sur didSave) mais une no-op
+        // serveurs (qui relancent l'inspection sur didSave) mais une no-op
         // pour d'autres (le LSP Java republie déjà les diagnostics sur
         // didChange) — le gaspillage allait jusqu'à ~1 thread daemon orphelin
         // par salve de frappe.
@@ -261,7 +278,7 @@ class LspDocumentSynchronizer {
     /**
      * Retourne true si le serveur a annoncé la prise en charge de
      * {@code textDocument.save} dans ses capabilities. Certains serveurs
-     * (le serveur LSP tiers) ne republient les diagnostics que sur didSave — pour eux,
+     * ne republient les diagnostics que sur didSave — pour eux,
      * un didSave débouncé est programmé après chaque didChange. D'autres
      * (LSP Java) publient directement sur didChange — pour eux, le didSave
      * est un aller-retour gaspillé.
@@ -291,26 +308,15 @@ class LspDocumentSynchronizer {
     }
 
     /** didSave débouncé — se déclenche 800 ms après le dernier didChange. */
-    private long lastDidSaveSchedule = 0;
-    private static final long DID_SAVE_DEBOUNCE_MS = 800;
     private void scheduleDebouncedDidSave() {
-        lastDidSaveSchedule = System.currentTimeMillis();
-        final long scheduledAt = lastDidSaveSchedule;
-        new Thread(() -> {
-            try {
-                Thread.sleep(DID_SAVE_DEBOUNCE_MS);
-            } catch (InterruptedException e) {
-                return;
-            }
-            // Ne tire que si aucun autre didChange n'est survenu pendant
-            // l'attente.
-            if (scheduledAt != lastDidSaveSchedule) return;
-            sendDidSave();
-        }, "lsp-didsave-debounce").start();
+        // Thread daemon (l'ancien new Thread non daemon sans référence
+        // conservée retardait l'arrêt du processus), reprogrammé et
+        // annulable comme le didChange.
+        didSaveDebouncer.debounce(this::sendDidSave);
     }
 
     /**
-     * Envoie textDocument/didSave au serveur. Le serveur le serveur LSP tiers-LS relance
+     * Envoie textDocument/didSave au serveur. Certains serveurs relancent
      * sa passe d'inspection et publie des diagnostics frais à la réception
      * de cette notification (comme didOpen). C'est le SEUL moyen d'obtenir
      * des diagnostics vivants sur les changements de texte — didChange seul
@@ -349,7 +355,7 @@ class LspDocumentSynchronizer {
         TextDocumentItem item = new TextDocumentItem();
         item.setUri(editor.getFileUri());
         item.setLanguageId(editor.extension());
-        item.setVersion(documentVersion);
+        item.setVersion(documentVersion.get());
         item.setText(editorView.getSession().getText());
         params.setTextDocument(item);
         try {
@@ -368,12 +374,12 @@ class LspDocumentSynchronizer {
      * (pour éviter qu'il n'écrive dans un pipe fermé → « Write end dead »).
      */
     void sendDidClose() {
-        // Annule le thread de debounce didChange en cours pour éviter
-        // qu'il n'écrive dans un pipe fermé → « Write end dead ».
-        if (didChangeThread != null) {
-            didChangeThread.interrupt();
-            didChangeThread = null;
-        }
+        // Arrête les débounceurs : plus AUCUN thread « lsp-* » vivant
+        // après la déconnexion (test de non-fuite), plus d'écriture dans
+        // un pipe fermé → « Write end dead ».
+        didChangeDebouncer.shutdown();
+        didSaveDebouncer.shutdown();
+        pendingText = null;
         try {
             LanguageServerWrapper wrapper = editor.currentWrapper();
             if (wrapper != null && wrapper.getServer() != null) {
@@ -382,11 +388,14 @@ class LspDocumentSynchronizer {
                 params.setTextDocument(new TextDocumentIdentifier(editor.getFileUri()));
                 wrapper.getServer().getTextDocumentService().didClose(params);
             }
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+            // didClose best-effort à l'extinction : le serveur peut être
+            // déjà parti — la connexion tombera avec le wrapper.
+        }
     }
 
     /** La version courante du document (incrémentée à chaque didChange). */
     int getDocumentVersion() {
-        return documentVersion;
+        return documentVersion.get();
     }
 }

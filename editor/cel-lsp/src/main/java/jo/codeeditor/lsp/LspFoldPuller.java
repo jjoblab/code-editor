@@ -17,13 +17,6 @@ class LspFoldPuller {
 
     private final LspEditor editor;
 
-    /** Exécuteur dédié aux tirs textDocument/foldingRange (daemon). */
-    private static final java.util.concurrent.ExecutorService FOLD_EXECUTOR =
-            java.util.concurrent.Executors.newSingleThreadExecutor(r -> {
-                Thread t = new Thread(r, "cel-lsp-folds");
-                t.setDaemon(true);
-                return t;
-            });
 
     /** Génération anti-obsolescence : toute nouvelle demande invalide la précédente. */
     private final java.util.concurrent.atomic.AtomicInteger foldGeneration =
@@ -54,7 +47,9 @@ class LspFoldPuller {
         try {
             org.eclipse.lsp4j.ServerCapabilities caps = wrapper.getCapabilities();
             if (caps == null || caps.getFoldingRangeProvider() == null) return;
-        } catch (Throwable t) {
+        } catch (Exception t) {
+            // Requête refusée/échouée — pas de plis cette fois.
+            android.util.Log.w("LspEditor", "foldingRange request failed: " + t);
             return;
         }
         long now = System.currentTimeMillis();
@@ -77,7 +72,7 @@ class LspFoldPuller {
     private void doPullFolds() {
         lastFoldPullMs = System.currentTimeMillis();
         final int gen = foldGeneration.incrementAndGet();
-        FOLD_EXECUTOR.execute(() -> {
+        editor.submitBackground(() -> {
             try {
                 if (!editor.isConnected()) return;
                 LanguageServerWrapper wrapper = editor.currentWrapper();
@@ -100,7 +95,7 @@ class LspFoldPuller {
                 if (editorView != null) {
                     editorView.post(() -> applyFolds(gen, result));
                 }
-            } catch (Throwable t) {
+            } catch (Exception t) {
                 android.util.Log.w("LspEditor", "foldingRange failed: " + t);
             }
         });
@@ -146,7 +141,7 @@ class LspFoldPuller {
             editorView.getSession().applyCodeFolds(regions);
             editorView.invalidate();
             android.util.Log.i("LspEditor", "folds applied: " + regions.size());
-        } catch (Throwable t) {
+        } catch (Exception t) {
             android.util.Log.w("LspEditor", "applyFolds failed: " + t);
         }
     }

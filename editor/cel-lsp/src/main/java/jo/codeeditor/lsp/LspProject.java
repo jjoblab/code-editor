@@ -23,7 +23,7 @@ import java.util.concurrent.Executors;
  * <p>Utilisation :
  * <pre>{@code
  * LspProject project = new LspProject("/path/to/workspace");
- * project.addServerDefinition(myServeurDefinition);
+ * project.addServerDefinition(myServerDefinition);
  * LspEditor editor = project.createEditor("file:///path/to/Foo.java");
  * editor.setEditorView(editorView);
  * editor.connect();
@@ -39,11 +39,30 @@ public class LspProject {
     private final Map<String, LanguageServerDefinition> definitions = new HashMap<>();
     private final Map<String, LanguageServerWrapper> wrappers = new ConcurrentHashMap<>();
     private final Map<String, LspEditor> editors = new ConcurrentHashMap<>();
-    private final ExecutorService executor = Executors.newCachedThreadPool(r -> {
-        Thread t = new Thread(r, "lsp-project");
-        t.setDaemon(true);
-        return t;
-    });
+    /*
+     * Voie LSP4J (poignée de main, traitement des messages serveur
+     * entrants) : bornée à 2 threads daemon — l'ancien cache non borné
+     * pouvait créer un thread par message simultané (serveur bavard).
+     */
+    private final ExecutorService executor = newBoundedLane("cel-lsp", 1);
+
+    /**
+     * Voie des tâches clientes de fond (tirs foldingRange/semanticTokens,
+     * réécritures disque des WorkspaceEdit). Fermée par {@link #shutdown()}
+     * — aucun thread {@code cel-lsp-*} ne survit à l'extinction du projet.
+     */
+    private final ExecutorService taskExecutor = newBoundedLane("cel-lsp-tasks", 1);
+
+    /** Fabrique une voie bornée de threads daemon nommés. */
+    private static ExecutorService newBoundedLane(String prefix, int start) {
+        java.util.concurrent.atomic.AtomicInteger n =
+                new java.util.concurrent.atomic.AtomicInteger(start);
+        return Executors.newFixedThreadPool(2, r -> {
+            Thread t = new Thread(r, prefix + "-" + n.getAndIncrement());
+            t.setDaemon(true);
+            return t;
+        });
+    }
     /** Récepteur de journal optionnel pour que l'application de démonstration puisse afficher l'activité LSP. */
     private volatile LspLogSink logSink;
 
@@ -56,6 +75,9 @@ public class LspProject {
 
     /** Retourne le chemin de l'espace de travail. */
     public String getWorkspacePath() { return workspacePath; }
+
+    /** Voie de fond partagée par les éditeurs de ce projet (Lot 7). */
+    ExecutorService taskExecutor() { return taskExecutor; }
 
     /** Définit le récepteur de journal qui reçoit l'activité LSP à des fins de diagnostic. */
     public void setLogSink(LspLogSink sink) { this.logSink = sink; }
@@ -194,7 +216,9 @@ public class LspProject {
             CodeIdeLanguageServer.DecompiledSourceResult r =
                     ext2.decompiledSource(params).get(5, java.util.concurrent.TimeUnit.SECONDS);
             return r == null ? null : r.source;
-        } catch (Throwable t) {
+        } catch (Exception t) {
+            // Récupération d'un wrapper existant : clé absente ou état
+            // incohérent — traité comme « introuvable ».
             return null;
         }
     }
@@ -217,5 +241,6 @@ public class LspProject {
         }
         wrappers.clear();
         executor.shutdown();
+        taskExecutor.shutdown();
     }
 }

@@ -229,4 +229,45 @@ class EditorDocumentTest {
         assertEquals("// line1\n// line2\nline3", doc.getText());
         assertEquals(3, doc.lineCount());
     }
+
+    // ── Sûreté de threads (Lot 7) ─────────────────────────────────
+
+    /**
+     * getText() depuis plusieurs threads : jamais null, jamais de texte
+     * divergent. Le document est immuable par édition (replace() renvoie
+     * une nouvelle instance, champs final — publication garantie) ; le
+     * mémo volatile de getText() est une race bénigne dont l'unique
+     * valeur possible est rope.toString().
+     */
+    @Test
+    void getTextConcurrent_memeTexteJamaisNull() throws Exception {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 4000; i++) sb.append("ligne ").append(i).append('\n');
+        final EditorDocument doc = EditorDocument.of(sb.toString());
+        final String attendu = sb.toString();
+
+        final java.util.concurrent.atomic.AtomicInteger nulls =
+                new java.util.concurrent.atomic.AtomicInteger();
+        final java.util.concurrent.atomic.AtomicInteger divergents =
+                new java.util.concurrent.atomic.AtomicInteger();
+
+        Thread[] threads = new Thread[8];
+        for (int t = 0; t < threads.length; t++) {
+            threads[t] = new Thread(() -> {
+                for (int i = 0; i < 500; i++) {
+                    String s = doc.getText();
+                    if (s == null) nulls.incrementAndGet();
+                    else if (!s.equals(attendu)) divergents.incrementAndGet();
+                }
+            }, "doc-gettext-" + t);
+            threads[t].start();
+        }
+        for (Thread t : threads) t.join();
+
+        assertEquals(0, nulls.get(), "getText() ne doit jamais renvoyer null");
+        assertEquals(0, divergents.get(),
+                "tous les threads doivent lire le même texte immuable");
+        // Le mémo est réchauffé à l'issue des lectures concurrentes.
+        assertEquals(attendu, doc.getText());
+    }
 }

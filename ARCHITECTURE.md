@@ -63,9 +63,12 @@ Notes :
 
 ```
 jo.codeeditor/
-├── rope/         — Rope : arbre binaire équilibré, O(log N) par édition
+├── rope/         — Rope : arbre binaire équilibré, O(log N) par édition ;
+│                   l'index de lignes est re-splicé en O(lignes) par
+│                   édition (0,11 ms mesuré sur 50 000 lignes, budget
+│                   de frappe 2 ms — mesure : EditorSessionBenchmark)
 ├── document/     — EditorDocument (index de lignes), Selection
-├── session/      — EditorSession (orchestrateur, ~1 250 l.) +
+├── session/      — EditorSession (orchestrateur, ~1 590 l.) +
 │                   RestyleEngine (restyle asynchrone incrémental),
 │                   ImeBridge, CommentToggler, UndoRecorder,
 │                   SessionAnnotations, FoldRegions, UndoManager
@@ -158,14 +161,14 @@ jo.codeeditor/
 │                   (DiagnosticsPusher/Locator), géométrie (EditorMetrics,
 │                   EditorWrapGeometry, EditorHitMapper,
 │                   EditorLineLayoutResolver), commandes (EditorCommands)…
-├── view/render/  — rendu Canvas : EditorRenderer (~530 l.) + 5 painters
+├── view/render/  — rendu Canvas : EditorRenderer (~750 l.) + 5 painters
 │                   (EditorTextPainter, EditorHighlightPainter,
 │                   EditorDiagnosticsPainter, EditorAssistPopupPainter,
 │                   EditorChromePainter), caches (EditorShapedLayoutCache),
 │                   animation du caret (CaretAnimator) et l'API plugins
 │                   (EditorPainterHost, EditorPaintContext,
 │                   EditorDecorationPainter, EditorDecorations)
-├── view/input/   — entrées : EditorInputHandler (~635 l.) + famille
+├── view/input/   — entrées : EditorInputHandler (~700 l.) + famille
 │                   tactile/clavier (EditorKeyHandler,
 │                   EditorSelectionGestures, EditorTouchScroller,
 │                   EditorTapResolver, EditorTouchHoverController,
@@ -194,17 +197,21 @@ L'ancienne génération de « god classes » a été démantelée en collaborate
 par composition (corps déplacés à l'identique, signatures package-privées,
 relais conservés pour l'API publique et les tests) :
 
-| Classe | Avant | Après (orchestrateur) |
+| Classe | Avant | Aujourd'hui (orchestrateur)* |
 |--------|-------|----------------------|
-| EditorView | 4 626 l. | 2 720 l. |
-| EditorRenderer | 3 475 l. | 533 l. |
+| EditorView | 4 626 l. | 3 335 l. |
+| EditorRenderer | 3 475 l. | 748 l. |
 | SyntaxHighlighter | 2 545 l. | 155 l. |
-| EditorSession | 2 188 l. | 1 247 l. |
-| EditorPopupManager | 1 584 l. | 239 l. |
-| LspLanguage | 1 576 l. | 276 l. |
-| EditorInputHandler | 1 400 l. | 635 l. |
-| LspEditor | 1 099 l. | 406 l. |
-| EditOps | 1 051 l. | 127 l. |
+| EditorSession | 2 188 l. | 1 588 l. |
+| EditorPopupManager | 1 584 l. | 231 l. |
+| LspLanguage | 1 576 l. | 277 l. |
+| EditorInputHandler | 1 400 l. | 700 l. |
+| LspEditor | 1 099 l. | 445 l. |
+| EditOps | 1 051 l. | 178 l. |
+
+*Remesuré à la version courante du dépôt (les orchestrateurs regonflent
+légitimement quand des fonctionnalités s'ajoutent — la colonne « Avant »
+garde la trace du point de départ du démantèlement).
 
 ## Cycle d'édition
 
@@ -302,13 +309,14 @@ editorView.setFileName("layout.xml");
    collaborateurs vivent dans le sous-package de leur orchestrateur
    (render/, input/, popup/, preview/), reliés par des scells
    `@RestrictTo(LIBRARY_GROUP)` quand l'état partagé l'exige.
-3. **Testabilité** — 934 tests unitaires JVM (JUnit 5, Robolectric pour le
+3. **Testabilité** — 1 370 tests unitaires JVM (JUnit 5, Robolectric pour le
    cycle de vie des vues) ; aucun test instrumenté requis.
 4. **Défensif côté rendu** — tous les offsets sont clampés à
    `[0, doc.length()]` dans le chemin de dessin ; un painter de plugin qui
    lève est retiré, jamais un crash.
 5. **Grands fichiers** — au-delà de 2,5 M chars / 50 k lignes, l'analyse,
-   le folding et les inlays sont coupés ; l'édition reste O(log N).
+   le folding et les inlays sont coupés ; le texte reste éditable
+   (rope O(log N), splice d'index de lignes O(lignes) — mesuré).
 
 ## Voir aussi
 

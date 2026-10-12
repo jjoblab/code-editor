@@ -67,6 +67,20 @@ public class LspEditor {
     /** Collaborateur : application des éditions LSP (WorkspaceEdit/TextEdits). */
     private final LspWorkspaceEditApplier workspaceEdits = new LspWorkspaceEditApplier(this);
 
+    /**
+     * Soumet une tâche de fond sur la voie partagée du projet (tirs
+     * clients, réécritures disque). Silencieux pendant l'extinction du
+     * projet : la tâche est abandonnée — les tirs sont de toute façon
+     * gardés par {@code isConnected()}.
+     */
+    void submitBackground(Runnable task) {
+        try {
+            project.taskExecutor().execute(task);
+        } catch (java.util.concurrent.RejectedExecutionException e) {
+            // Extinction en cours — abandon sans bruit.
+        }
+    }
+
     LspEditor(LspProject project, String fileUri) {
         this.project = project;
         this.fileUri = fileUri;
@@ -223,7 +237,7 @@ public class LspEditor {
      * <p><b>Mécanisme</b> : interrompt le thread debounce en cours (le
      * didChange différé ne sera PAS envoyé en double), puis appelle
      * {@code sendDidChange(String)} SYNCHRONEMENT sur le thread
-     * appelant (typiquement {@code COMPLETION_EXECUTOR}). La notification
+     * appelant (typiquement la voie complétion de l'hôte). La notification
      * didChange est SÉRIALISÉE et mise dans la file LSP4J AVANT le
      * retour de cette méthode. La requête completion qui suit est mise
      * dans la même file APRÈS le didChange — le serveur traite donc
@@ -237,8 +251,8 @@ public class LspEditor {
     }
 
     /**
-     * Envoie textDocument/didSave au serveur. Le serveur le serveur LSP tiers-LS relance
-     * sa passe d'inspection et publie des diagnostics frais à la réception
+     * Envoie textDocument/didSave au serveur. Certains serveurs relancent
+     * leur passe d'inspection et publient des diagnostics frais à la réception
      * de cette notification (comme didOpen). C'est le SEUL moyen d'obtenir
      * des diagnostics vivants sur les changements de texte — didChange seul
      * ne déclenche pas la ré-inspection.
@@ -250,10 +264,9 @@ public class LspEditor {
     /**
      * Envoie workspace/didChangeConfiguration au serveur.
      * <p>Méthode générique, indépendante du serveur — l'objet
-     * {@code settings} est spécifique au serveur (ex. le serveur LSP tiers utilise des
-     * clés plates en points comme
-     * {@code "serveur.inspections.undeclaredVariable"}, le serveur LSP tiers utilise des
-     * clés {@code "java.*"}). L'appelant (couche application) est
+     * {@code settings} est spécifique au serveur (ex. des clés plates en
+     * points comme {@code "inspections.undeclaredVariable"} ou des
+     * clés préfixées {@code "java.*"}). L'appelant (couche application) est
      * responsable de construire l'objet de réglages correct pour le serveur
      * connecté.
      * <p>Cette méthode ne sait PAS quel serveur est connecté — elle se
@@ -266,11 +279,10 @@ public class LspEditor {
     public void sendDidChangeConfiguration(Object settings) {
         if (wrapper == null || wrapper.getServer() == null) return;
         // Stocke les réglages sur le client pour que le serveur puisse les
-        // tirer via workspace/configuration. De nombreux serveurs (le serveur LSP tiers,
-        // le serveur LSP tiers, le serveur LSP tiers) IGNORENT le push didChangeConfiguration et
-        // tirent au contraire les réglages à la demande — sans cela, le serveur LSP tiers
-        // ne voit jamais sa configuration d'inspection et publie zéro
-        // diagnostic.
+        // tirer via workspace/configuration. De nombreux serveurs IGNORENT
+        // le push didChangeConfiguration et tirent au contraire les réglages
+        // à la demande — sans cela, ces serveurs ne voient jamais leur
+        // configuration d'inspection et publient zéro diagnostic.
         if (wrapper.getClient() != null) {
             wrapper.getClient().setSettings(settings);
         }
@@ -383,7 +395,23 @@ public class LspEditor {
      * <p>Doit être appelée sur le thread UI (elle mute la session).</p>
      */
     public void applyWorkspaceEdit(org.eclipse.lsp4j.WorkspaceEdit edit) {
-        workspaceEdits.applyWorkspaceEdit(edit);
+        workspaceEdits.applyWorkspaceEdit(edit, null);
+    }
+
+    /**
+     * Variante avec contrôle de fraîcheur : {@code versionAtRequest} est
+     * la version du document CAPTURÉE au moment où la requête est partie
+     * (code action, complétion). Si le document a changé depuis, les
+     * positions renvoyées par le serveur sont périmées — l'édition est
+     * refusée plutôt que d'appliquer des positions fausses.
+     */
+    public void applyWorkspaceEdit(org.eclipse.lsp4j.WorkspaceEdit edit, Integer versionAtRequest) {
+        workspaceEdits.applyWorkspaceEdit(edit, versionAtRequest);
+    }
+
+    /** Version courante du document LSP (strictement croissante). */
+    int getDocumentVersion() {
+        return synchronizer.getDocumentVersion();
     }
 
     /**
@@ -402,6 +430,16 @@ public class LspEditor {
      * {@code CompletionSession.Item.attachment}.</p>
      */
     public void applyAdditionalEdits(java.util.List<org.eclipse.lsp4j.TextEdit> edits) {
-        workspaceEdits.applyAdditionalEdits(edits);
+        workspaceEdits.applyAdditionalEdits(edits, null);
+    }
+
+    /**
+     * Variante avec contrôle de fraîcheur : {@code versionAtRequest} est
+     * la version capturée au moment de la requête de complétion — si
+     * l'utilisateur a tapé depuis, les additionalTextEdits (auto-import)
+     * sont refusés au lieu de corrompre le texte.
+     */
+    public void applyAdditionalEdits(java.util.List<org.eclipse.lsp4j.TextEdit> edits, Integer versionAtRequest) {
+        workspaceEdits.applyAdditionalEdits(edits, versionAtRequest);
     }
 }

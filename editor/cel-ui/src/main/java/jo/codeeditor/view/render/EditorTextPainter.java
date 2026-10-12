@@ -46,7 +46,7 @@ public class EditorTextPainter {
     }
 
     // ════════════════════════════════════════════════════════════════
-    // Fenêtre de colonnes visibles (comportement de référence TextRow.draw)
+    // Fenêtre de colonnes visibles (dessin borné à la plage visible)
     // ════════════════════════════════════════════════════════════════
 
     /**
@@ -54,9 +54,9 @@ public class EditorTextPainter {
      * ligne donnée, dérivée du défilement horizontal ({@code hOffset}),
      * de la largeur du viewport et d'une marge.
      *
-     * <p>★ Correctif « minifier » : l'éditeur de code de référence ne dessine jamais une
-     * ligne entière — {@code TextRow.draw(canvas, beginOffset,
-     * endOffset)} borne le dessin à la fenêtre horizontale visible. Une
+     * <p>★ Correctif « minifier » : ne jamais dessiner une
+     * ligne entière — le dessin est borné à la fenêtre
+     * horizontale visible {@code [beginOffset, endOffset)}. Une
      * ligne minifiée (des centaines de Ko sur une seule ligne) ne
      * façonnait ici que la tranche visible : le chemin ligatures
      * construisait un StaticLayout de la ligne ENTIÈRE (secondes de
@@ -455,8 +455,8 @@ public class EditorTextPainter {
                                int start, int end, float x, float y, Paint paint) {
         float charWidth = view.metrics.getCharWidth();
         float baseline = y + view.metrics.getLineHeight() * 0.78f;
-        // ★ Clip à la fenêtre de colonnes visibles (comportement de référence
-        // TextRow.draw) : un span géant de ligne minifiée ne dessine que
+        // ★ Clip à la fenêtre de colonnes visibles :
+        // un span géant de ligne minifiée ne dessine que
         // sa tranche visible.
         int[] win = visibleColWindow(lineText.length());
         int clippedStart = Math.max(start, win[0]);
@@ -513,7 +513,7 @@ public class EditorTextPainter {
         // StyleSpan pour rendre les COMMENT en italique et les KEYWORD en
         // gras. Ces effets visuels améliorent la lisibilité (les
         // commentaires reculent, les mots-clés avancent) — convention de
-        // tous les éditeurs pro (les éditeurs de code de bureau, les IDE de bureau, Sublime).
+        // tous les éditeurs de code professionnels.
         //
         // ★ Le StaticLayout façonné est mémoïsé CONTENU-ADRESSÉ par
         // EditorView.shapedLayoutFor : ~25 % des lignes d'un fichier réel
@@ -522,8 +522,7 @@ public class EditorTextPainter {
         // ligatures. Les lignes identiques partagent désormais UN seul
         // layout.
         if (view.fontLigatures && styled != null && styled.spans != null) {
-            // ★ Fenêtre visible (comportement de référence TextRow.draw(begin, end)) :
-            // ne façonner QUE la tranche visible. Un StaticLayout de la
+            // ★ Fenêtre visible : ne façonner QUE la tranche visible. Un StaticLayout de la
             // ligne entière minifiée (500 Ko) coûtait plusieurs secondes
             // de façonnage et des dizaines de Mo ; la tranche est bornée
             // par le viewport (~100-200 colonnes).
@@ -554,7 +553,7 @@ public class EditorTextPainter {
         // ★ Path sans ligatures : on garde le rendu drawText historique mais
         // on bascule paint.setTypeface() par span pour le rendu
         // italique/gras. Comme le path ligatures est le défaut (98 % des
-        // appareils modernes supportent les ligatures de les IDE professionnels Mono),
+        // polices de code récentes offrent des ligatures),
         // ce path est rarement pris — mais on garde la cohérence visuelle.
         android.graphics.Typeface savedTypeface = paint.getTypeface();
         // ★ Clip global à la fenêtre visible : les spans hors écran sont
@@ -664,7 +663,10 @@ public class EditorTextPainter {
             } else if (len == 6 || len == 8) {
                 return (int) android.graphics.Color.parseColor(text);
             }
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+            // Détection heuristique de couleur : ce token n'est pas une
+            // couleur valide — échec attendu, pas une anomalie.
+        }
         return null;
     }
 
@@ -678,7 +680,7 @@ public class EditorTextPainter {
      * colonnes, avec les couleurs de spans du lexer.
      *
      * <p>Les rangées de continuation sont indentées de la colonne
-     * d'espaces de tête de la ligne (style les éditeurs de code de bureau / les IDE de bureau). La
+     * d'espaces de tête de la ligne. La
      * première rangée est dessinée à {@code textAreaLeft} ; les suivantes
      * à {@code textAreaLeft + leadingWhitespaceCols * charWidth} pour
      * qu'un corps de méthode Java replié s'aligne sous le nom de la
@@ -701,8 +703,8 @@ public class EditorTextPainter {
 
         // ★ N'itérer que les rangées VISIBLES : une ligne minifiée avec
         // word-wrap s'étale sur des dizaines de milliers de rangées —
-        // seule la trentaine visible doit être dessinée (comportement de référence :
-        // le rendu borne par le viewport, pas par la ligne).
+        // seule la trentaine visible doit être dessinée (le rendu
+        // borne par le viewport, pas par la ligne).
         float viewH = view.getHeight();
         int rFirst = Math.max(0,
                 (int) Math.floor((-lineHeight - lineTopY) / lineHeight));

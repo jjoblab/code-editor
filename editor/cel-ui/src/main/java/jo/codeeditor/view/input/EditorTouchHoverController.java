@@ -18,7 +18,7 @@ public class EditorTouchHoverController {
     private final EditorInputHandler input;
 
     // ── Hover tap-and-hold (distinct de la sélection par appui long) ──
-    // Parité « alwaysShowOnTouchHover » de l'éditeur de référence : sur appareils tactiles,
+    // Sur appareils tactiles,
     // un temps d'appui PLUS LONG (TAP_HOLD_HOVER_TIMEOUT_MS) sans
     // mouvement/relèvement montre le popup quick doc à l'offset touché
     // SANS déclencher la sélection (pas de poignées, pas de toolbar).

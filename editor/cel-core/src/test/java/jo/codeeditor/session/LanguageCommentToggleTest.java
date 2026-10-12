@@ -110,7 +110,7 @@ class LanguageCommentToggleTest {
         assertEquals("def foo():", s.getText());
     }
 
-    // ── XML : le toggle de ligne retombe sur la paire de bloc (les éditeurs de code de bureau) ──
+    // ── XML : le toggle de ligne retombe sur la paire de bloc ──
 
     @Test
     void xml_toggleLineComment_wrapsLinesInBlockPair() {

@@ -7,10 +7,10 @@ import jo.codeeditor.session.EditorSession;
  * Cache des paires d'accolades {@code { … }} et des régions
  * d'indentation, mémoïsé par révision du document.
  *
- * <p><b>Modèle l'éditeur de code de référence :</b> l'éditeur de référence calcule les blocs
- * ({@code CodeBlock}) dans l'analyseur de langage (asynchrone,
- * incrémental). Notre approche est plus simple mais aussi
- * performante : on calcule les blocs à la demande et on les
+ * <p><b>Modèle de calcul :</b> les blocs
+ * ({@code CodeBlock}) sont calculés à la demande et mémoïsés
+ * par révision du document — pas d'analyseur de langage
+ * asynchrone requis : on calcule les blocs à la demande et on les
  * cache par révision du document. La clé de cache est
  * {@code (identité session, doc.getRevision(), identité doc)}.
  * Une simple comparaison de référence NE PEUT PAS suffire car
@@ -22,16 +22,15 @@ import jo.codeeditor.session.EditorSession;
  *       etc.) : les blocs sont des paires d'accolades
  *       {@code { … }}. Le {@code startColumn} est la position
  *       réelle du {@code {} dans la ligne. Le guide est centré
- *       à cette position. Mode l'éditeur de code de référence
- *       {@code indentCountMode=false}.</li>
+ *       à cette position (centrage sur l'accolade).</li>
  *   <li><b>Non C_LIKE</b> (Python, YAML, etc.) : les blocs sont
  *       des régions d'indentation calculées par l'algorithme
- *       {@code IndentRange} de les éditeurs de code de bureau (balayage bas-vers-haut,
- *       mode {@code offSide} pour Python). Le
+ *       {@code IndentRange} (balayage bas-vers-haut, mode
+ *       {@code offSide} pour Python). Le
  *       {@code startColumn} est le compte d'espaces
  *       d'indentation de la ligne de début. Le guide est
- *       positionné à {@code startColumn * spaceWidth}. Mode
- *       l'éditeur de code de référence {@code indentCountMode=true}.</li>
+ *       positionné à {@code startColumn * spaceWidth} (compte
+ *       d'espaces d'indentation).</li>
  * </ul>
  *
  * <p><b>Recherche binaire :</b> les blocs sont triés par
@@ -39,7 +38,7 @@ import jo.codeeditor.session.EditorSession;
  * trouver le premier bloc visible en O(log blocs) au lieu
  * d'un balayage linéaire à chaque frame.</p>
  *
- * <p><b>Améliorations par rapport à l'éditeur de code de référence :</b></p>
+ * <p><b>Caractéristiques :</b></p>
  * <ul>
  *   <li>Le cache est intégré à la vue (pas besoin d'un
  *       analyseur de langage séparé) — fonctionne pour tous
@@ -48,8 +47,8 @@ import jo.codeeditor.session.EditorSession;
  *   <li>Le cache est invalidé par révision du document (pas
  *       par un signal d'analyseur) — plus simple et plus
  *       fiable.</li>
- *   <li>Les blocs non C_LIKE utilisent le même algorithme
- *       {@code IndentRange} que les éditeurs de code de bureau — y compris le mode
+ *   <li>Les blocs non C_LIKE utilisent l'algorithme
+ *       {@code IndentRange} — y compris le mode
  *       {@code offSide} pour Python.</li>
  * </ul>
  *
@@ -124,7 +123,7 @@ final class CodeBlockIndex {
     /**
      * Calcule les blocs pour le document courant. Pour C_LIKE,
      * détecte les paires d'accolades. Pour non C_LIKE, utilise
-     * l'algorithme IndentRange (les éditeurs de code de bureau).
+     * l'algorithme IndentRange.
      */
     private void computeBlocks(EditorDocument doc, EditorSession session) {
         jo.codeeditor.languages.LanguageProfile profile =
@@ -204,10 +203,10 @@ final class CodeBlockIndex {
         return true;
     }
 
-    // ── Non C_LIKE : IndentRange (les éditeurs de code de bureau algorithm) ─────────
+    // ── Non C_LIKE : algorithme IndentRange ──────────────────
 
     /**
-     * Implémente l'algorithme IndentRange de les éditeurs de code de bureau pour les
+     * Implémente l'algorithme IndentRange pour les
      * langages basés sur l'indentation (Python, YAML, etc.).
      *
      * <p>Balaye le document de bas en haut, en suivant
@@ -287,8 +286,7 @@ final class CodeBlockIndex {
     /**
      * Calcule le niveau d'indentation d'une ligne.
      * @return -1 si la ligne ne contient que des blancs OU si la
-     *         ligne est un commentaire (traité comme ligne vide,
-     *         comme les IDE de bureau — IndentGuideCalculator.isComment).
+     *         ligne est un commentaire (traité comme ligne vide).
      */
     private static int computeIndentLevel(CharSequence chars, int start, int end, int tabSize) {
         int indent = 0;
@@ -301,7 +299,7 @@ final class CodeBlockIndex {
             i++;
         }
         if (i == end) return -1; // ligne vide
-        // les IDE de bureau : les lignes commentées sont traitées comme
+        // Les lignes commentées sont traitées comme
         // des lignes vides (indentation déduite des voisines).
         // Détecter les préfixes de commentaire courants.
         if (i + 1 < end) {

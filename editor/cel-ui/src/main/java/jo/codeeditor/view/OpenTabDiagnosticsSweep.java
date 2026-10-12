@@ -14,8 +14,8 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 
 /**
- * Balayage des diagnostics des ONGLETS OUVERTS (port de
- * un balayage d'onglets).
+ * Balayage des diagnostics des ONGLETS OUVERTS (rafraîchissement
+ * périodique de tous les onglets ouverts).
  *
  * <p>L'éditeur rafraîchit déjà les diagnostics de l'onglet <b>actif</b> à
  * chaque changement de texte (avec anti-rebond). Mais un hôte multi-onglets

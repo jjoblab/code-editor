@@ -556,8 +556,8 @@ public class EditorSession {
         //
         // Le dépliage est un effet de bord visuel : il n'est PAS enregistré
         // sur la pile d'annulation (pas d'étape de texte), donc l'undo
-        // annule l'édition mais laisse le pli déplié. C'est cohérent
-        // avec les éditeurs de code de bureau : l'utilisateur voit le contenu et peut refaire
+        // annule l'édition mais laisse le pli déplié. Comportement
+        // voulu : l'utilisateur voit le contenu et peut refaire
         // le pli manuellement s'il le souhaite.
         //
         // On déplie tous les plis touchés par la zone d'édition. Une
@@ -877,8 +877,8 @@ public class EditorSession {
             if (i > startLine) sb.append('\n');
             if (indent) {
                 // Lot 1 : ne pas indenter les lignes purement vides
-                // (uniquement des espaces/tabulations). les éditeurs de code de bureau ne le
-                // fait pas, et cela évite d'introduire du whitespace
+                // (uniquement des espaces/tabulations) — cela évite
+                // d'introduire du whitespace
                 // involontaire dans des lignes que l'utilisateur
                 // laissera probablement vides. Une ligne non-vide
                 // (contenant au moins un caractère non-blanc) reçoit
@@ -925,7 +925,7 @@ public class EditorSession {
             newSelStart = oldSelStart + delta;
         } else {
             // L'offset était dans la zone remplacée — pinner au
-            // début du nouveau bloc (les éditeurs de code de bureau fait à peu près ça).
+            // début du nouveau bloc.
             newSelStart = rangeStart;
         }
         int newSelEnd;
@@ -974,8 +974,7 @@ public class EditorSession {
      *       préfixe + une espace optionnelle) ;</li>
      *   <li>les langages avec SEULEMENT une paire de bloc (XML/HTML/Markdown)
      *       retombent sur l'encadrement de chaque ligne par
-     *       {@code blockStart … blockEnd} — le comportement les éditeurs de code de bureau pour
-     *       XML ;</li>
+     *       {@code blockStart … blockEnd} pour XML ;</li>
      *   <li>les langages sans AUCUNE syntaxe de commentaire (JSON) sont un
      *       no-op documenté.</li>
      * </ul>
@@ -1023,8 +1022,8 @@ public class EditorSession {
     // ── Expand selection (lot 4 #27) ───────────────────────────
 
     /**
-     * Étend la sélection courante d'UN cran (audit §1D lot 4 #27, esprit
-     * amont <em></em>) : curseur → mot → syntagme → ligne(s).
+     * Étend la sélection courante d'UN cran (audit §1D lot 4 #27) :
+     * curseur → mot → syntagme → ligne(s).
      *
      * <p>La cascade complète, d'un appel à l'appel suivant :</p>
      * <ol>

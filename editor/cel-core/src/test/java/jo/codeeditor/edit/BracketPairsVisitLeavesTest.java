@@ -7,8 +7,8 @@ import org.junit.jupiter.api.Test;
 import jo.codeeditor.rope.Rope;
 
 /**
- * Équivalence du port feuille par feuille de {@link BracketPairs#docBalance}
- * (amont ) : le comptage via Rope (visite des feuilles, accès
+ * Équivalence de la visite feuille par feuille de {@link BracketPairs#docBalance}
+ * : le comptage via Rope (visite des feuilles, accès
  * direct au String de chaque feuille) donne EXACTEMENT le résultat du
  * scan CharSequence générique (charAt par caractère).
  */

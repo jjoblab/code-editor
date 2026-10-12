@@ -154,7 +154,7 @@ public class GutterView {
         // Arrière-plan du gutter verre/semi-transparent : au lieu d'un
         // remplissage totalement opaque, un alpha d'environ 88 % laisse
         // faiblement apparaître le texte qui défile derrière — effet verre
-        // dépoli similaire au gutter translucide de les éditeurs de code de bureau.
+        // dépoli translucide.
         // ★ B21d : paints HOISTÉS en champs — 3 new Paint() par frame
         // (plus 1 par point de diagnostic) allouaient/garbageaient à chaque
         // redraw ; les couleurs se re-posent chaque frame, sans allocation.

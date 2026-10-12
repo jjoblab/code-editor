@@ -10,8 +10,7 @@ import java.util.ServiceLoader;
 import java.util.Set;
 
 /**
- * Registre + collecteur par frame des painters de plugins (port de
- * un painter host d'éditeur).
+ * Registre + collecteur par frame des painters de plugins.
  *
  * <p>L'hôte possède les {@link EditorDecorationPainter} enregistrés et,
  * une fois par passe de rendu, appelle chacun avec un
@@ -120,8 +119,13 @@ public final class EditorPainterHost {
                 }
             }
         } catch (Throwable t) {
-            // ServiceLoader lui-même peut lever (classpath cassé) — dégrade
-            // en « aucun painter de classpath ».
+            // ★ FRONTIÈRE DOCUMENTÉE (catch Throwable volontaire) :
+            // ServiceLoader lève ServiceConfigurationError (une Error)
+            // quand le classpath est cassé — toléré et dégradé en
+            // « aucun painter de classpath » plutôt qu'un crash au
+            // premier rendu.
+            jo.codeeditor.util.EditorLog.warn("EditorPainterHost",
+                "chargement des painters du classpath échoué", t);
         }
     }
 
@@ -144,9 +148,16 @@ public final class EditorPainterHost {
             try {
                 painter.paint(ctx);
             } catch (Throwable t) {
-                // ★ Politique du painter host : un painter qui
-                // lève est retiré du registre — ne jamais planter l'éditeur
-                // pour le bug d'un plugin.
+                // ★ FRONTIÈRE DOCUMENTÉE (catch Throwable volontaire) :
+                // code de plugin ARBITRAIRE exécuté à chaque frame — un
+                // painter qui lève (y compris un StackOverflowError récurrent
+                // d'une regex pathologique) est RETIRÉ du registre : ne
+                // jamais planter l'éditeur pour le bug d'un plugin, ni
+                // crasher en boucle. L'OOM n'est pas relancée ici : le
+                // retrait du painter fautif est la seule défense contre
+                // la boucle de crash.
+                jo.codeeditor.util.EditorLog.warn("EditorPainterHost",
+                    "painter retiré après échec", t);
                 synchronized (painters) {
                     painters.removeIf(p -> p == painter);
                     knownIds.remove(painter.id());

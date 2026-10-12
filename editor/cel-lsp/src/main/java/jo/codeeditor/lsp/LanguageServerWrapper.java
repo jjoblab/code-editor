@@ -57,7 +57,7 @@ public class LanguageServerWrapper {
      * Retourne un futur complété quand le serveur est prêt.
      * <p>Envoie la notification {@code initialized} après la poignée de main
      * initialize, et définit les capacités client. Sans cela, de nombreux
-     * serveurs (dont le serveur LSP tiers) refusent de servir les requêtes de complétion
+     * serveurs refusent de servir les requêtes de complétion
      * et répondent « Internal error ».
      */
     public synchronized CompletableFuture<Void> start() {
@@ -80,14 +80,14 @@ public class LanguageServerWrapper {
         this.launcher = launcher;
         // Poignée de main initialize.
         InitializeParams params = new InitializeParams();
-        params.setRootUri("file://" + workspacePath);
-        // Définit workspaceFolders — le serveur LSP tiers s'en sert pour enregistrer la
+        params.setRootUri(UriUtils.fromPath(workspacePath));
+        // Définit workspaceFolders — les serveurs s'en servent pour enregistrer la
         // racine de l'espace de travail et résoudre les fichiers source.
         // Sans lui, le serveur ne trouve pas l'espace de travail et certaines
         // fonctionnalités (diagnostics, go-to-def inter-fichiers) ne marchent
         // pas.
         org.eclipse.lsp4j.WorkspaceFolder wsFolder = new org.eclipse.lsp4j.WorkspaceFolder();
-        wsFolder.setUri("file://" + workspacePath);
+        wsFolder.setUri(UriUtils.fromPath(workspacePath));
         wsFolder.setName(new java.io.File(workspacePath).getName());
         params.setWorkspaceFolders(java.util.Collections.singletonList(wsFolder));
         // Définit les capacités client — indique au serveur ce que nous

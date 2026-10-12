@@ -348,7 +348,7 @@ public class EditorTapResolver {
                     // « interaction.handlesVisible = reTap && !handlesVisible »).
                     // Un tap ailleurs la referme.
                     //
-                    // ★ Le tap ne NUIT PLUS le drag-select (modèle l'éditeur de référence) :
+                    // ★ Le tap ne NUIT PLUS le drag-select :
                     // l'armement par tap + jitter sous le slop créait une
                     // sélection parasite (« j'ai seulement appuyé »).
                     // Le drag-select s'arme désormais par l'APPUI LONG

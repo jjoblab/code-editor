@@ -5,7 +5,7 @@ import jo.codeeditor.languages.LanguageRegistry;
 import jo.codeeditor.languages.SyntaxFamily;
 
 /**
- * Complétion postfix — inspirée d'les IDE de bureau.
+ * Complétion postfix.
  *
  * <p>L'utilisateur tape {@code obj.if} puis Entrée, et l'éditeur
  * génère {@code if (obj) {\n    \n}}. Les postfixes supportés :</p>

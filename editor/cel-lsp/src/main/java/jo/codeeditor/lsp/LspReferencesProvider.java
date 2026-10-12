@@ -74,14 +74,13 @@ class LspReferencesProvider implements ReferencesProvider {
                     // Lecture compatible API 24 — Path.of +
                     // Files.readAllBytes (API 34+/26+) plantaient sur
                     // Android < 8. IoCompat retire lui-même file://.
-                    String path = uri.startsWith("file://")
-                            ? uri.substring("file://".length()) : uri;
                     String content = IoCompat.readUtf8(uri);
+                    String path = uri;
                     if (content == null) {
                         log("references: fichier illisible " + path);
                         targetOffset = 0;
                     } else {
-                        targetOffset = LspRenameProvider.lspPositionToOffset(content, p);
+                        targetOffset = LspTextUtils.positionToOffset(content, p);
                         if (targetOffset < 0) targetOffset = 0;
                     }
                     String fileName = path.substring(path.lastIndexOf('/') + 1);
