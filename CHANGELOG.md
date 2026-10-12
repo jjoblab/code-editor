@@ -5,10 +5,63 @@ All notable changes to **code-editor-lib** are documented in this file.
 Le format suit la convention [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.55.0] — 2026-10-13 — Lot 2 tactile, jalon J4 : la pill agit, la bande navigue
+
+Quatrième jalon du plan du rapport « édition tactile et contexte visuel »
+(`docs/RAPPORT-TACTILE-CONTEXTE-CODE-EDITOR.md`) : les actions intégrées
+socle de la pill (T2) et trois chantiers P2 à consommateur immédiat en
+démo (S3, S4, D3). Tout est additif, zéro rupture d'API.
+
+### Added
+
+- **Actions intégrées socle de la pill (T2)** —
+  `BuiltinSelectionActions` livre quatre actions via le MÊME SPI que
+  les actions d'hôte (`addSelectionAction` — l'hôte décide, peut
+  retirer par identifiant) : **Duplicate** (duplique la sélection
+  juste après elle-même, une étape d'undo — repli ligne au caret),
+  **Comment** (bascule des commentaires de ligne avec la syntaxe du
+  langage courant — `//`, `#`, `--`, encadrement XML en repli ;
+  estompée pour JSON), **Convert case** (UPPER / lower / Toggle,
+  moteur pur `Locale.ROOT`, sélection ré-épinglée sur le texte
+  transformé pour l'aller-retour) et **Share** (opt-in — Intent
+  `ACTION_SEND` derrière un chooser, `FLAG_ACTIVITY_NEW_TASK` car le
+  contexte d'une vue n'est pas toujours une Activity, échec
+  journalisé sans crash). La démo installe les quatre et retire ses
+  deux actions témoin du jalon T1.
+- **Tap sur une ligne sticky → navigation (S3)** — la bande collée
+  est dessinée par-dessus le gutter ET le texte : un tap sur une
+  rangée centre la ligne d'ORIGINE dans le viewport
+  (`EditorScrollManager.scrollToLineCentered`), AVANT le placement du
+  caret et avant les branches gouttière/fold que la bande recouvre
+  visuellement. Sans sticky actif, le tap reste un placement de caret
+  (anti-faute-de-frappe : hauteur de bande bornée).
+- **Plafond de lignes sticky configurable (S4)** —
+  `setStickyMaxLines(int)` (1 à 5, défaut inchangé = 2 pour ne pas
+  régresser la décision mobile ; 3 à 5 tenable sur tablette) +
+  `getStickyMaxLines()`, refus propre hors plage (valeur conservée).
+  La liste des lignes ACTIVES (au-dessus du viewport, non repliées,
+  plafonnées) vit dans `EditorView.activeStickyLines()` — source
+  unique partagée par le rendu (le calcul local de `drawStickyLines`
+  y est factorisé) et le hit-test de la bande.
+- **Appui long sur un squiggle → copie du message (D3)** — retour
+  terrain : coller le message exact d'un diagnostic ailleurs (rapport
+  de bug, ticket). Mêmes règles de hit que le popup ancré D1 (cœur de
+  plage, bords ±1 exclus, voile Unnecessary non tappable, plus haute
+  sévérité si plusieurs couvrent l'offset) ; le geste est CONSOMMÉ
+  sans sélection de mot ni pill — c'est « copier », pas
+  « sélectionner ». Le presse-papiers passe par `EditorClipboard`
+  (relai `copyToClipboard`, plafond Binder 200 000 caractères).
+
+### Budgets
+
+- Aucun relèvement : J4 tient dans les plafonds relevés en J3
+  (EditorView mesuré 3 456 l. / 172 champs / 260 méthodes publiques
+  sous 4 100 / 190 / 280) — la marge prévue pour T2 a suffi.
+
 ## [3.54.0] — 2026-10-13 — Lot 2 tactile, jalon J3 : les inlays parlent, la main défile
 
 Troisième jalon du plan du rapport « édition tactile et contexte visuel »
-(`docs/RAPPORT-TACTIQUE-CONTEXTE-CODE-EDITOR.md`) : le kind et le tooltip
+(`docs/RAPPORT-TACTILE-CONTEXTE-CODE-EDITOR.md`) : le kind et le tooltip
 des inlay hints, plus trois correctifs de retour terrain (retour du
 propriétaire sur l'APK démo 3.53.0). Tout est additif, zéro rupture
 d'API.
@@ -70,7 +123,7 @@ d'API.
 ## [3.53.0] — 2026-10-13 — Lot 2 tactile, jalon J2 : la lieue visuelle
 
 Deuxième jalon du plan du rapport « édition tactile et contexte visuel »
-(`docs/RAPPORT-TACTIQUE-CONTEXTE-CODE-EDITOR.md`) : le sticky devient
+(`docs/RAPPORT-TACTILE-CONTEXTE-CODE-EDITOR.md`) : le sticky devient
 correct ET bon marché, la loupe devient un instrument de réglage. Tout
 est additif, zéro rupture d'API.
 

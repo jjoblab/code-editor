@@ -20,8 +20,8 @@
 > publique (le SPI et la surface `EditorView` consommés par CodeIDE restent
 > compatibles binairement), garde-fous verts (figures de tests, budgets de
 > lignes, baseline lint), un commit conventionné par changement logique.
-> **Statut** : **jalons J1, J2 et J3 LIVRÉS** (3.52.0 / 3.53.0 /
-> 3.54.0) — J1 a
+> **Statut** : **jalons J1, J2, J3 et J4 LIVRÉS** (3.52.0 /
+> 3.53.0 / 3.54.0 / 3.55.0) — J1 a
 > implémenté les deux P0 : **D1** (popup ancré au tap sur le
 > squiggle : bords ±1 exclus, parité caret par re-tap, mini-liste
 > multi-diagnostics, quick-fixes résolus à l'ouverture, « See all »
@@ -52,11 +52,23 @@
 > trois jalons (SquiggleTap\*, SquigglePopupWidth,
 > SelectionToolbar\*, SelectionDragAutoScroll, StickyDetectCached,
 > StickyStyledRender, MagnifierShows\*, InlayKindStyling,
-> InlayTooltipLongPress), 1 487 tests verts ; plafonds
-> champs/méthodes d'EditorView relevés à 190/280 par décision du
-> propriétaire (session J3). Les chantiers restants (I3-I5, T2,
-> S3-S5, M2-M3 et les autres P2) ne sont PAS encore livrés — ce
-> document reste le plan de référence.
+> InlayTooltipLongPress), J4 « la pill agit, la bande navigue »
+> (3.55.0) a livré **T2** (actions intégrées socle de la pill via le
+> SPI T1 : Duplicate, Comment par syntaxe de langage, Convert case
+> UPPER/lower/Toggle, Share opt-in) et les P2 à consommateur immédiat
+> : **S3** (tap sur une rangée collée → la ligne d'origine est
+> centrée dans le viewport, via la source unique `activeStickyLines`
+> partagée rendu + hit-test), **S4** (`setStickyMaxLines` 1-5, défaut
+> 2, refus propre hors plage) et **D3** (appui long sur un squiggle →
+> message du diagnostic copié au presse-papiers, geste consommé sans
+> sélection). 79 tests dédiés sur les quatre jalons (+
+> DuplicateAction, ToggleCommentAction, ConvertCaseAction,
+> ShareAction, StickyTapNavigates, StickyMaxLines,
+> SquiggleLongPressCopy), 1 508 tests verts ; aucun relèvement de
+> plafond en J4 (la marge J3 a suffi : 3 456 l. / 172 champs / 260
+> méthodes publiques sous 4 100/190/280). Les chantiers restants
+> (I3-I5, S5, T3-T4, M2-M3 et les autres P2) ne sont PAS encore
+> livrés — ce document reste le plan de référence.
 > Conformément à la convention établie avec le rapport du lot 1, ce document
 > est archivé dans `docs/` et remis en copie à l'extérieur du dépôt ; la
 > règle d'interdiction des noms externes (`AGENT.md` §93) s'applique au code,
