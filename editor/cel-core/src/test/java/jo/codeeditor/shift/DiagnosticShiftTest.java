@@ -103,6 +103,22 @@ class DiagnosticShiftTest {
     }
 
     @Test
+    void shiftDiagnostics_tagUnnecessary_préservé() {
+        // Le tag Unnecessary (peinture estompée du code inutilisé)
+        // survit au décalage : l'import mort reste grisé après l'édition.
+        var diags = List.of(
+            new DiagnosticShift.Diagnostic(10, 15, 2, "unused import", true),
+            new DiagnosticShift.Diagnostic(20, 25, 1, "info", false)
+        );
+        EditSpan edit = new EditSpan(5, 0, 3);
+        var shifted = DiagnosticShift.shiftDiagnostics(diags, edit);
+
+        assertTrue(shifted.get(0).unnecessary, "le tag voyage avec le décalage");
+        assertFalse(shifted.get(1).unnecessary);
+        assertEquals(13, shifted.get(0).start, "offsets décalés à l'identique");
+    }
+
+    @Test
     void shiftDiagnostics_deleteConsumesDiagnostic() {
         var diags = List.of(
             new DiagnosticShift.Diagnostic(2, 4, 1, "error")

@@ -48,12 +48,24 @@ class LspDiagnosticsManager {
             for (org.eclipse.lsp4j.Diagnostic lspDiag : params.getDiagnostics()) {
                 int start = editor.positionToOffset(lspDiag.getRange().getStart());
                 int end = editor.positionToOffset(lspDiag.getRange().getEnd());
+                // Sévérité LSP : 1=Erreur, 2=Avertissement, 3=Info, 4=Hint.
+                // Absente → Information (3), pas Warning : la spec 3.17 laisse
+                // le choix au client ; un diagnostic sans sévérité n'a pas
+                // prouvé son urgence — le traiter en avertissement peint des
+                // jaunes injustifiés (Android Studio affiche « information »
+                // quand l'inspection ne précise pas).
                 int severity = lspDiag.getSeverity() != null
-                    ? lspDiag.getSeverity().ordinal() + 1 : 2; // sévérité LSP : 1=Erreur, 2=Avertissement, 3=Info, 4=Hint
+                    ? lspDiag.getSeverity().ordinal() + 1 : 3;
                 // Mappe la sévérité LSP (1=Erreur, 2=Avertissement, 3=Info, 4=Hint) vers la nôtre (3=erreur, 2=avertissement, 1=info)
                 int ourSeverity = severity == 1 ? 3 : severity == 2 ? 2 : 1;
+                // Tag Unnecessary (code inutilisé) — peinture estompée de la
+                // plage au lieu du soulignement (grisé Android Studio).
+                boolean unnecessary = lspDiag.getTags() != null
+                        && lspDiag.getTags().contains(
+                                org.eclipse.lsp4j.DiagnosticTag.Unnecessary);
                 diags.add(new Diagnostic(start, end, ourSeverity,
-                    lspDiag.getMessage(), lspDiag.getCode() != null ? lspDiag.getCode().getLeft() : ""));
+                    lspDiag.getMessage(), lspDiag.getCode() != null ? lspDiag.getCode().getLeft() : "",
+                    unnecessary));
             }
         }
         cachedDiagnostics = new CopyOnWriteArrayList<>(diags);
@@ -100,7 +112,7 @@ class LspDiagnosticsManager {
         List<jo.codeeditor.shift.DiagnosticShift.Diagnostic> out = new ArrayList<>();
         for (Diagnostic d : diags) {
             out.add(new jo.codeeditor.shift.DiagnosticShift.Diagnostic(
-                d.start, d.end, d.severity, d.message));
+                d.start, d.end, d.severity, d.message, d.unnecessary));
         }
         return out;
     }
