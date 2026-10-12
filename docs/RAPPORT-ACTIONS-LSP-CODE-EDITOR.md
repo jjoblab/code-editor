@@ -3,9 +3,10 @@
 
 > **ÉTAT DE LIVRAISON (2026-10-13)** : les 11 chantiers du plan (P0-1 →
 > P2-11) sont livrés — P0-1 à P2-8 en `3.50.0`/`3.50.1` (branche
-> `agent/actions-lsp-3.50.0`), P2-9 à P2-11 en `3.51.0` (branche
-> `agent/actions-lsp-fin-3.51.0`). Détail par version : voir le
-> `CHANGELOG.md` de la racine. La montée côté consommateur (CodeIDE) est
+> `agent/actions-lsp-3.50.0`), P2-9 à P2-11 en `3.51.0`/`3.51.1`
+> (branche `agent/actions-lsp-fin-3.51.0` ; la 3.51.0, frappée par
+> l'incident JitPack 429, est re-publiée à l'identique en 3.51.1).
+> Détail par version : voir le `CHANGELOG.md` de la racine. La montée côté consommateur (CodeIDE) est
 > documentée dans `docs/MISE-A-JOUR-CODEIDE.md`. Résidus assumés :
 > `semanticTokens` non annoncé dans les capacités clientes (aucun
 > consommateur dans l'éditeur — règle « ne pas mentir », cf. P2-7) ;
