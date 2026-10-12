@@ -96,7 +96,7 @@ dependencies {
     // Moteur vintage : exécute les tests JUnit 4 (Robolectric, @Rule
     // TemporaryFolder) sur la même plateforme JUnit 5 que les tests Jupiter
     // (LspModuleTest) — les deux générations cohabitent.
-    testRuntimeOnly("org.junit.vintage:junit-vintage-engine:5.10.2")
+    testRuntimeOnly("org.junit.vintage:junit-vintage-engine:6.1.3")
 }
 
 tasks.withType<JavaCompile>().configureEach {
