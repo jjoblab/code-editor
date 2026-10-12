@@ -53,6 +53,18 @@ final class DemoAnalyzer {
             Pattern.compile("\\b([A-Za-z_]\\w*)\\s*=\\s*(\\d+(?:\\.\\d+)?)\\s*(?=#|$)");
     private static final Pattern INLAY_STRING =
             Pattern.compile("\\b([A-Za-z_]\\w*)\\s*=\\s*(\"[^\"]*\")");
+    /** Premier argument d'un appel — porte le hint de PARAMÈTRE (I1).
+     *  Groupe 1 : nom de la méthode ; groupe 2 : début de l'argument. */
+    private static final Pattern INLAY_ARG =
+            Pattern.compile("\\b([A-Za-z_]\\w*)\\(\\s*([A-Za-z_\"'][\\w.]*)");
+
+    /** Noms de paramètres factices pour les méthodes des échantillons
+     *  (hints de genre « parameter » — italiques, parité IntelliJ). */
+    private static final java.util.Map<String, String> PARAM_NAMES = java.util.Map.of(
+            "ajouter", "texte", "append", "element", "print", "value",
+            "join", "iterable", "field", "default", "rende", "largeur",
+            "filterNot", "predicat", "map", "transformation", "get", "cle",
+            "put", "cle");
 
     private final EditorView view;
     private final EditorSession session;
@@ -146,7 +158,10 @@ final class DemoAnalyzer {
     }
 
     private List<DiagnosticShift.InlayHint> inlayHintsFor(String text) {
-        // Indices de type factices pour les langages non typés.
+        // Indices de type factices pour les langages non typés. J3 (I1 +
+        // I2) : les hints de TYPE portent un genre explicite + un tooltip
+        // direct (appui long → quick doc), et les PREMIERS arguments des
+        // appels connus reçoivent un hint de PARAMÈTRE (italique).
         if (!"python".equals(language) && !"javascript".equals(language)
                 && !"typescript".equals(language)) {
             return Collections.emptyList();
@@ -159,17 +174,38 @@ final class DemoAnalyzer {
             int stop = lineEnd < 0 ? length : lineEnd;
             String content = text.substring(lineStart, stop);
 
+            // Hint de PARAMÈTRE (I1 — genre « parameter », italique) sur
+            // le premier argument d'un appel dont la méthode est connue.
+            if (!content.trim().startsWith("#")) {
+                Matcher arg = INLAY_ARG.matcher(content);
+                if (arg.find()) {
+                    String method = arg.group(1);
+                    String param = PARAM_NAMES.get(method);
+                    if (param != null) {
+                        out.add(new DiagnosticShift.InlayHint(
+                                lineStart + arg.start(2), param + ": ", false,
+                                "parameter",
+                                "Paramètre « " + param + " » de " + method
+                                        + "() — indice factice de la démo (I1 + I2)"));
+                    }
+                }
+            }
+
             Matcher nombre = INLAY_NUMBER.matcher(content);
             if (nombre.find() && !content.trim().startsWith("#")) {
                 boolean decimal = nombre.group(2).contains(".");
+                String type = decimal ? "float" : "int";
                 out.add(new DiagnosticShift.InlayHint(
-                        lineStart + nombre.end(2),
-                        decimal ? ": float" : ": int", false));
+                        lineStart + nombre.end(2), ": " + type, false, "type",
+                        "Type inféré : " + type + " — analyseur factice de la"
+                                + " démo (I1 + I2, appui long sur le hint)"));
             } else {
                 Matcher chaine = INLAY_STRING.matcher(content);
                 if (chaine.find() && !content.trim().startsWith("#")) {
                     out.add(new DiagnosticShift.InlayHint(
-                            lineStart + chaine.end(2), ": str", false));
+                            lineStart + chaine.end(2), ": str", false, "type",
+                            "Type inféré : str — analyseur factice de la"
+                                    + " démo (I1 + I2, appui long sur le hint)"));
                 }
             }
 
