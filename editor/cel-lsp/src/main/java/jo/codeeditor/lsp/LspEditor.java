@@ -335,6 +335,15 @@ public class LspEditor {
         return diagnostics.getCachedDiagnostics();
     }
 
+    /**
+     * Les diagnostics LSP bruts en cache (identité complète : code,
+     * données structurées, source, tags) — base du contexte fidèle des
+     * requêtes d'actions de code. Accès package.
+     */
+    List<org.eclipse.lsp4j.Diagnostic> cachedLspDiagnostics() {
+        return diagnostics.getCachedLspDiagnostics();
+    }
+
     /** Retourne l'identifiant de document texte LSP pour ce fichier. */
     public TextDocumentIdentifier getTextDocumentIdentifier() {
         return new TextDocumentIdentifier(fileUri);

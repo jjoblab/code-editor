@@ -2,7 +2,6 @@ package jo.codeeditor.lsp;
 
 import jo.codeeditor.lang.model.CodeAction;
 import jo.codeeditor.lang.provider.CodeActionsProvider;
-import jo.codeeditor.lang.model.Diagnostic;
 import org.eclipse.lsp4j.services.LanguageServer;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -12,16 +11,24 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Traduit les actions de code du SPI éditeur (quick-fixes, refactors) en
- * requête LSP {@code textDocument/codeAction} — en reconstituant les
- * diagnostics de la ligne pour le contexte — et capture le
- * {@code WorkspaceEdit} de chaque action dans son {@code Runnable}
- * d'application. Instancié par {@link LspLanguage} quand le serveur annonce
- * la capability codeActionProvider.
+ * requête LSP {@code textDocument/codeAction} — en retransmettant dans
+ * le contexte les diagnostics publiés par le serveur POUR LA PLAGE
+ * DEMANDÉE, avec leur identité INTÉGRALE : plage, sévérité, code,
+ * données structurées ({@code data}), source et tags sont conservés
+ * tels quels (diagnostics bruts en cache). Le serveur dérive ses
+ * quick-fixes exacts de cette identité — l'amputer (n'envoyer que
+ * message + sévérité reconstruits) vide structurellement sa réponse.
+ * Capture le {@code WorkspaceEdit} de chaque action dans son
+ * {@code Runnable} d'application. Instancié par {@link LspLanguage}
+ * quand le serveur annonce la capability codeActionProvider.
  */
 class LspCodeActionsProvider implements CodeActionsProvider {
     private final LanguageServerWrapper wrapper;
     private final LspEditor editor;
     private final LspLogSink logSink;
+
+    /** Borné : un serveur muet ne doit pas figer la voie « features ». */
+    private static final long CODE_ACTION_TIMEOUT_MS = 3000;
 
     LspCodeActionsProvider(LanguageServerWrapper wrapper, LspEditor editor, LspLogSink logSink) {
         this.wrapper = wrapper;
@@ -31,48 +38,13 @@ class LspCodeActionsProvider implements CodeActionsProvider {
 
     @Override
     public List<CodeAction> codeActions(CharSequence text, int line) {
-        LanguageServer server = wrapper.getServer();
-        if (server == null) return Collections.emptyList();
-        // Flush didChange en attente (cf. complete). Les
-        // quick-fixes doivent s'appuyer sur le texte live.
-        editor.flushPendingChange();
-        org.eclipse.lsp4j.CodeActionParams params = new org.eclipse.lsp4j.CodeActionParams();
-        params.setTextDocument(editor.getTextDocumentIdentifier());
-        // Convertit la ligne en plage — utilise la ligne entière.
+        if (text == null) return Collections.emptyList();
+        // Plage = ligne entière demandée (compat : le SPI historique
+        // raisonne par ligne).
         org.eclipse.lsp4j.Range range = new org.eclipse.lsp4j.Range(
-            new org.eclipse.lsp4j.Position(line, 0),
-            new org.eclipse.lsp4j.Position(line, Integer.MAX_VALUE));
-        params.setRange(range);
-        // Construit un CodeActionContext correct :
-        //   1. La liste des diagnostics intersectant cette plage — sans
-        //      eux, le codeAction() du serveur rend vide immédiatement
-        //      (JavaTextDocumentService.codeAction L155).
-        //   2. Les CodeActionKinds pris en charge (quickfix + refactor).
-        // Un contexte null fait toujours rendre 0 action au serveur →
-        // aucune ampoule affichée.
-        List<org.eclipse.lsp4j.Diagnostic> intersecting = new ArrayList<>();
-        for (Diagnostic d : editor.getCachedDiagnostics()) {
-            // Reconvertit l'offset éditeur en Position LSP pour obtenir
-            // la ligne.
-            org.eclipse.lsp4j.Position diagPos = editor.offsetToPosition(d.start);
-            if (diagPos.getLine() == line) {
-                org.eclipse.lsp4j.Diagnostic lspDiag = new org.eclipse.lsp4j.Diagnostic();
-                org.eclipse.lsp4j.Position diagStart = editor.offsetToPosition(d.start);
-                org.eclipse.lsp4j.Position diagEnd = editor.offsetToPosition(d.end);
-                lspDiag.setRange(new org.eclipse.lsp4j.Range(diagStart, diagEnd));
-                lspDiag.setMessage(d.message);
-                org.eclipse.lsp4j.DiagnosticSeverity sev;
-                switch (d.severity) {
-                    case 3: sev = org.eclipse.lsp4j.DiagnosticSeverity.Error; break;
-                    case 2: sev = org.eclipse.lsp4j.DiagnosticSeverity.Warning; break;
-                    default: sev = org.eclipse.lsp4j.DiagnosticSeverity.Information; break;
-                }
-                lspDiag.setSeverity(sev);
-                intersecting.add(lspDiag);
-            }
-        }
-        org.eclipse.lsp4j.CodeActionContext ctx = new org.eclipse.lsp4j.CodeActionContext(
-            intersecting,
+            new org.eclipse.lsp4j.Position(Math.max(0, line), 0),
+            new org.eclipse.lsp4j.Position(Math.max(0, line), Integer.MAX_VALUE));
+        return requestCodeActions(text.toString(), range,
             java.util.List.of(
                 org.eclipse.lsp4j.CodeActionKind.QuickFix,
                 org.eclipse.lsp4j.CodeActionKind.Refactor,
@@ -80,9 +52,26 @@ class LspCodeActionsProvider implements CodeActionsProvider {
                 org.eclipse.lsp4j.CodeActionKind.RefactorInline,
                 org.eclipse.lsp4j.CodeActionKind.Source,
                 org.eclipse.lsp4j.CodeActionKind.SourceOrganizeImports));
-        params.setContext(ctx);
-        log("codeAction: requesting for line=" + line
-            + " (context: " + intersecting.size() + " diagnostics)");
+    }
+
+    /**
+     * Le cœur partagé : une requête {@code textDocument/codeAction} pour
+     * la plage donnée, avec le contexte de diagnostics intersectant la
+     * plage (identité complète — cf. {@link LspDiagnosticsManager}).
+     */
+    private List<CodeAction> requestCodeActions(String src, org.eclipse.lsp4j.Range range,
+            List<String> onlyKinds) {
+        LanguageServer server = wrapper.getServer();
+        if (server == null) return Collections.emptyList();
+        // Flush didChange en attente (cf. complete). Les quick-fixes
+        // doivent s'appuyer sur le texte live.
+        editor.flushPendingChange();
+        org.eclipse.lsp4j.CodeActionParams params = new org.eclipse.lsp4j.CodeActionParams();
+        params.setTextDocument(editor.getTextDocumentIdentifier());
+        params.setRange(range);
+        params.setContext(contextFor(range, onlyKinds));
+        log("codeAction: requesting for range " + describe(range)
+            + " (context: " + params.getContext().getDiagnostics().size() + " diagnostics)");
         // ★ Fraîcheur : capture la version du document AVANT d'envoyer la
         // requête — à l'acceptation de l'action (asynchrone), un écart
         // signifie que l'utilisateur a modifié le document : les
@@ -92,7 +81,7 @@ class LspCodeActionsProvider implements CodeActionsProvider {
             CompletableFuture<List<org.eclipse.lsp4j.jsonrpc.messages.Either<org.eclipse.lsp4j.Command, org.eclipse.lsp4j.CodeAction>>> future =
                 server.getTextDocumentService().codeAction(params);
             List<org.eclipse.lsp4j.jsonrpc.messages.Either<org.eclipse.lsp4j.Command, org.eclipse.lsp4j.CodeAction>> result =
-                future.get(3, TimeUnit.SECONDS);
+                future.get(CODE_ACTION_TIMEOUT_MS, TimeUnit.MILLISECONDS);
             if (result == null || result.isEmpty()) {
                 log("codeAction: no results");
                 return Collections.emptyList();
@@ -100,43 +89,85 @@ class LspCodeActionsProvider implements CodeActionsProvider {
             log("codeAction: got " + result.size() + " actions");
             List<CodeAction> out = new ArrayList<>();
             for (org.eclipse.lsp4j.jsonrpc.messages.Either<org.eclipse.lsp4j.Command, org.eclipse.lsp4j.CodeAction> e : result) {
-                String title;
-                String kind = "";
-                // Capture le WorkspaceEdit pour que le Runnable apply
-                // puisse l'appliquer quand l'utilisateur tape l'action.
-                // Sans cela, apply serait null → taper l'action n'aurait
-                // aucun effet visible.
-                final org.eclipse.lsp4j.WorkspaceEdit editToApply;
-                if (e.isLeft()) {
-                    title = e.getLeft().getTitle();
-                    editToApply = null;
-                } else {
-                    org.eclipse.lsp4j.CodeAction ca = e.getRight();
-                    title = ca.getTitle();
-                    kind = ca.getKind() != null ? ca.getKind() : "";
-                    editToApply = ca.getEdit();
-                }
-                final String actionTitle = title;
-                final LspEditor editorRef = editor;
-                Runnable apply = () -> {
-                    if (editToApply == null) {
-                        log("codeAction: '" + actionTitle + "' has no edit — nothing to apply");
-                        return;
-                    }
-                    try {
-                        editorRef.applyWorkspaceEdit(editToApply, versionAtRequest);
-                        log("codeAction: applied '" + actionTitle + "'");
-                    } catch (Exception t) {
-                        log("codeAction: FAILED to apply '" + actionTitle + "': " + t.getMessage());
-                    }
-                };
-                out.add(new CodeAction(title, kind, false, apply));
+                if (e == null) continue;
+                out.add(toAction(e, versionAtRequest));
             }
             return out;
         } catch (Exception e) {
             log("codeAction: ERROR " + e.getClass().getSimpleName() + ": " + e.getMessage());
             return Collections.emptyList();
         }
+    }
+
+    /**
+     * Le contexte de la requête : les diagnostics du cache brut qui
+     * INTERSECTENT la plage demandée — pas seulement ceux qui COMMENCENT
+     * dessus (un diagnostic multi-lignes couvrant le caret doit être
+     * transmis), et surtout transmis SANS RECONSTRUCTION : l'objet LSP
+     * brut porte le code, les données structurées, la source et les tags
+     * dont le serveur a besoin pour proposer des fixes exacts.
+     */
+    private org.eclipse.lsp4j.CodeActionContext contextFor(org.eclipse.lsp4j.Range range,
+            List<String> onlyKinds) {
+        List<org.eclipse.lsp4j.Diagnostic> intersecting = new ArrayList<>();
+        for (org.eclipse.lsp4j.Diagnostic d : editor.cachedLspDiagnostics()) {
+            if (d == null || d.getRange() == null) continue;
+            if (LspTextUtils.rangesIntersect(d.getRange(), range)) {
+                intersecting.add(d);
+            }
+        }
+        org.eclipse.lsp4j.CodeActionContext ctx =
+            new org.eclipse.lsp4j.CodeActionContext(intersecting, onlyKinds);
+        ctx.setTriggerKind(org.eclipse.lsp4j.CodeActionTriggerKind.Invoked);
+        return ctx;
+    }
+
+    /**
+     * Une entrée de réponse LSP → action du SPI. Le {@code WorkspaceEdit}
+     * est capturé pour que le {@code Runnable} apply puisse l'appliquer
+     * quand l'utilisateur choisit l'action — sans cela, apply serait
+     * vide et choisir l'action n'aurait aucun effet visible.
+     */
+    private CodeAction toAction(
+            org.eclipse.lsp4j.jsonrpc.messages.Either<org.eclipse.lsp4j.Command, org.eclipse.lsp4j.CodeAction> e,
+            int versionAtRequest) {
+        String title;
+        String kind = "";
+        final org.eclipse.lsp4j.WorkspaceEdit editToApply;
+        if (e.isLeft()) {
+            org.eclipse.lsp4j.Command command = e.getLeft();
+            title = command != null ? command.getTitle() : "";
+            // Action à commande : sans edit attaché — le retour est
+            // journalisé, rien à appliquer (l'exécution de commande
+            // distante n'est pas encore branchée).
+            editToApply = null;
+        } else {
+            org.eclipse.lsp4j.CodeAction ca = e.getRight();
+            title = ca.getTitle();
+            kind = ca.getKind() != null ? ca.getKind() : "";
+            editToApply = ca.getEdit();
+        }
+        final String actionTitle = title != null ? title : "";
+        final LspEditor editorRef = editor;
+        Runnable apply = () -> {
+            if (editToApply == null) {
+                log("codeAction: '" + actionTitle + "' has no edit — nothing to apply");
+                return;
+            }
+            try {
+                editorRef.applyWorkspaceEdit(editToApply, versionAtRequest);
+                log("codeAction: applied '" + actionTitle + "'");
+            } catch (Exception t) {
+                log("codeAction: FAILED to apply '" + actionTitle + "': " + t.getMessage());
+            }
+        };
+        return new CodeAction(actionTitle, kind, false, apply);
+    }
+
+    /** Description compacte d'une plage pour les journaux. */
+    private static String describe(org.eclipse.lsp4j.Range r) {
+        return r.getStart().getLine() + ":" + r.getStart().getCharacter()
+            + "-" + r.getEnd().getLine() + ":" + r.getEnd().getCharacter();
     }
 
     private void log(String message) {

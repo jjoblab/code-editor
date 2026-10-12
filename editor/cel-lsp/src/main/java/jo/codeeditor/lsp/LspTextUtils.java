@@ -93,6 +93,68 @@ final class LspTextUtils {
     }
 
     /**
+     * Offset → Position LSP (ligne, colonne) calculé sur le TEXTE fourni
+     * (unités de code UTF-16, convention de {@link #positionToOffset}).
+     * Indépendant de toute vue : la conversion reste correcte même quand
+     * aucun éditeur n'est lié (chemins de test et d'arrière-plan).
+     *
+     * <p>L'offset est borné à la longueur du texte ; la colonne compte
+     * depuis le dernier {@code \n} (le {@code \r} d'une fin CRLF
+     * appartient à la ligne au-dessus).</p>
+     */
+    static Position offsetToPosition(String text, int offset) {
+        if (text == null || text.isEmpty()) return new Position(0, 0);
+        int borne = Math.max(0, Math.min(offset, text.length()));
+        int line = 0;
+        int lineStart = 0;
+        for (int i = 0; i < borne; i++) {
+            char c = text.charAt(i);
+            if (c == '\n') {
+                line++;
+                lineStart = i + 1;
+            }
+        }
+        return new Position(line, borne - lineStart);
+    }
+
+    /**
+     * Offset de début (inclus) de la ligne 0-based demandée — borne au
+     * texte : une ligne au-delà de la dernière ramène le début de la
+     * dernière ligne existante.
+     */
+    static int lineStartOffset(String text, int line) {
+        if (text == null || text.isEmpty() || line <= 0) return 0;
+        int lineStart = 0;
+        for (int i = 0; i < line; i++) {
+            int nl = text.indexOf('\n', lineStart);
+            if (nl < 0) break;
+            lineStart = nl + 1;
+        }
+        return lineStart;
+    }
+
+    /**
+     * Ordre lexicographique des positions LSP (ligne, puis colonne) —
+     * aux offsets UTF-16 près.
+     */
+    static int comparePositions(Position a, Position b) {
+        if (a == null || b == null) return 0;
+        int c = Integer.compare(a.getLine(), b.getLine());
+        return c != 0 ? c : Integer.compare(a.getCharacter(), b.getCharacter());
+    }
+
+    /**
+     * Les deux plages se chevauchent-elles (bornes INCLUSES : une plage
+     * vide au caret intersecte le diagnostic qui couvre ce caret —
+     * c'est la sémantique d'ancrage d'une action au point d'invocation).
+     */
+    static boolean rangesIntersect(org.eclipse.lsp4j.Range a, org.eclipse.lsp4j.Range b) {
+        if (a == null || b == null) return false;
+        return comparePositions(a.getEnd(), b.getStart()) >= 0
+                && comparePositions(a.getStart(), b.getEnd()) <= 0;
+    }
+
+    /**
      * Décide si des éditions renvoyées par le serveur sont PÉRIMÉES par
      * rapport à la version du document synchronisée.
      *
