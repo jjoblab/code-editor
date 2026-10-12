@@ -63,6 +63,11 @@ public class EditorPopupManager {
     private final EditorRenamePopup rename;
     /** Popups de diagnostic — collaborateur extrait (corps déplacés à l'identique). */
     private final EditorDiagnosticPopups diagnostics;
+    /** Popup ancré de squiggle (D1) — niveau 1 de la lecture d'un diagnostic. */
+    private final EditorSquigglePopups squiggle;
+    /** Actions de sélection injectées par l'hôte (T1) + leur débordement. */
+    public final jo.codeeditor.view.EditorSelectionActions selActions =
+            new jo.codeeditor.view.EditorSelectionActions();
 
     public EditorPopupManager(EditorView view) {
         this.completion = new EditorCompletionPopup(view, this);
@@ -74,6 +79,7 @@ public class EditorPopupManager {
         this.goToLine = new EditorGoToLinePopup(view);
         this.rename = new EditorRenamePopup(view);
         this.diagnostics = new EditorDiagnosticPopups(view, this);
+        this.squiggle = new EditorSquigglePopups(view, this);
     }
 
 
@@ -228,5 +234,28 @@ public class EditorPopupManager {
     public void showDiagnosticListSheet(int line) { diagnostics.showDiagnosticListSheet(line); }
 
     public void dismissDiagnosticListSheet() { diagnostics.dismissDiagnosticListSheet(); }
+
+    // ════════════════════════════════════════════════════════════════
+    // Popup ancré de squiggle (D1) — corps délégués à EditorSquigglePopups
+    // ════════════════════════════════════════════════════════════════
+
+    /** Ouvre le popup ancré si des squiggles couvrent l'offset (vrai si ouvert). */
+    public boolean squigglePopupAt(int offset, float tapX) {
+        return squiggle.squigglePopupAt(offset, tapX);
+    }
+
+    /** Résout un hit du popup (rangée quick-fix / choix / « See all »). */
+    public void handleSquiggleHit(int hit) { squiggle.handleSquiggleHit(hit); }
+
+    public void dismissSquigglePopup() { squiggle.dismissSquigglePopup(); }
+
+    /**
+     * Ouvre le NavMenu en mode débordement de la pill (T1) : liste
+     * SYNCHRONE des actions injectées non affichées (section « MORE »),
+     * sans résolution GO TO/quick-fixes — zéro nouveau chrome.
+     */
+    public void showSelectionOverflow(int line, int offset) {
+        navMenu.showSelectionOverflow(line, offset);
+    }
 
 }

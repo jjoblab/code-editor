@@ -592,6 +592,10 @@ public class EditorChromePainter {
         if (row.ref instanceof EditorView.CodeAction) {
             return ((EditorView.CodeAction) row.ref).title;
         }
+        // T1 (lot 2) : rangée de débordement de la pill (action d'hôte).
+        if (row.ref instanceof jo.codeeditor.view.SelectionAction) {
+            return ((jo.codeeditor.view.SelectionAction) row.ref).label;
+        }
         if (row.ref instanceof NavigationMenu.NavTarget) {
             return ((NavigationMenu.NavTarget) row.ref).displayName;
         }
@@ -820,6 +824,12 @@ public class EditorChromePainter {
             if (m.isIcon[i]) {
                 drawSelectionToolbarIcon(canvas, m, i, contentColor, itemAlpha, dy, density);
             } else {
+                // T1 : item injecté désactivé → estompé (tap rejeté).
+                boolean disabled = i < m.itemDisabled.length && m.itemDisabled[i];
+                if (disabled) {
+                    contentColor = view.theme.gutterText;
+                    itemAlpha *= 0.55f;
+                }
                 float labelX = m.itemX[i] + m.padX;
                 float labelY = m.y + m.h * 0.5f
                         + view.textPaint.measureText("A") * 0.35f + dy;

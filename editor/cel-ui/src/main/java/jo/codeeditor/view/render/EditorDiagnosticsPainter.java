@@ -517,4 +517,186 @@ public class EditorDiagnosticsPainter {
         view.caretPaint.setStrokeWidth(1f);
         view.caretPaint.setStyle(Paint.Style.FILL);
     }
+
+    // ════════════════════════════════════════════════════════════════
+    // Popup ancré de squiggle (D1)
+    // ════════════════════════════════════════════════════════════════
+
+    /**
+     * Dessine le popup ancré de squiggle (D1) — le niveau 1 de la
+     * lecture d'un diagnostic. Petite carte glass ancrée au-dessus de la
+     * ligne (géométrie partagée
+     * {@code EditorPopupAnchors.squigglePopupMetrics(view)}, aussi
+     * utilisée par le hit-test) : <b>pas de scrim</b> (non modal — un tap
+     * ailleurs referme, re-tap sur la plage → caret).
+     *
+     * <p>Deux modes : <b>mini-liste</b> (une rangée par diagnostic
+     * superposé : point de sévérité + première ligne du message) et
+     * <b>détail</b> (en-tête sévérité + message replié ≤ 3 lignes +
+     * rangées de quick-fixes + rangée « See all » vers la fiche basse
+     * existante — vue complète).</p>
+     */
+    void drawSquigglePopup(Canvas canvas) {
+        jo.codeeditor.view.popup.EditorPopupAnchors.SquigglePopupMetrics m =
+                jo.codeeditor.view.popup.EditorPopupAnchors.squigglePopupMetrics(view);
+        if (m == null) return;
+        float density = m.density;
+        float radius = 8 * density;
+        float padX = jo.codeeditor.view.popup.EditorPopupAnchors.SQUIGGLE_POPUP_PAD_X_DP
+                * density;
+
+        // 1. Carte glass (sans scrim — non modal).
+        RectF rect = new RectF(m.x, m.y, m.x + m.w, m.y + m.h);
+        view.bgPaint.setStyle(Paint.Style.FILL);
+        view.bgPaint.setColor(view.theme.glassBg);
+        canvas.drawRoundRect(rect, radius, radius, view.bgPaint);
+        view.caretPaint.setStyle(Paint.Style.STROKE);
+        view.caretPaint.setStrokeWidth(1f);
+        view.caretPaint.setColor(view.theme.glassBorder);
+        canvas.drawRoundRect(rect, radius, radius, view.caretPaint);
+        view.caretPaint.setStyle(Paint.Style.FILL);
+
+        // 2. Contenu par mode.
+        if (m.isListMode()) {
+            drawSquiggleMiniList(canvas, m, density, padX);
+        } else {
+            drawSquiggleDetail(canvas, m, density, padX);
+        }
+        view.textPaint.setTypeface(view.metrics.getTypeface());
+        view.textPaint.setTextSize(view.metrics.getTextSize());
+        view.caretPaint.setStrokeWidth(1f);
+    }
+
+    /** Mini-liste : une rangée par diagnostic (sévérité + 1re ligne). */
+    private void drawSquiggleMiniList(Canvas canvas,
+            jo.codeeditor.view.popup.EditorPopupAnchors.SquigglePopupMetrics m,
+            float density, float padX) {
+        view.textPaint.setTypeface(view.metrics.getTypeface());
+        view.textPaint.setTextSize(view.metrics.getTextSize() * 0.9f);
+        for (int i = 0; i < m.rows && i < m.choices.size(); i++) {
+            DiagnosticShift.Diagnostic d = m.choices.get(i);
+            float rowY = m.rowTop + i * m.rowH;
+            view.selPaint.setColor(getSquiggleColor(d.severity));
+            canvas.drawCircle(padX + 3.2f * density, rowY + m.rowH * 0.5f,
+                    3.2f * density, view.selPaint);
+            view.textPaint.setColor(view.theme.textColor);
+            String msg = firstLine(d.message);
+            float avail = m.w - padX * 2 - 12 * density;
+            while (msg.length() > 1 && view.textPaint.measureText(msg) > avail) {
+                msg = msg.substring(0, msg.length() - 2) + "…";
+            }
+            canvas.drawText(msg, padX + 12 * density,
+                    rowY + m.rowH * 0.5f + view.metrics.getTextSize() * 0.32f,
+                    view.textPaint);
+        }
+    }
+
+    /** Détail : en-tête sévérité + message replié + quick-fixes + See all. */
+    private void drawSquiggleDetail(Canvas canvas,
+            jo.codeeditor.view.popup.EditorPopupAnchors.SquigglePopupMetrics m,
+            float density, float padX) {
+        DiagnosticShift.Diagnostic d = m.item;
+        int color = getSquiggleColor(d.severity);
+
+        // En-tête : point de sévérité + libellé coloré (semibold).
+        float headCy = m.y + m.headerH * 0.5f;
+        view.selPaint.setColor(color);
+        canvas.drawCircle(padX + 3.2f * density, headCy, 3.2f * density, view.selPaint);
+        view.textPaint.setTypeface(view.metrics.getTypeface());
+        view.textPaint.setTextSize(view.metrics.getTextSize() * 0.85f);
+        view.textPaint.setFakeBoldText(true);
+        view.textPaint.setColor(color);
+        String sevLabel = d.severity == 3 ? "Error" : d.severity == 2 ? "Warning" : "Info";
+        canvas.drawText(sevLabel, padX + 12 * density,
+                headCy + view.metrics.getTextSize() * 0.30f, view.textPaint);
+        view.textPaint.setFakeBoldText(false);
+
+        // Message replié (≤ 3 lignes, motif de la fiche basse).
+        view.textPaint.setColor(view.theme.textColor);
+        view.textPaint.setTextSize(view.metrics.getTextSize() * 0.85f);
+        String msg = d.message != null ? d.message : "";
+        float maxMsgW = m.w - padX * 2;
+        float msgY = m.y + m.headerH
+                + jo.codeeditor.view.popup.EditorPopupAnchors.SQUIGGLE_POPUP_MSG_LINE_DP
+                * density * 0.8f;
+        StringBuilder line = new StringBuilder();
+        int drawn = 1;
+        for (String word : msg.split("\\s+")) {
+            String test = line.length() == 0 ? word : line + " " + word;
+            if (view.textPaint.measureText(test) > maxMsgW && line.length() > 0) {
+                canvas.drawText(line.toString(), padX, msgY, view.textPaint);
+                msgY += jo.codeeditor.view.popup.EditorPopupAnchors.SQUIGGLE_POPUP_MSG_LINE_DP
+                        * density;
+                if (++drawn > m.msgLines) break;
+                line = new StringBuilder(word);
+            } else {
+                line = line.length() == 0 ? new StringBuilder(word)
+                        : line.append(" ").append(word);
+            }
+        }
+        // Ligne finale — tronquée avec « … » si le message déborde.
+        if (line.length() > 0 && drawn <= m.msgLines) {
+            String rest = line.toString();
+            if (drawn == m.msgLines && view.textPaint.measureText(rest) > maxMsgW) {
+                while (rest.length() > 1 && view.textPaint.measureText(rest + "…") > maxMsgW) {
+                    rest = rest.substring(0, rest.length() - 2);
+                }
+                rest += "…";
+            }
+            canvas.drawText(rest, padX, msgY, view.textPaint);
+        }
+
+        // Quick-fixes (résolus à l'ouverture — rendus dès publication).
+        int diagLine = view.session.getDocument().lineForOffset(d.start);
+        List<EditorView.CodeAction> actions = view.codeActionsByLine.get(diagLine);
+        if (actions != null && m.rows > 0) {
+            view.textPaint.setColor(view.theme.gutterText);
+            view.textPaint.setTextSize(view.metrics.getTextSize() * 0.7f);
+            view.textPaint.setFakeBoldText(true);
+            canvas.drawText("QUICK FIXES", padX, m.rowTop - 3 * density, view.textPaint);
+            view.textPaint.setFakeBoldText(false);
+            view.textPaint.setTextSize(view.metrics.getTextSize() * 0.9f);
+            for (int i = 0; i < m.rows && i < actions.size(); i++) {
+                EditorView.CodeAction a = actions.get(i);
+                float rowY = m.rowTop + i * m.rowH;
+                view.selPaint.setColor(a.kind != null && a.kind.equals("quickfix")
+                        ? view.theme.keyword : view.theme.gutterText);
+                canvas.drawCircle(padX + 3.2f * density, rowY + m.rowH * 0.5f,
+                        3.2f * density, view.selPaint);
+                view.textPaint.setColor(view.theme.textColor);
+                String title = a.title != null ? a.title : "";
+                float avail = m.w - padX * 2 - 12 * density;
+                while (title.length() > 1 && view.textPaint.measureText(title) > avail) {
+                    title = title.substring(0, title.length() - 2) + "…";
+                }
+                canvas.drawText(title, padX + 12 * density,
+                        rowY + m.rowH * 0.5f + view.metrics.getTextSize() * 0.32f,
+                        view.textPaint);
+            }
+        }
+
+        // Rangée « See all » (accent + chevron ›).
+        view.textPaint.setColor(view.theme.caret);
+        view.textPaint.setTextSize(view.metrics.getTextSize() * 0.9f);
+        view.textPaint.setFakeBoldText(true);
+        float seeAllCy = m.seeAllY + m.rowH * 0.5f;
+        canvas.drawText("See all", padX + 12 * density,
+                seeAllCy + view.metrics.getTextSize() * 0.32f, view.textPaint);
+        view.textPaint.setFakeBoldText(false);
+        view.caretPaint.setStrokeWidth(1.6f * density);
+        view.caretPaint.setColor(view.theme.caret);
+        float chevX = m.x + m.w - padX;
+        canvas.drawLine(chevX - 4 * density, seeAllCy - 3.5f * density,
+                chevX - 1.5f * density, seeAllCy, view.caretPaint);
+        canvas.drawLine(chevX - 4 * density, seeAllCy + 3.5f * density,
+                chevX - 1.5f * density, seeAllCy, view.caretPaint);
+        view.caretPaint.setStrokeWidth(1f);
+    }
+
+    /** La première ligne d'un message (avant tout \n), sinon vide. */
+    private static String firstLine(String message) {
+        if (message == null || message.isEmpty()) return "";
+        int nl = message.indexOf('\n');
+        return nl >= 0 ? message.substring(0, nl) : message;
+    }
 }

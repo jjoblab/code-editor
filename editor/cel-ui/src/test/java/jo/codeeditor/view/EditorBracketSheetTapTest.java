@@ -203,10 +203,10 @@ public class EditorBracketSheetTapTest {
         view.draw(new Canvas(bmp)); // smoke drawBracketMatchBoxes — pas de crash
     }
 
-    // ── Sheet : le squiggle n'est PAS tappable, chip + dot le sont ──
+    // ── Sheet : tap squiggle → popup ancré (D1), chip + dot → sheet ──
 
     @Test
-    public void sheetTap_onSquiggleDoesNotOpenSheet_placesCaret() {
+    public void sheetTap_onSquiggleDoesNotOpenSheet_placesCaret() throws Exception {
         EditorView view = viewWithDiagnostic(3);
         EditorDocument doc = view.getSession().getDocument();
         int diagStart = view.getSession().getDiagnostics().get(0).start;
@@ -220,10 +220,24 @@ public class EditorBracketSheetTapTest {
 
         tap(view, tapX, tapY);
 
+        // D1 (lot 2) : le squiggle EST tappable — mais pour le POPUP ANCRÉ
+        // (niveau 1), jamais pour la fiche basse (v2.32 inchangé : seule la
+        // chip / le point de gouttière l'ouvrent).
         assertFalse("tap on the squiggle must NOT open the diagnostic sheet (v2.32)",
             view.isDiagnosticPopupVisible());
-        // Le caret se place normalement sur la ligne tapée (branche else →
-        // session.setCaret).
+        assertTrue("tap on the squiggle opens the ANCHORED popup (D1)",
+            view.squigglePopupVisible);
+        // Le premier tap ARME (motif pendingTapDismiss) : le caret n'est
+        // pas encore placé.
+        assertFalse("first tap arms, caret not placed yet",
+            view.getSession().getSelection().isCursor()
+                && view.getSession().getSelection().start >= doc.lineStart(line));
+
+        // Le re-tap (tap isolé, fenêtre multi-tap écoulée) referme le popup
+        // et POSE le caret sur la ligne tapée (parité caret).
+        Thread.sleep(320);
+        tap(view, tapX, tapY);
+        assertFalse(view.squigglePopupVisible);
         int caret = view.getSession().getSelection().start;
         assertTrue("caret should be placed on the tapped line, was " + caret,
             caret >= doc.lineStart(line) && caret <= doc.lineEnd(line));

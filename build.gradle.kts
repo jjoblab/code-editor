@@ -16,7 +16,7 @@ plugins {
 }
 
 group = "jo.codeeditor"
-version = "3.51.1"
+version = "3.52.0"
 
 // Propage group/version à chaque module pour que les publications
 // `maven-publish` (déclarées dans le build.gradle.kts de chaque module)

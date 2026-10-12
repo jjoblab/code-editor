@@ -384,6 +384,9 @@ public class EditorRenderer {
         if (view.diagnosticChipsEnabled) {
             diagnostics.drawDiagnosticChips(canvas, doc, firstDocVisible, lastDocVisible, lineHeight, paddingTop);
         }
+        // Popup ancré de squiggle (D1) — niveau 1 de lecture, sous les
+        // fiches basses (modales) et au-dessus des chips.
+        diagnostics.drawSquigglePopup(canvas);
         diagnostics.drawDiagnosticListSheet(canvas);
         chrome.drawSelectionToolbar(canvas);
         diagnostics.drawDiagnosticPopup(canvas);

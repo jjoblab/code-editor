@@ -131,10 +131,9 @@ public class EditorView extends View {
     public int findCurrentIndex = -1;
 
     // ── Popup de complétion ────────────────────────────────────────
-    // Complétion simple par mots-clés intégrée à la vue. L'hôte peut
-    // aussi piloter en externe un CompletionController plus riche et
-    // alimenter les items via setCompletionItems(items, tokenStart,
-    // prefix).
+    // Complétion intégrée par mots-clés ; l'hôte peut piloter un
+    // CompletionController externe via setCompletionItems(items,
+    // tokenStart, prefix).
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
     public final List<jo.codeeditor.completion.CompletionSession.Item> completionItems = new ArrayList<>();
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
@@ -147,13 +146,10 @@ public class EditorView extends View {
     public String completionPrefix = "";
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
     public boolean completionVisible = false;
-    // Cache côté client pour le filtrage de complétion.
-    // Quand le provider retourne des items pour un token, on les met en
-    // cache comme jeu de « base ». Aux frappes suivantes qui étendent le
-    // même token, on filtre le jeu en cache par préfixe (insensible à la
-    // casse + fuzzy) au lieu de re-requêter le provider — le popup reste
-    // ainsi réactif et stable pendant qu'un serveur LSP lent rattrape
-    // son retard.
+    // Cache de filtrage de complétion : le provider retourne un jeu de
+    // base pour un token ; les frappes suivantes du MÊME token filtrent
+    // en cache par préfixe (insensible casse + fuzzy) au lieu de
+    // re-requêter — réactif pendant qu'un serveur lent rattrape.
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
     public List<jo.codeeditor.completion.CompletionSession.Item> completionBaseItems = new ArrayList<>();
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
@@ -168,10 +164,9 @@ public class EditorView extends View {
     public CompletionProvider completionProvider;
 
     // ── Retour à la ligne (word wrap) ──────────────────────────────
-    // Quand activé, les lignes longues se replient sur plusieurs rangées
-    // visuelles dans la zone de texte. Le modèle de wrap met en cache le
-    // nombre de rangées par ligne et fournit la correspondance
-    // O(log L) ligne-doc ↔ rangée-visuelle via sommes préfixes.
+    // Les lignes longues se replient en rangées visuelles ; le modèle
+    // cache les rangées par ligne et donne la correspondance O(log L)
+    // ligne-doc ↔ rangée-visuelle (sommes préfixes).
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
     public boolean wordWrap = false;
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
@@ -248,13 +243,11 @@ public class EditorView extends View {
         return wrapGeometry.wrapRowsFor(line, lineLen);
     }
 
-    // ── Cache de rendu par ligne ──────────────────────────────────
-    // Met en cache, par ligne de doc, la StyledLine plus les pièces
-    // d'inlay filtrées par ligne + les spans sémantiques + les tables
-    // de conversion colonnes brutes↔visuelles. Validé par un
-    // triple-stamp (rev texte + rev inlay + rev sém) pour qu'une
-    // édition n'invalide que les lignes dont le texte a réellement
-    // changé — pas tout le viewport. Éviction LRU à 512 entrées.
+    // ── Cache de rendu par ligne ─────────────────────────────────
+    // Par ligne de doc : StyledLine + inlays filtrés + spans sém +
+    // tables colonnes↔visuelles. Triple-stamp (rev texte+inlay+sém) :
+    // une édition n'invalide que les lignes réellement changées.
+    // Éviction LRU 512.
     final LineRenderCache renderCache = new LineRenderCache();
 
     // ── Index de pliage à sommes préfixes ──────────────────────────
@@ -309,10 +302,9 @@ public class EditorView extends View {
     }
 
     // ── Cache de layouts façonnés adressé par contenu ─────────────
-    // ~25 % des lignes d'un fichier réel sont identiques octet pour
-    // octet ; cette LRU vit dans EditorShapedLayoutCache et mémoïse le
-    // layout façonné par CONTENU de ligne (relais ci-dessous pour le
-    // chemin de dessin et les tests).
+    // ~25 % des lignes réelles sont identiques octet pour octet ; LRU
+    // dans EditorShapedLayoutCache mémoïsant le layout par CONTENU
+    // (relais ci-dessous pour le dessin et les tests).
     final EditorShapedLayoutCache shapedCache = new EditorShapedLayoutCache(this);
     // Construction des entrées de cache par ligne + correspondance de
     // colonnes brute↔visuelle (inlays) — possédées par
@@ -367,12 +359,10 @@ public class EditorView extends View {
         };
 
     // ── Popup d'aide de signature ────────────────────────────────
-    // Affiche l'aide de signature de fonction au-dessus du caret quand
-    // le caret est dans un appel de fonction. Ancré AU-DESSUS de la ligne
-    // du caret (contrairement à la complétion, qui est EN DESSOUS).
-    // Repli sur un popup synthétique « function(…) param N » quand aucun
-    // résolveur n'est branché — utile pour la démo et pour les langages
-    // sans serveur de langage.
+    // Aide de signature au-dessus du caret dans un appel de fonction
+    // (contrairement à la complétion, EN DESSOUS). Repli synthétique
+    // « function(…) param N » sans résolveur (démo, langages sans
+    // serveur).
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
     public final jo.codeeditor.completion.SignatureHelpController signatureHelpController =
         new jo.codeeditor.completion.SignatureHelpController();
@@ -395,10 +385,9 @@ public class EditorView extends View {
     }
 
     // ── Popup quick doc ───────────────────────────────────────────
-    // Affiche la documentation du symbole à la position caret / survol.
-    // Desktop : un survol > 500ms déclenche. Mobile : un long-press sur
-    // le symbole déclenche. Fermé par un tap ailleurs, scroll, édition
-    // ou Échap.
+    // Doc du symbole au caret/survol : survol > 500ms (desktop),
+    // long-press (mobile) ; fermé par tap ailleurs, scroll, édition,
+    // Échap.
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
     public QuickDocResolver quickDocResolver;
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
@@ -504,14 +493,10 @@ public class EditorView extends View {
     }
 
     // ════════════════════════════════════════════════════════════════
-    // Menu contextuel unifié (NavMenu)
+    // Menu contextuel unifié (NavMenu) — ouvert par « Actions ⋯ » de la
+    // pill : sections GO TO / QUICK FIXES / INTENTIONS (si non-vides) +
+    // MORE (débordement T1) ; pick GO TO multi-cibles → mode RESULTS.
     // ════════════════════════════════════════════════════════════════
-    // Le bouton « Actions ⋯ » de la toolbar de sélection ouvre le menu
-    // contextuel unifié de l'éditeur : sections GO TO (options de navigation
-    // applicables au caret), QUICK FIXES (kind quickfix) et INTENTIONS
-    // (autres kinds), chacune affichée seulement si non-vide — ou le note
-    // « Nothing found in source. » quand tout est vide. Un pick GO TO
-    // multi-cibles bascule en mode RESULTS (picker de cibles).
 
     /** Le menu est-il visible ? */
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
@@ -636,10 +621,8 @@ public class EditorView extends View {
     }
 
     // ── Câblage des providers LSP ─────────────────────────────────
-    // Les résolveurs suivants pontent les providers du SPI Language
-    // (definition, references, document highlights, rename, formatter,
-    // inlay hints) vers les chemins UI / dessin de l'éditeur.
-    // setLanguage() les branche automatiquement quand le provider SPI
+    // Les résolveurs pontent les providers du SPI Language vers les
+    // chemins UI/dessin ; setLanguage() les branche quand le provider
     // retourne non-null.
 
     /** Résolveur du go-to-definition. Retourne une liste de localisations cibles. */
@@ -795,15 +778,11 @@ public class EditorView extends View {
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
     public boolean showNonPrintable = false;
 
-    // Bascule de visibilité du caret. Défaut true (caret visible).
-    // Découple « cacher le caret » de EditorSession.setReadOnly(boolean) :
-    // setReadOnly(true) bloque AUSSI les mutations programmatiques
-    // (replaceRange dans appendLine/setContent/…) → l'utiliser pour
-    // empêcher la frappe ET cacher le caret laisserait la console
-    // vide à vie.
-    // ConsoleLogView passe donc setFocusable(false) (bloque l'IME)
-    // + setCaretVisible(false) (cache le caret) sans toucher à setReadOnly
-    // (le programme peut muter le document). Voir EditorRenderer.drawCaret.
+    // Bascule de visibilité du caret. Défaut true. Découple « cacher le
+    // caret » de setReadOnly(true) (qui bloquerait AUSSI les mutations
+    // programmatiques — la console resterait vide à vie).
+    // ConsoleLogView : setFocusable(false) + setCaretVisible(false),
+    // sans setReadOnly. Voir EditorRenderer.drawCaret.
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
     public boolean caretVisible = true;
 
@@ -853,11 +832,9 @@ public class EditorView extends View {
     public IndentGuideStyle indentGuideStyle = IndentGuideStyle.INDENT_WITH_SCOPE;
 
     // ── Couches de surcharge ─────────────────────────────────────
-    // Overlays légers dessinés au Canvas : chips de diagnostic, toolbar
-    // de sélection, popup go-to-line, popup rename, feuille de diagnostic.
-    // go-to-line et rename utilisent un vrai PopupWindow Android +
-    // EditText (les versions Canvas seul ne pouvaient pas recevoir la
-    // saisie clavier).
+    // Overlays Canvas : chips, pill de sélection, go-to-line/rename
+    // (vrais PopupWindow + EditText — le Canvas seul ne reçoit pas la
+    // saisie), feuille de diagnostic.
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
     public boolean diagnosticChipsEnabled = true;
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
@@ -925,21 +902,28 @@ public class EditorView extends View {
     public static final float DIAG_CHIP_GAP_CHARS = 3f;
 
     // ── Feuille de liste de diagnostics groupée ──────────────────
-    // Regroupement par ligne de départ (diagnosticsByStartLine) : quand
-    // une ligne porte PLUSIEURS diagnostics, sa chip affiche un badge de
-    // compte et son tap ouvre d'abord cette feuille groupée — chaque
-    // diagnostic commençant sur la ligne a une rangée (point de sévérité +
-    // message) ; taper une rangée ouvre le popup par diagnostic avec les
-    // quick fixes. Sans cela, la chip/gouttière ne montrerait que le
-    // diagnostic le PLUS sévère de la ligne : un avertissement caché
-    // derrière une erreur sur la même ligne serait inatteignable.
-    // -1 = caché.
+    // Par ligne de départ : une ligne à PLUSIEURS diagnostics → badge de
+    // compte sur la chip + feuille groupée (une rangée par diagnostic,
+    // tap → popup de détail + quick fixes). Sinon la chip/gouttière ne
+    // montrerait que le plus sévère (avertissement masqué par erreur).
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
     public int diagnosticListSheetLine = -1;
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
     public static final float DIAG_LIST_ROW_DP = 44f;
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
     public static final int DIAG_LIST_MAX_ROWS = 8;
+
+    // ── Popup ancré de squiggle (D1) ─────────────────────────────
+    // Niveau 1 de lecture : tap au cœur d'un squiggle → fiche compacte
+    // ancrée, non modale (re-tap → caret) ; multi → mini-liste ;
+    // « See all » → fiche basse. Logique : EditorSquigglePopups ;
+    // géométrie : EditorPopupAnchors.squigglePopupMetrics.
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public boolean squigglePopupVisible = false;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public DiagnosticShift.Diagnostic squigglePopupItem = null;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public List<DiagnosticShift.Diagnostic> squigglePopupChoices = new ArrayList<>();
 
     // ── Poignées de sélection (mobile) ────────────────────────────
     // Après un long-press ou un double-tap, deux poignées déplaçables
@@ -1477,12 +1461,9 @@ public class EditorView extends View {
         // par le chemin de dessin, donc il meurt avec la vue.
         caretAnim.cancelGlide();
         // ★ B21h : purge les listeners session→vue — une session qui
-        // survit au détachement de sa vue (hôte recyclant les sessions
-        // entre onglets) ne doit plus la retenir fortement (imeBridge →
-        // vue), sinon la vue et tout son graphe (popups, caches, painter,
-        // loupe) fuient jusqu'à la mort de la session. setSession(null)
-        // purge déjà (B21e) — ceci couvre l'hôte qui garde la session
-        // posée dans la vue démontée. onAttachedToWindow repose.
+        // survit au détachement (hôte recyclant les sessions) ne doit
+        // plus retenir la vue (sinon tout son graphe fuie jusqu'à la
+        // mort de la session). onAttachedToWindow repose.
         if (session != null) {
             session.setImeListener(null);
             session.setOnLinesShiftedListener(null);
@@ -2348,11 +2329,12 @@ public class EditorView extends View {
         if (diagnosticPopupVisible) dismissDiagnosticPopup();
         // Le menu contextuel unifié se referme aussi sur édition.
         if (navMenuVisible) dismissNavMenu();
+        // Le popup ancré de squiggle aussi : les plages diagnostiquées
+        // bougent à l'édition.
+        if (squigglePopupVisible) popupManager.dismissSquigglePopup();
         // Referme la toolbar de sélection à l'édition — la sélection a pu
-        // bouger ou être remplacée. Réinitialise aussi l'item pressé
-        // (feedback) + les poignées, et annule le tap-dismiss différé —
-        // committer un caret tapé AVANT l'édition déplacerait le caret
-        // après l'insert.
+        // bouger ; annule aussi le tap-dismiss différé (un caret tapé
+        // AVANT l'insert serait périmé après).
         selectionToolbarVisible = false;
         selectionToolbarPressedIdx = -1;
         handlesVisible = false;
@@ -2895,6 +2877,25 @@ public class EditorView extends View {
     /** Referme le menu contextuel unifié. */
     public void dismissNavMenu() {
         popupManager.dismissNavMenu();
+    }
+
+    /**
+     * Injecte une action d'hôte dans la pill de sélection (T1, lot 2) :
+     * libellé entre les canoniques d'édition et les icônes Docs/Actions,
+     * uniquement avec une vraie sélection ; au-delà de la largeur de vue
+     * les suivantes basculent dans « ⋯ » (NavMenu, section « MORE »).
+     * Un tap exécute {@code perform} puis referme la pill (contrat
+     * Copy/Cut/Paste) ; {@code enabled} à false → estompée, tap rejeté.
+     */
+    public void addSelectionAction(SelectionAction action) {
+        popupManager.selActions.add(action);
+        invalidate();
+    }
+
+    /** Retire la première action injectée d'identifiant {@code id}. */
+    public void removeSelectionAction(String id) {
+        popupManager.selActions.remove(id);
+        invalidate();
     }
 
     /**

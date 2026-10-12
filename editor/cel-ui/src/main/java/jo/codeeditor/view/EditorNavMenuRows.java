@@ -53,7 +53,8 @@ class EditorNavMenuRows {
         }
         boolean empty = view.navMenuOptions.isEmpty()
                 && view.navMenuQuickFixes.isEmpty()
-                && view.navMenuIntentions.isEmpty();
+                && view.navMenuIntentions.isEmpty()
+                && view.popupManager.selActions.overflow.isEmpty();
         if (empty) {
             rows.add(new EditorView.NavMenuRow(EditorView.NavMenuRow.TYPE_NOTHING, 0, 0, null));
             return rows;
@@ -80,6 +81,19 @@ class EditorNavMenuRows {
             for (int i = 0; i < view.navMenuIntentions.size(); i++) {
                 rows.add(new EditorView.NavMenuRow(EditorView.NavMenuRow.TYPE_ACTION, i,
                         EditorView.NavMenuRow.SECTION_INTENTIONS, view.navMenuIntentions.get(i)));
+            }
+        }
+        // T1 (lot 2) : débordement de la pill de sélection — les actions
+        // injectées non affichées, peuplées par la MÉTRIQUE de la pill
+        // (source unique). Une rangée TYPE_ACTION par action (réf
+        // SelectionAction), section INTENTIONS (icône ampoule).
+        if (!view.popupManager.selActions.overflow.isEmpty()) {
+            rows.add(new EditorView.NavMenuRow(EditorView.NavMenuRow.TYPE_HEADER, 0,
+                    EditorView.NavMenuRow.SECTION_INTENTIONS, "MORE"));
+            for (int i = 0; i < view.popupManager.selActions.overflow.size(); i++) {
+                rows.add(new EditorView.NavMenuRow(EditorView.NavMenuRow.TYPE_ACTION, i,
+                        EditorView.NavMenuRow.SECTION_INTENTIONS,
+                        view.popupManager.selActions.overflow.get(i)));
             }
         }
         return rows;

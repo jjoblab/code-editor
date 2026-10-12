@@ -42,6 +42,20 @@ public class EditorPopupHitTester {
     }
 
     /**
+     * Le hit du popup ancré de squiggle (D1) à (x, y) : -1 hors panneau,
+     * l'index de rangée actionnable (quick-fix en mode détail, diagnostic
+     * en mode mini-liste), ou {@code rows} pour la rangée « See all »
+     * (sentinelle). Délègue la géométrie à
+     * {@link EditorPopupAnchors#squigglePopupMetrics(EditorView)}.
+     */
+    public int hitSquigglePopup(float x, float y) {
+        EditorPopupAnchors.SquigglePopupMetrics m =
+                EditorPopupAnchors.squigglePopupMetrics(view);
+        if (m == null) return -1;
+        return m.hit(x, y);
+    }
+
+    /**
      * L'index de la rangée du menu contextuel unifié à (x, y), ou -1.
      * Seules les rangées ACTIONNABLES (option / action / target) comptent —
      * les headers, « Nothing found » et les positions hors carte rendent -1.
@@ -89,6 +103,17 @@ public class EditorPopupHitTester {
                 }
                 break;
             case EditorView.NavMenuRow.TYPE_ACTION: {
+                // T1 (lot 2) : une rangée de débordement de la pill — la
+                // réf est une SelectionAction d'hôte, pas une CodeAction.
+                if (row.ref instanceof jo.codeeditor.view.SelectionAction) {
+                    jo.codeeditor.view.SelectionAction sa =
+                            (jo.codeeditor.view.SelectionAction) row.ref;
+                    if (sa.isEnabled() && sa.perform != null) {
+                        view.dismissNavMenu();
+                        sa.perform.run();
+                    }
+                    break;
+                }
                 EditorView.CodeAction action = view.navMenuActionAt(row);
                 if (action != null) view.popupManager.navMenuPickAction(action);
                 break;

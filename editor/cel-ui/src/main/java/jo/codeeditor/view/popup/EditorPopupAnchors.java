@@ -1,6 +1,7 @@
 package jo.codeeditor.view.popup;
 
 import jo.codeeditor.view.EditorView;
+import jo.codeeditor.view.SelectionAction;
 import jo.codeeditor.view.preview.EditorPreviewController;
 
 import androidx.annotation.RestrictTo;
@@ -237,13 +238,212 @@ public final class EditorPopupAnchors {
     }
 
     // ════════════════════════════════════════════════════════════════
+    // Popup ancré de squiggle (D1)
+    // ════════════════════════════════════════════════════════════════
+
+    /** Largeur max du popup ancré de squiggle. */
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static final float SQUIGGLE_POPUP_MAX_WIDTH_DP = 320f;
+    /** Écart entre la ligne ancre et le popup. */
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static final float SQUIGGLE_POPUP_GAP_DP = 6f;
+    /** Hauteur d'en-tête (point de sévérité + libellé) du popup de détail. */
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static final float SQUIGGLE_POPUP_HEADER_DP = 24f;
+    /** Hauteur d'une ligne de message replié (≤ 3 lignes). */
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static final float SQUIGGLE_POPUP_MSG_LINE_DP = 17f;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static final int SQUIGGLE_POPUP_MAX_MSG_LINES = 3;
+    /** Hauteur d'une rangée (quick-fix ou « See all ») du popup de détail. */
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static final float SQUIGGLE_POPUP_ROW_DP = 32f;
+    /** Quick-fixes affichés au maximum dans le popup compact. */
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static final int SQUIGGLE_POPUP_MAX_QUICK_FIX_ROWS = 3;
+    /** Hauteur d'une rangée de la mini-liste multi-diagnostics. */
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static final float SQUIGGLE_POPUP_LIST_ROW_DP = 34f;
+    /** Rangées maximum de la mini-liste. */
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static final int SQUIGGLE_POPUP_MAX_LIST_ROWS = 6;
+    /** Hauteur du micro-libellé « QUICK FIXES ». */
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static final float SQUIGGLE_POPUP_LABEL_DP = 14f;
+    /** Padding horizontal interne du popup. */
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static final float SQUIGGLE_POPUP_PAD_X_DP = 12f;
+    /** Padding bas interne du popup. */
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static final float SQUIGGLE_POPUP_PAD_BOTTOM_DP = 6f;
+
+    /**
+     * Géométrie partagée du popup ancré de squiggle (D1) — source unique
+     * de vérité pour la passe de dessin
+     * ({@code EditorDiagnosticsPainter.drawSquigglePopup}) et le hit-test
+     * ({@code EditorPopupHitTester.hitSquigglePopup}).
+     *
+     * <p>Deux modes : <b>mini-liste</b> (plusieurs diagnostics couvrent
+     * l'offset tapé — une rangée par diagnostic, {@link #choices}) et
+     * <b>détail</b> (un diagnostic — {@link #item}, message replié +
+     * rangées de quick-fixes + rangée « See all »). Ancrage : au-dessus de
+     * la ligne du diagnostic (flip en dessous si pas de place), X ancré au
+     * centre du mot diagnostiqué, clampé dans la zone de texte.</p>
+     */
+    public static SquigglePopupMetrics squigglePopupMetrics(EditorView view) {
+        if (!view.squigglePopupVisible || view.session == null) return null;
+        DiagnosticShift.Diagnostic item = view.squigglePopupItem;
+        List<DiagnosticShift.Diagnostic> choices = view.squigglePopupChoices;
+        boolean listMode = choices != null && !choices.isEmpty();
+        if (!listMode && item == null) return null;
+        float density = view.getResources().getDisplayMetrics().density;
+        jo.codeeditor.document.EditorDocument doc = view.session.getDocument();
+
+        SquigglePopupMetrics m = new SquigglePopupMetrics();
+        m.density = density;
+        m.choices = listMode ? choices : java.util.Collections.emptyList();
+        m.item = item;
+        m.w = Math.min(SQUIGGLE_POPUP_MAX_WIDTH_DP * density,
+                view.getWidth() - 2 * SQUIGGLE_POPUP_GAP_DP * density);
+
+        // ── Contenu : hauteurs par mode ─────────────────────────────
+        float rowH;
+        float contentTop;
+        if (listMode) {
+            m.rows = Math.min(m.choices.size(), SQUIGGLE_POPUP_MAX_LIST_ROWS);
+            rowH = SQUIGGLE_POPUP_LIST_ROW_DP * density;
+            m.rowH = rowH;
+            contentTop = 0f;
+        } else {
+            int line = doc.lineForOffset(item.start);
+            List<EditorView.CodeAction> actions = view.codeActionsByLine.get(line);
+            int nActions = actions != null
+                    ? Math.min(actions.size(), SQUIGGLE_POPUP_MAX_QUICK_FIX_ROWS) : 0;
+            view.textPaint.setTypeface(view.metrics.getTypeface());
+            view.textPaint.setTextSize(view.metrics.getTextSize() * 0.85f);
+            String msg = item.message != null ? item.message : "";
+            int msgLines = Math.min(countWrappedLines(view, msg,
+                    m.w - 2 * SQUIGGLE_POPUP_PAD_X_DP * density),
+                    SQUIGGLE_POPUP_MAX_MSG_LINES);
+            rowH = SQUIGGLE_POPUP_ROW_DP * density;
+            m.rowH = rowH;
+            m.rows = nActions;
+            m.seeAll = true;
+            m.headerH = SQUIGGLE_POPUP_HEADER_DP * density;
+            m.msgLines = Math.max(1, msgLines);
+            contentTop = m.headerH + m.msgLines * SQUIGGLE_POPUP_MSG_LINE_DP * density
+                    + (nActions > 0 ? SQUIGGLE_POPUP_LABEL_DP * density : 0f);
+        }
+        m.h = contentTop + m.rows * rowH
+                + (m.seeAll ? rowH : 0f) + SQUIGGLE_POPUP_PAD_BOTTOM_DP * density;
+
+        // ── Ancrage : au-dessus de la ligne du diagnostic, sinon dessous ──
+        DiagnosticShift.Diagnostic anchor = listMode ? m.choices.get(0) : item;
+        int anchorLine = doc.lineForOffset(anchor.start);
+        float lineTop = view.docLineToY(anchorLine) - view.vOffset;
+        float gap = SQUIGGLE_POPUP_GAP_DP * density;
+        m.y = lineTop - gap - m.h;
+        if (m.y < 4 * density) {
+            // Pas de place au-dessus — bascule SOUS la ligne (motif complétion).
+            m.y = lineTop + view.metrics.getLineHeight() + gap;
+        }
+        if (m.y + m.h > view.getHeight() - 4 * density) {
+            m.y = Math.max(4 * density, view.getHeight() - m.h - 4 * density);
+        }
+        if (m.y < 0) m.y = 0;
+
+        // X ancré au centre du mot diagnostiqué (clamp zone de texte).
+        int lineStart = doc.lineStart(anchorLine);
+        int lineLen = doc.lineEnd(anchorLine) - lineStart;
+        int startCol = jo.codeeditor.view.EditorView.clamp(anchor.start - lineStart,
+                0, lineLen);
+        int endCol = jo.codeeditor.view.EditorView.clamp(anchor.end - lineStart,
+                0, lineLen);
+        if (endCol <= startCol) endCol = startCol + 1;
+        float textAreaLeft = view.metrics.getGutterWidth() + view.metrics.getPadLeft();
+        float charWidth = view.metrics.getCharWidth();
+        float midX = textAreaLeft
+                + view.visualColFor(anchorLine, (startCol + endCol) / 2) * charWidth
+                - view.hOffset;
+        m.x = midX - m.w * 0.5f;
+        float minX = view.metrics.getGutterWidth() + 4 * density;
+        float maxX = view.getWidth() - m.w - 4 * density;
+        if (m.x < minX) m.x = minX;
+        if (m.x > maxX) m.x = Math.max(minX, maxX);
+
+        m.rowTop = m.y + contentTop;
+        m.seeAllY = m.rowTop + m.rows * rowH;
+        view.textPaint.setTypeface(view.metrics.getTypeface());
+        view.textPaint.setTextSize(view.metrics.getTextSize());
+        return m;
+    }
+
+    /**
+     * Géométrie du popup ancré de squiggle : le panneau + les rangées
+     * actionnables (quick-fixes en mode détail, diagnostics en mode
+     * liste) + la rangée « See all » (mode détail uniquement). Hit-test :
+     * {@link #hit(float, float)} → -1 hors panneau, 0..{@code rows}-1 =
+     * rangée, {@code rows} = « See all » (si présent).
+     */
+    public static final class SquigglePopupMetrics {
+        /** Le diagnostic détaillé (mode détail, primaire en mode liste). */
+        public DiagnosticShift.Diagnostic item;
+        /** Les rangées de la mini-liste (vide en mode détail). */
+        public List<DiagnosticShift.Diagnostic> choices;
+        public float x, y, w, h;
+        public float rowH;
+        /** Y du HAUT de la première rangée actionnable. */
+        public float rowTop;
+        /** Nombre de rangées actionnables (quick-fixes ou choix). */
+        public int rows;
+        /** Rangée « See all » présente (mode détail). */
+        public boolean seeAll;
+        /** Y du HAUT de la rangée « See all ». */
+        public float seeAllY;
+        /** Hauteur d'en-tête (mode détail). */
+        public float headerH;
+        /** Lignes de message replié (mode détail). */
+        public int msgLines;
+        /** Densité écran (dessin). */
+        public float density;
+
+        /** Vrai en mode mini-liste multi-diagnostics. */
+        public boolean isListMode() {
+            return choices != null && !choices.isEmpty();
+        }
+
+        /**
+         * Le hit à (px, py) : -1 hors panneau, l'index de rangée
+         * (0..rows-1), ou {@code rows} pour la rangée « See all »
+         * (sentinelle — uniquement présente en mode détail).
+         */
+        public int hit(float px, float py) {
+            if (px < x || px > x + w || py < y || py > y + h) return -1;
+            if (seeAll && py >= seeAllY && py < seeAllY + rowH) return rows;
+            if (py < rowTop) return -1;
+            int row = (int) ((py - rowTop) / rowH);
+            if (row < 0 || row >= rows) return -1;
+            return row;
+        }
+    }
+
+    // ════════════════════════════════════════════════════════════════
     // Toolbar de sélection
     // ════════════════════════════════════════════════════════════════
 
     /**
      * Géométrie partagée + liste d'actions de la toolbar flottante de
-     * sélection. SOURCE
-     * UNIQUE de vérité pour le rendu ET le hit-test.
+     * sélection. SOURCE UNIQUE de vérité pour le rendu ET le hit-test.
+     *
+     * <p>T1 (lot 2) : les actions injectées par l'hôte
+     * ({@code view.popupManager.selActions.actions}) s'insèrent ENTRE les
+     * canoniques d'édition et les icônes Docs/Actions, uniquement avec
+     * une vraie sélection ; au-delà de ce qui tient dans la largeur de
+     * la vue, les suivantes basculent dans le débordement « ⋯ » (item
+     * {@code SEL_ACT_OVERFLOW}) — la liste {@code m.overflow} peuplée
+     * ici alimente la section « MORE » du NavMenu (la métrique reste la
+     * source unique : le débordement du menu lit
+     * {@code view.popupManager.selActions.overflow}).</p>
      */
     public static SelectionToolbarMetrics selectionToolbarMetrics(EditorView view) {
         if (!view.selectionToolbarVisible || view.session == null) return null;
@@ -274,6 +474,50 @@ public final class EditorPopupAnchors {
         m.addText(EditorView.SEL_ACT_PASTE, "Paste", view.textPaint.measureText("Paste"));
         m.addText(EditorView.SEL_ACT_SELECT_ALL, "Select all",
                 view.textPaint.measureText("Select all"));
+
+        // ── T1 : actions injectées par l'hôte (fit par la largeur) ──
+        java.util.List<jo.codeeditor.view.SelectionAction> hostActions =
+                view.popupManager.selActions.actions;
+        int textCount = m.count;
+        if (hasSelection && !hostActions.isEmpty()) {
+            // Largeur des canoniques (textes + divider + icônes + gaps).
+            float base = 0;
+            for (int i = 0; i < textCount; i++) base += m.itemW[i] + m.btnGap;
+            base += 6 * density + iconW * 2 + 3 * m.btnGap;
+            float avail = view.getWidth() - 8 * density - base;
+            float overflowW = view.textPaint.measureText("⋯") + 2 * m.padX + m.btnGap;
+            int n = hostActions.size();
+            int shown = 0;
+            float used = 0;
+            for (SelectionAction sa : hostActions) {
+                if (sa == null) continue;
+                float textW = view.textPaint.measureText(sa.label);
+                float w = textW + 2 * m.padX;
+                // La dernière injectée n'a besoin du ⋯ que si d'autres
+                // la suivent — réserver sa place sinon.
+                float limit = (shown == n - 1) ? avail : avail - overflowW;
+                if (used + w > limit) break;
+                m.addInjected(sa, textW);
+                used += w + m.btnGap;
+                shown++;
+            }
+            // Le débordement alimente la section « MORE » du NavMenu.
+            view.popupManager.selActions.overflow.clear();
+            if (shown < n) {
+                for (int i = shown; i < hostActions.size(); i++) {
+                    if (hostActions.get(i) != null) {
+                        view.popupManager.selActions.overflow.add(hostActions.get(i));
+                    }
+                }
+                m.addOverflow(view.textPaint.measureText("⋯"));
+            }
+            for (SelectionAction sa : view.popupManager.selActions.overflow) {
+                m.overflow.add(sa);
+            }
+        } else {
+            view.popupManager.selActions.overflow.clear();
+        }
+
         m.addIcon(EditorView.SEL_ACT_DOCS);
         m.addIcon(EditorView.SEL_ACT_ACTIONS);
         m.dividerCount = 1;
@@ -319,6 +563,13 @@ public final class EditorPopupAnchors {
      * Géométrie de la toolbar de sélection : la pill + les items actionnables
      * (texte ou icône) + les positions des dividers. Consommée par le rendu et
      * le hit-test (une seule source de layout).
+     *
+     * <p>Tableaux dynamiques (T1) : les actions injectées peuvent
+     * dépasser l'ancienne capacité fixe de 8 — la largeur de vue est
+     * désormais le seul plafond d'affichage. {@code injected[i]}
+     * référence l'action d'hôte d'un item injecté ;
+     * {@code itemDisabled[i]} porte l'estompage ; {@code overflow}
+     * liste les actions non affichées (section « MORE » du NavMenu).</p>
      */
     public static final class SelectionToolbarMetrics {
         public float x, y;                       // coin haut-gauche de la pill
@@ -326,15 +577,24 @@ public final class EditorPopupAnchors {
         public float radius;                     // rayon (pill complète)
         public float padX, padY, btnGap;
         public int count;                        // items actionnables
-        public final float[] itemX = new float[8];
-        public final float[] itemW = new float[8];
-        public final int[] action = new int[8];
-        public final String[] label = new String[8]; // null pour un item icône
-        public final boolean[] isIcon = new boolean[8];
+        public float[] itemX = new float[8];
+        public float[] itemW = new float[8];
+        public int[] action = new int[8];
+        public String[] label = new String[8]; // null pour un item icône
+        public boolean[] isIcon = new boolean[8];
+        /** L'action d'hôte injectée de l'item (null sinon). */
+        public jo.codeeditor.view.SelectionAction[] injected =
+                new jo.codeeditor.view.SelectionAction[8];
+        /** Item estompé (action désactivée) — tap rejeté. */
+        public boolean[] itemDisabled = new boolean[8];
+        /** Actions non affichées (débordement ⋯ → NavMenu « MORE »). */
+        public final java.util.List<jo.codeeditor.view.SelectionAction> overflow =
+                new java.util.ArrayList<>();
         public float dividerX = Float.MIN_VALUE;  // 1 divider max (avant les icônes)
         public int dividerCount;
 
         void addText(int act, String text, float width) {
+            ensure(count + 1);
             itemX[count] = -1; // rempli par la passe de layout
             itemW[count] = width + 2 * padX;
             action[count] = act;
@@ -344,12 +604,51 @@ public final class EditorPopupAnchors {
         }
 
         void addIcon(int act) {
+            ensure(count + 1);
             itemX[count] = -1;
             itemW[count] = 0; // rempli par applyIconWidth(iconW)
             action[count] = act;
             label[count] = null;
             isIcon[count] = true;
             count++;
+        }
+
+        /** Item injecté par l'hôte (T1) : libellé + référence + drapeau
+         *  d'estompage si l'action est désactivée. */
+        void addInjected(jo.codeeditor.view.SelectionAction sa, float textWidth) {
+            ensure(count + 1);
+            itemX[count] = -1;
+            itemW[count] = textWidth + 2 * padX;
+            action[count] = jo.codeeditor.view.EditorSelectionActions.SEL_ACT_INJECTED;
+            label[count] = sa.label;
+            isIcon[count] = false;
+            injected[count] = sa;
+            itemDisabled[count] = !sa.isEnabled();
+            count++;
+        }
+
+        /** Item « ⋯ » de débordement (T1) : ouvre le NavMenu « MORE ». */
+        void addOverflow(float textWidth) {
+            ensure(count + 1);
+            itemX[count] = -1;
+            itemW[count] = textWidth + 2 * padX;
+            action[count] = jo.codeeditor.view.EditorSelectionActions.SEL_ACT_OVERFLOW;
+            label[count] = "⋯";
+            isIcon[count] = false;
+            count++;
+        }
+
+        /** Croissance des tableaux (capacité 8 d'origine — T1). */
+        private void ensure(int cap) {
+            if (cap <= itemX.length) return;
+            int n = Math.max(cap, itemX.length * 2);
+            itemX = java.util.Arrays.copyOf(itemX, n);
+            itemW = java.util.Arrays.copyOf(itemW, n);
+            action = java.util.Arrays.copyOf(action, n);
+            label = java.util.Arrays.copyOf(label, n);
+            isIcon = java.util.Arrays.copyOf(isIcon, n);
+            injected = java.util.Arrays.copyOf(injected, n);
+            itemDisabled = java.util.Arrays.copyOf(itemDisabled, n);
         }
 
         /** La position (provisionnelle) du premier item icône. */

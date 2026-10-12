@@ -195,6 +195,31 @@ public class EditorTapResolver {
             return;
         }
 
+        // L'offset du tap, résolu tôt : la cascade squiggle en a besoin
+        // AVANT les branches gouttière/chip (les branches intermédiaires
+        // ne l'utilisent pas).
+        int offset = view.offsetAt(x, y);
+
+        // Test de touche du popup ancré de squiggle (D1, non modal) :
+        // hit de rangée (quick-fix / choix de mini-liste / « See all ») ;
+        // un tap HORS du chrome le referme. Un re-tap sur la MÊME plage
+        // armée tombe dans la branche caret (parité, motif
+        // pendingTapDismiss : le premier tap arme, le second décide).
+        boolean squiggleReTap = false;
+        if (view.squigglePopupVisible) {
+            int sqHit = hitTester.hitSquigglePopup(x, y);
+            if (sqHit >= 0) {
+                view.popupManager.handleSquiggleHit(sqHit);
+                return;
+            }
+            int rStart = view.squigglePopupItem != null
+                    ? view.squigglePopupItem.start : -1;
+            int rEnd = view.squigglePopupItem != null
+                    ? view.squigglePopupItem.end : -1;
+            view.popupManager.dismissSquigglePopup();
+            squiggleReTap = rStart >= 0 && rStart + 1 < offset && offset < rEnd;
+        }
+
         // Test de touche de la toolbar de sélection.
         if (view.selectionToolbarVisible && selectionGestures.handleSelectionToolbarTap(x, y)) {
             return;
@@ -266,8 +291,6 @@ public class EditorTapResolver {
             }
         }
 
-        int offset = view.offsetAt(x, y);
-
         // Si le tap est tombé sur la chip placeholder ({...}) d'une ligne
         // de début de fold, étend le fold au lieu de placer le caret.
         // Détecté en vérifiant que la ligne est une ligne de début de fold
@@ -297,14 +320,8 @@ public class EditorTapResolver {
 
         // La fiche de diagnostic ne s'ouvre désormais QUE depuis (1) la
         // chip de diagnostic après la fin de ligne et (2) le point de
-        // diagnostic du gutter — exactement les deux points d'entrée de
-        // (chip tapée → fiche, tap sur glyphe de
-        // gutter → openSheet). Le squiggle lui-même N'EST PAS tappable :
-        // un tap sur la plage ondulée place simplement le caret (branche
-        // → pose du caret), pour que l'utilisateur
-        // puisse encore positionner le curseur avant/après la plage de
-        // diagnostic. Le code de hit sur squiggle a été retiré pour cette
-        // parité.
+        // diagnostic du gutter — les deux points d'entrée historiques
+        // (chip tapée → fiche, tap sur glyphe de gutter → openSheet).
         if (x >= view.metrics.getGutterWidth() && tapCount == 1) {
             // Une ligne avec PLUSIEURS diagnostics ouvre d'abord la fiche
             // groupée ; une seule ouvre directement le popup de détail
@@ -316,6 +333,17 @@ public class EditorTapResolver {
                 } else {
                     view.showDiagnosticPopup(chipHit.primary(), chipHit.primary().start);
                 }
+                return;
+            }
+        }
+
+        // ── D1 : tap au CŒUR d'une plage squigglée → popup ancré ──
+        // Le squiggle EST tappable (niveau 1 de lecture) : bords ±1
+        // caractère exclus (le caret reste plaçable avant/après la
+        // plage), re-tap sur la plage armée → caret (décision différée
+        // ci-dessus — le premier tap arme, le second décide).
+        if (!squiggleReTap && x >= view.metrics.getGutterWidth() && tapCount == 1) {
+            if (view.popupManager.squigglePopupAt(offset, x)) {
                 return;
             }
         }
