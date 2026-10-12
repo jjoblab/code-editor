@@ -10,8 +10,10 @@ android {
         applicationId = "jo.codeeditor.demo"
         minSdk = 24
         targetSdk = 34
-        versionCode = 1
-        versionName = "3.49.2"
+        versionCode = 2
+        // Alignée sur la version de la bibliothèque (rootProject) pour que
+        // l'application installée affiche la même version que le code testé.
+        versionName = rootProject.version.toString()
     }
 
     buildTypes {
