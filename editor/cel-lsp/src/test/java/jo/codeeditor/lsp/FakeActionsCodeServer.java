@@ -62,6 +62,15 @@ public class FakeActionsCodeServer implements LanguageServer {
     /** Annonce codeActionOptions.resolveProvider quand vrai. */
     public volatile boolean resolveProvider;
 
+    /** Annonce renameProvider avec prepareSupport quand vrai. */
+    public volatile boolean renamePrepareProvider;
+
+    /** Placeholder servi par textDocument/prepareRename (null = refus). */
+    public volatile String prepareRenamePlaceholder = "foo";
+
+    /** Compteur de requêtes prepareRename reçues. */
+    public volatile int prepareRenameRequests;
+
     /** Résolutions par TITRE (l'objet résolu arrive désérialisé — l'identité objet est perdue). */
     public final Map<String, org.eclipse.lsp4j.CodeAction> resolveByTitle =
             new LinkedHashMap<>();
@@ -146,6 +155,13 @@ public class FakeActionsCodeServer implements LanguageServer {
         } else {
             caps.setCodeActionProvider(Either.forLeft(true));
         }
+        if (renamePrepareProvider) {
+            org.eclipse.lsp4j.RenameOptions options = new org.eclipse.lsp4j.RenameOptions();
+            options.setPrepareProvider(true);
+            caps.setRenameProvider(Either.forRight(options));
+        } else {
+            caps.setRenameProvider(Either.forLeft(true));
+        }
         return CompletableFuture.completedFuture(new InitializeResult(caps));
     }
 
@@ -194,6 +210,24 @@ public class FakeActionsCodeServer implements LanguageServer {
                         ? resolveByTitle.get(unresolved.getTitle()) : null;
                 return CompletableFuture.completedFuture(
                         resolved != null ? resolved : unresolved);
+            }
+
+            @Override
+            public CompletableFuture<org.eclipse.lsp4j.jsonrpc.messages.Either3<
+                    org.eclipse.lsp4j.Range, org.eclipse.lsp4j.PrepareRenameResult,
+                    org.eclipse.lsp4j.PrepareRenameDefaultBehavior>> prepareRename(
+                    org.eclipse.lsp4j.PrepareRenameParams params) {
+                prepareRenameRequests++;
+                if (prepareRenamePlaceholder == null) {
+                    return CompletableFuture.completedFuture(null);
+                }
+                return CompletableFuture.completedFuture(
+                        org.eclipse.lsp4j.jsonrpc.messages.Either3.forSecond(
+                                new org.eclipse.lsp4j.PrepareRenameResult(
+                                        new org.eclipse.lsp4j.Range(
+                                                new org.eclipse.lsp4j.Position(1, 15),
+                                                new org.eclipse.lsp4j.Position(1, 18)),
+                                        prepareRenamePlaceholder)));
             }
         };
     }

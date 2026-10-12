@@ -29,6 +29,65 @@ class LspRenameProvider implements RenameProvider {
         this.logSink = logSink;
     }
 
+    /**
+     * Pré-validation {@code textDocument/prepareRename} — seulement si le
+     * serveur l'annonce (renameProvider avec prepareProvider) : retourne
+     * le placeholder proposé (nom pré-rempli du popup), ou null quand le
+     * symbole n'est pas renommable (le popup refuse proprement à
+     * l'ouverture). Sans annonce : null SANS requête (l'éditeur garde son
+     * heuristique locale).
+     */
+    @Override
+    public String prepareRename(CharSequence text, int offset) {
+        LanguageServer server = wrapper.getServer();
+        if (server == null || !prepareSupported()) return null;
+        editor.flushPendingChange();
+        org.eclipse.lsp4j.PrepareRenameParams params = new org.eclipse.lsp4j.PrepareRenameParams(
+                editor.getTextDocumentIdentifier(), editor.offsetToPosition(offset));
+        log("prepareRename: requesting at offset=" + offset);
+        try {
+            org.eclipse.lsp4j.jsonrpc.messages.Either3<
+                    org.eclipse.lsp4j.Range, org.eclipse.lsp4j.PrepareRenameResult,
+                    org.eclipse.lsp4j.PrepareRenameDefaultBehavior> result =
+                    server.getTextDocumentService().prepareRename(params)
+                        .get(3, TimeUnit.SECONDS);
+            if (result == null) {
+                log("prepareRename: null — symbole non renommable");
+                return null;
+            }
+            if (result.isSecond() && result.getSecond() != null) {
+                String placeholder = result.getSecond().getPlaceholder();
+                log("prepareRename: placeholder=" + placeholder);
+                return placeholder;
+            }
+            if (result.isFirst() && result.getFirst() != null && text != null) {
+                // Plage seule : le texte couvert par la plage sert de
+                // placeholder — converti sur l'instantané texte.
+                String src = text.toString();
+                int start = LspTextUtils.positionToOffset(src, result.getFirst().getStart());
+                int end = LspTextUtils.positionToOffset(src, result.getFirst().getEnd());
+                if (start >= 0 && end > start && end <= src.length()) {
+                    String placeholder = src.substring(start, end);
+                    log("prepareRename: placeholder(plage)=" + placeholder);
+                    return placeholder;
+                }
+            }
+            return null;
+        } catch (Exception e) {
+            log("prepareRename: ERROR " + e.getClass().getSimpleName() + ": " + e.getMessage());
+            return null;
+        }
+    }
+
+    /** True si le serveur annonce la pré-validation de renommage. */
+    private boolean prepareSupported() {
+        org.eclipse.lsp4j.ServerCapabilities caps = wrapper.getCapabilities();
+        if (caps == null || caps.getRenameProvider() == null) return false;
+        if (!caps.getRenameProvider().isRight()) return false;
+        org.eclipse.lsp4j.RenameOptions options = caps.getRenameProvider().getRight();
+        return options != null && Boolean.TRUE.equals(options.getPrepareProvider());
+    }
+
     @Override
     public RenameResult rename(CharSequence text, int offset, String newName) {
         LanguageServer server = wrapper.getServer();
