@@ -30,6 +30,9 @@ class LspCodeActionsProvider implements CodeActionsProvider {
     /** Borné : un serveur muet ne doit pas figer la voie « features ». */
     private static final long CODE_ACTION_TIMEOUT_MS = 3000;
 
+    /** Borné : l'exécution d'une commande serveur ne doit pas figer l'application. */
+    private static final long COMMAND_TIMEOUT_MS = 10000;
+
     LspCodeActionsProvider(LanguageServerWrapper wrapper, LspEditor editor, LspLogSink logSink) {
         this.wrapper = wrapper;
         this.editor = editor;
@@ -145,25 +148,15 @@ class LspCodeActionsProvider implements CodeActionsProvider {
     private CodeAction toAction(
             org.eclipse.lsp4j.jsonrpc.messages.Either<org.eclipse.lsp4j.Command, org.eclipse.lsp4j.CodeAction> e,
             int versionAtRequest) {
-        String title;
-        String kind = "";
-        boolean preferred = false;
-        final org.eclipse.lsp4j.WorkspaceEdit editToApply;
         if (e.isLeft()) {
-            org.eclipse.lsp4j.Command command = e.getLeft();
-            title = command != null ? command.getTitle() : "";
-            // Action à commande : sans edit attaché — le retour est
-            // journalisé, rien à appliquer (l'exécution de commande
-            // distante n'est pas encore branchée).
-            editToApply = null;
-        } else {
-            org.eclipse.lsp4j.CodeAction ca = e.getRight();
-            title = ca.getTitle();
-            kind = ca.getKind() != null ? ca.getKind() : "";
-            preferred = Boolean.TRUE.equals(ca.getIsPreferred());
-            editToApply = ca.getEdit();
+            return commandAction(e.getLeft(), versionAtRequest);
         }
-        final String actionTitle = title != null ? title : "";
+        org.eclipse.lsp4j.CodeAction ca = e.getRight();
+        if (ca == null) return null;
+        final String actionTitle = ca.getTitle() != null ? ca.getTitle() : "";
+        final String kind = ca.getKind() != null ? ca.getKind() : "";
+        final boolean preferred = Boolean.TRUE.equals(ca.getIsPreferred());
+        final org.eclipse.lsp4j.WorkspaceEdit editToApply = ca.getEdit();
         final LspEditor editorRef = editor;
         Runnable apply = () -> {
             if (editToApply == null) {
@@ -178,6 +171,72 @@ class LspCodeActionsProvider implements CodeActionsProvider {
             }
         };
         return new CodeAction(actionTitle, kind, preferred, apply);
+    }
+
+    /**
+     * Une action à COMMANDE (les serveurs qui travaillent en deux temps :
+     * la commande fait le travail, l'édition éventuelle revient soit en
+     * valeur de retour, soit poussée via workspace/applyEdit — ce second
+     * chemin est déjà câblé côté client). L'application émet
+     * workspace/executeCommand ; si la réponse porte un WorkspaceEdit,
+     * il est appliqué par la voie commune ; sinon le compte rendu est
+     * journalisé — plus de no-op silencieux.
+     */
+    private CodeAction commandAction(org.eclipse.lsp4j.Command command, int versionAtRequest) {
+        final String actionTitle = command != null && command.getTitle() != null
+                ? command.getTitle() : "";
+        final String commandId = command != null ? command.getCommand() : null;
+        final List<Object> commandArgs = command != null ? command.getArguments() : null;
+        final LspEditor editorRef = editor;
+        final LanguageServerWrapper wrapperRef = wrapper;
+        Runnable apply = () -> {
+            LanguageServer server = wrapperRef.getServer();
+            if (server == null || commandId == null) {
+                log("codeAction: '" + actionTitle + "' — serveur parti, commande abandonnée");
+                return;
+            }
+            try {
+                Object result = server.getWorkspaceService().executeCommand(
+                        new org.eclipse.lsp4j.ExecuteCommandParams(commandId, commandArgs))
+                        .get(COMMAND_TIMEOUT_MS, java.util.concurrent.TimeUnit.MILLISECONDS);
+                org.eclipse.lsp4j.WorkspaceEdit edit = asWorkspaceEdit(result);
+                if (edit != null) {
+                    editorRef.applyWorkspaceEdit(edit, versionAtRequest);
+                    log("codeAction: command '" + commandId + "' executed — edit applied");
+                } else {
+                    log("codeAction: command '" + commandId
+                            + "' executed (no workspace edit returned)");
+                }
+            } catch (Exception t) {
+                log("codeAction: FAILED to execute command '" + commandId + "': " + t.getMessage());
+            }
+        };
+        return new CodeAction(actionTitle, "", false, apply);
+    }
+
+    /**
+     * Le résultat d'une commande devient édition s'il a la forme d'un
+     * WorkspaceEdit (champs changes/documentChanges) — l'objet arrive
+     * typiquement désérialisé en arbre JSON par le transport, ou déjà
+     * typé selon le serveur.
+     */
+    private static org.eclipse.lsp4j.WorkspaceEdit asWorkspaceEdit(Object result) {
+        if (result == null) return null;
+        if (result instanceof org.eclipse.lsp4j.WorkspaceEdit) {
+            return (org.eclipse.lsp4j.WorkspaceEdit) result;
+        }
+        try {
+            com.google.gson.Gson gson = new com.google.gson.Gson();
+            com.google.gson.JsonElement el = result instanceof com.google.gson.JsonElement
+                    ? (com.google.gson.JsonElement) result
+                    : gson.toJsonTree(result);
+            if (!el.isJsonObject()) return null;
+            com.google.gson.JsonObject o = el.getAsJsonObject();
+            if (!o.has("changes") && !o.has("documentChanges")) return null;
+            return gson.fromJson(el, org.eclipse.lsp4j.WorkspaceEdit.class);
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     /** Description compacte d'une plage pour les journaux. */

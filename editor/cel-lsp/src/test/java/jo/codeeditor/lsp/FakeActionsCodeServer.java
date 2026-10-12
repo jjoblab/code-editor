@@ -57,6 +57,12 @@ public class FakeActionsCodeServer implements LanguageServer {
     public final Map<org.eclipse.lsp4j.CodeAction, org.eclipse.lsp4j.CodeAction> resolveAnswers =
             new LinkedHashMap<>();
 
+    /** Réponse codeAction imposée par le test (prioritaire sur la réponse par défaut). */
+    public volatile List<Either<org.eclipse.lsp4j.Command, org.eclipse.lsp4j.CodeAction>> answerOverride;
+
+    /** Valeur retournée par workspace/executeCommand (null par défaut). */
+    public volatile Object commandResult;
+
     /**
      * Reçu du pont in-process (découvert par réflexion — doit rester
      * public sur une classe publique).
@@ -96,6 +102,7 @@ public class FakeActionsCodeServer implements LanguageServer {
     /** La réponse codeAction à servir (par défaut : identité requise). */
     protected List<Either<org.eclipse.lsp4j.Command, org.eclipse.lsp4j.CodeAction>> answer(
             CodeActionParams params) {
+        if (answerOverride != null) return answerOverride;
         List<Either<org.eclipse.lsp4j.Command, org.eclipse.lsp4j.CodeAction>> out =
                 new ArrayList<>();
         if (params.getContext() == null || params.getContext().getDiagnostics() == null) {
@@ -190,7 +197,7 @@ public class FakeActionsCodeServer implements LanguageServer {
             public CompletableFuture<Object> executeCommand(
                     org.eclipse.lsp4j.ExecuteCommandParams params) {
                 executeCommandRequests.add(params);
-                return CompletableFuture.completedFuture(null);
+                return CompletableFuture.completedFuture(commandResult);
             }
         };
     }
