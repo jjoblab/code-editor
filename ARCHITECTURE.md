@@ -63,7 +63,10 @@ Notes :
 
 ```
 jo.codeeditor/
-├── rope/         — Rope : arbre binaire équilibré, O(log N) par édition
+├── rope/         — Rope : arbre binaire équilibré, O(log N) par édition ;
+│                   l'index de lignes est re-splicé en O(lignes) par
+│                   édition (0,11 ms mesuré sur 50 000 lignes, budget
+│                   de frappe 2 ms — mesure : EditorSessionBenchmark)
 ├── document/     — EditorDocument (index de lignes), Selection
 ├── session/      — EditorSession (orchestrateur, ~1 250 l.) +
 │                   RestyleEngine (restyle asynchrone incrémental),
@@ -308,7 +311,8 @@ editorView.setFileName("layout.xml");
    `[0, doc.length()]` dans le chemin de dessin ; un painter de plugin qui
    lève est retiré, jamais un crash.
 5. **Grands fichiers** — au-delà de 2,5 M chars / 50 k lignes, l'analyse,
-   le folding et les inlays sont coupés ; l'édition reste O(log N).
+   le folding et les inlays sont coupés ; le texte reste éditable
+   (rope O(log N), splice d'index de lignes O(lignes) — mesuré).
 
 ## Voir aussi
 

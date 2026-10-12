@@ -181,6 +181,74 @@ class EditorSessionBenchmark {
         }
     }
 
+    @Test
+    void benchmark_lineText_cheminDeFrappe_50kLignes() {
+        // ★ B19/Lot 4 : mesure l'ancien chemin (getText().substring —
+        // matérialise TOUT le document à chaque appel après édition)
+        // contre le nouveau (lineText → subText, O(log n + tranche)).
+        // Chiffres consignés dans docs/RAPPORT_VERIFICATION.md.
+        final int LINES = 50_000;
+        EditorDocument doc = buildDocument(LINES);
+        // Échauffement des deux chemins.
+        for (int i = 0; i < 200; i++) {
+            doc.lineText(i % LINES);
+            int st = doc.lineStart(i % LINES);
+            doc.getText().substring(st, Math.min(st + 30, doc.length()));
+        }
+        // -- ANCIEN chemin : getText() (cache invalidé par l'édition) +
+        // substring.
+        doc = doc.replace(100, 100, "x"); // une frappe → cache invalidé
+        long t0 = System.nanoTime();
+        for (int i = 0; i < 1000; i++) {
+            int st = doc.lineStart((i * 37) % LINES);
+            String l = doc.getText().substring(st, Math.min(st + 30, doc.length()));
+            if (l.isEmpty()) fail();
+        }
+        long ancienNs = System.nanoTime() - t0;
+        // -- NOUVEAU chemin : lineText (subText, pas de matérialisation).
+        doc = doc.replace(100, 100, "y"); // cache invalidé à nouveau
+        long t1 = System.nanoTime();
+        for (int i = 0; i < 1000; i++) {
+            String l = doc.lineText((i * 37) % LINES);
+            if (l.isEmpty()) fail();
+        }
+        long nouveauNs = System.nanoTime() - t1;
+        System.out.printf("[benchmark] lineText 50k lignes (1000 lectures après édition) : "
+                + "ancien (getText+substring) %d ns/op, nouveau (subText) %d ns/op, "
+                + "gain x%.1f%n",
+            ancienNs / 1000, nouveauNs / 1000, (double) ancienNs / Math.max(1, nouveauNs));
+        // Le nouveau chemin ne doit pas être plus lent que l'ancien.
+        assertTrue(nouveauNs <= ancienNs,
+            "lineText (subText) doit battre getText().substring : "
+                + nouveauNs + " vs " + ancienNs + " ns");
+    }
+
+    @Test
+    void benchmark_replace_spliceIndexLignes_50kLignes() {
+        // Mesure pour l'étape 2 (index de lignes sous-linéaire) : le
+        // splice est O(lignes) par édition. Chiffres consignés dans le
+        // compte rendu — la décision d'implémenter une structure
+        // sous-linéaire (comptage par nœud / Fenwick) se prend sur ces
+        // nombres.
+        final int LINES = 50_000;
+        EditorDocument doc = buildDocument(LINES);
+        // Échauffement.
+        for (int i = 0; i < 50; i++) {
+            doc = doc.replace(100, 100, "x");
+        }
+        long t0 = System.nanoTime();
+        for (int i = 0; i < 200; i++) {
+            doc = doc.replace(100, 100, "x");
+        }
+        long parEdition = (System.nanoTime() - t0) / 200;
+        System.out.printf("[benchmark] replace + splice index (50k lignes) : "
+                + "%d ns/édition (%.2f ms)%n", parEdition, parEdition / 1e6);
+        // Budget de frappe : une édition sur 50k lignes doit rester sous
+        // le seuil perceptible (~2 ms).
+        assertTrue(parEdition < 2_000_000,
+            "replace trop lent sur 50k lignes : " + parEdition + " ns");
+    }
+
     /** Construit une session avec le nombre de lignes donné, chacune ~40 caractères. */
     private static EditorSession buildSession(int lineCount) {
         StringBuilder sb = new StringBuilder(lineCount * 50);
