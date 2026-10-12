@@ -544,3 +544,37 @@ jusqu'à validation du propriétaire.
    `code-editor-AVANT-PURGE-FINAL.bundle`, `code-editor-AVANT-PURGE.bundle`
    et le dossier `code-editor-AVANT-PURGE/` (hors du dépôt purgé) — à
    détruire seulement après validation définitive du propriétaire.
+
+---
+
+## Suivi post-publication (après fusion par le propriétaire)
+
+Publication effectuée par le propriétaire (poussée forcée des branches et
+tags, puis fusion de la branche par pull request). Trois corrections
+suivies, toutes vérifiées rouge→vert sur JDK 17 (celui de la CI) et
+suite complète verte (1 371 tests, lint, garde-fous) :
+
+1. **Auteurs des commits** — les 40 commits de l'agent portaient une
+   identité de conteneur : réécriture de l'auteur et du valideur vers
+   l'identité du propriétaire (dates et contenus inchangés, tags
+   intacts, `git diff` vide avant/après).
+2. **Échec CI intermittent — pompe stderr** — deux tests d'absence de
+   threads résiduels échouaient sur la CI (JDK 17) selon l'ordonnancement :
+   un petit-fils du serveur détient l'extrémité d'écriture du pipe
+   stderr ; tuer le seul parent ne clôt pas le pipe et la pompe (lecture
+   non interruptible) survivait — le thread fui faisait échouer les
+   tests suivants. `stop()` liquide désormais les descendants AVANT le
+   parent puis attend, borné, la mort de la pompe. Reproduction
+   déterministe incluse (`stop_petitFilsDetenantStderr…`).
+3. **Garde-fou inopérant au commit** — double défaut découvert en
+   corrigeant 2 : le hook `commit-msg` était committé non exécutable
+   (git l'ignore : jamais actif sur un clone frais), et appelé par
+   chemin absolu, le garde-fou scannait son propre fichier d'exceptions
+   (dont les motifs contiennent les formules) — tout commit aurait été
+   refusé. Mode 755 versionné + exclusion par nom de base + régression
+   (test 6 du harnais).
+
+**Poussée des corrections** : effectuée avec l'accord exprès du
+propriétaire (branches `main` et `agent/durcissement-3.49.2`, force).
+La ref `refs/pull/1/head` conserve les anciens hashs (artefact GitHub
+immuable) — couvert par la demande de purge au support déjà listée.
