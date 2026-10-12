@@ -141,6 +141,53 @@ public final class EditorPopupAnchors {
     }
 
     // ════════════════════════════════════════════════════════════════
+    // D4 — en-tête enrichi des diagnostics
+    // ════════════════════════════════════════════════════════════════
+
+    /**
+     * D4 (P2) — libellé d'en-tête enrichi d'un diagnostic, partagé par
+     * le popup ancré ({@code EditorDiagnosticsPainter.drawSquiggleDetail})
+     * et la fiche basse ({@code drawDiagnosticPopup}) : sévérité, puis
+     * code et source le cas échéant, puis ligne/colonne 1-based
+     * (convention IDE), puis badge « ×N » si d'autres diagnostics
+     * partagent EXACTEMENT la même plage.
+     *
+     * <p>Exemple : {@code Error · ecj:67 · java · 3:9 · ×2}. Les champs
+     * vides (code/source absents du serveur) sont omis — un diagnostic
+     * nu garde son en-tête historique ({@code Error · 3:9}).</p>
+     *
+     * @param view la vue hôte (document + diagnostics de la session)
+     * @param d le diagnostic affiché
+     * @return le libellé d'en-tête (jamais null)
+     */
+    public static String diagnosticHeaderLabel(EditorView view,
+            DiagnosticShift.Diagnostic d) {
+        String sevLabel = d.severity == 3 ? "Error"
+                : d.severity == 2 ? "Warning" : "Info";
+        StringBuilder b = new StringBuilder(sevLabel);
+        String code = d.code != null ? d.code : "";
+        String source = d.source != null ? d.source : "";
+        if (!code.isEmpty()) b.append(" · ").append(code);
+        if (!source.isEmpty()) b.append(" · ").append(source);
+        if (view.session != null) {
+            EditorDocument doc = view.session.getDocument();
+            if (doc != null) {
+                int line = doc.lineForOffset(d.start);
+                int col = d.start - doc.lineStart(line);
+                b.append(" · ").append(line + 1).append(':').append(col + 1);
+            }
+        }
+        if (view.session != null) {
+            int same = 0;
+            for (DiagnosticShift.Diagnostic o : view.session.getDiagnostics()) {
+                if (o.start == d.start && o.end == d.end) same++;
+            }
+            if (same > 1) b.append(" · ×").append(same);
+        }
+        return b.toString();
+    }
+
+    // ════════════════════════════════════════════════════════════════
     // Compteur de retour à la ligne partagé
     // ════════════════════════════════════════════════════════════════
 
@@ -456,12 +503,12 @@ public final class EditorPopupAnchors {
             int msgLines = Math.min(countWrappedLines(view, msg,
                     m.w - 2 * SQUIGGLE_POPUP_PAD_X_DP * density),
                     SQUIGGLE_POPUP_MAX_MSG_LINES);
-            // En-tête : point de sévérité + libellé (« Error », « Warning »).
-            String sevLabel = item.severity == 3 ? "Error"
-                    : item.severity == 2 ? "Warning" : "Info";
+            // En-tête : point de sévérité + libellé enrichi (D4 —
+            // sévérité · code · source · ligne:col · badge ×N).
+            String header = diagnosticHeaderLabel(view, item);
             needed = Math.max(needed,
                     SQUIGGLE_POPUP_INDENT_DP * density
-                            + view.textPaint.measureText(sevLabel));
+                            + view.textPaint.measureText(header));
             // Le message n'est candidat que s'il tient SANS repli à la
             // largeur max — sinon il a besoin de la PLEINE largeur pour
             // se replier (msgLines a été calculé pour elle).

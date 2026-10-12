@@ -76,6 +76,13 @@ public final class DiagnosticShift {
          * estompée (grisé Android Studio) au lieu du soulignement de
          * sévérité. @since 3.51.0 */
         public final boolean unnecessary;
+        /** D4 (lot 2, J5) — code du diagnostic (ex. « ecj:P1234 »)
+         * transporté jusqu'au rendu (en-tête enrichi du popup/fiche).
+         * Vide par défaut (constructeurs historiques). @since 3.56.0 */
+        public final String code;
+        /** D4 (lot 2, J5) — source du diagnostic (ex. « java », « ecj »).
+         * Vide par défaut. @since 3.56.0 */
+        public final String source;
 
         public Diagnostic(int start, int end, int severity, String message) {
             this(start, end, severity, message, false);
@@ -83,11 +90,20 @@ public final class DiagnosticShift {
 
         public Diagnostic(int start, int end, int severity, String message,
                 boolean unnecessary) {
+            this(start, end, severity, message, unnecessary, "", "");
+        }
+
+        /** Variante complète (D4) : code et source transportés — le
+         *  décalage incrémental les conserve à travers les éditions. */
+        public Diagnostic(int start, int end, int severity, String message,
+                boolean unnecessary, String code, String source) {
             this.start = start;
             this.end = end;
             this.severity = severity;
             this.message = message;
             this.unnecessary = unnecessary;
+            this.code = code != null ? code : "";
+            this.source = source != null ? source : "";
         }
     }
 
@@ -102,7 +118,7 @@ public final class DiagnosticShift {
             int newEnd = mapEnd(d.end, span);
             if (newEnd > newStart) {
                 result.add(new Diagnostic(newStart, newEnd, d.severity, d.message,
-                        d.unnecessary));
+                        d.unnecessary, d.code, d.source));
             }
         }
         return result;

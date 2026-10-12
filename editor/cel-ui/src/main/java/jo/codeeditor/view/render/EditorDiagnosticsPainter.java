@@ -291,8 +291,11 @@ public class EditorDiagnosticsPainter {
         view.textPaint.setTextSize(view.metrics.getTextSize() * 0.85f);
         view.textPaint.setFakeBoldText(true);
         view.textPaint.setColor(color);
-        String sevLabel = d.severity == 3 ? "Error" : d.severity == 2 ? "Warning" : "Info";
-        canvas.drawText(sevLabel, padX + 14 * density, closeCy + view.metrics.getTextSize() * 0.30f, view.textPaint);
+        // D4 : en-tête enrichi — sévérité · code · source · ligne:col ·
+        // badge ×N (champs vides omis, diagnostic nu = en-tête sobre).
+        String header = jo.codeeditor.view.popup.EditorPopupAnchors
+                .diagnosticHeaderLabel(view, d);
+        canvas.drawText(header, padX + 14 * density, closeCy + view.metrics.getTextSize() * 0.30f, view.textPaint);
         view.textPaint.setFakeBoldText(false);
         // Fermeture (×) : cercle en contour + glyphe.
         view.caretPaint.setStrokeWidth(1.2f * density);
@@ -598,7 +601,8 @@ public class EditorDiagnosticsPainter {
         DiagnosticShift.Diagnostic d = m.item;
         int color = getSquiggleColor(d.severity);
 
-        // En-tête : point de sévérité + libellé coloré (semibold).
+        // En-tête : point de sévérité + libellé enrichi (D4 — sévérité ·
+        // code · source · ligne:col · badge ×N), coloré (semibold).
         float headCy = m.y + m.headerH * 0.5f;
         view.selPaint.setColor(color);
         canvas.drawCircle(padX + 3.2f * density, headCy, 3.2f * density, view.selPaint);
@@ -606,8 +610,9 @@ public class EditorDiagnosticsPainter {
         view.textPaint.setTextSize(view.metrics.getTextSize() * 0.85f);
         view.textPaint.setFakeBoldText(true);
         view.textPaint.setColor(color);
-        String sevLabel = d.severity == 3 ? "Error" : d.severity == 2 ? "Warning" : "Info";
-        canvas.drawText(sevLabel, padX + 12 * density,
+        String header = jo.codeeditor.view.popup.EditorPopupAnchors
+                .diagnosticHeaderLabel(view, d);
+        canvas.drawText(header, padX + 12 * density,
                 headCy + view.metrics.getTextSize() * 0.30f, view.textPaint);
         view.textPaint.setFakeBoldText(false);
 
