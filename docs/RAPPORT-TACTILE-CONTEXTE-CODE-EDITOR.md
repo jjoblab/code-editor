@@ -20,7 +20,8 @@
 > publique (le SPI et la surface `EditorView` consommés par CodeIDE restent
 > compatibles binairement), garde-fous verts (figures de tests, budgets de
 > lignes, baseline lint), un commit conventionné par changement logique.
-> **Statut** : **jalons J1 et J2 LIVRÉS** (3.52.0 / 3.53.0) — J1 a
+> **Statut** : **jalons J1, J2 et J3 LIVRÉS** (3.52.0 / 3.53.0 /
+> 3.54.0) — J1 a
 > implémenté les deux P0 : **D1** (popup ancré au tap sur le
 > squiggle : bords ±1 exclus, parité caret par re-tap, mini-liste
 > multi-diagnostics, quick-fixes résolus à l'ouverture, « See all »
@@ -34,12 +35,28 @@
 > visible, inlays exclus, ellipse « … » au-delà du viewport) et
 > **M1** (la loupe montre la bande de sélection, le squiggle du
 > diagnostic et la barre de caret — peintres du pipeline principal,
-> mêmes géométries wrap/inlay/plis). 36 tests dédiés sur les deux
-> jalons (SquiggleTap\*, SelectionToolbar\*, StickyDetectCached,
-> StickyStyledRender, MagnifierShows\*), 1 465 tests verts. Les
-> chantiers restants (I1, I2, T2, S3-S5, M2-M3 et les autres P2)
-> ne sont PAS encore livrés — ce document reste le plan de
-> référence.
+> mêmes géométries wrap/inlay/plis). J3 « les inlays parlent, la
+> main défile » (3.54.0) a livré **I1** (le kind du hint traverse le
+> pont — paramètres en faux italique plus effacés, types droits,
+> parité IntelliJ) et **I2** (tooltip : SPI `resolveHint` paresseux,
+> `inlayHint/resolve` si annoncé, appui long sur la plage tissée →
+> quick doc du tooltip, zéro nouveau chrome), PLUS trois correctifs
+> du retour terrain du propriétaire sur l'APK démo 3.53.0 : **UX-1**
+> (un seul « ⋯ » sur la pill — l'icône Actions ouvre le menu unifié
+> qui inclut la section MORE ; l'item de débordement T1 est retiré),
+> **UX-2** (auto-scroll directionnel du drag de sélection — zone de
+> bord 56 dp, vitesse proportionnelle à la pénétration, la sélection
+> est ré-appliquée sous le doigt à chaque tick) et **UX-3** (le
+> popup D1 se resserre sur son contenu, bornes [132, 320] dp — il
+> était toujours à la largeur maximale). 58 tests dédiés sur les
+> trois jalons (SquiggleTap\*, SquigglePopupWidth,
+> SelectionToolbar\*, SelectionDragAutoScroll, StickyDetectCached,
+> StickyStyledRender, MagnifierShows\*, InlayKindStyling,
+> InlayTooltipLongPress), 1 487 tests verts ; plafonds
+> champs/méthodes d'EditorView relevés à 190/280 par décision du
+> propriétaire (session J3). Les chantiers restants (I3-I5, T2,
+> S3-S5, M2-M3 et les autres P2) ne sont PAS encore livrés — ce
+> document reste le plan de référence.
 > Conformément à la convention établie avec le rapport du lot 1, ce document
 > est archivé dans `docs/` et remis en copie à l'extérieur du dépôt ; la
 > règle d'interdiction des noms externes (`AGENT.md` §93) s'applique au code,
