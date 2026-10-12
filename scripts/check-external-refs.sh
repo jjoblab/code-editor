@@ -81,7 +81,13 @@ else
 fi
 for f in $FILES; do
     [ -f "$f" ] || continue
-    case "$f" in "$EXCEPTIONS_FILE") continue ;; esac
+    # Le fichier d'exceptions ne doit jamais être scanné : ses propres
+    # motifs contiennent les formules à détecter. $0 peut être absolu
+    # (hook commit-msg) ou relatif (CI) — on neutralise la forme du
+    # chemin : le nom de base est unique dans le dépôt.
+    case "/$f" in
+        */check-external-refs.exceptions) continue ;;
+    esac
     # (i) URLs GitHub : ligne gardée si un owner non autorisé y apparaît.
     grep -nE 'github\.com/[A-Za-z0-9_.-]+/' "$f" 2>/dev/null \
         | while IFS= read -r line; do

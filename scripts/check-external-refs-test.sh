@@ -54,5 +54,16 @@ printf 'fix(x): correctif inspiré de la doc\n' > "$WORK/msg"
 check 1 "message avec formule détecté" \
     sh "$SCRIPT" --message "$WORK/msg" --check-file "$WORK/ok"
 
+echo "== 6. appel par chemin absolu (régression du hook commit-msg) =="
+# Le hook commit-msg appelle le script par chemin absolu : le fichier
+# d'exceptions (dont les motifs contiennent les formules) ne doit pas
+# être scanné pour autant — sinon tout commit serait refusé.
+case "$SCRIPT" in
+    /*) ABS="$SCRIPT" ;;
+    *) ABS="$(cd "$(dirname "$0")" 2>/dev/null && pwd)/check-external-refs.sh" ;;
+esac
+check 0 "appel par chemin absolu : conforme" \
+    sh "$ABS"
+
 [ "$rc" = "0" ] && echo "TOUT PASSER" || echo "ÉCHECS PRÉSENTS"
 exit "$rc"
