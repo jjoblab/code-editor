@@ -130,7 +130,7 @@ class LspDocumentSynchronizer {
      * <p><b>Mécanisme</b> : interrompt le thread debounce en cours (le
      * didChange différé ne sera PAS envoyé en double), puis appelle
      * {@link #sendDidChange(String)} SYNCHRONEMENT sur le thread
-     * appelant (typiquement {@code COMPLETION_EXECUTOR}). La notification
+     * appelant (typiquement la voie complétion de l'hôte). La notification
      * didChange est SÉRIALISÉE et mise dans la file LSP4J AVANT le
      * retour de cette méthode. La requête completion qui suit est mise
      * dans la même file APRÈS le didChange — le serveur traite donc

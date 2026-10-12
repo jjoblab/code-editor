@@ -13,7 +13,7 @@ import java.util.List;
  * <p>Responsabilités déplacées à l'identique depuis {@link EditorView} :</p>
  * <ul>
  *   <li><b>jumpToDefinition</b> — résolution hors du thread UI sur
- *       {@code EditorPopupManager.FEATURE_EXECUTOR} ; cible unique dans le
+ *       la voie « features » ({@code EditorTaskLanes}) ; cible unique dans le
  *       MÊME fichier → saut direct, sinon cibles multiples/inter-fichiers
  *       confiées au {@code OnDefinitionRequestedListener} de l'hôte ;</li>
  *   <li><b>formatDocument</b> — requête LSP formatting hors du thread UI,
@@ -52,7 +52,7 @@ class EditorDocumentActions {
         if (view.definitionResolver == null || view.session == null) return;
         final jo.codeeditor.document.Selection sel = view.session.getSelection();
         final String text = view.session.getText().toString();
-        EditorPopupManager.FEATURE_EXECUTOR.execute(() -> {
+        jo.codeeditor.view.EditorTaskLanes.submitFeature(() -> {
             List<jo.codeeditor.lang.model.DefinitionLocation> targets = null;
             try {
                 targets = view.definitionResolver.resolve(text, sel.start);
@@ -102,7 +102,7 @@ class EditorDocumentActions {
             return;
         }
         final String current = view.session.getText().toString();
-        EditorPopupManager.FEATURE_EXECUTOR.execute(() -> {
+        jo.codeeditor.view.EditorTaskLanes.submitFeature(() -> {
             String formatted = null;
             try {
                 formatted = view.formatterResolver.format(current);
@@ -162,7 +162,7 @@ class EditorDocumentActions {
         }
         final String text = view.session.getText();
         final jo.codeeditor.lang.provider.CodeActionsProvider fProvider = provider;
-        EditorPopupManager.FEATURE_EXECUTOR.execute(() -> {
+        jo.codeeditor.view.EditorTaskLanes.submitFeature(() -> {
             // Le serveur propose « Organiser les imports » quelle que soit
             // la ligne demandée ; on sonde autour du curseur par sécurité.
             EditorDocument doc = view.session != null ? view.session.getDocument() : null;

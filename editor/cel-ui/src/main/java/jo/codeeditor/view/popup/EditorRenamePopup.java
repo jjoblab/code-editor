@@ -145,7 +145,7 @@ public class EditorRenamePopup {
         final String fOldName = oldName;
         if (resolver != null) {
             dismissRename();
-            EditorPopupManager.FEATURE_EXECUTOR.execute(() -> {
+            jo.codeeditor.view.EditorTaskLanes.submitFeature(() -> {
                 String tmp = null;
                 try {
                     tmp = resolver.rename(text, caretOffset, fNewName);

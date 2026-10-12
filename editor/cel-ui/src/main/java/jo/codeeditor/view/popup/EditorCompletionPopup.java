@@ -27,22 +27,6 @@ public class EditorCompletionPopup {
         this.popups = popups;
     }
 
-    // ── Exécuteurs dédiés (un par popup) ─────────────────────
-    /**
-     * Lane « interactive » côté éditeur : la complétion possède son propre
-     * worker mono-thread daemon — AUCUN autre consommateur (hover,
-     * highlights, inlays…) ne peut la retarder. Toute la mécanique de
-     * requête/réponse LSP se déroule ici : le thread UI n'y touche plus
-     * jamais un {@code future.get()}.
-     */
-    private static final java.util.concurrent.ExecutorService COMPLETION_EXECUTOR =
-            java.util.concurrent.Executors.newSingleThreadExecutor(r -> {
-                Thread t = new Thread(r, "code-editor-completion");
-                t.setDaemon(true);
-                t.setPriority(Thread.NORM_PRIORITY + 1);
-                return t;
-            });
-
     // ════════════════════════════════════════════════════════════════
     // Completion popup
     // ════════════════════════════════════════════════════════════════
@@ -396,7 +380,7 @@ public class EditorCompletionPopup {
         final String prefix = view.session.getDocument().subText(safeTokenStart, snapCaret);
         final String snapText = (provider != null) ? view.session.getText() : null;
 
-        COMPLETION_EXECUTOR.execute(() -> {
+        jo.codeeditor.view.EditorTaskLanes.submitCompletion(() -> {
             java.util.List<jo.codeeditor.completion.CompletionSession.Item> result = null;
             try {
                 if (provider != null) {

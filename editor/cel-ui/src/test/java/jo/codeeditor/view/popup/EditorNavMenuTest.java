@@ -130,7 +130,7 @@ public class EditorNavMenuTest {
         u.recycle();
     }
 
-    /** Attend l'ouverture async du menu (FEATURE_EXECUTOR). */
+    /** Attend l'ouverture async du menu (voie « features »). */
     private static boolean awaitNavMenu(EditorView view, long timeoutMs)
             throws InterruptedException {
         long deadline = System.currentTimeMillis() + timeoutMs;

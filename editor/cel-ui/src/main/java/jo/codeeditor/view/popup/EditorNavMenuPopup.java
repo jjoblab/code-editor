@@ -60,7 +60,7 @@ public class EditorNavMenuPopup {
                 view.implementationsResolver;
         final EditorView.TypeDefinitionResolver typeDefResolver = view.typeDefinitionResolver;
         final EditorView.SuperResolver superResolver = view.superResolver;
-        EditorPopupManager.FEATURE_EXECUTOR.execute(() -> {
+        jo.codeeditor.view.EditorTaskLanes.submitFeature(() -> {
             List<NavigationMenu.NavOption> options = new ArrayList<>();
             // GO TO — Declaration (textDocument/definition) — NavKind #1.
             if (defResolver != null) {

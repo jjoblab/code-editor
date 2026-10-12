@@ -16,7 +16,7 @@ import java.util.List;
  *   <li>état du popup : visibilité, filtre, listes complète/filtrée de
  *       {@link NavigationMenu.Symbol}, index sélectionné, scroll ;</li>
  *   <li>résolution asynchrone : la requête LSP (jusqu'à 15 s !) est
- *       déportée sur {@code EditorPopupManager.FEATURE_EXECUTOR}, annulable
+ *       déportée sur la voie « features » (EditorTaskLanes), annulable
  *       par génération ; le résultat est rappliqué sur le thread UI via le
  *       handler de la vue ;</li>
  *   <li>navigation : l'acceptation d'une référence saute au même fichier
@@ -77,7 +77,7 @@ class EditorReferencesController {
         final jo.codeeditor.document.Selection sel = view.session.getSelection();
         final String text = view.session.getText().toString();
         final int gen = ++generation;
-        EditorPopupManager.FEATURE_EXECUTOR.execute(() -> {
+        jo.codeeditor.view.EditorTaskLanes.submitFeature(() -> {
             List<jo.codeeditor.lang.model.DefinitionLocation> targets = null;
             try {
                 targets = resolver.resolve(text, sel.start);

@@ -372,7 +372,7 @@ public class EditorSelectionToolbarTest {
                 view.codeActionsPopupVisible);
     }
 
-    /** Attend l'ouverture async du menu contextuel unifié (FEATURE_EXECUTOR). */
+    /** Attend l'ouverture async du menu contextuel unifié (voie « features »). */
     private static boolean awaitNavMenu(EditorView view, long timeoutMs)
             throws InterruptedException {
         long deadline = System.currentTimeMillis() + timeoutMs;

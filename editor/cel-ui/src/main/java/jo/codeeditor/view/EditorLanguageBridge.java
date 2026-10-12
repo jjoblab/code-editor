@@ -366,7 +366,7 @@ final class EditorLanguageBridge {
                     final CharSequence text = view.session.getText();
                     final int fFirst = first;
                     final int fLast = last;
-                    EditorPopupManager.FEATURE_EXECUTOR.execute(() -> {
+                    jo.codeeditor.view.EditorTaskLanes.submitFeature(() -> {
                         java.util.List<jo.codeeditor.lang.model.InlayHint> spiHints = null;
                         try {
                             spiHints = inlayHintProviderSpi.inlayHints(text, fFirst, fLast);
@@ -462,7 +462,7 @@ final class EditorLanguageBridge {
             final int gen = ++docHighlightGeneration;
             final String text = view.session.getText().toString();
             final int caret = sel.start;
-            EditorPopupManager.FEATURE_EXECUTOR.execute(() -> {
+            jo.codeeditor.view.EditorTaskLanes.submitFeature(() -> {
                 List<int[]> result = null;
                 try {
                     result = view.documentHighlightResolver.resolve(text, caret);

@@ -142,7 +142,7 @@ public class CompletionTriggerCharDebounceTest {
         // assertion stricte « avant tout advance » n'est pas fiable — mais
         // le chemin du char déclencheur prend la branche immediate=true :
         // launchFetch est invoqué SYNCHRONEMENT par scheduleAsyncFetch, et
-        // COMPLETION_EXECUTOR (un vrai thread d'arrière-plan) le prend en
+        // la voie complétion (un vrai thread d'arrière-plan) le prend en
         // charge en quelques microsecondes. provide() sera donc appelé
         // en < 50 ms (bien sous le debounce de 80 ms).
         CountDownLatch latch = installCountingProvider(view);
@@ -175,7 +175,7 @@ public class CompletionTriggerCharDebounceTest {
         view.refreshCompletion();
 
         // Les 2 s couvrent le debounce de 80 ms + la répartition vers le
-        // thread COMPLETION_EXECUTOR + l'exécution de provide().
+        // thread de la voie complétion + l'exécution de provide().
         boolean countedDown = latch.await(2, TimeUnit.SECONDS);
         assertTrue(
             "Le préfixe non-vide 'a' (sans char déclencheur précédent) doit "
