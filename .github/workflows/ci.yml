@@ -60,6 +60,15 @@ jobs:
           validate-wrappers: true
           cache-read-only: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master' }}
 
+      - name: Garde-fou anti-références externes
+        # Heuristiques génériques (URLs de dépôts tiers, formules
+        # d'inspiration) + motifs nominatifs lus dans le secret
+        # FORBIDDEN_REFS_EXTRA. Secret absent : le contrôle nominatif est
+        # ignoré sans erreur (signalé dans le journal du script).
+        env:
+          FORBIDDEN_REFS_EXTRA: ${{ secrets.FORBIDDEN_REFS_EXTRA }}
+        run: sh scripts/check-external-refs.sh --all
+
       - name: Assemblage (debug, 4 modules)
         run: ./gradlew assembleDebug --stacktrace
 

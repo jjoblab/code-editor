@@ -89,23 +89,65 @@ toute régression est la vôtre.
   pipeline commun décale annotations/plis/composition) — jamais muter
   `doc` directement.
 
-## Règles de provenance et d'attribution
+## Interdiction de mentionner des projets externes
 
-- Toute inspiration d'un comportement extérieur se traduit par une
-  **réimplémentation à partir du comportement observé**, jamais par de la
-  traduction de code tiers.
-- **Ne jamais coller de code d'un autre projet**, ni écrire de commentaire
-  qui nomme un autre projet : le crédit vit dans la section Crédits du
-  `README.md` et dans `NOTICE` — nulle part ailleurs (vérif :
-  `grep -rIi "l'outil tiers\|l'outil tiers\|l'outil tiers" editor/` doit rester vide).
+**Règle absolue.** Aucun projet, bibliothèque, éditeur, IDE ou dépôt qui
+n'appartient pas au propriétaire de ce dépôt ne doit être nommé, cité,
+décrit, comparé ou référencé, **où que ce soit**.
+
+**Portée (aucune exception de lieu).** Code source, commentaires, Javadoc,
+noms de classes, méthodes, variables, constantes, fichiers et tests,
+chaînes et ressources, jeux de test, `CHANGELOG`, `README`, `NOTICE`
+(sauf exception 1), `docs/`, plans, rapports, scripts, workflows CI,
+messages de commit, descriptions de PR, noms de branches et de tags,
+notes de release, issues.
+
+**Formulations interdites** (liste non exhaustive) : « inspiré de X »,
+« comme X », « mieux que X », « équivalent de X », « port de X »,
+« comportement de X », lien ou URL vers le dépôt d'un autre projet, hash
+de commit d'un autre dépôt, résumé de lecture du code d'autrui, benchmark
+ou comparaison nommant un autre projet.
+
+**À la place**, décris le comportement ou l'algorithme en termes
+génériques et autosuffisants (« le guide d'indentation suit l'imbrication
+des blocs », « le curseur reste visible pendant le défilement »).
+
+**Exceptions, strictement limitées.**
+1. Les **dépendances réellement déclarées** dans le build et l'outillage
+   CI réellement utilisé : nom, version et licence, uniquement dans les
+   fichiers de build et dans `NOTICE` (obligation de licence). Leur usage
+   technique (imports, appels d'API) va de soi ; les citer dans un
+   commentaire ou un document comme source d'inspiration ou terme de
+   comparaison reste interdit.
+2. Les **standards et plateformes** nécessaires à la description
+   technique (Android, Java, Gradle, Language Server Protocol, JSON-RPC,
+   Unicode…), cités comme normes et jamais comme implémentation de
+   référence ou concurrente.
+
+**Provenance du code.** Ne jamais copier, traduire ni adapter le code
+d'un autre projet. Implémente à partir du comportement attendu, des
+spécifications publiques et de tests écrits ici. En cas de doute sur
+l'origine d'un passage : arrête-toi et demande au propriétaire ; ne
+« règle » pas le doute en supprimant une mention.
+
+**Contrôle.** `scripts/check-external-refs.sh` (heuristiques génériques
+versionnées + motifs nominatifs lus dans la variable d'environnement
+`FORBIDDEN_REFS_EXTRA`, jamais committés) s'exécute en CI, en hook
+`commit-msg` et avant toute livraison. Aucun nom interdit n'est écrit
+dans le dépôt, pas même dans cette section.
+
+**Agents IA.** Avant chaque commit, exécute le contrôle. Dans tes
+comptes rendus, désigne tout projet externe par un identifiant neutre
+(`[EXT-1]`…), jamais par son nom.
+
 - Ne pas modifier `LICENSE`.
 
 ## Définition de « terminé »
 
 `./gradlew clean assembleDebug test lint --continue` vert · pas de nouveau
 avertissement lint ni de test en échec · `CHANGELOG.md` à jour ·
-`git status` propre. L'agent **ne pousse jamais** (`git push` est réservé
-au propriétaire).
+`scripts/check-external-refs.sh` vert · `git status` propre. L'agent
+**ne pousse jamais** (`git push` est réservé au propriétaire).
 
 ## À ne pas faire
 

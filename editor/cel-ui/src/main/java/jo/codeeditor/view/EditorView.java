@@ -259,7 +259,7 @@ public class EditorView extends View {
     // par révision du document.
     final CodeBlockIndex codeBlockIndex = new CodeBlockIndex(this);
     // Détecteur de lignes sticky (en-têtes collés en haut pendant
-    // le scroll, à la manière des éditeurs de code de bureau).
+    // le scroll, comme les éditeurs de code de bureau).
     final StickyLineDetector stickyLineDetector = new StickyLineDetector(this);
     // Sticky lines activées/désactivées (défaut : true).
     public boolean stickyLinesEnabled = true;

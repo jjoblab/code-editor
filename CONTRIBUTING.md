@@ -21,7 +21,7 @@ mkdir -p $TOOLS_DIR
 cd $TOOLS_DIR
 
 # JDK 17 Temurin
-wget -q "https://adoptium.net (téléchargements JDK)/releases/download/jdk-17.0.13%2B11/OpenJDK17U-jdk_x64_linux_hotspot_17.0.13_11.tar.gz" -O temurin17.tar.gz
+curl -sL "https://api.adoptium.net/v3/binary/latest/17/ga/linux/x64/jdk/hotspot/normal/eclipse" -o temurin17.tar.gz
 tar -xzf temurin17.tar.gz
 
 # Android cmdline-tools
@@ -87,6 +87,18 @@ sdk.dir=/path/to/your/android-sdk
   pas testable sans Android, documentez-le dans la PR.
 - **Pas d'emoji dans le code source** (sauf chaînes affichées à
   l'utilisateur si déjà présentes).
+- **Aucune référence à un projet externe** (voir la section dédiée de
+  [`AGENT.md`](AGENT.md)) : ni nom, ni comparaison, ni URL de dépôt tiers.
+  Le garde-fou `scripts/check-external-refs.sh` tourne en CI ; pour
+  l'activer localement sur chaque commit :
+
+  ```bash
+  git config core.hooksPath .githooks
+  ```
+
+  Les motifs nominatifs interdits sont fournis par la variable
+  d'environnement `FORBIDDEN_REFS_EXTRA` (en CI : secret du même nom ;
+  absente, le contrôle nominatif est ignoré sans erreur).
 
 ## Ajouter une fonctionnalité
 
