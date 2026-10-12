@@ -54,6 +54,19 @@ class LspCodeActionsProvider implements CodeActionsProvider {
                 org.eclipse.lsp4j.CodeActionKind.SourceOrganizeImports));
     }
 
+    @Override
+    public List<CodeAction> codeActions(CharSequence text, int caretOffset,
+            int selectionStart, int selectionEnd, List<String> onlyKinds) {
+        if (text == null) return Collections.emptyList();
+        // Plage visée par l'invocation : sélection active, sinon mot sous
+        // le caret, sinon ligne du caret — UNE requête, émise au moment
+        // où l'utilisateur demande les actions (contenu fraîchement
+        // calculé, pas un balayage pré-calculé).
+        org.eclipse.lsp4j.Range range = LspTextUtils.effectiveRange(
+                text.toString(), caretOffset, selectionStart, selectionEnd);
+        return requestCodeActions(text.toString(), range, onlyKinds);
+    }
+
     /**
      * Le cœur partagé : une requête {@code textDocument/codeAction} pour
      * la plage donnée, avec le contexte de diagnostics intersectant la
@@ -92,6 +105,7 @@ class LspCodeActionsProvider implements CodeActionsProvider {
                 if (e == null) continue;
                 out.add(toAction(e, versionAtRequest));
             }
+            sortForMenu(out);
             return out;
         } catch (Exception e) {
             log("codeAction: ERROR " + e.getClass().getSimpleName() + ": " + e.getMessage());
@@ -133,6 +147,7 @@ class LspCodeActionsProvider implements CodeActionsProvider {
             int versionAtRequest) {
         String title;
         String kind = "";
+        boolean preferred = false;
         final org.eclipse.lsp4j.WorkspaceEdit editToApply;
         if (e.isLeft()) {
             org.eclipse.lsp4j.Command command = e.getLeft();
@@ -145,6 +160,7 @@ class LspCodeActionsProvider implements CodeActionsProvider {
             org.eclipse.lsp4j.CodeAction ca = e.getRight();
             title = ca.getTitle();
             kind = ca.getKind() != null ? ca.getKind() : "";
+            preferred = Boolean.TRUE.equals(ca.getIsPreferred());
             editToApply = ca.getEdit();
         }
         final String actionTitle = title != null ? title : "";
@@ -161,13 +177,34 @@ class LspCodeActionsProvider implements CodeActionsProvider {
                 log("codeAction: FAILED to apply '" + actionTitle + "': " + t.getMessage());
             }
         };
-        return new CodeAction(actionTitle, kind, false, apply);
+        return new CodeAction(actionTitle, kind, preferred, apply);
     }
 
     /** Description compacte d'une plage pour les journaux. */
     private static String describe(org.eclipse.lsp4j.Range r) {
         return r.getStart().getLine() + ":" + r.getStart().getCharacter()
             + "-" + r.getEnd().getLine() + ":" + r.getEnd().getCharacter();
+    }
+
+    /**
+     * Classement du menu : corrections d'abord (quickfix.*), puis
+     * refactorings, puis actions de source ; au sein de chaque groupe,
+     * l'action marquée PRÉFÉRÉE par le serveur passe en tête. Tri stable
+     * (l'ordre du serveur est conservé à qualité égale).
+     */
+    private static void sortForMenu(List<CodeAction> actions) {
+        actions.sort(java.util.Comparator
+            .comparingInt((CodeAction a) -> kindRank(a.kind))
+            .thenComparingInt(a -> a.isPreferred ? 0 : 1));
+    }
+
+    /** Priorité d'affichage par famille : quickfix < refactor < source < autres. */
+    private static int kindRank(String kind) {
+        if (kind == null || kind.isEmpty()) return 3;
+        if (kind.startsWith("quickfix")) return 0;
+        if (kind.startsWith("refactor")) return 1;
+        if (kind.startsWith("source")) return 2;
+        return 3;
     }
 
     private void log(String message) {

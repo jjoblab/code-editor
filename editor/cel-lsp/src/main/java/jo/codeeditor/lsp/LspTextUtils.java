@@ -155,6 +155,60 @@ final class LspTextUtils {
     }
 
     /**
+     * La plage LSP VISÉE par une invocation d'actions de code :
+     * sélection non vide → la sélection (terrain des refactorings
+     * d'extraction) ; sinon le MOT sous le caret (ou juste avant, si le
+     * caret est posé après le mot) ; sinon la ligne entière du caret.
+     */
+    static org.eclipse.lsp4j.Range effectiveRange(String text, int caret,
+            int selectionStart, int selectionEnd) {
+        if (text == null) {
+            return new org.eclipse.lsp4j.Range(new Position(0, 0),
+                    new Position(0, Integer.MAX_VALUE));
+        }
+        if (selectionEnd > selectionStart) {
+            int start = Math.max(0, Math.min(selectionStart, text.length()));
+            int end = Math.max(start, Math.min(selectionEnd, text.length()));
+            return new org.eclipse.lsp4j.Range(
+                    offsetToPosition(text, start), offsetToPosition(text, end));
+        }
+        int[] word = wordRangeAt(text, caret);
+        if (word[1] > word[0]) {
+            return new org.eclipse.lsp4j.Range(
+                    offsetToPosition(text, word[0]), offsetToPosition(text, word[1]));
+        }
+        // Mot vide (caret sur un séparateur d'une ligne vide) : la ligne.
+        Position start = offsetToPosition(text, caret);
+        return new org.eclipse.lsp4j.Range(
+                new Position(start.getLine(), 0),
+                new Position(start.getLine(), Integer.MAX_VALUE));
+    }
+
+    /**
+     * Le mot (lettres/chiffres/souligné) CONTENANT l'offset — si
+     * l'offset est posé juste APRÈS le mot (frappe suivie du curseur
+     * avancé), le mot précédent est retourné. Tableau {début, fin} ;
+     * vide si aucun mot autour.
+     */
+    static int[] wordRangeAt(String text, int offset) {
+        if (text == null || text.isEmpty()) return new int[]{0, 0};
+        int probe = Math.max(0, Math.min(offset, text.length()));
+        if (probe >= text.length() || !isWordChar(text.charAt(probe))) {
+            if (probe > 0 && isWordChar(text.charAt(probe - 1))) probe--;
+        }
+        int start = probe;
+        int end = probe;
+        while (start > 0 && isWordChar(text.charAt(start - 1))) start--;
+        while (end < text.length() && isWordChar(text.charAt(end))) end++;
+        return new int[]{start, end};
+    }
+
+    /** Caractère de mot (identifiant : lettre, chiffre, souligné). */
+    private static boolean isWordChar(char c) {
+        return Character.isLetterOrDigit(c) || c == '_';
+    }
+
+    /**
      * Décide si des éditions renvoyées par le serveur sont PÉRIMÉES par
      * rapport à la version du document synchronisée.
      *

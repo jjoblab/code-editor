@@ -70,6 +70,14 @@ public class FakeActionsCodeServer implements LanguageServer {
         publishIdentityDiagnostics(uri, "famille:1", List.of("Foo", "bar"));
     }
 
+    /** Publie des diagnostics EXACTS fournis par le test. */
+    public void publishDiagnostics(String uri, List<Diagnostic> diagnostics) {
+        PublishDiagnosticsParams params = new PublishDiagnosticsParams();
+        params.setUri(uri);
+        params.setDiagnostics(diagnostics);
+        client.publishDiagnostics(params);
+    }
+
     /** Variante paramétrable de la publication identifiée. */
     public void publishIdentityDiagnostics(String uri, String code, List<String> args) {
         Diagnostic d = new Diagnostic();
