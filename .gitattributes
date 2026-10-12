@@ -1,0 +1,15 @@
+# Normalisation des fins de ligne (Lot 8) : le contenu textuel est
+# stocké avec LF dans le dépôt, converti au checkout selon la plateforme.
+* text=auto eol=lf
+
+# Scripts Windows : CRLF obligatoire (cmd.exe).
+*.bat eol=crlf
+
+# Wrapper Gradle : exécutable, LF.
+gradlew text eol=lf
+
+# Binaires : jamais de conversion ni de fusion.
+*.jar binary
+*.png binary
+*.webp binary
+*.zip binary
