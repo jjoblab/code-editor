@@ -285,27 +285,28 @@ public class EditorKeyHandler {
                 view.triggerSignatureHelp();
                 return true;
             case EditorCommands.CODE_ACTIONS:
-                // Ctrl+. — consommé seulement quand la ligne du caret a des
-                // actions (convention LSP ; comportement historique préservé).
+                // Ctrl+. — résolution à la demande au point d'invocation :
+                // le contenu du popup est calculé à l'appel (une requête,
+                // plage = sélection sinon mot sinon ligne), le popup ne
+                // s'ouvre que si des actions existent.
                 if (view.session != null) {
-                    EditorDocument doc = view.session.getDocument();
-                    int line = EditorView.clamp(doc.lineForOffset(view.session.getSelection().start),
-                        0, doc.lineCount() - 1);
-                    if (view.codeActionsByLine.containsKey(line)) {
-                        view.showCodeActions(line);
-                        return true;
-                    }
+                    jo.codeeditor.document.Selection sel = view.session.getSelection();
+                    int caret = sel != null ? sel.start : 0;
+                    view.popupManager.resolveCodeActionsAt(caret,
+                            sel != null ? sel.start : caret,
+                            sel != null ? sel.end : caret, true);
+                    return true;
                 }
                 return false;
             case EditorCommands.CODE_ACTIONS_AT_CARET:
-                // Ctrl+Shift+L — contrairement à Ctrl+., ouvre toujours
-                // (l'état vide affiche « no actions »), une alternative
-                // pour les claviers logiciels.
+                // Ctrl+Shift+L — même résolution au caret (alternative
+                // claviers logiciels : l'état vide reste silencieux).
                 if (view.session != null) {
-                    EditorDocument doc = view.session.getDocument();
-                    int line = EditorView.clamp(doc.lineForOffset(view.session.getSelection().start),
-                        0, doc.lineCount() - 1);
-                    view.showCodeActions(line);
+                    jo.codeeditor.document.Selection sel = view.session.getSelection();
+                    int caret = sel != null ? sel.start : 0;
+                    view.popupManager.resolveCodeActionsAt(caret,
+                            sel != null ? sel.start : caret,
+                            sel != null ? sel.end : caret, true);
                 }
                 return true;
             case EditorCommands.QUICK_DOC:

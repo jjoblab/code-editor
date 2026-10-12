@@ -434,10 +434,8 @@ public class EditorView extends View {
     }
 
     // ── Ampoule des code actions ─────────────────────────────────
-    // Affiche une 💡 dans la gouttière pour chaque ligne visible qui a
-    // au moins une code action. Tap sur l'ampoule → popup avec la liste
-    // d'actions. Tap sur une action → apply.run() (le résolveur fournit
-    // un Runnable).
+    // 💡 dans la gouttière des lignes de diagnostic ; tap → popup dont
+    // le contenu est RÉSOLU À LA DEMANDE (plus de balayage pré-calculé).
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
     public CodeActionsResolver codeActionsResolver;
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
@@ -455,13 +453,34 @@ public class EditorView extends View {
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
     public static final int CODE_ACTIONS_MAX_ROWS = 8;
 
-    /**
-     * Résolveur des code actions. Retourne une liste de
-     * {@link CodeAction}s pour le texte de document + la ligne donnés.
-     */
+    /** Résolveur des code actions — liste de {@link CodeAction}s par ligne. */
     public interface CodeActionsResolver {
         List<CodeAction> resolve(String text, int line);
+
+        /** Résolution au POINT D'INVOCATION (sélection, sinon mot, sinon
+         *  ligne) : contenu calculé à la demande, UNE requête par
+         *  invocation. Repli : la méthode ligne (résolveurs hôtes inchangés). */
+        default List<CodeAction> resolveAtCaret(String text, int caretOffset,
+                int selectionStart, int selectionEnd) {
+            if (text == null) return resolve("", 0);
+            int line = 0;
+            for (int i = 0, borne = Math.max(0, Math.min(caretOffset, text.length()));
+                    i < borne; i++) {
+                if (text.charAt(i) == '\n') line++;
+            }
+            return resolve(text, line);
+        }
     }
+
+    /** Pré-validation de renommage : nom proposé (placeholder) ou null
+     *  (non renommable / repli local). Branché par le pont langage. */
+    public interface RenamePrepareResolver {
+        String prepareRename(String text, int offset);
+    }
+
+    /** Pré-validation de renommage (null = heuristique locale). */
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public RenamePrepareResolver renamePrepareResolver;
 
     /**
      * Une code action unitaire — titre, kind et un Runnable pour
@@ -470,10 +489,16 @@ public class EditorView extends View {
     public static final class CodeAction {
         public final String title;
         public final String kind; // "quickfix", "refactor", "source"
+        /** Motif de désactivation (action affichée mais inerte), ou null. */
+        public final String disabledReason;
         public final Runnable apply;
         public CodeAction(String title, String kind, Runnable apply) {
+            this(title, kind, null, apply);
+        }
+        public CodeAction(String title, String kind, String disabledReason, Runnable apply) {
             this.title = title != null ? title : "";
             this.kind = kind != null ? kind : "quickfix";
+            this.disabledReason = disabledReason;
             this.apply = apply;
         }
     }
@@ -1434,13 +1459,10 @@ public class EditorView extends View {
         popupManager.dismissGoToLine();
         popupManager.dismissRename();
         referencesController.dismiss();
-        // Nettoyage complet des callbacks en attente : une vue détachée
-        // avec des callbacks runnables encore postés (préfetch au repos,
-        // rafraîchissement débouncé des code actions, hover tap-hold,
-        // fermeture multi-tap) continuerait à les exécuter contre une vue
-        // DÉTACHÉE — la vue resterait fortement accessible depuis son
-        // Handler jusqu'à ce que chaque callback ait tiré, et chaque
-        // callback pourrait toucher un état que l'hôte a déjà démonté.
+        // Nettoyage complet des callbacks en attente (préfetch au repos,
+        // hover tap-hold, fermeture multi-tap) : une vue détachée avec des
+        // runnables encore postés resterait accessible depuis son Handler
+        // et chaque callback pourrait toucher un état déjà démonté.
         if (getHandler() != null) {
             viewportPrefetcher.cancel();
             languageBridge.cancelPending();
@@ -2306,10 +2328,8 @@ public class EditorView extends View {
         // Relance les diagnostics (débouncés) pour que les soulignés se
         // mettent à jour pendant la frappe.
         diagnosticsPusher.schedule();
-        // Rafraîchit les code actions (débouncées) — un appel depuis le
-        // chemin de dessin à chaque frame bloquerait l'UI sur les appels
-        // LSP.
-        languageBridge.scheduleCodeActionsRefresh();
+        // Le cache d'actions ne survit pas à l'édition (périmé).
+        codeActionsByLine.clear();
         // Rafraîchit les inlay hints (débouncés) — les annotations de type
         // peuvent changer pendant la frappe (ex. var x = ...).
         languageBridge.scheduleInlayHints();
@@ -2827,16 +2847,10 @@ public class EditorView extends View {
     }
 
     /**
-     * Rafraîchit le cache d'actions de code par ligne. Appelé depuis
-     * {@link #onTextChanged} et après les grands déplacements de sélection.
-     * Parcourt la plage de lignes visibles, appelle le resolver pour chacune
-     * et stocke le résultat dans {@link #codeActionsByLine}.
+     * Ouvre le popup d'actions de code pour la ligne donnée — contenu
+     * RÉSOLU À LA DEMANDE (ancre = début du diagnostic de la ligne, sinon
+     * début de ligne) ; le popup n'apparaît que si des actions existent.
      */
-    void refreshCodeActions(int firstVisible, int lastVisible) {
-        popupManager.refreshCodeActions(firstVisible, lastVisible);
-    }
-
-    /** Ouvre le popup d'actions de code pour la ligne donnée. */
     public void showCodeActions(int line) {
         popupManager.showCodeActions(line);
     }

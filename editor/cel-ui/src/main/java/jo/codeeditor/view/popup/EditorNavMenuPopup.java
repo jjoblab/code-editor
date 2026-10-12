@@ -40,9 +40,10 @@ public class EditorNavMenuPopup {
      * les types d'entrée — Declaration (definitionResolver),
      * Implementations (implementationsResolver), Type declaration
      * (typeDefinitionResolver), Super (superResolver) — puis les
-     * quick-fixes/intentions viennent du cache {@code codeActionsByLine}
-     * de la ligne du caret (snapshot AVANT dispatch — la map vit sur le
-     * thread UI). Le menu apparaît quand tout est prêt ; une nouvelle
+     * quick-fixes/intentions : cache de la ligne s'il est FRAIS (une
+     * résolution récente l'a peuplé), sinon résolution À LA DEMANDE au
+     * caret dans la même tâche (le balayage par ligne n'existe plus).
+     * Le menu apparaît quand tout est prêt ; une nouvelle
      * demande invalide la livraison (génération).
      */
     void showNavMenu(int line, int offset) {
@@ -51,16 +52,29 @@ public class EditorNavMenuPopup {
         final int gen = ++navMenuGeneration;
         final int fLine = line;
         final int fOffset = offset;
-        // Snapshot UI-thread du cache d'actions de la ligne.
+        // Cache-frais d'abord (peuplé par une résolution récente au caret).
         final List<EditorView.CodeAction> lineActions =
-                new ArrayList<>(view.codeActionsByLine.getOrDefault(fLine,
-                        java.util.Collections.emptyList()));
+                view.codeActionsByLine.containsKey(fLine)
+                        ? new ArrayList<>(view.codeActionsByLine.get(fLine))
+                        : null;
         final EditorView.DefinitionResolver defResolver = view.definitionResolver;
         final EditorView.ImplementationsResolver implResolver =
                 view.implementationsResolver;
         final EditorView.TypeDefinitionResolver typeDefResolver = view.typeDefinitionResolver;
         final EditorView.SuperResolver superResolver = view.superResolver;
         jo.codeeditor.view.EditorTaskLanes.submitFeature(() -> {
+            // QUICK FIXES / INTENTIONS — résolution à la demande au caret
+            // quand le cache frais est absent (rien d'autre ne peuple la map).
+            List<EditorView.CodeAction> actions = lineActions;
+            if (actions == null && view.codeActionsResolver != null) {
+                try {
+                    actions = view.codeActionsResolver.resolveAtCaret(
+                            text, fOffset, fOffset, fOffset);
+                } catch (Exception e) {
+                    jo.codeeditor.util.EditorLog.warn("EditorNavMenu",
+                        "résolution des actions de code échouée", e);
+                }
+            }
             List<NavigationMenu.NavOption> options = new ArrayList<>();
             // GO TO — Declaration (textDocument/definition) — NavKind #1.
             if (defResolver != null) {
@@ -125,12 +139,14 @@ public class EditorNavMenuPopup {
             // (parité NavigationMenu.kt : UiActionKind.QUICK_FIX / autres).
             final List<EditorView.CodeAction> quickFixes = new ArrayList<>();
             final List<EditorView.CodeAction> intentions = new ArrayList<>();
-            for (EditorView.CodeAction a : lineActions) {
-                if (a == null) continue;
-                if (a.kind != null && a.kind.startsWith("quickfix")) {
-                    quickFixes.add(a);
-                } else {
-                    intentions.add(a);
+            if (actions != null) {
+                for (EditorView.CodeAction a : actions) {
+                    if (a == null) continue;
+                    if (a.kind != null && a.kind.startsWith("quickfix")) {
+                        quickFixes.add(a);
+                    } else {
+                        intentions.add(a);
+                    }
                 }
             }
             android.os.Handler h = view.getHandler();

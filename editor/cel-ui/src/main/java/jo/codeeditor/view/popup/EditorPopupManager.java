@@ -128,8 +128,9 @@ public class EditorPopupManager {
     // Popup d'actions de code — corps délégués à EditorCodeActionsPopup
     // ════════════════════════════════════════════════════════════════
 
-    public void refreshCodeActions(int firstVisible, int lastVisible) {
-        codeActions.refreshCodeActions(firstVisible, lastVisible);
+    public void resolveCodeActionsAt(int anchorOffset, int selectionStart,
+            int selectionEnd, boolean openPopup) {
+        codeActions.resolveCodeActionsAt(anchorOffset, selectionStart, selectionEnd, openPopup);
     }
 
     public void showCodeActions(int line) { codeActions.showCodeActions(line); }

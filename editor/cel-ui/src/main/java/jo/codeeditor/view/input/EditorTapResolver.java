@@ -238,7 +238,9 @@ public class EditorTapResolver {
         if (x < view.metrics.getGutterWidth()
             && x >= view.metrics.getGutterWidth() - view.metrics.getFoldStripWidth()) {
             int line = view.docLineForScreenY(y);
-            if (view.codeActionsByLine.containsKey(line) && view.lineHasDiagnostic(line)) {
+            // Ligne de diagnostic → actions résolues à la demande au début
+            // du diagnostic (l'ampoule est pilotée par les diagnostics).
+            if (view.lineHasDiagnostic(line)) {
                 view.showCodeActions(line);
                 return;
             }

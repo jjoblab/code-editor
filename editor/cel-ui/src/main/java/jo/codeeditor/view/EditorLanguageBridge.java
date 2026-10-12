@@ -183,16 +183,32 @@ final class EditorLanguageBridge {
                 view.setQuickDocResolver(null);
             }
 
-            // Code actions
+            // Code actions — résolution À LA DEMANDE au point
+            // d'invocation (le pont SPI expose la variante au caret :
+            // plage sélection/mot/ligne, une requête par demande).
             if (language.getCodeActionsProvider() != null) {
                 final jo.codeeditor.lang.provider.CodeActionsProvider spiActions =
                     language.getCodeActionsProvider();
-                view.setCodeActionsResolver((text, line) -> {
-                    java.util.List<EditorView.CodeAction> out = new java.util.ArrayList<>();
-                    for (jo.codeeditor.lang.model.CodeAction a : spiActions.codeActions(text, line)) {
-                        out.add(new EditorView.CodeAction(a.title, a.kind, a.apply));
+                view.setCodeActionsResolver(new EditorView.CodeActionsResolver() {
+                    @Override
+                    public List<EditorView.CodeAction> resolve(String text, int line) {
+                        List<EditorView.CodeAction> out = new java.util.ArrayList<>();
+                        for (jo.codeeditor.lang.model.CodeAction a : spiActions.codeActions(text, line)) {
+                            out.add(new EditorView.CodeAction(a.title, a.kind, a.disabledReason, a.apply));
+                        }
+                        return out;
                     }
-                    return out;
+                    @Override
+                    public List<EditorView.CodeAction> resolveAtCaret(String text,
+                            int caretOffset, int selectionStart, int selectionEnd) {
+                        List<EditorView.CodeAction> out = new java.util.ArrayList<>();
+                        for (jo.codeeditor.lang.model.CodeAction a
+                                : spiActions.codeActions(text, caretOffset,
+                                        selectionStart, selectionEnd, null)) {
+                            out.add(new EditorView.CodeAction(a.title, a.kind, a.disabledReason, a.apply));
+                        }
+                        return out;
+                    }
                 });
             } else {
                 view.setCodeActionsResolver(null);
@@ -485,36 +501,16 @@ final class EditorLanguageBridge {
         };
     }
 
-    // ── Code actions (débouncées) ───────────────────────────────────
+    // ── Code actions (résolues à la demande) ───────────────────────
 
-    // Rafraîchissement débouncé des code actions — un rafraîchissement à
-    // chaque frame bloquerait le thread UI.
-    private Runnable codeActionsTask;
-    private static final int CODE_ACTIONS_DEBOUNCE_MS = 800;
-
-    void scheduleCodeActionsRefresh() {
-        if (view.codeActionsResolver == null) return;
-        if (codeActionsTask == null) {
-            codeActionsTask = () -> {
-                if (view.session == null) return;
-                int first = Math.max(0, (int) (view.vOffset / view.metrics.getLineHeight()) - 1);
-                int last = Math.min(view.session.getDocument().lineCount() - 1,
-                    (int) ((view.vOffset + view.getHeight()) / view.metrics.getLineHeight()) + 1);
-                view.popupManager.refreshCodeActions(first, last);
-                view.invalidate();
-            };
-        }
-        if (view.getHandler() != null) {
-            view.getHandler().removeCallbacks(codeActionsTask);
-            view.getHandler().postDelayed(codeActionsTask, CODE_ACTIONS_DEBOUNCE_MS);
-        }
-    }
-
-    /** Retire la tâche de code actions en attente (détachement de la vue). */
+    /**
+     * Nettoyage des tâches différées du pont langage (détachement de la
+     * vue). Le balayage débouncé des lignes visibles a disparu — les
+     * actions sont résolues à l'invocation ; les rafraîchissements
+     * restants (inlay hints, document highlights) possèdent leur propre
+     * garde de fraîcheur à l'application.
+     */
     void cancelPending() {
-        if (view.getHandler() != null && codeActionsTask != null) {
-            view.getHandler().removeCallbacks(codeActionsTask);
-        }
     }
 
     /**

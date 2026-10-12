@@ -57,6 +57,12 @@ public class EditorDiagnosticPopups {
         if (view.codeActionsPopupVisible) popups.dismissCodeActions();
         // Le menu contextuel unifié ferme aussi (popup exclusif).
         if (view.navMenuVisible) popups.dismissNavMenu();
+        // Les quick-fixes de la section QUICK FIXES se résolvent À LA
+        // DEMANDE à l'ouverture : la fiche se peuple dès l'arrivée (le
+        // balayage par ligne qui remplissait le cache n'existe plus).
+        if (diag != null) {
+            popups.resolveCodeActionsAt(diag.start, diag.start, diag.start, false);
+        }
         view.invalidate();
     }
 
