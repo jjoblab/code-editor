@@ -280,6 +280,16 @@ public class MainActivity extends AppCompatActivity {
         session.setLanguage(editorLanguageId);
         analyzer = new DemoAnalyzer(editor, session, editorLanguageId);
         analyzer.attach();
+        // T1 (lot 2) : preuve du SPI d'injection d'actions de la pill —
+        // deux actions d'hôte (casse) qui n'existent PAS dans le socle.
+        // Retirées à chaque changement d'échantillon puis ré-injectées
+        // (la liste vit sur la session de la vue).
+        editor.removeSelectionAction("demo.upper");
+        editor.removeSelectionAction("demo.lower");
+        editor.addSelectionAction(new jo.codeeditor.view.SelectionAction(
+                "demo.upper", "UPPER", () -> transformSelection(true)));
+        editor.addSelectionAction(new jo.codeeditor.view.SelectionAction(
+                "demo.lower", "lower", () -> transformSelection(false)));
 
         editor.setOnSelectionChangedListener((line, col, isCursor) ->
                 toolbar.setSubtitle(String.format(java.util.Locale.FRANCE,
@@ -287,6 +297,17 @@ public class MainActivity extends AppCompatActivity {
 
         if (editorLight) editor.setTheme(EditorTheme.light());
         toolbar.setSubtitle(label);
+    }
+
+    /** Transforme la sélection en MAJUSCULES/minuscules (action T1). */
+    private void transformSelection(boolean upper) {
+        jo.codeeditor.document.Selection sel = session.getSelection();
+        if (sel.isCursor() || sel.start >= sel.end) return;
+        String text = session.getDocument().getText().toString();
+        String part = text.substring(sel.start, sel.end);
+        String transformed = upper ? part.toUpperCase(java.util.Locale.ROOT)
+                : part.toLowerCase(java.util.Locale.ROOT);
+        session.replaceRange(sel.start, sel.end, transformed);
     }
 
     @Override
