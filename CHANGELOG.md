@@ -112,6 +112,140 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Les anomalies avalées aux frontières d'extension sont désormais
   traçables.
 
+## [v3.44.1] — 2026-10-11 — Guide sous la ligne d'ouverture
+
+### Fixed
+
+- **Portée exacte du guide d'indentation** — le guide vertical d'un
+  bloc d'accolades commence au BAS de la ligne contenant
+  l'accolade ouvrante `{` (donc sur la ligne suivante) et s'arrête
+  au HAUT de la ligne contenant l'accolade fermante `}` (donc sur
+  la ligne précédente) : aucune ligne d'accolade n'est traversée
+  par le guide, conformément au comportement des éditeurs de code
+  de bureau.
+
+## [v3.44.2] — 2026-10-11 — Guide au début de la ligne
+
+### Fixed
+
+- **Colonne du guide** — le guide est positionné au minimum des
+  colonnes de l'accolade ouvrante et fermante : un bloc dont le `{`
+  est en colonne 25 et le `}` en colonne 0 reçoit son guide en
+  colonne 0 (au début de la ligne), plus sous l'accolade
+  ouvrante.
+
+## [v3.44.3] — 2026-10-11 — Guide C_LIKE : arrêt avant la fermeture
+
+### Fixed
+
+- **Arrêt du guide pour les langages C_LIKE** — le guide s'arrête
+  au HAUT de la ligne contenant le `}` (avant la ligne de
+  fermeture), pas au bas (sur la ligne même du `}`). Les langages
+  non C_LIKE (indentation sans accolades) conservent l'arrêt au
+  bas de la dernière ligne indentée.
+
+## [v3.45.0] — 2026-10-11 — Guides de niveau IDE : centrage, commentaires, retours à la ligne souples, 3e couleur
+
+### Changed
+
+- **Centrage du guide** — le guide est centré au milieu de la
+  colonne d'indentation (`x = (colonne + 0,5) × largeur d'espace`)
+  au lieu d'être aligné à gauche de la colonne.
+- **Lignes commentées comme lignes vides** — les lignes commentées
+  (`//`, `#`, `--`) sont traitées comme des lignes vides par
+  l'algorithme `IndentRange` : l'indentation y est déduite des
+  lignes voisines.
+- **Retours à la ligne souples** — le guide est interrompu aux
+  points de retour à la ligne souple (lignes enroulées) et reprend
+  après, segment par segment.
+
+### Added
+
+- **Troisième couleur de guide (accolades appariées)** — quand le
+  caret est sur l'accolade ouvrante ou fermante d'un bloc, le
+  guide reçoit la couleur d'accent (`theme.caret`).
+
+## [v3.46.0] — 2026-10-11 — Complétion postfix, entourage de sélection, régions de pli nommées
+
+### Added
+
+- **Complétion postfix (`PostfixCompletion`)** — l'utilisateur tape
+  `obj.if` puis Entrée → `if (obj) { }`. Postfixes supportés :
+  `.if`, `.for`, `.notnull`, `.return`, `.var`, `.while`, `.try`,
+  `.else`, pour les langages C_LIKE (Java, Kotlin, JS, TS, Go,
+  Rust, C/C++, PHP, Swift, Dart, Groovy, Scala) et Python.
+  Intégré dans `EditorSession.commitText`.
+- **Entourage de sélection (`SurroundWith`)** — entoure une
+  sélection avec `if`/`try`/`for`/`while`. API :
+  `SurroundWith.surround(texte, début, fin, type, langage,
+  indentation)`, C_LIKE + Python.
+- **Régions de pli nommées (`FoldDetector.detectNamedRegions`)** —
+  supporte `// region … // endregion`,
+  `// <editor-fold> … // </editor-fold>` et
+  `# region … # endregion` (Python/YAML), pour tous les langages.
+
+## [v3.47.0] — 2026-10-11 — Lignes collantes : en-têtes de blocs en haut pendant le défilement
+
+### Added
+
+- **Lignes collantes (`StickyLineDetector`)** — détecte les lignes
+  d'en-tête de bloc (déclarations de classe/interface/enum/fonction
+  en C_LIKE, `def`/`class` en Python) ; pendant le défilement, une
+  ligne collante qui sort du viewport est redessinée en haut,
+  empilée par-dessus la précédente (maximum 2 lignes pour préserver
+  l'espace mobile : classe + méthode). Fond opaque, bordure
+  inférieure fine, numéro de ligne dans la gouttière, texte limité
+  à 120 caractères.
+- **API publique** — `setStickyLinesEnabled(boolean)` /
+  `isStickyLinesEnabled()` ; sous-menu « Lignes sticky » dans
+  l'application de démonstration.
+
+## [v3.48.0] — 2026-10-11 — Sélecteur de couleur en ligne
+
+### Added
+
+- **Détection des couleurs hexadécimales (`ColorPicker`)** —
+  parsing de `#RGB`, `#RRGGBB`, `#AARRGGBB` dans le texte.
+- **Pastilles de couleur** — un carré coloré (65 % de la hauteur de
+  ligne, bordure fine) est dessiné à côté de chaque couleur
+  hexadécimale des lignes visibles.
+- **API publique** — `setColorSwatchesEnabled(boolean)` /
+  `isColorSwatchesEnabled()`.
+
+## [v3.49.0] — 2026-10-11 — Couleurs par variable
+
+### Added
+
+- **Teinte unique par variable (`VariableColorizer`)** — chaque nom
+  de variable reçoit une teinte HSL stable par hachage FNV-1a du
+  nom (saturation 65 %, luminosité ajustée au thème). Les noms de
+  moins de 2 caractères ne reçoivent pas de couleur (trop de
+  collisions). Branché sur les jetons sémantiques LSP de type
+  VARIABLE dans `EditorLineLayoutResolver`.
+- **API publique** — `setVariableColorsEnabled(boolean)` /
+  `isVariableColorsEnabled()` (désactivé par défaut : requiert des
+  jetons sémantiques) ; sous-menu « Couleurs par variable » dans
+  l'application de démonstration.
+
+## [v3.49.1] — 2026-10-12 — Sélecteur de couleur : code entouré par sa couleur
+
+### Fixed
+
+- **Mise en évidence du code couleur** — le code hexadécimal est
+  désormais ENTOURÉ par sa couleur (fond semi-transparent à 25 %
+  d'alpha derrière le texte, bordure fine dans la couleur pleine)
+  au lieu d'un carré coloré posé à côté du code.
+
+## [v3.49.2] — 2026-10-12 — Correctifs de publication
+
+### Fixed
+
+- **Construction chez l'hébergeur de paquets** — `jitpack.yml` :
+  déclaration du répertoire de build comme sûr (`safe.directory`)
+  pour éviter l'échec « dubious ownership », étape d'installation
+  explicite (`--no-daemon -x test -x lint`) remplaçant
+  `publishToMavenLocal` introuvable. Version portée à 3.49.2.
+
 ## [v3.44.0] — 2026-10-11 — Guide devant l'accolade + menu démo guides d'indentation
 
 ### Changed
