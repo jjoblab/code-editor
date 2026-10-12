@@ -65,6 +65,9 @@ public class EditorPopupManager {
     private final EditorDiagnosticPopups diagnostics;
     /** Popup ancré de squiggle (D1) — niveau 1 de la lecture d'un diagnostic. */
     private final EditorSquigglePopups squiggle;
+    /** Actions de sélection injectées par l'hôte (T1) + leur débordement. */
+    public final jo.codeeditor.view.EditorSelectionActions selActions =
+            new jo.codeeditor.view.EditorSelectionActions();
 
     public EditorPopupManager(EditorView view) {
         this.completion = new EditorCompletionPopup(view, this);
@@ -245,5 +248,14 @@ public class EditorPopupManager {
     public void handleSquiggleHit(int hit) { squiggle.handleSquiggleHit(hit); }
 
     public void dismissSquigglePopup() { squiggle.dismissSquigglePopup(); }
+
+    /**
+     * Ouvre le NavMenu en mode débordement de la pill (T1) : liste
+     * SYNCHRONE des actions injectées non affichées (section « MORE »),
+     * sans résolution GO TO/quick-fixes — zéro nouveau chrome.
+     */
+    public void showSelectionOverflow(int line, int offset) {
+        navMenu.showSelectionOverflow(line, offset);
+    }
 
 }

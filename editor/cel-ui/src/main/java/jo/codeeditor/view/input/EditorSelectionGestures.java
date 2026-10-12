@@ -235,7 +235,7 @@ public class EditorSelectionGestures {
     /**
      * Résout le tap sur la pill via les MÉTRIQUES PARTAGÉES
      * ({@link EditorView#selectionToolbarMetrics()}), plus aucune
-     * duplication du layout. Les 6 actions sont câblées :
+     * duplication du layout. Les 6 actions canoniques sont câblées :
      * Copy/Cut/Paste/Select all + Docs ℹ / Actions ⋯ (le hit-test
      * recalculait auparavant un layout 4-boutons obsolète — les icônes
      * étaient inatteignables et la pill collapsed rejetait tout tap).
@@ -244,13 +244,20 @@ public class EditorSelectionGestures {
      * referment la pill (et masquent les poignées), Select all la laisse
      * ouverte (Copy/Cut deviennent disponibles), Docs ouvre le quick-doc,
      * Actions ouvre le popup de quick-fixes de la ligne.</p>
+     *
+     * <p>T1 (lot 2) : les items INJECTÉS par l'hôte exécutent leur
+     * {@code perform} puis referment le chrome (contrat Copy/Cut/Paste)
+     * ; une action désactivée REJETTE le tap sans refermer. L'item
+     * « ⋯ » de débordement referme le chrome et ouvre le NavMenu en mode
+     * section « MORE » (liste des actions non affichées).</p>
      */
     boolean handleSelectionToolbarTap(float x, float y) {
         if (!view.selectionToolbarVisible || view.session == null) return false;
         EditorPopupAnchors.SelectionToolbarMetrics m = view.selectionToolbarMetrics();
         if (m == null) return false;
-        int act = m.actionAt(x, y);
-        if (act < 0) return false;
+        int idx = m.itemIndexAt(x, y);
+        if (idx < 0) return false;
+        int act = m.action[idx];
 
         Selection sel = view.session.getSelection();
         switch (act) {
@@ -287,6 +294,22 @@ public class EditorSelectionGestures {
                 // quick-fixes.
                 view.showNavMenu(view.session.getDocument()
                         .lineForOffset(sel.start), sel.start);
+                break;
+            case jo.codeeditor.view.EditorSelectionActions.SEL_ACT_INJECTED: {
+                // T1 : action injectée par l'hôte — désactivée = tap
+                // rejeté SANS refermer la pill.
+                jo.codeeditor.view.SelectionAction sa = m.injected[idx];
+                if (sa == null || !sa.isEnabled()) return true;
+                hideSelectionChrome();
+                if (sa.perform != null) sa.perform.run();
+                break;
+            }
+            case jo.codeeditor.view.EditorSelectionActions.SEL_ACT_OVERFLOW:
+                // T1 : débordement — le NavMenu unifié sert d'hôte
+                // (section « MORE », zéro nouveau chrome).
+                hideSelectionChrome();
+                view.popupManager.showSelectionOverflow(
+                        view.session.getDocument().lineForOffset(sel.start), sel.start);
                 break;
             default:
                 return false;

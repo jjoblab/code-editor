@@ -131,10 +131,9 @@ public class EditorView extends View {
     public int findCurrentIndex = -1;
 
     // ── Popup de complétion ────────────────────────────────────────
-    // Complétion simple par mots-clés intégrée à la vue. L'hôte peut
-    // aussi piloter en externe un CompletionController plus riche et
-    // alimenter les items via setCompletionItems(items, tokenStart,
-    // prefix).
+    // Complétion intégrée par mots-clés ; l'hôte peut piloter un
+    // CompletionController externe via setCompletionItems(items,
+    // tokenStart, prefix).
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
     public final List<jo.codeeditor.completion.CompletionSession.Item> completionItems = new ArrayList<>();
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
@@ -165,10 +164,9 @@ public class EditorView extends View {
     public CompletionProvider completionProvider;
 
     // ── Retour à la ligne (word wrap) ──────────────────────────────
-    // Quand activé, les lignes longues se replient sur plusieurs rangées
-    // visuelles dans la zone de texte. Le modèle de wrap met en cache le
-    // nombre de rangées par ligne et fournit la correspondance
-    // O(log L) ligne-doc ↔ rangée-visuelle via sommes préfixes.
+    // Les lignes longues se replient en rangées visuelles ; le modèle
+    // cache les rangées par ligne et donne la correspondance O(log L)
+    // ligne-doc ↔ rangée-visuelle (sommes préfixes).
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
     public boolean wordWrap = false;
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
@@ -304,10 +302,9 @@ public class EditorView extends View {
     }
 
     // ── Cache de layouts façonnés adressé par contenu ─────────────
-    // ~25 % des lignes d'un fichier réel sont identiques octet pour
-    // octet ; cette LRU vit dans EditorShapedLayoutCache et mémoïse le
-    // layout façonné par CONTENU de ligne (relais ci-dessous pour le
-    // chemin de dessin et les tests).
+    // ~25 % des lignes réelles sont identiques octet pour octet ; LRU
+    // dans EditorShapedLayoutCache mémoïsant le layout par CONTENU
+    // (relais ci-dessous pour le dessin et les tests).
     final EditorShapedLayoutCache shapedCache = new EditorShapedLayoutCache(this);
     // Construction des entrées de cache par ligne + correspondance de
     // colonnes brute↔visuelle (inlays) — possédées par
@@ -388,10 +385,9 @@ public class EditorView extends View {
     }
 
     // ── Popup quick doc ───────────────────────────────────────────
-    // Affiche la documentation du symbole à la position caret / survol.
-    // Desktop : un survol > 500ms déclenche. Mobile : un long-press sur
-    // le symbole déclenche. Fermé par un tap ailleurs, scroll, édition
-    // ou Échap.
+    // Doc du symbole au caret/survol : survol > 500ms (desktop),
+    // long-press (mobile) ; fermé par tap ailleurs, scroll, édition,
+    // Échap.
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
     public QuickDocResolver quickDocResolver;
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
@@ -497,12 +493,10 @@ public class EditorView extends View {
     }
 
     // ════════════════════════════════════════════════════════════════
-    // Menu contextuel unifié (NavMenu)
+    // Menu contextuel unifié (NavMenu) — ouvert par « Actions ⋯ » de la
+    // pill : sections GO TO / QUICK FIXES / INTENTIONS (si non-vides) +
+    // MORE (débordement T1) ; pick GO TO multi-cibles → mode RESULTS.
     // ════════════════════════════════════════════════════════════════
-    // Le bouton « Actions ⋯ » de la toolbar de sélection ouvre le menu
-    // contextuel unifié : sections GO TO / QUICK FIXES / INTENTIONS
-    // (chacune si non-vide), « Nothing found in source. » sinon ; un pick
-    // GO TO multi-cibles bascule en mode RESULTS (picker de cibles).
 
     /** Le menu est-il visible ? */
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
@@ -627,10 +621,8 @@ public class EditorView extends View {
     }
 
     // ── Câblage des providers LSP ─────────────────────────────────
-    // Les résolveurs suivants pontent les providers du SPI Language
-    // (definition, references, document highlights, rename, formatter,
-    // inlay hints) vers les chemins UI / dessin de l'éditeur.
-    // setLanguage() les branche automatiquement quand le provider SPI
+    // Les résolveurs pontent les providers du SPI Language vers les
+    // chemins UI/dessin ; setLanguage() les branche quand le provider
     // retourne non-null.
 
     /** Résolveur du go-to-definition. Retourne une liste de localisations cibles. */
@@ -840,11 +832,9 @@ public class EditorView extends View {
     public IndentGuideStyle indentGuideStyle = IndentGuideStyle.INDENT_WITH_SCOPE;
 
     // ── Couches de surcharge ─────────────────────────────────────
-    // Overlays légers dessinés au Canvas : chips de diagnostic, toolbar
-    // de sélection, popup go-to-line, popup rename, feuille de diagnostic.
-    // go-to-line et rename utilisent un vrai PopupWindow Android +
-    // EditText (les versions Canvas seul ne pouvaient pas recevoir la
-    // saisie clavier).
+    // Overlays Canvas : chips, pill de sélection, go-to-line/rename
+    // (vrais PopupWindow + EditText — le Canvas seul ne reçoit pas la
+    // saisie), feuille de diagnostic.
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
     public boolean diagnosticChipsEnabled = true;
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
@@ -924,12 +914,10 @@ public class EditorView extends View {
     public static final int DIAG_LIST_MAX_ROWS = 8;
 
     // ── Popup ancré de squiggle (D1) ─────────────────────────────
-    // Niveau 1 de la lecture d'un diagnostic : tap au cœur d'une plage
-    // soulignée → fiche compacte ancrée au-dessus de la ligne, non
-    // modale (re-tap sur la plage → caret, motif pendingTapDismiss).
-    // Multi-diagnostics superposés → mini-liste ; « See all » → fiche
-    // basse. Logique : EditorSquigglePopups ; géométrie :
-    // EditorPopupAnchors.squigglePopupMetrics.
+    // Niveau 1 de lecture : tap au cœur d'un squiggle → fiche compacte
+    // ancrée, non modale (re-tap → caret) ; multi → mini-liste ;
+    // « See all » → fiche basse. Logique : EditorSquigglePopups ;
+    // géométrie : EditorPopupAnchors.squigglePopupMetrics.
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
     public boolean squigglePopupVisible = false;
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
@@ -1473,12 +1461,9 @@ public class EditorView extends View {
         // par le chemin de dessin, donc il meurt avec la vue.
         caretAnim.cancelGlide();
         // ★ B21h : purge les listeners session→vue — une session qui
-        // survit au détachement de sa vue (hôte recyclant les sessions
-        // entre onglets) ne doit plus la retenir fortement (imeBridge →
-        // vue), sinon la vue et tout son graphe (popups, caches, painter,
-        // loupe) fuient jusqu'à la mort de la session. setSession(null)
-        // purge déjà (B21e) — ceci couvre l'hôte qui garde la session
-        // posée dans la vue démontée. onAttachedToWindow repose.
+        // survit au détachement (hôte recyclant les sessions) ne doit
+        // plus retenir la vue (sinon tout son graphe fuie jusqu'à la
+        // mort de la session). onAttachedToWindow repose.
         if (session != null) {
             session.setImeListener(null);
             session.setOnLinesShiftedListener(null);
@@ -2348,10 +2333,8 @@ public class EditorView extends View {
         // bougent à l'édition.
         if (squigglePopupVisible) popupManager.dismissSquigglePopup();
         // Referme la toolbar de sélection à l'édition — la sélection a pu
-        // bouger ou être remplacée. Réinitialise aussi l'item pressé
-        // (feedback) + les poignées, et annule le tap-dismiss différé —
-        // committer un caret tapé AVANT l'édition déplacerait le caret
-        // après l'insert.
+        // bouger ; annule aussi le tap-dismiss différé (un caret tapé
+        // AVANT l'insert serait périmé après).
         selectionToolbarVisible = false;
         selectionToolbarPressedIdx = -1;
         handlesVisible = false;
@@ -2894,6 +2877,25 @@ public class EditorView extends View {
     /** Referme le menu contextuel unifié. */
     public void dismissNavMenu() {
         popupManager.dismissNavMenu();
+    }
+
+    /**
+     * Injecte une action d'hôte dans la pill de sélection (T1, lot 2) :
+     * libellé entre les canoniques d'édition et les icônes Docs/Actions,
+     * uniquement avec une vraie sélection ; au-delà de la largeur de vue
+     * les suivantes basculent dans « ⋯ » (NavMenu, section « MORE »).
+     * Un tap exécute {@code perform} puis referme la pill (contrat
+     * Copy/Cut/Paste) ; {@code enabled} à false → estompée, tap rejeté.
+     */
+    public void addSelectionAction(SelectionAction action) {
+        popupManager.selActions.add(action);
+        invalidate();
+    }
+
+    /** Retire la première action injectée d'identifiant {@code id}. */
+    public void removeSelectionAction(String id) {
+        popupManager.selActions.remove(id);
+        invalidate();
     }
 
     /**

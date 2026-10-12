@@ -1,6 +1,7 @@
 package jo.codeeditor.view.popup;
 
 import jo.codeeditor.view.EditorView;
+import jo.codeeditor.view.SelectionAction;
 import jo.codeeditor.view.preview.EditorPreviewController;
 
 import androidx.annotation.RestrictTo;
@@ -432,8 +433,17 @@ public final class EditorPopupAnchors {
 
     /**
      * Géométrie partagée + liste d'actions de la toolbar flottante de
-     * sélection. SOURCE
-     * UNIQUE de vérité pour le rendu ET le hit-test.
+     * sélection. SOURCE UNIQUE de vérité pour le rendu ET le hit-test.
+     *
+     * <p>T1 (lot 2) : les actions injectées par l'hôte
+     * ({@code view.popupManager.selActions.actions}) s'insèrent ENTRE les
+     * canoniques d'édition et les icônes Docs/Actions, uniquement avec
+     * une vraie sélection ; au-delà de ce qui tient dans la largeur de
+     * la vue, les suivantes basculent dans le débordement « ⋯ » (item
+     * {@code SEL_ACT_OVERFLOW}) — la liste {@code m.overflow} peuplée
+     * ici alimente la section « MORE » du NavMenu (la métrique reste la
+     * source unique : le débordement du menu lit
+     * {@code view.popupManager.selActions.overflow}).</p>
      */
     public static SelectionToolbarMetrics selectionToolbarMetrics(EditorView view) {
         if (!view.selectionToolbarVisible || view.session == null) return null;
@@ -464,6 +474,50 @@ public final class EditorPopupAnchors {
         m.addText(EditorView.SEL_ACT_PASTE, "Paste", view.textPaint.measureText("Paste"));
         m.addText(EditorView.SEL_ACT_SELECT_ALL, "Select all",
                 view.textPaint.measureText("Select all"));
+
+        // ── T1 : actions injectées par l'hôte (fit par la largeur) ──
+        java.util.List<jo.codeeditor.view.SelectionAction> hostActions =
+                view.popupManager.selActions.actions;
+        int textCount = m.count;
+        if (hasSelection && !hostActions.isEmpty()) {
+            // Largeur des canoniques (textes + divider + icônes + gaps).
+            float base = 0;
+            for (int i = 0; i < textCount; i++) base += m.itemW[i] + m.btnGap;
+            base += 6 * density + iconW * 2 + 3 * m.btnGap;
+            float avail = view.getWidth() - 8 * density - base;
+            float overflowW = view.textPaint.measureText("⋯") + 2 * m.padX + m.btnGap;
+            int n = hostActions.size();
+            int shown = 0;
+            float used = 0;
+            for (SelectionAction sa : hostActions) {
+                if (sa == null) continue;
+                float textW = view.textPaint.measureText(sa.label);
+                float w = textW + 2 * m.padX;
+                // La dernière injectée n'a besoin du ⋯ que si d'autres
+                // la suivent — réserver sa place sinon.
+                float limit = (shown == n - 1) ? avail : avail - overflowW;
+                if (used + w > limit) break;
+                m.addInjected(sa, textW);
+                used += w + m.btnGap;
+                shown++;
+            }
+            // Le débordement alimente la section « MORE » du NavMenu.
+            view.popupManager.selActions.overflow.clear();
+            if (shown < n) {
+                for (int i = shown; i < hostActions.size(); i++) {
+                    if (hostActions.get(i) != null) {
+                        view.popupManager.selActions.overflow.add(hostActions.get(i));
+                    }
+                }
+                m.addOverflow(view.textPaint.measureText("⋯"));
+            }
+            for (SelectionAction sa : view.popupManager.selActions.overflow) {
+                m.overflow.add(sa);
+            }
+        } else {
+            view.popupManager.selActions.overflow.clear();
+        }
+
         m.addIcon(EditorView.SEL_ACT_DOCS);
         m.addIcon(EditorView.SEL_ACT_ACTIONS);
         m.dividerCount = 1;
@@ -509,6 +563,13 @@ public final class EditorPopupAnchors {
      * Géométrie de la toolbar de sélection : la pill + les items actionnables
      * (texte ou icône) + les positions des dividers. Consommée par le rendu et
      * le hit-test (une seule source de layout).
+     *
+     * <p>Tableaux dynamiques (T1) : les actions injectées peuvent
+     * dépasser l'ancienne capacité fixe de 8 — la largeur de vue est
+     * désormais le seul plafond d'affichage. {@code injected[i]}
+     * référence l'action d'hôte d'un item injecté ;
+     * {@code itemDisabled[i]} porte l'estompage ; {@code overflow}
+     * liste les actions non affichées (section « MORE » du NavMenu).</p>
      */
     public static final class SelectionToolbarMetrics {
         public float x, y;                       // coin haut-gauche de la pill
@@ -516,15 +577,24 @@ public final class EditorPopupAnchors {
         public float radius;                     // rayon (pill complète)
         public float padX, padY, btnGap;
         public int count;                        // items actionnables
-        public final float[] itemX = new float[8];
-        public final float[] itemW = new float[8];
-        public final int[] action = new int[8];
-        public final String[] label = new String[8]; // null pour un item icône
-        public final boolean[] isIcon = new boolean[8];
+        public float[] itemX = new float[8];
+        public float[] itemW = new float[8];
+        public int[] action = new int[8];
+        public String[] label = new String[8]; // null pour un item icône
+        public boolean[] isIcon = new boolean[8];
+        /** L'action d'hôte injectée de l'item (null sinon). */
+        public jo.codeeditor.view.SelectionAction[] injected =
+                new jo.codeeditor.view.SelectionAction[8];
+        /** Item estompé (action désactivée) — tap rejeté. */
+        public boolean[] itemDisabled = new boolean[8];
+        /** Actions non affichées (débordement ⋯ → NavMenu « MORE »). */
+        public final java.util.List<jo.codeeditor.view.SelectionAction> overflow =
+                new java.util.ArrayList<>();
         public float dividerX = Float.MIN_VALUE;  // 1 divider max (avant les icônes)
         public int dividerCount;
 
         void addText(int act, String text, float width) {
+            ensure(count + 1);
             itemX[count] = -1; // rempli par la passe de layout
             itemW[count] = width + 2 * padX;
             action[count] = act;
@@ -534,12 +604,51 @@ public final class EditorPopupAnchors {
         }
 
         void addIcon(int act) {
+            ensure(count + 1);
             itemX[count] = -1;
             itemW[count] = 0; // rempli par applyIconWidth(iconW)
             action[count] = act;
             label[count] = null;
             isIcon[count] = true;
             count++;
+        }
+
+        /** Item injecté par l'hôte (T1) : libellé + référence + drapeau
+         *  d'estompage si l'action est désactivée. */
+        void addInjected(jo.codeeditor.view.SelectionAction sa, float textWidth) {
+            ensure(count + 1);
+            itemX[count] = -1;
+            itemW[count] = textWidth + 2 * padX;
+            action[count] = jo.codeeditor.view.EditorSelectionActions.SEL_ACT_INJECTED;
+            label[count] = sa.label;
+            isIcon[count] = false;
+            injected[count] = sa;
+            itemDisabled[count] = !sa.isEnabled();
+            count++;
+        }
+
+        /** Item « ⋯ » de débordement (T1) : ouvre le NavMenu « MORE ». */
+        void addOverflow(float textWidth) {
+            ensure(count + 1);
+            itemX[count] = -1;
+            itemW[count] = textWidth + 2 * padX;
+            action[count] = jo.codeeditor.view.EditorSelectionActions.SEL_ACT_OVERFLOW;
+            label[count] = "⋯";
+            isIcon[count] = false;
+            count++;
+        }
+
+        /** Croissance des tableaux (capacité 8 d'origine — T1). */
+        private void ensure(int cap) {
+            if (cap <= itemX.length) return;
+            int n = Math.max(cap, itemX.length * 2);
+            itemX = java.util.Arrays.copyOf(itemX, n);
+            itemW = java.util.Arrays.copyOf(itemW, n);
+            action = java.util.Arrays.copyOf(action, n);
+            label = java.util.Arrays.copyOf(label, n);
+            isIcon = java.util.Arrays.copyOf(isIcon, n);
+            injected = java.util.Arrays.copyOf(injected, n);
+            itemDisabled = java.util.Arrays.copyOf(itemDisabled, n);
         }
 
         /** La position (provisionnelle) du premier item icône. */

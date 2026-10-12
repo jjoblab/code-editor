@@ -103,6 +103,17 @@ public class EditorPopupHitTester {
                 }
                 break;
             case EditorView.NavMenuRow.TYPE_ACTION: {
+                // T1 (lot 2) : une rangée de débordement de la pill — la
+                // réf est une SelectionAction d'hôte, pas une CodeAction.
+                if (row.ref instanceof jo.codeeditor.view.SelectionAction) {
+                    jo.codeeditor.view.SelectionAction sa =
+                            (jo.codeeditor.view.SelectionAction) row.ref;
+                    if (sa.isEnabled() && sa.perform != null) {
+                        view.dismissNavMenu();
+                        sa.perform.run();
+                    }
+                    break;
+                }
                 EditorView.CodeAction action = view.navMenuActionAt(row);
                 if (action != null) view.popupManager.navMenuPickAction(action);
                 break;

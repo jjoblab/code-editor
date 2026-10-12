@@ -210,6 +210,31 @@ public class EditorNavMenuPopup {
     }
 
     /**
+     * Ouvre le menu en mode DÉBORDEMENT de la pill (T1) : liste
+     * SYNCHRONE des actions injectées non affichées (section « MORE »
+     * de {@code EditorNavMenuRows.navMenuRows()}, alimentée par la
+     * métrique de la pill — la source unique de layout), SANS résolution
+     * GO TO/quick-fixes. Invalide toute livraison async en cours
+     * (génération).
+     */
+    void showSelectionOverflow(int line, int offset) {
+        if (view.session == null) return;
+        if (line < 0) return;
+        navMenuGeneration++;
+        view.navMenuLine = line;
+        view.navMenuCaretOffset = offset;
+        view.navMenuOptions = new ArrayList<>();
+        view.navMenuQuickFixes = new ArrayList<>();
+        view.navMenuIntentions = new ArrayList<>();
+        view.navMenuResultsMode = false;
+        view.navMenuTargets = new ArrayList<>();
+        view.navMenuScrollY = 0;
+        view.navMenuPressedIdx = -1;
+        view.navMenuVisible = true;
+        view.invalidate();
+    }
+
+    /**
      * Pick d'une option GO TO : cible unique → navigation directe ;
      * plusieurs cibles → bascule en mode RESULTS (picker, parité
      * {@code NavMenuState.Results}).
