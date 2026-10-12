@@ -74,8 +74,8 @@ dependencies {
 
     // LSP4J — la liaison Java canonique du Language Server Protocol.
     // Licence EPL-2.0 (compatible MIT pour les œuvres combinées).
-    implementation("org.eclipse.lsp4j:org.eclipse.lsp4j:0.22.0")
-    implementation("org.eclipse.lsp4j:org.eclipse.lsp4j.jsonrpc:0.22.0")
+    implementation("org.eclipse.lsp4j:org.eclipse.lsp4j:1.0.0")
+    implementation("org.eclipse.lsp4j:org.eclipse.lsp4j.jsonrpc:1.0.0")
     // Gson (déjà transitif de LSP4J, déclaré EXPLICITEMENT) —
     // désérialisation des réponses des requêtes LSP personnalisées
     // (textDocument/superDefinition) envoyées via RemoteEndpoint.
