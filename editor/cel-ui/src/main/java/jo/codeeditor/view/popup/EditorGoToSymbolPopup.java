@@ -38,7 +38,7 @@ public class EditorGoToSymbolPopup {
         if (view.session == null || view.symbolResolver == null) return;
         final int gen = ++symbolGeneration;
         final String text = view.session.getText();
-        EditorPopupManager.FEATURE_EXECUTOR.execute(() -> {
+        jo.codeeditor.view.EditorTaskLanes.submitFeature(() -> {
             java.util.List<NavigationMenu.Symbol> symbols = null;
             try {
                 symbols = view.symbolResolver.resolve(text);

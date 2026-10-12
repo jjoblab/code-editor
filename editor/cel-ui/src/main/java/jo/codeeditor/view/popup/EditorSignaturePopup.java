@@ -74,7 +74,7 @@ public class EditorSignaturePopup {
             final int gen = ++sigHelpGeneration;
             final String fText = view.session.getText();
             final int fCaret = caret;
-            EditorPopupManager.FEATURE_EXECUTOR.execute(() -> {
+            jo.codeeditor.view.EditorTaskLanes.submitFeature(() -> {
                 try {
                     // Le contrôleur invoque lui-même le resolver LSP (via
                     // son listener) — c'est CET appel bloquant qui vit

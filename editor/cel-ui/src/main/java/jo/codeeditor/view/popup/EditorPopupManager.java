@@ -76,19 +76,6 @@ public class EditorPopupManager {
         this.diagnostics = new EditorDiagnosticPopups(view, this);
     }
 
-    // ── Exécuteurs dédiés (un par popup) ─────────────────────
-
-    /**
-     * Lane « features » : signature help, quick doc… Isolée de la lane
-     * complétion. Les tâches planifiées par EditorView (highlights, inlays,
-     * code actions) y sont aussi soumises.
-     */
-    public static final java.util.concurrent.ExecutorService FEATURE_EXECUTOR =
-            java.util.concurrent.Executors.newSingleThreadExecutor(r -> {
-                Thread t = new Thread(r, "code-editor-features");
-                t.setDaemon(true);
-                return t;
-            });
 
     // ════════════════════════════════════════════════════════════════
     // Completion popup — corps délégués à EditorCompletionPopup

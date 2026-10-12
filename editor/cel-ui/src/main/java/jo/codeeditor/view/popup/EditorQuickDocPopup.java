@@ -41,7 +41,7 @@ public class EditorQuickDocPopup {
         final String text = view.session.getText();
         final int gen = ++quickDocGeneration;
         final int fOffset = offset;
-        EditorPopupManager.FEATURE_EXECUTOR.execute(() -> {
+        jo.codeeditor.view.EditorTaskLanes.submitFeature(() -> {
             String rawDoc = null;
             try {
                 rawDoc = view.quickDocResolver.resolve(text, fOffset);

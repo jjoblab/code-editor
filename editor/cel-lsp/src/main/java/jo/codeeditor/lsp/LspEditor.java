@@ -67,6 +67,20 @@ public class LspEditor {
     /** Collaborateur : application des éditions LSP (WorkspaceEdit/TextEdits). */
     private final LspWorkspaceEditApplier workspaceEdits = new LspWorkspaceEditApplier(this);
 
+    /**
+     * Soumet une tâche de fond sur la voie partagée du projet (tirs
+     * clients, réécritures disque). Silencieux pendant l'extinction du
+     * projet : la tâche est abandonnée — les tirs sont de toute façon
+     * gardés par {@code isConnected()}.
+     */
+    void submitBackground(Runnable task) {
+        try {
+            project.taskExecutor().execute(task);
+        } catch (java.util.concurrent.RejectedExecutionException e) {
+            // Extinction en cours — abandon sans bruit.
+        }
+    }
+
     LspEditor(LspProject project, String fileUri) {
         this.project = project;
         this.fileUri = fileUri;
@@ -223,7 +237,7 @@ public class LspEditor {
      * <p><b>Mécanisme</b> : interrompt le thread debounce en cours (le
      * didChange différé ne sera PAS envoyé en double), puis appelle
      * {@code sendDidChange(String)} SYNCHRONEMENT sur le thread
-     * appelant (typiquement {@code COMPLETION_EXECUTOR}). La notification
+     * appelant (typiquement la voie complétion de l'hôte). La notification
      * didChange est SÉRIALISÉE et mise dans la file LSP4J AVANT le
      * retour de cette méthode. La requête completion qui suit est mise
      * dans la même file APRÈS le didChange — le serveur traite donc

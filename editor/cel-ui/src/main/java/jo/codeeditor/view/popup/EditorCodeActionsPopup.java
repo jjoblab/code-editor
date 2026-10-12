@@ -44,7 +44,7 @@ public class EditorCodeActionsPopup {
         final String text = view.session.getText();
         final int first = firstVisible;
         final int last = lastVisible;
-        EditorPopupManager.FEATURE_EXECUTOR.execute(() -> {
+        jo.codeeditor.view.EditorTaskLanes.submitFeature(() -> {
             java.util.Map<Integer, List<EditorView.CodeAction>> found =
                     new java.util.HashMap<>();
             for (int line = first; line <= last; line++) {
