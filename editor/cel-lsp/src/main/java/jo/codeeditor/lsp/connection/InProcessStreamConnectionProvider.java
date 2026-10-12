@@ -49,11 +49,19 @@ public class InProcessStreamConnectionProvider implements StreamConnectionProvid
     private ConnectedInputStream clientInput;
     private ConnectedInputStream serverInput;
 
-    private final ExecutorService executor = Executors.newCachedThreadPool(r -> {
-        Thread t = new Thread(r, "in-process-lsp");
-        t.setDaemon(true);
-        return t;
-    });
+    /*
+     * Voie du launcher serveur (LSP4J) : bornée à 2 threads daemon —
+     * l'ancien cache non borné pouvait créer un thread par message
+     * simultané. Fermée par stop().
+     */
+    private final ExecutorService executor = java.util.concurrent.Executors.newFixedThreadPool(
+            2, r -> {
+                Thread t = new Thread(r, "in-process-lsp-" + SEQ.incrementAndGet());
+                t.setDaemon(true);
+                return t;
+            });
+    private static final java.util.concurrent.atomic.AtomicInteger SEQ =
+            new java.util.concurrent.atomic.AtomicInteger(1);
 
     public InProcessStreamConnectionProvider(Supplier<LanguageServer> serverFactory) {
         this.serverFactory = serverFactory;
