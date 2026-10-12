@@ -61,7 +61,7 @@ public class EditorKeyHandler {
     private EditorKeymap.KeyStroke pendingChord;
     private long pendingChordDeadline;
 
-    /** Durée de vie d'un chord en attente (les éditeurs de code de bureau utilise ~2 s). */
+    /** Durée de vie d'un chord en attente (~2 s). */
     private static final long CHORD_TIMEOUT_MS = 2000;
 
     /** Horloge injectable (les tests figent/avancent le temps de façon déterministe). */

@@ -154,7 +154,7 @@ public class IndentGuidesRenderTest {
      * Cas 2 : un guide doit aussi être dessiné au niveau 4
      * (premier niveau d'imbrication) pour le bloc
      * « nested » qui contient la ligne à 8 colonnes.
-     * L'algorithme IndentRange (les éditeurs de code de bureau) crée un bloc de la
+     * L'algorithme IndentRange crée un bloc de la
      * ligne 2 (indent 4) à la ligne 4 (indent 4).
      */
     @Test

@@ -14,8 +14,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * (Python {@code def}, {@code if}, etc. ; YAML
  * {@code key:}) ou par {@code then}/{@code do} (Shell
  * {@code if … then}, Lua {@code for … do}). L'utilisateur
- * doit indenter manuellement — contrairement à les éditeurs de code de bureau et
- * les IDE professionnels.</p>
+ * doit indenter manuellement — les lignes de structure ne sont
+ * pas auto-indentées.</p>
  *
  * <p>Périmètre minimal (décision 4.4 — évaluer le risque de
  * faux positifs) :</p>

@@ -513,7 +513,7 @@ public class EditorTextPainter {
         // StyleSpan pour rendre les COMMENT en italique et les KEYWORD en
         // gras. Ces effets visuels améliorent la lisibilité (les
         // commentaires reculent, les mots-clés avancent) — convention de
-        // tous les éditeurs pro (les éditeurs de code de bureau, les IDE de bureau, Sublime).
+        // tous les éditeurs de code professionnels.
         //
         // ★ Le StaticLayout façonné est mémoïsé CONTENU-ADRESSÉ par
         // EditorView.shapedLayoutFor : ~25 % des lignes d'un fichier réel
@@ -553,7 +553,7 @@ public class EditorTextPainter {
         // ★ Path sans ligatures : on garde le rendu drawText historique mais
         // on bascule paint.setTypeface() par span pour le rendu
         // italique/gras. Comme le path ligatures est le défaut (98 % des
-        // appareils modernes supportent les ligatures de les IDE professionnels Mono),
+        // polices de code récentes offrent des ligatures),
         // ce path est rarement pris — mais on garde la cohérence visuelle.
         android.graphics.Typeface savedTypeface = paint.getTypeface();
         // ★ Clip global à la fenêtre visible : les spans hors écran sont
@@ -677,7 +677,7 @@ public class EditorTextPainter {
      * colonnes, avec les couleurs de spans du lexer.
      *
      * <p>Les rangées de continuation sont indentées de la colonne
-     * d'espaces de tête de la ligne (style les éditeurs de code de bureau / les IDE de bureau). La
+     * d'espaces de tête de la ligne. La
      * première rangée est dessinée à {@code textAreaLeft} ; les suivantes
      * à {@code textAreaLeft + leadingWhitespaceCols * charWidth} pour
      * qu'un corps de méthode Java replié s'aligne sous le nom de la

@@ -158,8 +158,8 @@ public final class DiagnosticShift {
 
         /**
          * Variante complète (collapsedByDefault pour le pliage
-         * serveur : groupe d'imports replié à l'ouverture comme
-         * les IDE de bureau).
+         * serveur : groupe d'imports replié à l'ouverture par
+         * défaut).
          */
         public FoldRegion(int start, int end, String placeholder, String kind,
                 boolean collapsed, boolean collapsedByDefault) {

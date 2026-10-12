@@ -47,8 +47,8 @@ import jo.codeeditor.session.EditorSession;
  *   <li>Le cache est invalidé par révision du document (pas
  *       par un signal d'analyseur) — plus simple et plus
  *       fiable.</li>
- *   <li>Les blocs non C_LIKE utilisent le même algorithme
- *       {@code IndentRange} que les éditeurs de code de bureau — y compris le mode
+ *   <li>Les blocs non C_LIKE utilisent l'algorithme
+ *       {@code IndentRange} — y compris le mode
  *       {@code offSide} pour Python.</li>
  * </ul>
  *
@@ -123,7 +123,7 @@ final class CodeBlockIndex {
     /**
      * Calcule les blocs pour le document courant. Pour C_LIKE,
      * détecte les paires d'accolades. Pour non C_LIKE, utilise
-     * l'algorithme IndentRange (les éditeurs de code de bureau).
+     * l'algorithme IndentRange.
      */
     private void computeBlocks(EditorDocument doc, EditorSession session) {
         jo.codeeditor.languages.LanguageProfile profile =
@@ -203,10 +203,10 @@ final class CodeBlockIndex {
         return true;
     }
 
-    // ── Non C_LIKE : IndentRange (les éditeurs de code de bureau algorithm) ─────────
+    // ── Non C_LIKE : algorithme IndentRange ──────────────────
 
     /**
-     * Implémente l'algorithme IndentRange de les éditeurs de code de bureau pour les
+     * Implémente l'algorithme IndentRange pour les
      * langages basés sur l'indentation (Python, YAML, etc.).
      *
      * <p>Balaye le document de bas en haut, en suivant
@@ -286,8 +286,7 @@ final class CodeBlockIndex {
     /**
      * Calcule le niveau d'indentation d'une ligne.
      * @return -1 si la ligne ne contient que des blancs OU si la
-     *         ligne est un commentaire (traité comme ligne vide,
-     *         comme les IDE de bureau — IndentGuideCalculator.isComment).
+     *         ligne est un commentaire (traité comme ligne vide).
      */
     private static int computeIndentLevel(CharSequence chars, int start, int end, int tabSize) {
         int indent = 0;
@@ -300,7 +299,7 @@ final class CodeBlockIndex {
             i++;
         }
         if (i == end) return -1; // ligne vide
-        // les IDE de bureau : les lignes commentées sont traitées comme
+        // Les lignes commentées sont traitées comme
         // des lignes vides (indentation déduite des voisines).
         // Détecter les préfixes de commentaire courants.
         if (i + 1 < end) {

@@ -6,7 +6,7 @@ package jo.codeeditor.view;
  * {@link EditorView#setIndentGuideStyle(IndentGuideStyle)} et
  * lu par {@link EditorView#getIndentGuideStyle()}.
  *
- * <p>Référence visuelle : les IDE Android et les éditeurs de code de bureau.</p>
+ * <p>Référence visuelle : les éditeurs de code de bureau.</p>
  *
  * <ul>
  *   <li>{@link #OFF} — aucun guide. Les guides d'indentation
@@ -20,7 +20,7 @@ package jo.codeeditor.view;
  *       qui contient le caret est dessiné avec la couleur
  *       d'accent ({@code theme.caret}) et une épaisseur
  *       légèrement supérieure. C'est le style par défaut
- *       (cohérent avec les IDE Android et les éditeurs de code de bureau).</li>
+ *       (cohérent avec les éditeurs de bureau).</li>
  * </ul>
  *
  * <p><b>Compatibilité</b> : la valeur par défaut

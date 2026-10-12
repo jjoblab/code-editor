@@ -23,7 +23,7 @@ import java.util.concurrent.Executors;
  * <p>Utilisation :
  * <pre>{@code
  * LspProject project = new LspProject("/path/to/workspace");
- * project.addServerDefinition(myServeurDefinition);
+ * project.addServerDefinition(myServerDefinition);
  * LspEditor editor = project.createEditor("file:///path/to/Foo.java");
  * editor.setEditorView(editorView);
  * editor.connect();

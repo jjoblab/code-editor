@@ -3,8 +3,8 @@ package jo.codeeditor.view;
 import android.graphics.Color;
 
 /**
- * Attribue une teinte unique à chaque nom de variable, inspiré
- * d'les IDE de bureau. Chaque variable reçoit une couleur HSL dont
+ * Attribue une teinte unique à chaque nom de variable. Chaque
+ * variable reçoit une couleur HSL dont
  * la teinte (hue) est calculée par un hash du nom — ainsi
  * {@code userName} est toujours bleu, {@code password} est
  * toujours vert, etc.

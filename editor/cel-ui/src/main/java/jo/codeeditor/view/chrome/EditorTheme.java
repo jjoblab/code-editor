@@ -14,10 +14,10 @@ import jo.codeeditor.highlight.TokenType;
  *
  * <p>Thèmes prédéfinis :
  * <ul>
- *   <li>{@link #dark()} — les éditeurs de code de bureau Dark+ (défaut)</li>
- *   <li>{@link #light()} — les éditeurs de code de bureau Light+</li>
+ *   <li>{@link #dark()} — palette sombre « Dark+ » (défaut)</li>
+ *   <li>{@link #light()} — palette claire « Light+ »</li>
  *   <li>{@link #dracula()} — Dracula</li>
- *   <li>{@link #oneDark()} — Atom One Dark</li>
+ *   <li>{@link #oneDark()} — palette One Dark</li>
  *   <li>{@link #monokai()} — Monokai Pro</li>
  *   <li>{@link #solarizedDark()} — Solarized Dark</li>
  *   <li>{@link #gitHubLight()} — GitHub Light</li>
@@ -203,7 +203,7 @@ public class EditorTheme {
 
     // ── Thèmes prédéfinis ────────────────────────────────────────
 
-    /** les éditeurs de code de bureau Dark+ (thème sombre par défaut). */
+    /** Palette sombre « Dark+ » (thème sombre par défaut). */
     public static EditorTheme dark() {
         return new EditorTheme(
             0xFF1E1E1E, 0xFF1E1E1E, 0xFF858585, 0xFF323232,  // fond/gutter
@@ -218,7 +218,7 @@ public class EditorTheme {
         );
     }
 
-    /** les éditeurs de code de bureau Light+ (thème clair par défaut). */
+    /** Palette claire « Light+ » (thème clair par défaut). */
     public static EditorTheme light() {
         return new EditorTheme(
             0xFFFFFFFF, 0xFFF5F5F5, 0xFF808080, 0xFFDCDCDC,

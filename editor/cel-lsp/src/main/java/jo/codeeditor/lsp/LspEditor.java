@@ -237,8 +237,8 @@ public class LspEditor {
     }
 
     /**
-     * Envoie textDocument/didSave au serveur. Le serveur le serveur LSP tiers-LS relance
-     * sa passe d'inspection et publie des diagnostics frais à la réception
+     * Envoie textDocument/didSave au serveur. Certains serveurs relancent
+     * leur passe d'inspection et publient des diagnostics frais à la réception
      * de cette notification (comme didOpen). C'est le SEUL moyen d'obtenir
      * des diagnostics vivants sur les changements de texte — didChange seul
      * ne déclenche pas la ré-inspection.
@@ -250,10 +250,9 @@ public class LspEditor {
     /**
      * Envoie workspace/didChangeConfiguration au serveur.
      * <p>Méthode générique, indépendante du serveur — l'objet
-     * {@code settings} est spécifique au serveur (ex. le serveur LSP tiers utilise des
-     * clés plates en points comme
-     * {@code "serveur.inspections.undeclaredVariable"}, le serveur LSP tiers utilise des
-     * clés {@code "java.*"}). L'appelant (couche application) est
+     * {@code settings} est spécifique au serveur (ex. des clés plates en
+     * points comme {@code "inspections.undeclaredVariable"} ou des
+     * clés préfixées {@code "java.*"}). L'appelant (couche application) est
      * responsable de construire l'objet de réglages correct pour le serveur
      * connecté.
      * <p>Cette méthode ne sait PAS quel serveur est connecté — elle se
@@ -266,11 +265,10 @@ public class LspEditor {
     public void sendDidChangeConfiguration(Object settings) {
         if (wrapper == null || wrapper.getServer() == null) return;
         // Stocke les réglages sur le client pour que le serveur puisse les
-        // tirer via workspace/configuration. De nombreux serveurs (le serveur LSP tiers,
-        // le serveur LSP tiers, le serveur LSP tiers) IGNORENT le push didChangeConfiguration et
-        // tirent au contraire les réglages à la demande — sans cela, le serveur LSP tiers
-        // ne voit jamais sa configuration d'inspection et publie zéro
-        // diagnostic.
+        // tirer via workspace/configuration. De nombreux serveurs IGNORENT
+        // le push didChangeConfiguration et tirent au contraire les réglages
+        // à la demande — sans cela, ces serveurs ne voient jamais leur
+        // configuration d'inspection et publient zéro diagnostic.
         if (wrapper.getClient() != null) {
             wrapper.getClient().setSettings(settings);
         }

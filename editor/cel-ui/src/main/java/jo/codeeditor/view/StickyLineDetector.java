@@ -10,7 +10,7 @@ import java.util.List;
 
 /**
  * Détecteur de lignes sticky (en-têtes de bloc de code qui restent
- * visibles en haut pendant le scroll). Inspiré d'les IDE de bureau 2024.x.
+ * visibles en haut pendant le scroll).
  *
  * <p>Une ligne sticky est une ligne qui ouvre un bloc de code et
  * contient un identifiant significatif (nom de classe, méthode,

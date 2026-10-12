@@ -224,8 +224,8 @@ class EditorSessionTest {
 
     /**
      * Lot 1 (audit v3.41.0) — Tab ne doit PAS indenter les lignes
-     * vides (uniquement des espaces ou tabulations). les éditeurs de code de bureau ne le
-     * fait pas, et cela évite d'introduire du whitespace
+     * vides (uniquement des espaces ou tabulations) — cela évite
+     * d'introduire du whitespace
      * involontaire dans des lignes que l'utilisateur laissera
      * probablement vides.
      */

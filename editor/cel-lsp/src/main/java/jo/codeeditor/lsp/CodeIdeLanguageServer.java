@@ -43,7 +43,7 @@ import java.util.concurrent.CompletableFuture;
  * son type de retour (validé de bout en bout par reproducteur autonome :
  * initialize + appel typé + désérialisation en {@link SuperNavTarget}).</p>
  *
- * <p>Les serveurs tiers (le serveur LSP tiers, le serveur LSP tiers, le serveur LSP tiers…) passent
+ * <p>Les serveurs tiers passent
  * par la MÊME interface : les méthodes standard sont inchangées
  * (héritage), et un appel {@code superDefinition} à un serveur qui ne la
  * connaît pas échoue proprement (« method not found » → le provider rend

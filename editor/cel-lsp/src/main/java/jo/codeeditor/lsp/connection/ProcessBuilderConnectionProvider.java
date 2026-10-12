@@ -10,14 +10,13 @@ import java.util.List;
  * {@link StreamConnectionProvider} qui lance un serveur de langage en
  * sous-processus via {@link ProcessBuilder}.
  *
- * <p>La plupart des usages consistent à lancer {@code jdt-language-server}
- * ou {@code le serveur LSP tiers} en sous-processus ; ce fournisseur est
- * donc fourni intégré.
+ * <p>La plupart des usages consistent à lancer un exécutable de serveur
+ * de langage en sous-processus ; ce fournisseur est donc fourni intégré.
  *
  * <p>Exemple :
  * <pre>{@code
  * new ProcessBuilderConnectionProvider(
- *     "/path/to/le serveur LSP tiers",
+ *     "/path/to/language-server",
  *     List.of("-data", workspacePath),
  *     workspacePath)
  * }</pre>

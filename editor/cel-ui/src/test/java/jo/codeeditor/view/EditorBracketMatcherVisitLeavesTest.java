@@ -12,7 +12,7 @@ import jo.codeeditor.rope.Rope;
 
 /**
  * Équivalence du port feuille par feuille de
- * {@link EditorBracketMatcher#matchingBracket} (amont ) : les
+ * {@link EditorBracketMatcher#matchingBracket} : les
  * scans AVANT et ARRIÈRE sur une Rope (visite des feuilles, accès direct
  * au String de chaque feuille, arrêt au 1er appariement) donnent
  * EXACTEMENT les mêmes paires que le scan CharSequence générique

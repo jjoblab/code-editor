@@ -1,8 +1,8 @@
 package jo.codeeditor.view;
 
 /**
- * Identifiants de commandes du keymap piloté par les données (port de
- * une couche de commandes clavier).
+ * Identifiants de commandes du keymap piloté par les données (couche
+ * de commandes clavier).
  *
  * <p>Chaque action au clavier matériel prise en charge par l'éditeur est
  * une commande nommée. {@link EditorKeymap} associe les événements de
@@ -14,7 +14,7 @@ package jo.codeeditor.view;
  * EditorKeymap km = EditorKeymap.defaults()
  *         .unbind(EditorCommands.GO_TO_DEFINITION)
  *         .bind(EditorCommands.REDO, KeyEvent.KEYCODE_Z, true, true);
- * view.setKeymap(km);   // Ctrl+Shift+Z = rétablir (convention les IDE de bureau)
+ * view.setKeymap(km);   // Ctrl+Shift+Z = rétablir (convention répandue)
  * }</pre>
  */
 public final class EditorCommands {
@@ -65,7 +65,7 @@ public final class EditorCommands {
     public static final String INSERT_SPACE = "editor.insert_space";
 
     // ── Bascules de commentaire (compagnes d'accords naturels, ex.
-    // Ctrl+K Ctrl+C / Ctrl+K Ctrl+U à la les IDE de bureau) ────────────────
+    // Ctrl+K Ctrl+C / Ctrl+K Ctrl+U) ─────────────────────────────
     public static final String TOGGLE_LINE_COMMENT = "editor.toggle_line_comment";
     public static final String TOGGLE_BLOCK_COMMENT = "editor.toggle_block_comment";
 
