@@ -54,7 +54,9 @@ class LspFoldPuller {
         try {
             org.eclipse.lsp4j.ServerCapabilities caps = wrapper.getCapabilities();
             if (caps == null || caps.getFoldingRangeProvider() == null) return;
-        } catch (Throwable t) {
+        } catch (Exception t) {
+            // Requête refusée/échouée — pas de plis cette fois.
+            android.util.Log.w("LspEditor", "foldingRange request failed: " + t);
             return;
         }
         long now = System.currentTimeMillis();
@@ -100,7 +102,7 @@ class LspFoldPuller {
                 if (editorView != null) {
                     editorView.post(() -> applyFolds(gen, result));
                 }
-            } catch (Throwable t) {
+            } catch (Exception t) {
                 android.util.Log.w("LspEditor", "foldingRange failed: " + t);
             }
         });
@@ -146,7 +148,7 @@ class LspFoldPuller {
             editorView.getSession().applyCodeFolds(regions);
             editorView.invalidate();
             android.util.Log.i("LspEditor", "folds applied: " + regions.size());
-        } catch (Throwable t) {
+        } catch (Exception t) {
             android.util.Log.w("LspEditor", "applyFolds failed: " + t);
         }
     }

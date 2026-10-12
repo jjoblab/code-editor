@@ -194,7 +194,9 @@ public class LspProject {
             CodeIdeLanguageServer.DecompiledSourceResult r =
                     ext2.decompiledSource(params).get(5, java.util.concurrent.TimeUnit.SECONDS);
             return r == null ? null : r.source;
-        } catch (Throwable t) {
+        } catch (Exception t) {
+            // Récupération d'un wrapper existant : clé absente ou état
+            // incohérent — traité comme « introuvable ».
             return null;
         }
     }

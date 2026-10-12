@@ -169,6 +169,8 @@ public class EditorRenderer {
             try {
                 highlights.drawSelection(canvas, doc, sel, textAreaLeft, lineHeight, paddingTop, firstDocVisible, lastDocVisible);
             } catch (RuntimeException ignored) {
+                // Frontière de rendu : une exception de surlignage n'a pas
+                // le droit de planter la frame — dessin sans ce calque.
             }
         }
 
@@ -179,7 +181,9 @@ public class EditorRenderer {
             try {
                 highlights.drawFindHighlights(canvas, doc, textAreaLeft, lineHeight, paddingTop,
                                     firstDocVisible, lastDocVisible);
-            } catch (RuntimeException ignored) {}
+            } catch (RuntimeException ignored) {
+                // Frontière de rendu : voir surlignage de sélection.
+            }
         }
 
         // 6.5. Surlignages de document — occurrences LSP du symbole sous le
@@ -189,7 +193,9 @@ public class EditorRenderer {
             try {
                 highlights.drawDocumentHighlights(canvas, doc, textAreaLeft, lineHeight,
                     paddingTop, firstDocVisible, lastDocVisible);
-            } catch (RuntimeException ignored) {}
+            } catch (RuntimeException ignored) {
+                // Frontière de rendu : voir surlignage de sélection.
+            }
         }
 
         // Quand le mode aperçu est actif, la zone de texte est clippée pour

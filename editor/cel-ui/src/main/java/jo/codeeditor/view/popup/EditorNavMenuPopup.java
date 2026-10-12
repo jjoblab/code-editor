@@ -67,7 +67,9 @@ public class EditorNavMenuPopup {
                 List<jo.codeeditor.lang.model.DefinitionLocation> targets = null;
                 try {
                     targets = defResolver.resolve(text, fOffset);
-                } catch (Throwable ignored) {
+                } catch (Exception e) {
+                    jo.codeeditor.util.EditorLog.warn("EditorNavMenu",
+                        "résolution des définitions échouée", e);
                 }
                 List<NavigationMenu.NavTarget> navTargets = toNavTargets(targets);
                 if (!navTargets.isEmpty()) {
@@ -80,7 +82,9 @@ public class EditorNavMenuPopup {
                 List<jo.codeeditor.lang.model.DefinitionLocation> targets = null;
                 try {
                     targets = implResolver.resolve(text, fOffset);
-                } catch (Throwable ignored) {
+                } catch (Exception e) {
+                    jo.codeeditor.util.EditorLog.warn("EditorNavMenu",
+                        "résolution des implémentations échouée", e);
                 }
                 List<NavigationMenu.NavTarget> navTargets = toNavTargets(targets);
                 if (!navTargets.isEmpty()) {
@@ -93,7 +97,9 @@ public class EditorNavMenuPopup {
                 List<jo.codeeditor.lang.model.DefinitionLocation> targets = null;
                 try {
                     targets = typeDefResolver.resolve(text, fOffset);
-                } catch (Throwable ignored) {
+                } catch (Exception e) {
+                    jo.codeeditor.util.EditorLog.warn("EditorNavMenu",
+                        "résolution des déclarations de type échouée", e);
                 }
                 List<NavigationMenu.NavTarget> navTargets = toNavTargets(targets);
                 if (!navTargets.isEmpty()) {
@@ -106,7 +112,9 @@ public class EditorNavMenuPopup {
                 List<jo.codeeditor.lang.model.DefinitionLocation> targets = null;
                 try {
                     targets = superResolver.resolve(text, fOffset);
-                } catch (Throwable ignored) {
+                } catch (Exception e) {
+                    jo.codeeditor.util.EditorLog.warn("EditorNavMenu",
+                        "résolution des super-membres échouée", e);
                 }
                 List<NavigationMenu.NavTarget> navTargets = toNavTargets(targets);
                 if (!navTargets.isEmpty()) {

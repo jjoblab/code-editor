@@ -45,7 +45,9 @@ public class EditorQuickDocPopup {
             String rawDoc = null;
             try {
                 rawDoc = view.quickDocResolver.resolve(text, fOffset);
-            } catch (Throwable ignored) {
+            } catch (Exception e) {
+                jo.codeeditor.util.EditorLog.warn("EditorQuickDoc",
+                    "résolution de la documentation échouée", e);
             }
             final String raw = rawDoc;
             final jo.codeeditor.doc.QuickDoc.QuickDocContent content =

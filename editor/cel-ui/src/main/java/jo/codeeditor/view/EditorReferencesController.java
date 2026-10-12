@@ -81,7 +81,11 @@ class EditorReferencesController {
             List<jo.codeeditor.lang.model.DefinitionLocation> targets = null;
             try {
                 targets = resolver.resolve(text, sel.start);
-            } catch (Exception ignored) {
+            } catch (Exception e) {
+                // Provider de résolution d'hôte défaillant : journalisé,
+                // repli sur « aucune référence ».
+                jo.codeeditor.util.EditorLog.warn("EditorReferences",
+                    "résolution des références échouée", e);
             }
             final List<jo.codeeditor.lang.model.DefinitionLocation> resolved = targets;
             Runnable apply = () -> {

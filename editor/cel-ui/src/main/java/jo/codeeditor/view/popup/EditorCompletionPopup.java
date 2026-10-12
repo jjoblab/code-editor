@@ -106,7 +106,11 @@ public class EditorCompletionPopup {
             if (view.language != null && view.language.getCompletionProvider() != null) {
                 return view.language.getCompletionProvider().getTriggerCharacters();
             }
-        } catch (Throwable ignored) {
+        } catch (Exception e) {
+            // Provider de complétion défaillant : repli sur « aucun
+            // caractère déclencheur », journalisé.
+            jo.codeeditor.util.EditorLog.warn("EditorCompletion",
+                "lecture des caractères déclencheurs échouée", e);
         }
         return java.util.Collections.emptyList();
     }
@@ -217,7 +221,10 @@ public class EditorCompletionPopup {
         if (item.attachment instanceof Runnable) {
             try {
                 ((Runnable) item.attachment).run();
-            } catch (Throwable ignored) {
+            } catch (Exception e) {
+                // Ligne de token illisible (offsets périmés) — ignorée.
+                jo.codeeditor.util.EditorLog.warn("EditorCompletion",
+                    "analyse du token échouée", e);
             }
         }
         return true;
@@ -397,7 +404,9 @@ public class EditorCompletionPopup {
                 } else {
                     result = builtinKeywordCompletions(langName, prefix);
                 }
-            } catch (Throwable ignored) {
+            } catch (Exception e) {
+                jo.codeeditor.util.EditorLog.warn("EditorCompletion",
+                    "récupération des complétions échouée", e);
                 result = null;
             }
             final java.util.List<jo.codeeditor.completion.CompletionSession.Item> fetched =

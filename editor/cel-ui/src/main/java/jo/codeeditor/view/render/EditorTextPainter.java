@@ -663,7 +663,10 @@ public class EditorTextPainter {
             } else if (len == 6 || len == 8) {
                 return (int) android.graphics.Color.parseColor(text);
             }
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+            // Détection heuristique de couleur : ce token n'est pas une
+            // couleur valide — échec attendu, pas une anomalie.
+        }
         return null;
     }
 
