@@ -20,15 +20,15 @@ import java.util.concurrent.CompletableFuture;
  * notifications et requêtes ENVOYÉES PAR le serveur de langage.
  *
  * <p>Gestion PULL de {@code workspace/configuration} : de nombreux serveurs
- * (le serveur LSP tiers, le serveur LSP tiers, le serveur LSP tiers, …) tirent leurs réglages du client via des
- * requêtes {@code workspace/configuration} au lieu de — ou en plus de — les
+ * tirent leurs réglages du client via des requêtes
+ * {@code workspace/configuration} au lieu de — ou en plus de — les
  * recevoir par push {@code workspace/didChangeConfiguration}. Sans réponse
- * réelle, le serveur LSP tiers n'obtient jamais ses réglages d'inspection et ne publie
+ * réelle, ces serveurs n'obtiennent jamais leurs réglages d'inspection et ne publient
  * donc aucun diagnostic (la complétion et l'aide à la signature fonctionnent
  * car elles ne dépendent pas de la configuration d'inspection). Les réglages
  * poussés via {@link LspEditor#sendDidChangeConfiguration(Object)} sont donc
  * stockés et resservis au serveur à la demande, avec navigation par chemin
- * pointé (ex. une requête pour la section {@code "serveur.inspections"}
+ * pointé (ex. une requête pour la section {@code "inspections"}
  * retourne l'objet {@code inspections} imbriqué).
  */
 public class DefaultLanguageClient implements LanguageClient {
@@ -77,19 +77,20 @@ public class DefaultLanguageClient implements LanguageClient {
      * Pour chaque {@link org.eclipse.lsp4j.ConfigurationItem} demandé,
      * navigue dans les réglages stockés selon son {@code section} (chemin
      * séparé par points, ex.
-     * {@code "serveur.inspections.undeclaredVariable"}) et retourne la
+     * {@code "inspections.undeclaredVariable"}) et retourne la
      * valeur à ce chemin. Section null ou vide : l'objet de réglages entier
      * est retourné. Chemin inexistant ou aucun réglage poussé : null est
      * retourné pour cet item (selon la spécification LSP, le serveur doit
      * tolérer les entrées null).
      *
-     * <p>C'est ce qui permet à le serveur LSP tiers de publier des diagnostics : il tire
-     * les réglages {@code "serveur.inspections.*"} et, sans réponse réelle
+     * <p>C'est ce qui permet aux serveurs à réglages d'inspection de publier
+     * des diagnostics : ils tirent les réglages
+     * {@code "inspections.*"} et, sans réponse réelle
      * ici, chaque niveau d'inspection vaut « None » par défaut → zéro
      * diagnostic.
      *
      * <p>La navigation de chemin est réelle : une requête pour
-     * {@code "serveur.inspections"} retourne uniquement le sous-objet
+     * {@code "inspections"} retourne uniquement le sous-objet
      * inspections, pas l'arbre complet des réglages.
      */
     @Override
@@ -177,7 +178,7 @@ public class DefaultLanguageClient implements LanguageClient {
     }
 
     // Journalise les messages du serveur pour que l'utilisateur voie ce
-    // qu'il dit — le serveur LSP tiers envoie ses informations de progression et d'erreur
+    // qu'il dit — certains serveurs envoient leurs informations de progression et d'erreur
     // via window/logMessage.
     @Override
     public void showMessage(MessageParams message) {

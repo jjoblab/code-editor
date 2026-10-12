@@ -5,7 +5,7 @@ import jo.codeeditor.languages.LanguageRegistry;
 import jo.codeeditor.languages.SyntaxFamily;
 
 /**
- * Code surround with — inspiré d'les IDE de bureau (Ctrl+Alt+T).
+ * Code surround with (Ctrl+Alt+T).
  *
  * <p>Entoure une sélection avec une structure de contrôle :</p>
  * <ul>

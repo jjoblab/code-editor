@@ -12,8 +12,8 @@ import java.util.Set;
 
 /**
  * Enregistrement abstrait d'un serveur de langage. L'hôte crée un
- * {@code LanguageServerDefinition} par type de serveur (le serveur LSP tiers pour Java,
- * le serveur LSP tiers pour Kotlin, etc.) et l'enregistre auprès d'un
+ * {@code LanguageServerDefinition} par type de serveur (un serveur
+ * Java, un serveur Kotlin, etc.) et l'enregistre auprès d'un
  * {@link LspProject}.
  *
  * <p>Les sous-classes doivent implémenter
@@ -32,9 +32,9 @@ import java.util.Set;
  * <em>partage</em> l'instance unique du serveur entre ces extensions
  * (pas de duplication de server).</p>
  *
- * <p>Exemple avec un le serveur LSP tiers distant :
+ * <p>Exemple avec un serveur distant :
  * <pre>{@code
- * LanguageServerDefinition le serveur LSP tiers = new LanguageServerDefinition("java", "le serveur LSP tiers") {
+ * LanguageServerDefinition serveur = new LanguageServerDefinition("java", "serveur-java") {
  *     @Override
  *     public StreamConnectionProvider createConnectionProvider(String workingDir) {
  *         return new SocketConnectionProvider("192.168.1.100", 5007);
@@ -57,7 +57,7 @@ public abstract class LanguageServerDefinition {
 
     /**
      * @param ext l'extension de fichier gérée par ce serveur (ex. "java", "kt")
-     * @param name un nom d'affichage (ex. "le serveur LSP tiers", "le serveur LSP tiers")
+     * @param name un nom d'affichage (ex. "serveur-java")
      */
     protected LanguageServerDefinition(String ext, String name) {
         this.ext = ext;

@@ -249,7 +249,7 @@ class LspDocumentSynchronizer {
         // Ne programme un didSave débouncé que si le serveur a réellement
         // annoncé un SaveProvider dans ses capabilities. Un didSave
         // systématique après chaque didChange est nécessaire pour certains
-        // serveurs (le serveur LSP tiers relance l'inspection sur didSave) mais une no-op
+        // serveurs (qui relancent l'inspection sur didSave) mais une no-op
         // pour d'autres (le LSP Java republie déjà les diagnostics sur
         // didChange) — le gaspillage allait jusqu'à ~1 thread daemon orphelin
         // par salve de frappe.
@@ -261,7 +261,7 @@ class LspDocumentSynchronizer {
     /**
      * Retourne true si le serveur a annoncé la prise en charge de
      * {@code textDocument.save} dans ses capabilities. Certains serveurs
-     * (le serveur LSP tiers) ne republient les diagnostics que sur didSave — pour eux,
+     * ne republient les diagnostics que sur didSave — pour eux,
      * un didSave débouncé est programmé après chaque didChange. D'autres
      * (LSP Java) publient directement sur didChange — pour eux, le didSave
      * est un aller-retour gaspillé.
@@ -310,7 +310,7 @@ class LspDocumentSynchronizer {
     }
 
     /**
-     * Envoie textDocument/didSave au serveur. Le serveur le serveur LSP tiers-LS relance
+     * Envoie textDocument/didSave au serveur. Certains serveurs relancent
      * sa passe d'inspection et publie des diagnostics frais à la réception
      * de cette notification (comme didOpen). C'est le SEUL moyen d'obtenir
      * des diagnostics vivants sur les changements de texte — didChange seul

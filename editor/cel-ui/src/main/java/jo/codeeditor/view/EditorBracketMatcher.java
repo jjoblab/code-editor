@@ -41,7 +41,7 @@ final class EditorBracketMatcher {
      * parenthèse ouvrante surligne la fermante). Balayage de profondeur
      * naïf ignorant chaînes/commentaires — suffisant pour un surlignage.</p>
      *
-     * <p>Port amont {@code } : quand le texte est une {@link Rope},
+     * <p>Optimisation de la visite : quand le texte est une {@link Rope},
      * les scans AVANT et ARRIÈRE visitent les feuilles couvrant la fenêtre
      * bornée (accès direct au String de chaque feuille, O(feuilles + fenêtre))
      * au lieu de {@code charAt(i)} qui redescend l'arbre à chaque caractère

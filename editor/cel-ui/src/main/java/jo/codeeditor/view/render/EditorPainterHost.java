@@ -10,8 +10,7 @@ import java.util.ServiceLoader;
 import java.util.Set;
 
 /**
- * Registre + collecteur par frame des painters de plugins (port de
- * un painter host d'éditeur).
+ * Registre + collecteur par frame des painters de plugins.
  *
  * <p>L'hôte possède les {@link EditorDecorationPainter} enregistrés et,
  * une fois par passe de rendu, appelle chacun avec un

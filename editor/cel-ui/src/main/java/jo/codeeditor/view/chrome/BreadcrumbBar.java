@@ -11,8 +11,7 @@ import android.view.View;
 
 /**
  * Barre de navigation à fil d'Ariane — affiche la chaîne de portées
- * courante (fichier › classe › méthode) au-dessus de l'éditeur, à la
- * manière d'les IDE de bureau.
+ * courante (fichier › classe › méthode) au-dessus de l'éditeur.
  *
  * <p>Suit la position du caret et met à jour les segments du fil d'Ariane
  * via le {@link jo.codeeditor.lang.provider.SymbolProvider} lorsqu'il est

@@ -794,7 +794,7 @@ public class EditorView extends View {
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
     public boolean fontLigatures = false;
 
-    // Minimap — rendu miniature à la les éditeurs de code de bureau du fichier entier, dessiné
+    // Minimap — rendu miniature du fichier entier, dessiné
     // dans une bande étroite sur le bord droit. Montre la structure du
     // document d'un coup d'œil + indique le rectangle du viewport courant.
     // Tap/drag pour scroller. La géométrie (constantes + bornes) vit dans
@@ -1603,7 +1603,7 @@ public class EditorView extends View {
      * <p>Voir {@link IndentGuideStyle} pour les options. Le style
      * par défaut est {@link IndentGuideStyle#INDENT_WITH_SCOPE}
      * (guides d'indentation + portée active mise en évidence,
-     * cohérent avec les IDE Android et les éditeurs de code de bureau).</p>
+     * cohérent avec les éditeurs de code de bureau).</p>
      *
      * @param style le style à appliquer ; {@code null} est
      *              silencieusement traité comme
@@ -1620,14 +1620,14 @@ public class EditorView extends View {
     public IndentGuideStyle getIndentGuideStyle() { return indentGuideStyle; }
 
     // ════════════════════════════════════════════════════════════════
-    // Sticky lines (en-têtes collés en haut — les IDE de bureau 2024.x)
+    // Sticky lines (en-têtes collés en haut pendant le scroll)
     // ════════════════════════════════════════════════════════════════
 
     /**
      * Active ou désactive les sticky lines (en-têtes de bloc de
      * code qui restent visibles en haut pendant le scroll).
      *
-     * <p>Inspiré d'les IDE de bureau 2024.x. Sur mobile, garde au plus
+     * <p>Sur mobile, garde au plus
      * 2 lignes sticky (classe + méthode) pour ne pas consommer
      * trop d'espace.</p>
      *
@@ -1667,7 +1667,7 @@ public class EditorView extends View {
     /**
      * Active ou désactive les couleurs par variable (variable-specific
      * colors). Chaque variable reçoit une teinte unique basée sur son
-     * nom — comme les IDE de bureau IDEA.
+     * nom.
      *
      * <p>Nécessite des semantic tokens (LSP) pour fonctionner — sans
      * LSP, les variables ne sont pas identifiées et la fonction n'a

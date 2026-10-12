@@ -320,7 +320,7 @@ public final class FoldDetector {
 
     /**
      * Détecte les régions nommées pliables. Supporte les syntaxes
-     * les IDE de bureau et les éditeurs de code de bureau :
+     * usuelles :
      * <ul>
      *   <li>{@code // region Nom} ... {@code // endregion}</li>
      *   <li>{@code // <editor-fold desc="Nom">} ... {@code // </editor-fold>}</li>

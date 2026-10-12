@@ -415,8 +415,7 @@ public class EditorRenderer {
     /**
      * Dessine un fond coloré derrière les codes couleur hexadécimaux
      * (#RGB, #RRGGBB, #AARRGGBB) dans chaque ligne visible. Le texte
-     * du code couleur est entouré par sa propre couleur — comme
-     * les IDE de bureau.
+     * du code couleur est entouré par sa propre couleur.
      */
     private void drawColorSwatches(Canvas canvas, EditorDocument doc,
             int firstDocVisible, int lastDocVisible,

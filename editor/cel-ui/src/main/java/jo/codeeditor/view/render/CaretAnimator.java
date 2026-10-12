@@ -116,7 +116,7 @@ public final class CaretAnimator {
     /**
      * Démarre un glide depuis la position animée courante vers
      * {@code (targetX, targetY)}. Interpolateur linéaire (AUCUN dépassement)
-     * et durée courte de 100 ms — rapide et fluide, à la les IDE de bureau.
+     * et durée courte de 100 ms — rapide et fluide.
      *
      * <p>Met à jour {@code targetX/Y} et {@code rev} afin que la décision
      * snap-vs-glide de la frame suivante voie un état cohérent.</p>

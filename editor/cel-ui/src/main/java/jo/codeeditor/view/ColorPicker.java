@@ -5,7 +5,7 @@ package jo.codeeditor.view;
  * dans le texte (#RGB, #RRGGBB, #AARRGGBB, rgb(), rgba(),
  * hsl(), named colors).
  *
- * <p>Inspiré d'les IDE de bureau : un petit carré coloré est dessiné
+ * <p>Un petit carré coloré est dessiné
  * à côté de la valeur hex dans l'éditeur, et un tap long ouvre
  * une palette pour choisir une nouvelle couleur.</p>
  *

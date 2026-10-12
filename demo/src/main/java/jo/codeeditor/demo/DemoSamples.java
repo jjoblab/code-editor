@@ -721,7 +721,7 @@ final class DemoSamples {
                 margin: 0;
                 background: var(--fond);
                 color: var(--texte);
-                font-family: "les IDE professionnels Mono", monospace;
+                font-family: ui-monospace, "Cascadia Mono", Menlo, monospace;
             }
 
             /* TODO: reduire la taille du code sur mobile */

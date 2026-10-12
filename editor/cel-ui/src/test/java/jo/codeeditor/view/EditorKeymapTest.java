@@ -134,7 +134,7 @@ public class EditorKeymapTest {
     @Test
     public void bind_rebindsCommands() {
         EditorKeymap km = EditorKeymap.defaults();
-        // Ctrl+Shift+Z = redo (convention les IDE de bureau).
+        // Ctrl+Shift+Z = redo (convention répandue).
         km.bind(EditorCommands.REDO, KeyEvent.KEYCODE_Z, true, true);
         assertEquals(EditorCommands.REDO, km.resolve(KeyEvent.KEYCODE_Z, true, true).command);
         // Le Ctrl+Y historique fonctionne toujours.

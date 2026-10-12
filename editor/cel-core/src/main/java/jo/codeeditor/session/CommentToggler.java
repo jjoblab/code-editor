@@ -68,7 +68,7 @@ final class CommentToggler {
      * Bascule les commentaires de ligne sur la sélection, avec la syntaxe de
      * commentaire du langage COURANT (voir {@link #commentSyntax()}) :
      * préfixe de ligne quand disponible, encadrement par paire de bloc sinon
-     * (comportement les éditeurs de code de bureau pour XML/HTML/Markdown), no-op documenté pour
+     * (XML/HTML/Markdown), no-op documenté pour
      * les langages sans aucune syntaxe de commentaire (JSON).
      */
     void toggleLineComment() {
@@ -143,7 +143,7 @@ final class CommentToggler {
     }
 
     /**
-     * Repli façon les éditeurs de code de bureau pour les syntaxes sans commentaire de ligne (XML,
+     * Repli pour les syntaxes sans commentaire de ligne (XML,
      * HTML, Markdown) : chaque ligne est encadrée par
      * {@code blockStart … blockEnd}. Le décommentage retire la paire plus
      * les espaces (optionnelles) collées à elle.

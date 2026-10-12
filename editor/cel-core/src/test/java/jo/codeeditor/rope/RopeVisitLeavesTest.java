@@ -10,7 +10,7 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * Contrats de la visite feuille par feuille (port amont ) :
+ * Contrats de la visite feuille par feuille :
  * couverture exacte de [from, to), offsets globaux justes, ordres avant/
  * arrière symétriques, arrêt anticipé honnête, plages vides ne visitent
  * RIEN, bornées tronquées clipées.

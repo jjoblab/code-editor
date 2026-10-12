@@ -60,7 +60,7 @@ final class BracketPairs {
     /**
      * Compte les ouvreurs moins les fermeurs dans le texte du document (jusqu'à BALANCE_SCAN_LIMIT caractères).
      *
-     * <p>Port amont {@code } : quand le texte est une {@link Rope},
+     * <p>Optimisation de la visite : quand le texte est une {@link Rope},
      * le scan passe <b>feuille par feuille</b> (accès direct au String de
      * chaque feuille, O(n) total) au lieu de {@code charAt(i)} qui redescend
      * l'arbre à chaque caractère (O(n·log n)). Le résultat est STRICTEMENT

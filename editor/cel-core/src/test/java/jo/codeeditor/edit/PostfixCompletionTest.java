@@ -8,7 +8,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Tests pour la complétion postfix (`.if`, `.for`, `.notnull`,
  * `.return`, `.var`, `.else`, `.while`, `.try`).
  *
- * <p>Inspiré d'les IDE de bureau : l'utilisateur tape `obj.if` puis
+ * <p>Principe : l'utilisateur tape `obj.if` puis
  * Entrée, et l'éditeur génère `if (obj) {\n    \n}`.</p>
  */
 class PostfixCompletionTest {

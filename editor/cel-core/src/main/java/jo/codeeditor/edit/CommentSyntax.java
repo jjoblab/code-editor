@@ -21,8 +21,7 @@ import java.util.Locale;
  *       → {@code #} et (généralement) pas de commentaire de bloc ;</li>
  *   <li>XML/HTML/Markdown → pas de commentaire de ligne, bloc
  *       {@code <!-- -->} — {@code toggleLineComment} retombe alors sur
- *       l'encadrement de chaque ligne par la paire de bloc (comportement
- *       les éditeurs de code de bureau pour XML) ;</li>
+ *       l'encadrement de chaque ligne par la paire de bloc ;</li>
  *   <li>Lua → {@code --} + {@code --[[ ]]}; SQL → {@code --} +
  *       {@code /* *&#47;} ;</li>
  *   <li>JSON → aucune syntaxe de commentaire : les deux bascules sont des

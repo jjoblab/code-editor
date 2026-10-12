@@ -12,7 +12,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * d'indentation de l'accolade ouvrante correspondante) AVANT
  * l'insertion du {@code }}.
  *
- * <p>Comportement attendu (cf. les éditeurs de code de bureau, les IDE Android) :</p>
+ * <p>Comportement attendu :</p>
  * <pre>
  * if (cond) {
  *     |curseur    ← l'utilisateur tape }

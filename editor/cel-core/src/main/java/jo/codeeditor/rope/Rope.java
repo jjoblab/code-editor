@@ -42,7 +42,7 @@ public abstract class Rope implements CharSequence {
         this.depth = depth;
     }
 
-    // ── Visite feuille par feuille (port amont ) ───────
+    // ── Visite feuille par feuille ──────────────────────────────
 
     /**
      * Visiteur des feuilles — appelé feuille par feuille avec le contenu

@@ -447,7 +447,7 @@ public class EditorHighlightPainter {
             // triés par startLine).
             if (startLine > lastVisible) break;
 
-            // X : les IDE de bureau centre le guide au MILIEU de la colonne
+            // X : le guide est centré au MILIEU de la colonne
             // d'indentation : x = (col_x + (col+1)_x) / 2.
             // On utilise min(startCol, endCol) pour la position de
             // base, puis on ajoute un demi-
@@ -471,7 +471,7 @@ public class EditorHighlightPainter {
             // Profondeur du bloc pour la portée active.
             int blockDepth = computeBlockDepth(blocks, bi);
 
-            // Couleur : 3 niveaux comme les IDE de bureau —
+            // Couleur : 3 niveaux —
             // 1. MATCHED_BRACES : si l'accolade appariée du caret
             //    est sur ce bloc (accolade ouvrante ou fermante).
             // 2. SELECTED : si le caret est à l'intérieur de ce
@@ -496,7 +496,7 @@ public class EditorHighlightPainter {
             view.guidePaint.setColor(guideColor);
             view.guidePaint.setStrokeWidth(stroke);
 
-            // Soft wraps : les IDE de bureau interrompt le guide aux points
+            // Soft wraps : le guide est interrompu aux points
             // de soft wrap. On vérifie si le guide traverse des
             // lignes enroulées et on dessine segment par segment.
             if (view.wordWrap && view.wrapModel != null) {
@@ -555,7 +555,7 @@ public class EditorHighlightPainter {
 
     /**
      * Dessine le guide en tenant compte des soft wraps.
-     * les IDE de bureau interrompt le guide aux points de soft wrap pour
+     * Le guide est interrompu aux points de soft wrap pour
      * éviter qu'il traverse le texte enroulé.
      */
     private void drawGuideWithSoftWraps(Canvas canvas, float centerX,
