@@ -251,13 +251,12 @@ public class EditorSelectionGestures {
      * <p>Comportement de la toolbar de sélection : Copy/Cut/Paste
      * referment la pill (et masquent les poignées), Select all la laisse
      * ouverte (Copy/Cut deviennent disponibles), Docs ouvre le quick-doc,
-     * Actions ouvre le popup de quick-fixes de la ligne.</p>
+     * Actions « ⋯ » ouvre le menu contextuel unifié (GO TO / QUICK FIXES /
+     * INTENTIONS + section MORE des actions injectées non affichées).</p>
      *
      * <p>T1 (lot 2) : les items INJECTÉS par l'hôte exécutent leur
      * {@code perform} puis referment le chrome (contrat Copy/Cut/Paste)
-     * ; une action désactivée REJETTE le tap sans refermer. L'item
-     * « ⋯ » de débordement referme le chrome et ouvre le NavMenu en mode
-     * section « MORE » (liste des actions non affichées).</p>
+     * ; une action désactivée REJETTE le tap sans refermer.</p>
      */
     boolean handleSelectionToolbarTap(float x, float y) {
         if (!view.selectionToolbarVisible || view.session == null) return false;
@@ -295,13 +294,18 @@ public class EditorSelectionGestures {
                 view.showQuickDoc(sel.start);
                 break;
             case EditorView.SEL_ACT_ACTIONS:
-                hideSelectionChrome();
-                // ★ Ouvre le MENU CONTEXTUEL UNIFIÉ (portage
-                // menu contextuel unifié) : sections GO TO /
-                // QUICK FIXES / INTENTIONS, au lieu de la simple liste de
-                // quick-fixes.
+                // UX-1 (lot 2, J3 — retour terrain) : l'icône « ⋯ » en fin
+                // de pill est l'UNIQUE trois-points (l'item de
+                // débordement T1 est retiré — deux « ... » se
+                // ressemblaient trop). Elle ouvre le menu UNIFIÉ, qui
+                // liste AUSSI la section « MORE » (actions injectées non
+                // affichées — la métrique vient d'être rafraîchie
+                // ci-dessus, source unique). Le menu s'ouvre AVANT le
+                // refermeture du chrome pour que showNavMenu voie la
+                // pill encore visible (garde anti-périmé).
                 view.showNavMenu(view.session.getDocument()
                         .lineForOffset(sel.start), sel.start);
+                hideSelectionChrome();
                 break;
             case jo.codeeditor.view.EditorSelectionActions.SEL_ACT_INJECTED: {
                 // T1 : action injectée par l'hôte — désactivée = tap
@@ -313,8 +317,8 @@ public class EditorSelectionGestures {
                 break;
             }
             case jo.codeeditor.view.EditorSelectionActions.SEL_ACT_OVERFLOW:
-                // T1 : débordement — le NavMenu unifié sert d'hôte
-                // (section « MORE », zéro nouveau chrome).
+                // UX-1 : l'item ⋯ n'existe plus sur la pill — branche
+                // conservée par contrat (ouvre le mode MORE seul).
                 hideSelectionChrome();
                 view.popupManager.showSelectionOverflow(
                         view.session.getDocument().lineForOffset(sel.start), sel.start);

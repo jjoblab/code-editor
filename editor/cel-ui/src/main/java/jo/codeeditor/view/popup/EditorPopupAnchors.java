@@ -438,11 +438,16 @@ public final class EditorPopupAnchors {
      * <p>T1 (lot 2) : les actions injectées par l'hôte
      * ({@code view.popupManager.selActions.actions}) s'insèrent ENTRE les
      * canoniques d'édition et les icônes Docs/Actions, uniquement avec
-     * une vraie sélection ; au-delà de ce qui tient dans la largeur de
-     * la vue, les suivantes basculent dans le débordement « ⋯ » (item
-     * {@code SEL_ACT_OVERFLOW}) — la liste {@code m.overflow} peuplée
-     * ici alimente la section « MORE » du NavMenu (la métrique reste la
-     * source unique : le débordement du menu lit
+     * une vraie sélection ; celles qui ne tiennent pas dans la largeur de
+     * la vue peuplent la liste de débordement {@code m.overflow}.</p>
+     *
+     * <p>UX-1 (lot 2, J3 — retour terrain) : la pill ne porte PLUS d'item
+     * « ⋯ » de débordement — elle affichait DEUX boutons à trois points
+     * (le débordement T1 + l'icône Actions du lot 1). L'icône Actions
+     * « ⋯ » en fin de pill est l'UNIQUE débordement : elle ouvre le menu
+     * contextuel unifié dont la section « MORE » liste les actions non
+     * affichées (la liste reste peuplée ICI — la métrique demeure la
+     * source unique ; le menu lit
      * {@code view.popupManager.selActions.overflow}).</p>
      */
     public static SelectionToolbarMetrics selectionToolbarMetrics(EditorView view) {
@@ -485,7 +490,6 @@ public final class EditorPopupAnchors {
             for (int i = 0; i < textCount; i++) base += m.itemW[i] + m.btnGap;
             base += 6 * density + iconW * 2 + 3 * m.btnGap;
             float avail = view.getWidth() - 8 * density - base;
-            float overflowW = view.textPaint.measureText("⋯") + 2 * m.padX + m.btnGap;
             int n = hostActions.size();
             int shown = 0;
             float used = 0;
@@ -493,15 +497,17 @@ public final class EditorPopupAnchors {
                 if (sa == null) continue;
                 float textW = view.textPaint.measureText(sa.label);
                 float w = textW + 2 * m.padX;
-                // La dernière injectée n'a besoin du ⋯ que si d'autres
-                // la suivent — réserver sa place sinon.
-                float limit = (shown == n - 1) ? avail : avail - overflowW;
-                if (used + w > limit) break;
+                // UX-1 : plus de réservation de place pour un item « ⋯ »
+                // (supprimé) — les injectées occupent toute la place
+                // disponible ; celles qui débordent peuplent la section
+                // « MORE » du menu unifié (via l'icône Actions).
+                if (used + w > avail) break;
                 m.addInjected(sa, textW);
                 used += w + m.btnGap;
                 shown++;
             }
-            // Le débordement alimente la section « MORE » du NavMenu.
+            // Le débordement alimente la section « MORE » du menu
+            // contextuel unifié (ouvert par l'icône Actions « ⋯ »).
             view.popupManager.selActions.overflow.clear();
             if (shown < n) {
                 for (int i = shown; i < hostActions.size(); i++) {
@@ -509,7 +515,6 @@ public final class EditorPopupAnchors {
                         view.popupManager.selActions.overflow.add(hostActions.get(i));
                     }
                 }
-                m.addOverflow(view.textPaint.measureText("⋯"));
             }
             for (SelectionAction sa : view.popupManager.selActions.overflow) {
                 m.overflow.add(sa);
@@ -569,7 +574,9 @@ public final class EditorPopupAnchors {
      * désormais le seul plafond d'affichage. {@code injected[i]}
      * référence l'action d'hôte d'un item injecté ;
      * {@code itemDisabled[i]} porte l'estompage ; {@code overflow}
-     * liste les actions non affichées (section « MORE » du NavMenu).</p>
+     * liste les actions non affichées (section « MORE » du menu unifié,
+     * atteinte par l'icône Actions « ⋯ » — plus d'item dédié depuis
+     * UX-1).</p>
      */
     public static final class SelectionToolbarMetrics {
         public float x, y;                       // coin haut-gauche de la pill
@@ -587,7 +594,8 @@ public final class EditorPopupAnchors {
                 new jo.codeeditor.view.SelectionAction[8];
         /** Item estompé (action désactivée) — tap rejeté. */
         public boolean[] itemDisabled = new boolean[8];
-        /** Actions non affichées (débordement ⋯ → NavMenu « MORE »). */
+        /** Actions non affichées (→ section « MORE » du menu unifié, via
+         *  l'icône Actions « ⋯ » — UX-1). */
         public final java.util.List<jo.codeeditor.view.SelectionAction> overflow =
                 new java.util.ArrayList<>();
         public float dividerX = Float.MIN_VALUE;  // 1 divider max (avant les icônes)
@@ -624,17 +632,6 @@ public final class EditorPopupAnchors {
             isIcon[count] = false;
             injected[count] = sa;
             itemDisabled[count] = !sa.isEnabled();
-            count++;
-        }
-
-        /** Item « ⋯ » de débordement (T1) : ouvre le NavMenu « MORE ». */
-        void addOverflow(float textWidth) {
-            ensure(count + 1);
-            itemX[count] = -1;
-            itemW[count] = textWidth + 2 * padX;
-            action[count] = jo.codeeditor.view.EditorSelectionActions.SEL_ACT_OVERFLOW;
-            label[count] = "⋯";
-            isIcon[count] = false;
             count++;
         }
 
