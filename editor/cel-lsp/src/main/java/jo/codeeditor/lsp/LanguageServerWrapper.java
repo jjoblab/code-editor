@@ -91,7 +91,11 @@ public class LanguageServerWrapper {
         wsFolder.setName(new java.io.File(workspacePath).getName());
         params.setWorkspaceFolders(java.util.Collections.singletonList(wsFolder));
         // Définit les capacités client — indique au serveur ce que nous
-        // prenons en charge.
+        // prenons en charge. La carte est COMPLÈTE sur les fonctionnalités
+        // réellement consommées : un serveur qui ajuste son comportement à
+        // la négociation (édition poussée, résolution différée, actions à
+        // commande, tags de diagnostics, pré-renommage) trouve son réponse,
+        // au lieu d'un silence qui le fait replier sur le minimum.
         org.eclipse.lsp4j.ClientCapabilities clientCaps = new org.eclipse.lsp4j.ClientCapabilities();
         org.eclipse.lsp4j.WorkspaceClientCapabilities wsCaps = new org.eclipse.lsp4j.WorkspaceClientCapabilities();
         // Indique au serveur que didChangeConfiguration est pris en charge.
@@ -102,12 +106,18 @@ public class LanguageServerWrapper {
         // une classe en 0.22.0).
         wsCaps.setWorkspaceFolders(Boolean.TRUE);
         wsCaps.setConfiguration(Boolean.TRUE);
+        // Éditions POUSSÉES par le serveur (workspace/applyEdit) et
+        // commandes exécutables (workspace/executeCommand) — implémentées
+        // côté DefaultLanguageClient / LspCodeActionsProvider.
+        wsCaps.setApplyEdit(Boolean.TRUE);
+        wsCaps.setExecuteCommand(new org.eclipse.lsp4j.ExecuteCommandCapabilities());
         clientCaps.setWorkspace(wsCaps);
         org.eclipse.lsp4j.TextDocumentClientCapabilities tdCaps = new org.eclipse.lsp4j.TextDocumentClientCapabilities();
         // Complétion : contexte pris en charge (caractères déclencheurs
         // + invocation).
         org.eclipse.lsp4j.CompletionCapabilities completionCaps =
             new org.eclipse.lsp4j.CompletionCapabilities();
+        completionCaps.setContextSupport(Boolean.TRUE);
         tdCaps.setCompletion(completionCaps);
         // Hover : markdown pris en charge.
         org.eclipse.lsp4j.HoverCapabilities hoverCaps =
@@ -115,15 +125,56 @@ public class LanguageServerWrapper {
         hoverCaps.setContentFormat(java.util.Arrays.asList(
             org.eclipse.lsp4j.MarkupKind.MARKDOWN, org.eclipse.lsp4j.MarkupKind.PLAINTEXT));
         tdCaps.setHover(hoverCaps);
-        // Aide à la signature.
+        // Aide à la signature : contexte de déclenchement consommé.
         org.eclipse.lsp4j.SignatureHelpCapabilities sigCaps =
             new org.eclipse.lsp4j.SignatureHelpCapabilities();
+        sigCaps.setContextSupport(Boolean.TRUE);
         tdCaps.setSignatureHelp(sigCaps);
-        // Diagnostics publiés — indique au serveur que les infos liées sont
-        // prises en charge.
+        // Actions de code : littéral supporté (kinds listés), données
+        // transportées, résolution différée consommée (à l'application),
+        // drapeaux isPreferred/disabled interprétés.
+        org.eclipse.lsp4j.CodeActionCapabilities caCaps =
+            new org.eclipse.lsp4j.CodeActionCapabilities();
+        org.eclipse.lsp4j.CodeActionLiteralSupportCapabilities caLiteral =
+            new org.eclipse.lsp4j.CodeActionLiteralSupportCapabilities();
+        caLiteral.setCodeActionKind(new org.eclipse.lsp4j.CodeActionKindCapabilities(
+            java.util.Arrays.asList(
+                "quickfix", "refactor", "refactor.extract", "refactor.inline",
+                "refactor.rewrite", "source", "source.organizeImports")));
+        caCaps.setCodeActionLiteralSupport(caLiteral);
+        caCaps.setDataSupport(Boolean.TRUE);
+        caCaps.setResolveSupport(
+            new org.eclipse.lsp4j.CodeActionResolveSupportCapabilities(
+                java.util.Collections.singletonList("edit")));
+        caCaps.setIsPreferredSupport(Boolean.TRUE);
+        caCaps.setDisabledSupport(Boolean.TRUE);
+        tdCaps.setCodeAction(caCaps);
+        // Renommage : pré-validation (textDocument/prepareRename) consommée
+        // par le popup avant l'ouverture.
+        org.eclipse.lsp4j.RenameCapabilities renameCaps =
+            new org.eclipse.lsp4j.RenameCapabilities();
+        renameCaps.setPrepareSupport(Boolean.TRUE);
+        tdCaps.setRename(renameCaps);
+        // Symboles hiérarchiques consommés par le popup aller-au-symbole.
+        org.eclipse.lsp4j.DocumentSymbolCapabilities docSymbolCaps =
+            new org.eclipse.lsp4j.DocumentSymbolCapabilities();
+        docSymbolCaps.setHierarchicalDocumentSymbolSupport(Boolean.TRUE);
+        tdCaps.setDocumentSymbol(docSymbolCaps);
+        // Plis, indications en ligne : tirés côté client.
+        tdCaps.setFoldingRange(new org.eclipse.lsp4j.FoldingRangeCapabilities());
+        tdCaps.setInlayHint(new org.eclipse.lsp4j.InlayHintCapabilities());
+        // Diagnostics publiés — infos liées + tags (grisé des éléments
+        // inutiles / déconseillés) + description de code + données
+        // d'identité, tous capturés par le cache brut.
         org.eclipse.lsp4j.PublishDiagnosticsCapabilities pdCaps =
             new org.eclipse.lsp4j.PublishDiagnosticsCapabilities();
         pdCaps.setRelatedInformation(true);
+        pdCaps.setTagSupport(new org.eclipse.lsp4j.DiagnosticsTagSupport(
+            java.util.Arrays.asList(
+                org.eclipse.lsp4j.DiagnosticTag.Unnecessary,
+                org.eclipse.lsp4j.DiagnosticTag.Deprecated)));
+        pdCaps.setCodeDescriptionSupport(Boolean.TRUE);
+        pdCaps.setDataSupport(Boolean.TRUE);
         tdCaps.setPublishDiagnostics(pdCaps);
         clientCaps.setTextDocument(tdCaps);
         params.setCapabilities(clientCaps);

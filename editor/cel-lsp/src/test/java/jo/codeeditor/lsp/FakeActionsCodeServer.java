@@ -69,6 +69,9 @@ public class FakeActionsCodeServer implements LanguageServer {
     /** Compteur de requêtes codeAction/resolve reçues. */
     public volatile int resolveRequests;
 
+    /** InitializeParams reçus (assertions de négociation). */
+    public volatile InitializeParams lastInitialize;
+
     /**
      * Reçu du pont in-process (découvert par réflexion — doit rester
      * public sur une classe publique).
@@ -134,6 +137,7 @@ public class FakeActionsCodeServer implements LanguageServer {
 
     @Override
     public CompletableFuture<InitializeResult> initialize(InitializeParams params) {
+        lastInitialize = params;
         ServerCapabilities caps = new ServerCapabilities();
         if (resolveProvider) {
             org.eclipse.lsp4j.CodeActionOptions options = new org.eclipse.lsp4j.CodeActionOptions();
