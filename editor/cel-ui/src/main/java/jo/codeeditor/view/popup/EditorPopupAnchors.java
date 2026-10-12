@@ -276,6 +276,19 @@ public final class EditorPopupAnchors {
     /** Padding bas interne du popup. */
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
     public static final float SQUIGGLE_POPUP_PAD_BOTTOM_DP = 6f;
+    /** Largeur MINIMALE du popup (UX-3, J3 — la carte se resserre sur son
+     *  contenu mais garde une taille de carte décente : sévérité + une
+     *  courte rangée). */
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static final float SQUIGGLE_POPUP_MIN_WIDTH_DP = 132f;
+    /** Marge de sécurité ajoutée à la largeur mesurée du contenu (la
+     *  mesure omet le gras simulé et les métriques varient selon la
+     *  fonte). */
+    private static final float SQUIGGLE_POPUP_W_SAFETY_DP = 4f;
+    /** Largeur réservée au chevron « › » de la rangée « See all ». */
+    private static final float SQUIGGLE_POPUP_CHEVRON_DP = 12f;
+    /** Indent des rangées (point de sévérité + libellé) et de l'en-tête. */
+    private static final float SQUIGGLE_POPUP_INDENT_DP = 12f;
 
     /**
      * Géométrie partagée du popup ancré de squiggle (D1) — source unique
@@ -289,6 +302,14 @@ public final class EditorPopupAnchors {
      * rangées de quick-fixes + rangée « See all »). Ancrage : au-dessus de
      * la ligne du diagnostic (flip en dessous si pas de place), X ancré au
      * centre du mot diagnostiqué, clampé dans la zone de texte.</p>
+     *
+     * <p><b>UX-3 (J3 — retour terrain)</b> : la largeur se resserre sur le
+     * CONTENU (elle était TOUJOURS le maximum — un message court ouvrait
+     * une carte de 320 dp). Chaque pièce est mesurée avec le paint du
+     * painter ; le message n'est candidat que s'il tient SANS repli
+     * (sinon il a besoin de la pleine largeur pour se replier) ; les
+     * rangées ellipsées plafonnent leur candidature à la largeur
+     * disponible. Bornes : [MIN, min(MAX, viewport)].</p>
      */
     public static SquigglePopupMetrics squigglePopupMetrics(EditorView view) {
         if (!view.squigglePopupVisible || view.session == null) return null;
@@ -305,8 +326,11 @@ public final class EditorPopupAnchors {
         m.item = item;
         m.w = Math.min(SQUIGGLE_POPUP_MAX_WIDTH_DP * density,
                 view.getWidth() - 2 * SQUIGGLE_POPUP_GAP_DP * density);
+        // Largeur de la plus large pièce de contenu (UX-3) — m.w reste
+        // le MAXIMUM jusqu'au resserrement final.
+        float needed = 0f;
 
-        // ── Contenu : hauteurs par mode ─────────────────────────────
+        // ── Contenu : hauteurs + candidates de largeur par mode ────
         float rowH;
         float contentTop;
         if (listMode) {
@@ -314,6 +338,18 @@ public final class EditorPopupAnchors {
             rowH = SQUIGGLE_POPUP_LIST_ROW_DP * density;
             m.rowH = rowH;
             contentTop = 0f;
+            // Chaque rangée : 1re ligne du message, ellipsée par le
+            // painter — candidature plafonnée à la place disponible
+            // (une rangée longue garde la pleine largeur, une courte
+            // resserre la carte).
+            view.textPaint.setTypeface(view.metrics.getTypeface());
+            view.textPaint.setTextSize(view.metrics.getTextSize() * 0.9f);
+            float rowAvail = m.w - 2 * SQUIGGLE_POPUP_PAD_X_DP * density;
+            for (int i = 0; i < m.rows; i++) {
+                String first = firstLineOf(m.choices.get(i).message);
+                needed = Math.max(needed, Math.min(
+                        view.textPaint.measureText(first), rowAvail));
+            }
         } else {
             int line = doc.lineForOffset(item.start);
             List<EditorView.CodeAction> actions = view.codeActionsByLine.get(line);
@@ -325,6 +361,34 @@ public final class EditorPopupAnchors {
             int msgLines = Math.min(countWrappedLines(view, msg,
                     m.w - 2 * SQUIGGLE_POPUP_PAD_X_DP * density),
                     SQUIGGLE_POPUP_MAX_MSG_LINES);
+            // En-tête : point de sévérité + libellé (« Error », « Warning »).
+            String sevLabel = item.severity == 3 ? "Error"
+                    : item.severity == 2 ? "Warning" : "Info";
+            needed = Math.max(needed,
+                    SQUIGGLE_POPUP_INDENT_DP * density
+                            + view.textPaint.measureText(sevLabel));
+            // Le message n'est candidat que s'il tient SANS repli à la
+            // largeur max — sinon il a besoin de la PLEINE largeur pour
+            // se replier (msgLines a été calculé pour elle).
+            float msgW = view.textPaint.measureText(msg);
+            if (msgW <= m.w - 2 * SQUIGGLE_POPUP_PAD_X_DP * density) {
+                needed = Math.max(needed, msgW);
+            } else {
+                needed = m.w;
+            }
+            if (nActions > 0) {
+                view.textPaint.setTextSize(view.metrics.getTextSize() * 0.7f);
+                needed = Math.max(needed, view.textPaint.measureText("QUICK FIXES"));
+                view.textPaint.setTextSize(view.metrics.getTextSize() * 0.9f);
+                float rowAvail = m.w - 2 * SQUIGGLE_POPUP_PAD_X_DP * density
+                        - SQUIGGLE_POPUP_INDENT_DP * density;
+                for (int i = 0; i < nActions && i < actions.size(); i++) {
+                    String title = actions.get(i).title != null
+                            ? actions.get(i).title : "";
+                    needed = Math.max(needed, Math.min(
+                            view.textPaint.measureText(title), rowAvail));
+                }
+            }
             rowH = SQUIGGLE_POPUP_ROW_DP * density;
             m.rowH = rowH;
             m.rows = nActions;
@@ -333,7 +397,17 @@ public final class EditorPopupAnchors {
             m.msgLines = Math.max(1, msgLines);
             contentTop = m.headerH + m.msgLines * SQUIGGLE_POPUP_MSG_LINE_DP * density
                     + (nActions > 0 ? SQUIGGLE_POPUP_LABEL_DP * density : 0f);
+            // Rangée « See all » + chevron.
+            view.textPaint.setTextSize(view.metrics.getTextSize() * 0.9f);
+            needed = Math.max(needed, SQUIGGLE_POPUP_INDENT_DP * density
+                    + view.textPaint.measureText("See all")
+                    + SQUIGGLE_POPUP_CHEVRON_DP * density);
         }
+        // ── UX-3 : resserrement de la carte sur son contenu ────────
+        m.w = jo.codeeditor.view.EditorView.clamp(
+                needed + 2 * SQUIGGLE_POPUP_PAD_X_DP * density
+                        + SQUIGGLE_POPUP_W_SAFETY_DP * density,
+                SQUIGGLE_POPUP_MIN_WIDTH_DP * density, m.w);
         m.h = contentTop + m.rows * rowH
                 + (m.seeAll ? rowH : 0f) + SQUIGGLE_POPUP_PAD_BOTTOM_DP * density;
 
@@ -376,6 +450,14 @@ public final class EditorPopupAnchors {
         view.textPaint.setTypeface(view.metrics.getTypeface());
         view.textPaint.setTextSize(view.metrics.getTextSize());
         return m;
+    }
+
+    /** La première ligne d'un message (avant tout \n), sinon vide — même
+     *  règle que le painter de la mini-liste (mesure de candidature UX-3). */
+    private static String firstLineOf(String message) {
+        if (message == null || message.isEmpty()) return "";
+        int nl = message.indexOf('\n');
+        return nl >= 0 ? message.substring(0, nl) : message;
     }
 
     /**
