@@ -55,6 +55,17 @@ public class EditorChromePainter {
     static final float MINIMAP_WIDTH_DP = 60f;
     static final float MINIMAP_LINE_HEIGHT_PX = 2.5f;  // px par ligne doc
 
+    // ── M3 (lot 2, J5) : loupe native en opt-in (API 28+) ──────
+    // Le widget plateforme (android.widget.Magnifier) rend la VRAIE
+    // frame de la vue — overlays système compris — dans une bulle
+    // gérée par le window manager. Compromis documenté : style non
+    // maîtrisé (la bulle suit les règles système), rendu exhaustif.
+    // Créé paresseusement (jamais instancié sous API 28) ; la bulle
+    // est refermée par dismissNativeMagnifier (relais
+    // EditorView.dismissMagnifier au relâchement du geste).
+    private android.widget.Magnifier nativeMagnifier;
+    private boolean nativeMagnifierShown = false;
+
     EditorChromePainter(EditorView view, EditorTextPainter text,
             EditorHighlightPainter highlights, EditorDiagnosticsPainter diagnostics) {
         this.view = view;
@@ -297,15 +308,38 @@ public class EditorChromePainter {
 
     /**
      * Dessine une loupe (bulle de zoom) au-dessus de la position du doigt
-     * pendant les glissements. Montre une vue zoomée ×2 du texte autour du
-     * centre de la loupe.
+     * pendant les glissements. Montre une vue zoomée (facteur
+     * {@code view.magnifierZoom}, défaut ×2) du texte autour du centre
+     * de la loupe.
      *
      * <p>N'utilise QUE {@link #magnifierPaint} : le textPaint partagé du
      * rendu principal ne doit être ni lu (couleur résiduelle) ni écrit
      * ici — la loupe s'exécute en fin de pipeline, après toutes les
      * couches qui le mutent.</p>
+     *
+     * <p>M3 (lot 2, J5) : quand la loupe native est activée
+     * ({@code view.nativeMagnifierEnabled}) et l'API le permet (28+),
+     * la voie custom est court-circuitée — le widget plateforme
+     * s'affiche via {@link #showNativeMagnifier(float, float)} et est
+     * refermé via {@link #dismissNativeMagnifier()} (aucun rendu sur le
+     * canvas de la vue).</p>
      */
     void drawMagnifier(Canvas canvas) {
+        // M3 : voie native — le widget plateforme rend la vraie frame
+        // (fenêtrage système, pas de canvas) ; à l'extinction du geste,
+        // la bulle est refermée ici même (drawMagnifier est appelé à
+        // CHAQUE frame, y compris la première sans geste actif).
+        if (nativeMagnifierUsable(view.nativeMagnifierEnabled)) {
+            if (view.magnifierActive) {
+                showNativeMagnifier(view.magnifierX, view.magnifierY);
+            } else {
+                dismissNativeMagnifier();
+            }
+            return;
+        }
+        // Bascule custom en cours d'affichage natif (drapeau éteint à
+        // chaud, ou API redescendu) : referme la bulle plateforme.
+        dismissNativeMagnifier();
         if (!view.magnifierActive) return;
         float density = view.getResources().getDisplayMetrics().density;
         float magRadius = 60f * density; // rayon de la loupe
@@ -329,8 +363,10 @@ public class EditorChromePainter {
         view.bgPaint.setColor(view.theme.editorBg);
         canvas.drawRect(magCx - magRadius, magCy - magRadius, magCx + magRadius, magCy + magRadius, view.bgPaint);
 
-        // Mettre à l'échelle le canvas autour du centre de la loupe (zoom ×2).
-        canvas.scale(2f, 2f, magCx, magCy);
+        // Mettre à l'échelle le canvas autour du centre de la loupe
+        // (M2 : facteur réglable, ×2 par défaut — lecture des grands
+        // caractères : ×1.5 à ×3).
+        canvas.scale(view.magnifierZoom, view.magnifierZoom, magCx, magCy);
         // Translater pour que le contenu sous le doigt soit centré dans la loupe.
         canvas.translate(-(view.magnifierX - magCx), -(view.magnifierY - magCy));
 
@@ -454,6 +490,51 @@ public class EditorChromePainter {
         float below = fingerY + radius * 1.8f;
         if (below <= viewHeight - radius) return below;
         return Math.min(viewHeight - radius, Math.max(radius, fingerY));
+    }
+
+    // ── M3 (lot 2, J5) : voie native (android.widget.Magnifier) ──
+
+    /**
+     * M3 — décision de bascule vers la loupe native : drapeau de
+     * l'hôte {@code enabled} ET niveau d'API ≥ 28 (le widget
+     * plateforme n'existe qu'à partir de Pie). Pure et testable en
+     * isolement (Robolectric ne peut pas instancier le Magnifier).
+     * Appelable sous TOUTES les API — la garde SDK_INT est interne.
+     *
+     * @param enabled le drapeau {@code view.nativeMagnifierEnabled}
+     * @return vrai si la voie native doit être prise
+     */
+    static boolean nativeMagnifierUsable(boolean enabled) {
+        return enabled && android.os.Build.VERSION.SDK_INT
+                >= android.os.Build.VERSION_CODES.P;
+    }
+
+    /** Affiche la bulle native centrée sur le point du doigt (création
+     *  paresseuse — API 28+ garanti par {@link #nativeMagnifierUsable}). */
+    private void showNativeMagnifier(float x, float y) {
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.P) return;
+        if (nativeMagnifier == null) {
+            nativeMagnifier = new android.widget.Magnifier(view);
+        }
+        if (nativeMagnifier != null) {
+            nativeMagnifier.show(x, y);
+            nativeMagnifierShown = true;
+        }
+    }
+
+    /**
+     * M3 — referme la bulle native le cas échéant (no-op en voie
+     * custom, ou jamais créée). Appelé par frame via
+     * {@link #drawMagnifier(Canvas)} et au relâchement du geste via le
+     * relais {@code EditorRenderer.dismissNativeMagnifier()} ←
+     * {@code EditorView.dismissMagnifier()}.
+     */
+    @androidx.annotation.RestrictTo(androidx.annotation.RestrictTo.Scope.LIBRARY_GROUP)
+    public void dismissNativeMagnifier() {
+        if (nativeMagnifier != null && nativeMagnifierShown) {
+            nativeMagnifier.dismiss();
+        }
+        nativeMagnifierShown = false;
     }
 
     // ════════════════════════════════════════════════════════════════

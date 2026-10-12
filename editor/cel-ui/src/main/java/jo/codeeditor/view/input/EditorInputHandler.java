@@ -424,8 +424,9 @@ public class EditorInputHandler {
                 }
                 return true;
             case MotionEvent.ACTION_UP:
-                // Désactive la loupe au relâchement tactile.
-                view.magnifierActive = false;
+                // Désactive la loupe au relâchement tactile (M3 : la
+                // native est refermée explicitement — fenêtrage).
+                view.dismissMagnifier();
                 // Annule tout timer de hover tap-and-hold en attente.
                 // S'il a déjà déclenché (tapHoldHoverTriggered = true), le
                 // quick doc est déjà ouvert — on laisse l'utilisateur le
@@ -569,8 +570,8 @@ public class EditorInputHandler {
                 quickDocGesture = false;
                 cancelPendingTapDismiss();
                 touchHover.cancel();
-                // Désactive la loupe.
-                view.magnifierActive = false;
+                // Désactive la loupe (M3 : native refermée explicitement).
+                view.dismissMagnifier();
                 view.invalidate();
                 scrollerCtl.abortAnimation();
                 scrollerCtl.recycleTracker();
