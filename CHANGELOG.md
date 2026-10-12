@@ -32,6 +32,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Étanchéité des voies d'exécution (Lot 7)** — les voies « features »
+  et « complétion » passent à 2 threads daemon nommés chacune
+  (`cel-features-*`, `cel-completion-*`) : un fournisseur bloqué
+  n'occupe qu'un thread, la complétion ne peut jamais attendre derrière
+  la voie features. Les exécuteurs LSP (LSP4J, tirs clients, réécritures
+  disque, serveur en-processus) passent de caches non bornés à des
+  pools de 2 threads possédés par le projet et fermés à l'extinction :
+  plus aucun thread `lsp-*`/`cel-lsp-*` ne survit à
+  `LspProject.shutdown()`.
+- **Publication sûre d'`EditorDocument`** — le modèle était immuable
+  par édition mais ses champs n'étaient pas `final` : un lecteur d'un
+  autre thread pouvait voir une référence à moitié initialisée
+  (balayage des diagnostics, thread LSP). Champs `final` (garantie
+  JMM §17.5) ; le mémo de `getText()` devient une référence volatile
+  unique — un lecteur ne peut plus voir un mémo « chaud » sans contenu.
 - **Versions de document thread-safe** — le compteur de version LSP
   passe en `AtomicInteger` : versions strictement croissantes exigées
   par la spécification, même sous sollicitation concurrente (frappe +
@@ -79,6 +94,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   remontent à l'hôte. Deux frontières conservent `catch (Throwable)`
   volontairement, documentées en commentaire (peintres de plugin
   exécutés à chaque frame).
+- **RUPTURE : suppression de l'exécuteur public
+  `EditorPopupManager.FEATURE_EXECUTOR`** — exécuteur statique
+  mono-thread exposé dans l'API, partagé par tout le processus et
+  jamais fermé. Un fournisseur lent d'un éditeur bloquait tous les
+  éditeurs. **Migration** : soumettre à votre propre exécuteur, ou
+  utiliser `EditorTaskLanes.submitFeature(...)` /
+  `submitCompletion(...)`.
 
 ### Added
 
