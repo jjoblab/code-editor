@@ -5,7 +5,23 @@ All notable changes to **code-editor-lib** are documented in this file.
 Le format suit la convention [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [3.50.0] — 2026-10-12 — Actions de code au point d'invocation
+## [3.50.1] — 2026-10-12 — Re-publication du lot actions
+
+Aucun changement de code par rapport à 3.50.0. Le premier build JitPack
+de `v3.50.0` a échoué sur un incident d'infrastructure externe (HTTP 429
+« Too Many Requests » de Maven Central pendant la résolution des
+dépendances, côté JitPack) et sa clé de cache est restée en erreur sans
+aucun artefact servi. Le même contenu, construit par hash de commit
+(`af6a500`), est vert chez JitPack (4 modules servis) — le code est bon,
+seule la clé de version est compromise. Le lot est donc re-publié sous
+`3.50.1` : nouvelle clé JitPack fraîche, GitHub Packages re-publié par le
+workflow de tag. La 3.50.0 reste servie sur GitHub Packages (publication
+réussie) mais pas sur JitPack.
+
+## [3.50.0] — 2026-10-12 — Actions de code au point d'invocation (non servie par JitPack)
+
+> Publiée sur GitHub Packages uniquement ; build JitPack en échec
+d'infrastructure — voir 3.50.1 pour la re-publication consommable.
 
 Le modèle des quick actions change de camp : le contenu est calculé AU
 MOMENT où l'utilisateur le demande, au point qu'il vise (caret,
