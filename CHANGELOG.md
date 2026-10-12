@@ -32,6 +32,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Arrêt déterministe de la pompe stderr** —
+  `ProcessBuilderConnectionProvider.stop()` liquide d'abord les
+  processus descendants du serveur : un petit-fils détient l'extrémité
+  d'écriture du pipe stderr et prive la pompe de fin de flux (une
+  lecture de flux de processus n'est pas interruptible). stop() attend
+  ensuite, de façon bornée, la mort du thread de pompe et ferme le
+  flux en dernier recours : plus aucun thread de pompe ne survit à
+  l'arrêt, quel que soit l'environnement d'exécution.
 - **Étanchéité des voies d'exécution (Lot 7)** — les voies « features »
   et « complétion » passent à 2 threads daemon nommés chacune
   (`cel-features-*`, `cel-completion-*`) : un fournisseur bloqué
