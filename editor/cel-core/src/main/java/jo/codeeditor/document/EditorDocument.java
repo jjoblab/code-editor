@@ -18,11 +18,30 @@ import java.util.Objects;
  */
 public final class EditorDocument {
 
-    private Rope rope;
-    private int[] lineStarts;
-    private int revision;
-    private String cachedText;
-    private int cachedRevision = -1;
+    /*
+     * Sûreté de threads : les trois champs ci-dessous ne sont écrits QUE
+     * par le constructeur et sont final — la publication d'un document
+     * vers un autre thread est donc garantie (sémantique des champs
+     * final, JMM §17.5) même si la référence est relayée par un chemin
+     * non synchronisé (file d'un exécuteur, callback LSP…). Le document
+     * est immuable par édition : replace() renvoie une NOUVELLE instance,
+     * la session garde la référence courante.
+     */
+    private final Rope rope;
+    private final int[] lineStarts;
+    private final int revision;
+
+    /*
+     * Mémo de getText() : une seule référence volatile (paire
+     * texte+validité implicite — le document est immuable, la valeur
+     * recalculée est donc toujours identique). Race bénigne : plusieurs
+     * threads peuvent recalculer concurrently, tous écrivent la même
+     * String ; la lecture volatile garantit qu'un lecteur ne voit jamais
+     * un mémo « chaud » sans son contenu (l'ancienne paire
+     * cachedText/cachedRevision non volatile pouvait, elle, être lue à
+     * moitié publiée).
+     */
+    private volatile String cachedText;
 
     private EditorDocument(Rope rope, int[] lineStarts, int revision) {
         this.rope = rope;
@@ -62,13 +81,18 @@ public final class EditorDocument {
 
     // ── Accesseurs ────────────────────────────────────────────────
 
-    /** Renvoie le texte complet du document (mis en cache par révision). */
+    /**
+     * Renvoie le texte complet du document (mémoïsé — le document est
+     * immuable, la valeur est donc calculée au plus une fois utile).
+     * Sûr depuis n'importe quel thread.
+     */
     public String getText() {
-        if (cachedRevision != revision) {
-            cachedText = rope.toString();
-            cachedRevision = revision;
+        String t = cachedText;
+        if (t == null) {
+            t = rope.toString();
+            cachedText = t;
         }
-        return cachedText;
+        return t;
     }
 
     /**

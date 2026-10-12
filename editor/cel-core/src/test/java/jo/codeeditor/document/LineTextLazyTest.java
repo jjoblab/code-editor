@@ -17,10 +17,10 @@ import static org.junit.jupiter.api.Assertions.*;
  * Mo transitoires par frappe sur un gros fichier. {@link #subText} fait
  * le même travail en O(log n + tranche) sans matérialisation.</p>
  *
- * <p>Instrumentation : le champ privé {@code cachedRevision} n'est aligné
- * sur {@code revision} QUE par un appel à {@code getText()} — le lire par
- * réflexion après {@code replace() + lineText()} prouve si la
- * matérialisation a eu lieu.</p>
+ * <p>Instrumentation : le mémo privé {@code cachedText} n'est réchauffé
+ * QUE par un appel à {@code getText()} — le lire par réflexion après
+ * {@code replace() + lineText()} prouve si la matérialisation a eu lieu
+ * (chaque édition renvoie une NOUVELLE instance au mémo froid).</p>
  */
 class LineTextLazyTest {
 
@@ -31,10 +31,11 @@ class LineTextLazyTest {
         return EditorDocument.of(sb.toString());
     }
 
-    private static int cachedRevision(EditorDocument d) throws Exception {
-        Field f = EditorDocument.class.getDeclaredField("cachedRevision");
+    /** Le mémo est-il froid (null) — i.e. getText() pas encore appelé ? */
+    private static boolean memoFroid(EditorDocument d) throws Exception {
+        Field f = EditorDocument.class.getDeclaredField("cachedText");
         f.setAccessible(true);
-        return f.getInt(d);
+        return f.get(d) == null;
     }
 
     @Test
@@ -42,18 +43,17 @@ class LineTextLazyTest {
         EditorDocument d = doc(2000);
         // Pré-remplit le cache (comme le ferait un getText initial).
         d.getText();
-        assertEquals(d.getRevision(), cachedRevision(d), "le cache doit être chaud");
+        assertFalse(memoFroid(d), "le mémo doit être chaud");
 
-        // Édition (nouvelle révision → cache invalidé).
+        // Édition — nouvelle instance, mémo froid.
         d = d.replace(10, 10, "X");
-        assertNotEquals(d.getRevision(), cachedRevision(d),
-                "l'édition doit invalider le cache");
+        assertTrue(memoFroid(d), "l'édition doit produire un mémo froid");
 
         // ★ LE TEST : lineText ne doit PAS reconstruire le texte complet.
         for (int i = 0; i < 50; i++) {
             d.lineText(i);
         }
-        assertNotEquals(d.getRevision(), cachedRevision(d),
+        assertTrue(memoFroid(d),
                 "lineText ne doit pas appeler getText() — utiliser subText");
     }
 
@@ -91,15 +91,15 @@ class LineTextLazyTest {
         // Reproduit le chemin de rendu : une salve de lineText sur les
         // lignes visibles d'un gros document fraîchement édité.
         EditorDocument d = doc(50000);
-        d.getText(); // cache chaud initial
-        d = d.replace(100, 100, "é"); // une frappe
-        assertNotEquals(d.getRevision(), cachedRevision(d));
+        d.getText(); // mémo chaud initial
+        d = d.replace(100, 100, "é"); // une frappe → instance neuve, mémo froid
+        assertTrue(memoFroid(d));
 
         for (int i = 100; i < 150; i++) {
             String ligne = d.lineText(i);
             assertNotNull(ligne);
         }
-        assertNotEquals(d.getRevision(), cachedRevision(d),
+        assertTrue(memoFroid(d),
                 "50 lineText ne doivent jamais matérialiser 50 000 lignes");
     }
 }
