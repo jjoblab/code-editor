@@ -1,0 +1,16 @@
+# Propriétaires de code (review obligatoire).
+# Syntaxe : https://la documentation GitHub (CODEOWNERS)
+
+# Le propriétaire du dépôt revient sur tout ce qui touche le cœur.
+* @jjoblab
+
+# Sécurité des écritures disque / URI / workspace (Lot 1) : sensibilité maximale.
+/editor/cel-lsp/src/main/java/jo/codeeditor/lsp/UriUtils.java    @jjoblab
+/editor/cel-lsp/src/main/java/jo/codeeditor/lsp/WorkspacePathGuard.java @jjoblab
+/editor/cel-lsp/src/main/java/jo/codeeditor/lsp/WorkspaceDiskEdits.java @jjoblab
+/editor/cel-lsp/src/main/java/jo/codeeditor/lsp/LspWorkspaceEditApplier.java @jjoblab
+
+# Publication et chaîne d'approvisionnement.
+/.github/workflows/   @jjoblab
+/jitpack.yml          @jjoblab
+/build.gradle.kts     @jjoblab
