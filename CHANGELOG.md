@@ -1497,7 +1497,7 @@ Préparation publication code-editor (Maven Central ou GitHub Packages). Deux ax
 
 #### Track A — Module isolation :textmate
 
-`:textmate` est maintenant un **module optionnel autonome**. Avant v2.46, le bridge `TextMateTokenizerImpl` vivait dans `:app/jo/codeide/ui/editor/` et les assets `textmate/` (grammars + thème d'alors.json + languages.json) vivaient dans `:app/src/main/assets/textmate/`. C'était OK tant que code-editor n'était pas publié, mais pour la publication, il faut que les consumers puissent omettre TextMate.
+`:textmate` est maintenant un **module optionnel autonome**. Avant v2.46, le bridge `TextMateTokenizerImpl` vivait dans `:app/jo/codeide/ui/editor/` et les assets `textmate/` (grammars + le fichier de thème d'alors + languages.json) vivaient dans `:app/src/main/assets/textmate/`. C'était OK tant que code-editor n'était pas publié, mais pour la publication, il faut que les consumers puissent omettre TextMate.
 
 Changements :
 - `TextMateTokenizerImpl.java` déplacé de `:app/jo/codeide/ui/editor/` vers `:textmate/jo/codeeditor/textmate/` (nouveau package `jo.codeeditor.textmate`).
@@ -1522,9 +1522,10 @@ Architecture finale :
 ┌─────────────────────────────────────────────────────────────┐
 │ :textmate (jo.codeeditor.textmate) — OPTIONAL               │
 │  - implémentation TextMate embarquée en source              │
-│  - libs/le moteur d'expressions régulières, jcodings, snakeyaml-engine, jdt-annotation    │
+│  - bibliothèques embarquées d'alors (moteur d'expressions   │
+│    régulières, codages, yaml, annotations de nullité)       │
 │  - TextMateTokenizerImpl (bridge impl, textmate)             │
-│  - assets/textmate/grammars/* + themes/thème d'alors.json +       │
+│  - assets/textmate/grammars/* + thèmes d'alors +            │
 │    languages.json (embarqués dans l'AAR du module)          │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -1596,12 +1597,12 @@ v2.45 bascule sur `grammar.tokenizeLine2(line, prevState, timeLimit)` (forme bin
 Plus aucune allocation par token — un seul `int[]` alloué par ligne.
 
 
-#### Track C — Consommation réelle de `thème d'alors.json` via table précomputée `foregroundId→TokenType`
+#### Track C — Consommation réelle de `le fichier de thème d'alors` via table précomputée `foregroundId→TokenType`
 
 La forme binaire ne donne pas accès aux strings de scopes — seulement au metadata encodé. Pour récupérer le mapping scope→TokenType que v2.43 faisait via `mapScopesToTokenType(List<String>)`, v2.45 construit une table `Map<Integer colorId, TokenType>` au démarrage :
 
 1. Après `registry.setTheme(themeSource)`, on récupère `colorMap = registry.getColorMap()` (une `List<String>` d'hex, indexée par id — l'id encodé dans le metadata).
-2. On parse `thème d'alors.json` directement. Pour chaque règle `{scope, settings.foreground}` :
+2. On parse `le fichier de thème d'alors` directement. Pour chaque règle `{scope, settings.foreground}` :
    - On splitte `scope` par virgule (ou `JSONArray` si c'est un array).
    - On mappe chaque scope → TokenType via `mapSingleScope` (le helper v2.43, gardé intact).
    - On prend la première règle dont un scope mappe à non-PLAIN.
@@ -1654,7 +1655,7 @@ BUILD VALIDATION :
 - `:app:testDebugUnitTest` OK — 206 tests (198 + 8 nouveaux).
 - `:app:assembleDebug` OK — APK 30 MB (inchangé).dored ; la binary form réduit les runtime allocations, pas la taille du dex).
 - aapt2 dump badging : `versionCode='61' versionName='0.1.0.61-v2.45-debug'`.
-- Vérification APK : `EncodedTokenAttributes` présent dans classes5.dex, `TextMateTokenizerImpl` présent dans classes21.dex, 17 grammar files + thème d'alors.json dans assets/textmate/.
+- Vérification APK : `EncodedTokenAttributes` présent dans classes5.dex, `TextMateTokenizerImpl` présent dans classes21.dex, 17 grammar files + le fichier de thème d'alors dans assets/textmate/.
 
 Bugs historiques NON régressés : pool LRU ZipFile (v0.1.0.53), golden rules subpackage (lspjava 228), badges kinds v2.30, inlay weaving v2.31, sheet 2 entrées + bracket matching v2.32, folding/quick-fixes v2.33, popup v2.34, pendingTapDismiss/magnifier v2.35, NavMenu/sheet v2.36, GO TO Implementations/Super + Duplicate RPC method v2.37, hover tactile + signature help documentée + design popups unifié + complétion corrigée v2.38, preview badge md/html + signature Up/Down + décompilateur foundation + tap-and-hold v2.39, câblage LSP du décompilateur + preview sheet WebView v2.40, vrai convertisseur Markdown→HTML v2.41 (MarkdownRendererTest 24/24 + AppEditorPreviewHostTest 10/10 inchangés), crash EditorPreviewSheet + CodeHighlighter pure-Java CSS pour Markdown v2.42 (EditorPreviewSheetTest 15/15 Robolectric + CodeHighlighterTest 38/38), intégration TextMate autonome v2.43 (TextMateEngineSmokeTest 8/8 + TextMateTokenizerImplTest 38/38), TextMate perf & HTML crash fix v2.44 (time limit 2 s/ligne + MAX_LINE_LENGTH 5 000 + LRU state map 5 000 + circuit breaker MAX_LINES_FOR_TEXTMATE 800 + HTML fallback vers XML tokenizer).
 
@@ -1699,7 +1700,7 @@ Tests :
 Différés (v2.45+) :
 - **Switch à `tokenizeLine2` (forme binaire)** — éliminerait l'allocation `IToken[]` + `List<String>` scopes par token. Mais perd l'info scope → TokenType → couleur ; faudrait brancher le thème `Theme.getColor(foreground)` directement. Changement plus large.
 - **Async tokenization** — `EditorSession.restyleAll` sur thread dédié, envoi différé des spans au UI thread. Changement architectural majeur (touch EditorSession + EditorView + LineRenderCache).
-- **Consumption réelle de `thème d'alors.json`** — `Theme.match(scope)` pour couleurs par scope (plus riche que le mapping generic scope → TokenType). Déjà chargé en mémoire mais non consommé.
+- **Consumption réelle de `le fichier de thème d'alors`** — `Theme.match(scope)` pour couleurs par scope (plus riche que le mapping generic scope → TokenType). Déjà chargé en mémoire mais non consommé.
 
 
 ### v0.1.0.59-v2.43 — Intégration TextMate en module optionnel
@@ -1719,12 +1720,12 @@ hors-ligne.
 #### 2. Dépendances (4 jars en `textmate/libs/` — embarqués, pas de
 résolution Maven au build)
 - `org.eclipse.jdt.annotation` (annotations de nullité), moteur
-  d'expressions régulières le moteur d'expressions régulières (backend Java pur) et
+  d'expressions régulières (backend Java pur) et
   dépendances associées, versionnées et documentées dans le `NOTICE`
   de l'époque.
 
 #### 3. Assets — packs de langage
-- Grammaires TextMate (17 packs / 20 grammars) + thème `thème d'alors.json`
+- Grammaires TextMate (17 packs / 20 grammars) + thème `le fichier de thème d'alors`
   + registry. `Kotlin.tmLanguage` (XML plist) converti en `.json`
   (uniformisation du format) par le script de bundle.
 
