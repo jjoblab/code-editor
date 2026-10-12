@@ -2,8 +2,6 @@ package jo.codeeditor.view;
 
 import jo.codeeditor.view.popup.EditorPopupManager;
 
-import jo.codeeditor.document.EditorDocument;
-
 import java.util.List;
 
 /**

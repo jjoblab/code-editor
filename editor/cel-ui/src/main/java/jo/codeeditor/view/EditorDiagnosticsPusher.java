@@ -51,8 +51,10 @@ final class EditorDiagnosticsPusher {
             java.util.List<jo.codeeditor.shift.DiagnosticShift.Diagnostic> legacy =
                 new java.util.ArrayList<>();
             for (jo.codeeditor.lang.model.Diagnostic d : diags) {
+                // Conversion harmonisée avec la voie LSP (le tag
+                // Unnecessary voyage : peinture estompée du code inutilisé).
                 legacy.add(new jo.codeeditor.shift.DiagnosticShift.Diagnostic(
-                    d.start, d.end, d.severity, d.message));
+                    d.start, d.end, d.severity, d.message, d.unnecessary));
             }
             view.session.setDiagnostics(legacy);
             // Pousse le tableau de sévérité par ligne vers le

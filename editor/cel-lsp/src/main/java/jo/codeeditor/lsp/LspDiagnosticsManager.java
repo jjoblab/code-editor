@@ -82,19 +82,31 @@ class LspDiagnosticsManager {
         }
         EditorView editorView = editor.getEditorView();
         if (editorView != null) {
-            // Poste setDiagnostics sur le thread UI pour éviter la concurrence
-            // avec le chemin de rendu. L'exécuteur LSP4J appelle
-            // publishDiagnostics sur un thread de fond — les champs
-            // d'EditorSession ne sont pas synchronisés pour la mutation.
             final List<Diagnostic> diagsFinal = diags;
-            editorView.post(() -> {
+            Runnable push = () -> {
                 EditorView view = editor.getEditorView();
                 if (view != null && view.getSession() != null) {
                     view.getSession().setDiagnostics(
                         convertToLegacyDiagnostics(diagsFinal));
-                    view.invalidate();
+                    // P2-11c — voie UNIQUE de sortie : la publication LSP
+                    // emprunte le même chemin que la voie locale
+                    // (notifyDiagnosticsChanged) — reconstruction du tableau
+                    // de sévérité par ligne pour la gouttière (les points
+                    // restaient périmés après une publication LSP),
+                    // notification de l'hôte (OnDiagnosticsPublishedListener,
+                    // resté muet côté LSP — le futur onglet Problèmes de
+                    // l'hôte en dépend), invalidation comprise.
+                    view.notifyDiagnosticsChanged();
                 }
-            });
+            };
+            // Pattern applyServerEdit : vue ATTACHÉE → handler (thread UI,
+            // la mutation de session est sérialisée avec le rendu) ;
+            // vue NON attachée (pas de handler) → exécution EN LIGNE —
+            // un View.post resterait en file d'actions et ne serait jamais
+            // exécuté avant l'attachement : une publication serveur ne
+            // doit pas rester pendante.
+            android.os.Handler h = editorView.getHandler();
+            if (h != null) h.post(push); else push.run();
             // ★ R3 : chaque publication de diagnostics est
             // le signal naturel pour rafraîchir les couleurs sémantiques —
             // un seul déclencheur, déjà cadencé par le debounce didChange,
