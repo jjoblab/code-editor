@@ -51,6 +51,68 @@ public class EditorSelectionGestures {
     /** Borne DROITE de la sélection au moment de l'appui long. */
     private int dragSelectRight = NO_DRAG_SELECT;
 
+    // ── UX-2 (lot 2, J3) : auto-scroll directionnel du drag ──
+    // Retour terrain : pendant un drag de sélection (poignée ou
+    // drag-select au doigt), franchir le bord du viewport ne déclenche
+    // AUCUN défilement — il faut lâcher, reprendre, recommencer. Le
+    // standard mobile (TextView, Android Studio) : le doigt tenu dans
+    // une zone de bord fait défiler le document dans la direction de
+    // la pénétration, la sélection suit le contenu sous le doigt.
+    /** Hauteur de la zone de bord déclenchant l'auto-scroll (dp). */
+    private static final float EDGE_ZONE_DP = 56f;
+    /** Vitesse d'auto-scroll minimale (dp par tick ~16 ms). */
+    private static final float EDGE_MIN_SPEED_DP = 2f;
+    /** Vitesse d'auto-scroll maximale (dp par tick, pénétration totale). */
+    private static final float EDGE_MAX_SPEED_DP = 12f;
+    /** Période du tick d'auto-scroll (ms, ~une frame). */
+    private static final int AUTO_SCROLL_TICK_MS = 16;
+    /** Dernière position du doigt pendant un drag (memo du tick). */
+    private float lastDragX, lastDragY;
+    /** Vrai dès que le drag-select au doigt est ENGAGÉ (au-delà du slop) —
+     *  l'auto-scroll ne démarre jamais tant que le doigt n'a pas bougé. */
+    private boolean dragSelectEngaged = false;
+    /** Vrai pendant que le tick d'auto-scroll est posté (anti-doublon). */
+    private boolean autoScrollRunning = false;
+    /** Tick d'auto-scroll : défile selon la pénétration du bord et
+     *  ré-applique la sélection sous le doigt, puis se RE-poste tant
+     *  que le doigt reste dans la zone et que le document peut défiler. */
+    private final Runnable autoScrollTick = new Runnable() {
+        @Override
+        public void run() {
+            autoScrollRunning = false;
+            if (!isAutoScrollDragActive()) return;
+            float density = view.getResources().getDisplayMetrics().density;
+            float edge = EDGE_ZONE_DP * density;
+            float viewH = view.getHeight();
+            if (viewH <= 0) return;
+            int dir = 0;
+            float penetration = 0f;
+            if (lastDragY < edge) {
+                dir = -1;
+                penetration = (edge - lastDragY) / edge;
+            } else if (lastDragY > viewH - edge) {
+                dir = 1;
+                penetration = (lastDragY - (viewH - edge)) / edge;
+            }
+            if (dir == 0) return; // hors zone — le prochain MOVE ré-armera
+            if (penetration > 1f) penetration = 1f;
+            float speed = (EDGE_MIN_SPEED_DP
+                    + (EDGE_MAX_SPEED_DP - EDGE_MIN_SPEED_DP) * penetration) * density;
+            float before = view.vOffset;
+            view.scrollManager.scrollBy(dir * speed);
+            if (view.vOffset == before) return; // borné (début/fin) — stop
+            // Le contenu a défilé sous le doigt : ré-applique la
+            // sélection à la même position écran (offsetAt rend la
+            // nouvelle position sous le doigt).
+            if (view.handleDragMode > 0) {
+                dragHandle(lastDragX, lastDragY);
+            } else {
+                applyDragSelect(lastDragX, lastDragY);
+            }
+            postAutoScrollTick();
+        }
+    };
+
     EditorSelectionGestures(EditorView view, EditorInputHandler input) {
         this.view = view;
         this.input = input;
@@ -113,11 +175,14 @@ public class EditorSelectionGestures {
 
     /** Désarme le drag-select : toute terminaison
      *  de geste (UP/CANCEL), tout nouveau DOWN et tout changement de
-     *  session l'appellent — le drag-select ne survit JAMAIS à un geste. */
+     *  session l'appellent — le drag-select ne survit JAMAIS à un geste.
+     *  UX-2 : désarme aussi l'engagement du drag (le tick d'auto-scroll
+     *  s'arrête de lui-même au prochain tour). */
     void disarmDragSelect() {
         dragSelectPressOffset = NO_DRAG_SELECT;
         dragSelectLeft = NO_DRAG_SELECT;
         dragSelectRight = NO_DRAG_SELECT;
+        dragSelectEngaged = false;
     }
 
     /** Vrai si le drag-select est armé (appui long déclenché, pas encore
@@ -136,7 +201,22 @@ public class EditorSelectionGestures {
      * glissement.
      */
     void handleTouchDrag(MotionEvent event) {
-        int offset = view.offsetAt(event.getX(), event.getY());
+        // UX-2 : mémorise la position et démarre l'auto-scroll de bord.
+        lastDragX = event.getX();
+        lastDragY = event.getY();
+        dragSelectEngaged = true;
+        ensureAutoScrollTick();
+        applyDragSelect(event.getX(), event.getY());
+    }
+
+    /** Corps du drag-select (partagé avec le tick d'auto-scroll UX-2 :
+     *  ré-appliquer la sélection après un défilement, sans MOVE). Règle
+     *  d'ancre : la borne du MOT opposée au doigt reste l'ancre — doigt à
+     *  gauche du point d'appui → ancre = borne droite, doigt à droite →
+     *  ancre = borne gauche. La sélection contient toujours le mot
+     *  d'origine et suit le doigt. */
+    private void applyDragSelect(float x, float y) {
+        int offset = view.offsetAt(x, y);
         int anchor;
         if (dragSelectPressOffset != NO_DRAG_SELECT
                 && dragSelectLeft != NO_DRAG_SELECT
@@ -153,8 +233,8 @@ public class EditorSelectionGestures {
         view.session.setSelection(Selection.range(
             Math.min(anchor, offset), Math.max(anchor, offset)));
         view.magnifierActive = true;
-        view.magnifierX = event.getX();
-        view.magnifierY = event.getY();
+        view.magnifierX = x;
+        view.magnifierY = y;
         view.invalidate();
     }
 
@@ -166,6 +246,10 @@ public class EditorSelectionGestures {
         // désactivent déjà. L'ancre est FIGÉE au DOWN (beginHandleDrag) :
         // chaque MOVE étend ou rétrécit la sélection entre l'ancre et le
         // doigt, y compris quand le doigt franchit l'autre poignée.
+        // UX-2 : mémorise la position et démarre l'auto-scroll de bord.
+        lastDragX = x;
+        lastDragY = y;
+        ensureAutoScrollTick();
         view.magnifierActive = true;
         view.magnifierX = x;
         view.magnifierY = y;
@@ -333,6 +417,37 @@ public class EditorSelectionGestures {
     private void hideSelectionChrome() {
         view.handlesVisible = false;
         dismissSelectionToolbar();
+    }
+
+    // ── UX-2 (J3) : plomberie du tick d'auto-scroll ─────────────────
+
+    /** Vrai si un drag de sélection est ACTIF (poignée ou drag-select
+     *  engagé) — condition de survie du tick. */
+    private boolean isAutoScrollDragActive() {
+        return view.session != null
+                && (view.handleDragMode > 0
+                    || (dragSelectEngaged && isDragSelectArmed()));
+    }
+
+    /** Poste le tick d'auto-scroll (une seule instance en vol) sur le
+     *  handler du looper principal — même paresse que le tap-dismiss
+     *  différé : resté testable sous l'horloge fantôme de Robolectric
+     *  (view.getHandler() est null tant que la vue n'est pas attachée). */
+    private void ensureAutoScrollTick() {
+        if (autoScrollRunning) return;
+        if (input.tapHandler == null) {
+            input.tapHandler = new android.os.Handler(
+                    android.os.Looper.getMainLooper());
+        }
+        autoScrollRunning = true;
+        input.tapHandler.postDelayed(autoScrollTick, AUTO_SCROLL_TICK_MS);
+    }
+
+    /** Re-post du tick par le tick lui-même (en vol). */
+    private void postAutoScrollTick() {
+        if (autoScrollRunning) return;
+        autoScrollRunning = true;
+        input.tapHandler.postDelayed(autoScrollTick, AUTO_SCROLL_TICK_MS);
     }
 
     // ── I2 (lot 2, J3) : tooltip des inlay hints au long-press ──────
