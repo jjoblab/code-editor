@@ -248,7 +248,7 @@ public class EditorTheme {
         );
     }
 
-    /** Thème Atom One Dark. */
+    /** Palette One Dark. */
     public static EditorTheme oneDark() {
         return new EditorTheme(
             0xFF282C34, 0xFF282C34, 0xFF5C6370, 0xFF3B4048,
