@@ -418,6 +418,46 @@ public class LspEditor {
         workspaceEdits.applyWorkspaceEdit(edit, versionAtRequest);
     }
 
+    /**
+     * Applique une édition POUSSÉE PAR LE SERVEUR (requête
+     * {@code workspace/applyEdit}, cf. DefaultLanguageClient) par la voie
+     * commune — confinement au workspace, validation tout-ou-rien,
+     * écriture atomique — sur le thread UI, et répond de façon
+     * asynchrone : le futur porte le compte rendu (jamais d'exception —
+     * le protocole attend une réponse structurée, appliqué ou motif de
+     * refus).
+     */
+    java.util.concurrent.CompletableFuture<WorkspaceDiskEdits.Result> applyServerEdit(
+            org.eclipse.lsp4j.WorkspaceEdit edit) {
+        java.util.concurrent.CompletableFuture<WorkspaceDiskEdits.Result> future =
+                new java.util.concurrent.CompletableFuture<>();
+        EditorView view = getEditorView();
+        if (view == null) {
+            future.complete(new WorkspaceDiskEdits.Result(false,
+                    java.util.Collections.singletonList("aucun éditeur lié"), 0, 0));
+            return future;
+        }
+        Runnable task = () -> {
+            try {
+                future.complete(workspaceEdits.applyWorkspaceEdit(edit, null));
+            } catch (Exception t) {
+                future.complete(new WorkspaceDiskEdits.Result(false,
+                        java.util.Collections.singletonList(
+                                "erreur d'application : " + t.getMessage()), 0, 0));
+            }
+        };
+        // Handler de la vue si attachée (thread UI) ; sinon exécution en
+        // ligne (au mieux) : la réponse serveur ne doit JAMAIS rester
+        // pendante sur une vue détachée — la mutation reste servie.
+        android.os.Handler h = view.getHandler();
+        if (h != null) {
+            h.post(task);
+        } else {
+            task.run();
+        }
+        return future;
+    }
+
     /** Version courante du document LSP (strictement croissante). */
     int getDocumentVersion() {
         return synchronizer.getDocumentVersion();

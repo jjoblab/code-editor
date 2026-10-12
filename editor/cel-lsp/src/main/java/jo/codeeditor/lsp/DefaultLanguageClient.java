@@ -207,4 +207,60 @@ public class DefaultLanguageClient implements LanguageClient {
     public CompletableFuture<Void> unregisterCapability(UnregistrationParams params) {
         return CompletableFuture.completedFuture(null);
     }
+
+    /**
+     * Requête serveur→client {@code workspace/applyEdit} : le serveur
+     * POUSSE une édition de l'espace de travail (refactorings en deux
+     * temps : commande → edit) et attend une réponse structurée.
+     *
+     * <p>Sans cette implémentation, l'implémentation par défaut du
+     * protocole lève une exception — le serveur reçoit une erreur
+     * JSON-RPC et son action échoue silencieusement côté édition. Ici,
+     * l'édition est appliquée par la voie commune (confinement au
+     * workspace, validation tout-ou-rien, écriture atomique, thread UI)
+     * et la réponse porte le compte rendu : {@code applied=true}, ou
+     * {@code applied=false} + motif de refus — JAMAIS d'exception.</p>
+     */
+    @Override
+    public CompletableFuture<org.eclipse.lsp4j.ApplyWorkspaceEditResponse> applyEdit(
+            org.eclipse.lsp4j.ApplyWorkspaceEditParams params) {
+        String label = params != null && params.getLabel() != null ? params.getLabel() : "";
+        if (params == null || params.getEdit() == null) {
+            android.util.Log.w("LspClient",
+                    "applyEdit REFUSÉ : requête sans édition (label=" + label + ")");
+            return CompletableFuture.completedFuture(
+                    reponseRefus("requête sans édition"));
+        }
+        LspEditor ed = lspEditor;
+        if (ed == null) {
+            android.util.Log.w("LspClient",
+                    "applyEdit REFUSÉ : aucun éditeur lié (label=" + label + ")");
+            return CompletableFuture.completedFuture(
+                    reponseRefus("aucun éditeur lié"));
+        }
+        android.util.Log.i("LspClient", "applyEdit reçu (label=" + label + ") — application…");
+        return ed.applyServerEdit(params.getEdit()).thenApply(result -> {
+            if (result.applied) {
+                android.util.Log.i("LspClient", "applyEdit appliqué : " + result.editsApplied
+                        + " édition(s), " + result.filesWritten + " fichier(s) (label=" + label + ")");
+            } else {
+                android.util.Log.w("LspClient", "applyEdit REFUSÉ : "
+                        + String.join("; ", result.rejections) + " (label=" + label + ")");
+            }
+            org.eclipse.lsp4j.ApplyWorkspaceEditResponse response =
+                    new org.eclipse.lsp4j.ApplyWorkspaceEditResponse(result.applied);
+            if (!result.applied) {
+                response.setFailureReason(String.join("; ", result.rejections));
+            }
+            return response;
+        });
+    }
+
+    /** La réponse de refus standard (jamais d'exception). */
+    private static org.eclipse.lsp4j.ApplyWorkspaceEditResponse reponseRefus(String motif) {
+        org.eclipse.lsp4j.ApplyWorkspaceEditResponse r =
+                new org.eclipse.lsp4j.ApplyWorkspaceEditResponse(false);
+        r.setFailureReason(motif);
+        return r;
+    }
 }
