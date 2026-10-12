@@ -683,7 +683,7 @@ fonctionnalités du Lot 4 (#25 #26 #27). L'historique des commits a
 
 ### Added
 
-- **Scans feuille par feuille (``)** : `Rope.visitLeaves` /
+- **Scans feuille par feuille** : `Rope.visitLeaves` /
   `visitLeavesBackward` — visite des feuilles couvrant une plage avec
   accès direct au String de chaque feuille (O(feuilles + fenêtre) au
   lieu de O(n·log n) par `charAt`) ; `BracketPairs.docBalance` (comptage
