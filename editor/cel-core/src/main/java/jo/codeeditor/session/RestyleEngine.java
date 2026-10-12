@@ -344,12 +344,14 @@ final class RestyleEngine {
             try {
                 doAsyncRestyle(textSnapshot, lineCountSnapshot, langSnapshot,
                     myGeneration, docAtStart);
-            } catch (Throwable t) {
-                // Défensif : logger et abandonner. La session reste
+            } catch (Exception t) {
+                // Défensif : journaliser et abandonner. La session reste
                 // fonctionnelle avec les anciens styledLines — l'utilisateur
                 // voit juste des couleurs périmées jusqu'à ce qu'une prochaine
-                // édition déclenche un restyle (synchrone).
-                System.err.println("EditorSession async restyle failed: " + t);
+                // édition déclenche un restyle (synchrone). Les Error
+                // (mémoire saturée, pile débordée) ne sont PAS avalés.
+                jo.codeeditor.util.EditorLog.error("RestyleEngine",
+                        "restyle asynchrone échoué", t);
             }
         });
         pendingRestyle.set(task);
@@ -455,8 +457,10 @@ final class RestyleEngine {
             try {
                 task.get();
             } catch (java.util.concurrent.ExecutionException e) {
-                // Restyle échoué — logger et continuer. styledLines peut être vide.
-                System.err.println("EditorSession awaitPendingRestyle: " + e);
+                // Restyle échoué — journaliser et continuer. styledLines
+                // peut être vide.
+                jo.codeeditor.util.EditorLog.error("RestyleEngine",
+                        "attente du restyle asynchrone échouée", e);
             }
         }
     }
