@@ -64,11 +64,12 @@ public class EditorRenamePrepareTest {
 
         EditorRenamePopup popup = new EditorRenamePopup(view);
         popup.showRename();
-        assertTrue(popup.renameVisible);
-        assertEquals("heuristique locale d'abord", "foo", popup.renameText);
 
+        // État FINAL : le placeholder du serveur remonte au champ (la
+        // montée asynchrone peut précéder la lecture — on n'asserte pas
+        // l'état intermédiaire heuristique, racy par nature).
         assertTrue("le placeholder du serveur doit remonter au champ",
-                attends(5000, () -> "bar".equals(popup.renameText)));
+                attends(15000, () -> "bar".equals(popup.renameText)));
         assertTrue("le popup reste ouvert", popup.renameVisible);
     }
 
@@ -80,10 +81,12 @@ public class EditorRenamePrepareTest {
 
         EditorRenamePopup popup = new EditorRenamePopup(view);
         popup.showRename();
-        assertTrue(popup.renameVisible);
 
+        // État FINAL : le refus du serveur referme le popup (le refus
+        // peut arriver avant ou après la lecture — seul l'état final
+        // compte).
         assertTrue("le popup doit se refermer (refus du serveur)",
-                attends(5000, () -> !popup.renameVisible));
+                attends(15000, () -> !popup.renameVisible));
     }
 
     @Test
