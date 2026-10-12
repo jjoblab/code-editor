@@ -99,6 +99,25 @@ public class EditorScrollManager {
         view.invalidate();
     }
 
+    /**
+     * S3 (lot 2, J4) — défile jusqu'à CENTRER la ligne donnée dans le
+     * viewport (et non la ramener au bord comme {@link #scrollToLine(int)},
+     * qui ne fait que la rendre visible). Cible du tap sur une ligne
+     * sticky : la ligne d'origine revient au cœur de l'écran, avec son
+     * contexte au-dessus et en dessous.
+     *
+     * @since 3.55.0
+     */
+    public void scrollToLineCentered(int line) {
+        float lineHeight = view.metrics.getLineHeight();
+        float y = view.docLineToY(line);
+        float viewHeight = view.getHeight();
+        view.vOffset = EditorView.clamp(
+                y - (viewHeight - lineHeight) * 0.5f, 0, maxV());
+        view.notifyScrollPositionChanged();
+        view.invalidate();
+    }
+
     public void scrollToOffset(int offset) {
         if (view.session == null) return;
         EditorDocument doc = view.session.getDocument();

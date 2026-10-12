@@ -259,6 +259,31 @@ public class EditorTapResolver {
             }
         }
 
+        // ── S3 (lot 2, J4) : tap sur une ligne sticky → navigation ──
+        // La bande sticky (≤ stickyMaxLines × lineHeight depuis
+        // paddingTop) est dessinée PAR-DESSUS le gutter ET le texte :
+        // un tap dedans centre la ligne d'ORIGINE de la rangée touchée
+        // (scrollToLineCentered), AVANT le placement du caret et avant
+        // les branches gouttière/fold que la bande recouvre visuellement.
+        // Anti-faute-de-frappe : la hauteur de bande est bornée
+        // (défaut 2 lignes) ; sans sticky actif, le tap reste un
+        // placement de caret classique.
+        if (tapCount == 1) {
+            float lineHeight = view.metrics.getLineHeight();
+            java.util.List<int[]> active = view.activeStickyLines();
+            if (!active.isEmpty()) {
+                float bandTop = view.metrics.getPadTop();
+                if (y >= bandTop && y < bandTop + active.size() * lineHeight) {
+                    int row = (int) ((y - bandTop) / lineHeight);
+                    if (row >= 0 && row < active.size()) {
+                        view.scrollManager.scrollToLineCentered(
+                                active.get(row)[0]);
+                        return;
+                    }
+                }
+            }
+        }
+
         // Tap sur la bande de fold.
         if (x < view.metrics.getGutterWidth()
             && x >= view.metrics.getGutterWidth() - view.metrics.getFoldStripWidth()) {

@@ -35,6 +35,21 @@
             <item
                 android:id="@+id/sticky_off"
                 android:title="Désactivées" />
+            <item
+                android:id="@+id/sticky_max_1"
+                android:title="@string/sticky_max_1" />
+            <item
+                android:id="@+id/sticky_max_2"
+                android:title="@string/sticky_max_2" />
+            <item
+                android:id="@+id/sticky_max_3"
+                android:title="@string/sticky_max_3" />
+            <item
+                android:id="@+id/sticky_max_4"
+                android:title="@string/sticky_max_4" />
+            <item
+                android:id="@+id/sticky_max_5"
+                android:title="@string/sticky_max_5" />
         </menu>
     </item>
 

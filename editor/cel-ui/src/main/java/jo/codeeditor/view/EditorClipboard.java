@@ -36,6 +36,16 @@ final class EditorClipboard {
         setClipboard(sel);
     }
 
+    /**
+     * D3 (lot 2, J4) — copie un texte arbitraire (message de
+     * diagnostic à l'appui long sur un squiggle) au presse-papiers,
+     * avec le même plafond Binder que {@link #copy()}.
+     */
+    void copyText(String text) {
+        if (text == null || text.isEmpty()) return;
+        setClipboard(text);
+    }
+
     /** Coupe la sélection courante vers le presse-papiers (ne fait rien en mode curseur). */
     void cut() {
         String sel = view.session.selectedText();
