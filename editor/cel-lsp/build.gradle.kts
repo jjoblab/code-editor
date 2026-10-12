@@ -92,7 +92,7 @@ dependencies {
     // exécutés sur la plateforme JUnit 5 via le moteur vintage).
     testImplementation("org.robolectric:robolectric:4.13")
     testImplementation("androidx.test:core:1.6.1")
-    testImplementation("androidx.test.ext:junit:1.2.1")
+    testImplementation("androidx.test.ext:junit:1.3.0")
     // Moteur vintage : exécute les tests JUnit 4 (Robolectric, @Rule
     // TemporaryFolder) sur la même plateforme JUnit 5 que les tests Jupiter
     // (LspModuleTest) — les deux générations cohabitent.
