@@ -350,9 +350,9 @@ behaviors + ajoute text/plaintext).
    multi-lignes). Désormais les offsets avant la zone remplacée
    sont inchangés, ceux après sont décalés du delta, et ceux
    dans la zone sont pinés au début/fin du nouveau bloc
-   (comportement les éditeurs de code de bureau).
+   (comportement observé dans les éditeurs de bureau).
 2. Tab n'indente plus les lignes purement vides (uniquement des
-   espaces/tabulations). les éditeurs de code de bureau ne le fait pas, et cela évite
+   espaces/tabulations). Les lignes vides restent intactes, et cela évite
    d'introduire du whitespace involontaire.
 3. Utilise `doc.charSequence()` (rope, pas de copie) plutôt que
    `doc.getText()` (copie complète du document) pour la
@@ -422,8 +422,8 @@ collapse ne se déclenche que sur une séquence de lignes vides.
 comme sélectionnant la ligne courante (cf. `CommentToggler.commentLineRange`
 qui retourne `[startLine, endLine]` même quand `start == end`).
 La sélection est ensuite recalée sur la ligne touchée (lignes
-141-142, 201-202). Ce comportement est cohérent avec les éditeurs de code de bureau
-et les IDE professionnels. Le changer introduirait une rupture UX.
+141-142, 201-202). Ce comportement est répandu dans les éditeurs de
+code de bureau. Le changer introduirait une rupture UX.
 
 ### Défaut de session passé de `java` à `text`
 
@@ -947,13 +947,13 @@ car :
   que le bug actuel dans certains cas).
 - Elle complique l'annulation (l'utilisateur veut annuler la
   suppression, pas le dépliage).
-- les éditeurs de code de bureau et les IDE professionnels adoptent le dépliage-puis-édition.
+- Les éditeurs de bureau adoptent le dépliage-puis-édition.
 
 **Décision 3.3 point 4** (état du pli après annulation) : le
 dépliage n'est PAS enregistré sur la pile d'annulation (pas
 d'étape de texte). L'undo annule l'édition mais laisse le
 pli déplié. L'utilisateur peut refaire le pli manuellement.
-Cohérent avec les éditeurs de code de bureau.
+Comportement cohérent avec les éditeurs de bureau.
 
 **Tests :** `FoldEditSafetyTest` (6 cas Jupiter) —
 `backspace_atFoldEnd`,
@@ -1030,7 +1030,7 @@ incohérents (début > fin, offsets hors document).
 
 **Appliqué dans cette session.** Le Lot B refond
 `EditorHighlightPainter.drawIndentGuides` pour atteindre un
-niveau de finition comparable à les IDE Android et les éditeurs de code de bureau.
+niveau de finition comparable aux éditeurs de code de bureau.
 
 ### B.1 — Niveaux dès la colonne 0
 

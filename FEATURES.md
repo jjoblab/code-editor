@@ -335,11 +335,11 @@ parallèle.
   `EditorRenderer`, `EditorSession`…) en collaborateurs — désormais
   effective — facilite l'intégration de ce plan.
 
-### Références
+### Références de comportement
 
-- les éditeurs de code de bureau : Cmd+Click (desktop), Alt+Click (alternative)
-- les IDE de bureau : Cmd+G (ajouter une sélection à l'occurrence suivante)
-- Sublime Text : clic milieu + drag (sélection colonne)
+- Aller à la définition : Cmd+Click (desktop), Alt+Click (alternative)
+- Ajouter une sélection à l'occurrence suivante : Cmd+G
+- Sélection en colonne : clic milieu + drag
 
 ---
 

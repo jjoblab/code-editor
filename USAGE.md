@@ -144,7 +144,7 @@ protected void onDestroy() {
 ```java
 import jo.codeeditor.view.chrome.EditorTheme;
 
-// Thème sombre intégré (sobre et contrasté)
+// Thème sombre intégré (palette « Dark+ »)
 editorView.setTheme(EditorTheme.dark());
 
 // Thème clair intégré
@@ -211,7 +211,7 @@ editorView.setDiagnosticChipsEnabled(true);// chips de diagnostics dans le gutte
 ### Guides d'indentation (Lot B)
 
 Les guides d'indentation sont les fins traits verticaux tracés dans
-les blocs indentés, à la les IDE Android / les éditeurs de code de bureau. Trois styles sont
+les blocs indentés, comme dans les éditeurs de code de bureau. Trois styles sont
 disponibles via `IndentGuideStyle` :
 
 ```java
@@ -403,7 +403,7 @@ editorView.setKeymap(EditorKeymap.defaults()
         .bindChord(EditorCommands.TOGGLE_LINE_COMMENT,
                 EditorKeymap.KeyStroke.of(KeyEvent.KEYCODE_K, true, false),
                 EditorKeymap.KeyStroke.of(KeyEvent.KEYCODE_C, true, false)));
-// Ctrl+K Ctrl+C = commenter (style IDE)
+// Ctrl+K Ctrl+C = commenter (accord de touches consécutif)
 ```
 
 ## Aperçu XML
@@ -432,7 +432,7 @@ import jo.codeeditor.lsp.LspProject;
 import jo.codeeditor.lsp.LspEditor;
 
 LspProject project = new LspProject("/path/to/workspace");
-project.addServerDefinition(myServerDefinition); // ex. le serveur LSP tiers, le serveur LSP tiers…
+project.addServerDefinition(myServerDefinition); // ex. un serveur Java, un serveur Lua…
 LspEditor editor = project.createEditor("file:///path/to/Foo.java");
 editor.setEditorView(editorView);
 editor.connect();   // CompletableFuture — didOpen envoyé à la connexion
