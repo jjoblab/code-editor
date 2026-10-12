@@ -446,7 +446,7 @@ class EditorSessionTest {
 
     /**
      * Petit document + tokenizer enregistré disponible → délégation ACTIVE.
-     * En production, TextMate étant absent, le tokenizer reste null et ce path
+     * En production, textmate étant absent, le tokenizer reste null et ce path
      * ne s'active jamais — le test le prouve avec un stub.
      */
     @Test
@@ -588,7 +588,7 @@ class EditorSessionTest {
     /**
      * Les gros documents utilisent AUSSI le restyle asynchrone : tous les
      * setLanguage déclenchent restyleAllAsync, peu importe la taille du
-     * doc. Le parser maison est ~10-50x plus rapide que TextMate par ligne,
+     * doc. Le parser maison est ~10-50x plus rapide que textmate par ligne,
      * donc même un 5000-lignes se tokenise en moins d'une seconde en
      * arrière-plan.
      */

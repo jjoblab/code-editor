@@ -4,18 +4,18 @@ package jo.codeeditor.highlight;
  * Interface optionnelle de tokénisation basée sur TextMate.
  *
  * <p>Isolation modulaire : l'implémentation de référence se trouve dans le
- * module {@code :TextMate} ({@code jo.codeeditor.TextMate.TextMateTokenizerImpl}).
- * Le module {@code :TextMate} est un module de bibliothèque <em>optionnel</em>
+ * module {@code :textmate} ({@code jo.codeeditor.textmate.TextMateTokenizerImpl}).
+ * Le module {@code :textmate} est un module de bibliothèque <em>optionnel</em>
  * qui ne dépend que de {@code :core}. Les consommateurs de code-editor
  * peuvent choisir :
  * <ul>
- *   <li><b>Avec TextMate</b> — dépendre de {@code :TextMate} (récupère par
- *       transition les sources TextMate embarquées + les grammaires/thèmes).
+ *   <li><b>Avec TextMate</b> — dépendre de {@code :textmate} (récupère par
+ *       transition les sources textmate embarquées + les grammaires/thèmes).
  *       Les 17 fichiers de grammaire (Java, Kotlin, XML, HTML, CSS, JS, TS,
  *       Python, etc.) sont chargés paresseusement depuis
  *       {@code assets/textmate/} au premier appel de
  *       {@link #isAvailable(String)}.</li>
- *   <li><b>Sans TextMate</b> — omettre entièrement {@code :TextMate}. Le
+ *   <li><b>Sans TextMate</b> — omettre entièrement {@code :textmate}. Le
  *       tokéniseur intégré de {@link SyntaxHighlighter} ({@code :core})
  *       gère tous les langages courants (Java, Kotlin, XML, HTML, CSS, JS,
  *       TS, Python, Go, Rust, C, C++, Shell, YAML, etc.) via une machine à
@@ -35,7 +35,7 @@ package jo.codeeditor.highlight;
  *   <li>{@code entryState > 0} → index opaque précédemment renvoyé comme
  *       {@code exitState} par le même tokéniseur. L'implémentation maintient
  *       une {@code Map<Integer, IStateStack>} interne par langage pour
- *       retrouver l'état opaque TextMate correspondant.</li>
+ *       retrouver l'état opaque textmate correspondant.</li>
  *   <li>Le {@code exitState} renvoyé doit être <em>stable</em> : re-tokéniser
  *       la même ligne avec le même {@code entryState} doit produire le même
  *       {@code exitState}, afin que l'éditeur cesse de re-tokéniser l'aval

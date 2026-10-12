@@ -331,7 +331,7 @@ class SyntaxHighlighterTest {
     // PARSER MAISON : tests des tokenizers de langages intégrés.
     //
     // Ces tests couvrent les tokenizers de langages intégrés afin que le
-    // parser maison soit exercé quand :TextMate n'est pas sur le classpath.
+    // parser maison soit exercé quand :textmate n'est pas sur le classpath.
     // Chaque test vérifie le minimum vital : le tokenizer reconnaît au
     // moins un KEYWORD / STRING / COMMENT / NUMBER sur une ligne d'exemple
     // du langage.

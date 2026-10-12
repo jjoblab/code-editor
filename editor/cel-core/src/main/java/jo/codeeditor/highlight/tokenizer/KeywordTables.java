@@ -86,7 +86,7 @@ public final class KeywordTables {
     // supplémentaires.
     //
     // Ils permettent aux consommateurs de code-editor d'omettre le module
-    // optionnel :TextMate tout en conservant une coloration correcte pour tous
+    // optionnel :textmate tout en conservant une coloration correcte pour tous
     // les langages courants. Les tokéniseurs de ces langages sont plus
     // simples que des grammaires TextMate complètes (pas d'héritage de
     // portées, pas d'injections) mais couvrent les cas courants :
