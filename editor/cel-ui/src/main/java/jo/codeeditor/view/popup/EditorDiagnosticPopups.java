@@ -57,6 +57,9 @@ public class EditorDiagnosticPopups {
         if (view.codeActionsPopupVisible) popups.dismissCodeActions();
         // Le menu contextuel unifié ferme aussi (popup exclusif).
         if (view.navMenuVisible) popups.dismissNavMenu();
+        // Le popup ancré de squiggle cède la place au niveau 2 (fiche
+        // basse — vue complète).
+        if (view.squigglePopupVisible) popups.dismissSquigglePopup();
         // Les quick-fixes de la section QUICK FIXES se résolvent À LA
         // DEMANDE à l'ouverture : la fiche se peuple dès l'arrivée (le
         // balayage par ligne qui remplissait le cache n'existe plus).
@@ -98,6 +101,7 @@ public class EditorDiagnosticPopups {
         if (view.signatureHelpVisible) popups.dismissSignatureHelp();
         if (view.codeActionsPopupVisible) popups.dismissCodeActions();
         if (view.navMenuVisible) popups.dismissNavMenu();
+        if (view.squigglePopupVisible) popups.dismissSquigglePopup();
         view.invalidate();
     }
 

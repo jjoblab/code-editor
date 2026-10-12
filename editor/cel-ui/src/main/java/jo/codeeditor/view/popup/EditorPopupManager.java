@@ -63,6 +63,8 @@ public class EditorPopupManager {
     private final EditorRenamePopup rename;
     /** Popups de diagnostic — collaborateur extrait (corps déplacés à l'identique). */
     private final EditorDiagnosticPopups diagnostics;
+    /** Popup ancré de squiggle (D1) — niveau 1 de la lecture d'un diagnostic. */
+    private final EditorSquigglePopups squiggle;
 
     public EditorPopupManager(EditorView view) {
         this.completion = new EditorCompletionPopup(view, this);
@@ -74,6 +76,7 @@ public class EditorPopupManager {
         this.goToLine = new EditorGoToLinePopup(view);
         this.rename = new EditorRenamePopup(view);
         this.diagnostics = new EditorDiagnosticPopups(view, this);
+        this.squiggle = new EditorSquigglePopups(view, this);
     }
 
 
@@ -228,5 +231,19 @@ public class EditorPopupManager {
     public void showDiagnosticListSheet(int line) { diagnostics.showDiagnosticListSheet(line); }
 
     public void dismissDiagnosticListSheet() { diagnostics.dismissDiagnosticListSheet(); }
+
+    // ════════════════════════════════════════════════════════════════
+    // Popup ancré de squiggle (D1) — corps délégués à EditorSquigglePopups
+    // ════════════════════════════════════════════════════════════════
+
+    /** Ouvre le popup ancré si des squiggles couvrent l'offset (vrai si ouvert). */
+    public boolean squigglePopupAt(int offset, float tapX) {
+        return squiggle.squigglePopupAt(offset, tapX);
+    }
+
+    /** Résout un hit du popup (rangée quick-fix / choix / « See all »). */
+    public void handleSquiggleHit(int hit) { squiggle.handleSquiggleHit(hit); }
+
+    public void dismissSquigglePopup() { squiggle.dismissSquigglePopup(); }
 
 }
