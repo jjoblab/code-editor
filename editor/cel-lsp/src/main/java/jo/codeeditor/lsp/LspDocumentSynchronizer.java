@@ -51,12 +51,24 @@ class LspDocumentSynchronizer {
      */
     private final VersionCounter documentVersion = new VersionCounter();
 
-    /** Le texte en attente d'envoi via didChange. */
-    private volatile String pendingText = null;
-    private volatile long lastDidChangeSchedule = 0;
     private static final long DID_CHANGE_DEBOUNCE_MS = 300;
 
-    private volatile Thread didChangeThread;
+    /**
+     * Le texte en attente d'envoi via didChange — RÉFÉRENCE (pas de
+     * copie) : le EditorDocument est immuable par révision, la chaîne
+     * n'est matérialisée qu'AU MOMENT DE L'ENVOI, sur le thread du
+     * débounceur (plus de copie complète du document à chaque frappe sur
+     * le thread appelant).
+     */
+    private volatile CharSequence pendingText = null;
+
+    private static final long DID_SAVE_DEBOUNCE_MS = 800;
+
+    /** Débounce didChange/didSave : exécuteur mono-thread daemon. */
+    private final LspDebouncer didChangeDebouncer =
+            new LspDebouncer("didchange-debounce", DID_CHANGE_DEBOUNCE_MS);
+    private final LspDebouncer didSaveDebouncer =
+            new LspDebouncer("didsave-debounce", DID_SAVE_DEBOUNCE_MS);
 
     /**
      * Appelé quand le texte de l'éditeur change. Envoie une notification
@@ -74,33 +86,25 @@ class LspDocumentSynchronizer {
         // Débounce — stocke le dernier texte et programme un didChange
         // après DID_CHANGE_DEBOUNCE_MS. Une frappe rapide (10+ touches/s)
         // ne spammera pas le serveur d'un didChange par frappe.
-        pendingText = text.toString();
+        pendingText = text;
         scheduleDebouncedDidChange();
     }
 
     /**
-     * Programme un didChange débouncé sur un thread de fond. Se
-     * déclenche DID_CHANGE_DEBOUNCE_MS après le dernier appel à
-     * onTextChanged.
+     * Programme un didChange débouncé. Se déclenche
+     * DID_CHANGE_DEBOUNCE_MS après le dernier appel à
+     * onTextChanged — reprogrammation par {@link LspDebouncer}
+     * (un seul exécuteur daemon, jamais de thread par frappe, jamais
+     * d'interruption d'un envoi en cours). La tâche RELIT le texte en
+     * attente à l'exécution : la valeur la plus récente gagne toujours.
      */
     private void scheduleDebouncedDidChange() {
-        lastDidChangeSchedule = System.currentTimeMillis();
-        final long scheduledAt = lastDidChangeSchedule;
-        final String textToSend = pendingText;
-        if (didChangeThread != null) didChangeThread.interrupt();
-        didChangeThread = new Thread(() -> {
-            try {
-                Thread.sleep(DID_CHANGE_DEBOUNCE_MS);
-            } catch (InterruptedException e) {
-                return; // supplanté par un didChange plus récent
-            }
-            // Ne tire que si aucun autre onTextChanged n'est survenu pendant
-            // l'attente.
-            if (scheduledAt != lastDidChangeSchedule) return;
-            sendDidChange(textToSend);
-        }, "lsp-didchange-debounce");
-        didChangeThread.setDaemon(true);
-        didChangeThread.start();
+        didChangeDebouncer.debounce(() -> {
+            CharSequence text = pendingText;
+            if (text == null) return; // déjà flushed
+            pendingText = null;
+            sendDidChange(text);
+        });
     }
 
     /**
@@ -139,12 +143,12 @@ class LspDocumentSynchronizer {
         if (!editor.isConnected()) return;
         LanguageServerWrapper wrapper = editor.currentWrapper();
         if (wrapper == null || wrapper.getServer() == null) return;
-        // ★ Annule le debounce différé : son envoi serait en double du nôtre.
-        if (didChangeThread != null) {
-            didChangeThread.interrupt();
-            didChangeThread = null;
-        }
-        String pending = pendingText;
+        // ★ Annule le debounce différé : son envoi serait en double du
+        // nôtre. cancel(false) n'interrompt JAMAIS une tâche démarrée :
+        // celle-ci relit pendingText (null après notre flush) et rendra
+        // la main sans rien envoyer.
+        didChangeDebouncer.cancel();
+        CharSequence pending = pendingText;
         if (pending == null) return;
         pendingText = null;
         // ★ Envoi SYNCHRONE sur le thread appelant : la notification
@@ -210,7 +214,10 @@ class LspDocumentSynchronizer {
      * Toute anomalie (base inconnue, bornes incohérentes) retombe sur un
      * event complet SANS RANGE, que tout serveur LSP accepte.
      */
-    private void sendDidChange(String text) {
+    private void sendDidChange(CharSequence raw) {
+        // Matérialisation UNIQUE, sur le thread de l'envoi (débouncer ou
+        // flush) : jamais sur le thread UI.
+        final String text = raw.toString();
         DidChangeTextDocumentParams params = new DidChangeTextDocumentParams();
         VersionedTextDocumentIdentifier id = new VersionedTextDocumentIdentifier();
         id.setUri(editor.getFileUri());
@@ -299,22 +306,11 @@ class LspDocumentSynchronizer {
     }
 
     /** didSave débouncé — se déclenche 800 ms après le dernier didChange. */
-    private long lastDidSaveSchedule = 0;
-    private static final long DID_SAVE_DEBOUNCE_MS = 800;
     private void scheduleDebouncedDidSave() {
-        lastDidSaveSchedule = System.currentTimeMillis();
-        final long scheduledAt = lastDidSaveSchedule;
-        new Thread(() -> {
-            try {
-                Thread.sleep(DID_SAVE_DEBOUNCE_MS);
-            } catch (InterruptedException e) {
-                return;
-            }
-            // Ne tire que si aucun autre didChange n'est survenu pendant
-            // l'attente.
-            if (scheduledAt != lastDidSaveSchedule) return;
-            sendDidSave();
-        }, "lsp-didsave-debounce").start();
+        // Thread daemon (l'ancien new Thread non daemon sans référence
+        // conservée retardait l'arrêt du processus), reprogrammé et
+        // annulable comme le didChange.
+        didSaveDebouncer.debounce(this::sendDidSave);
     }
 
     /**
@@ -376,12 +372,12 @@ class LspDocumentSynchronizer {
      * (pour éviter qu'il n'écrive dans un pipe fermé → « Write end dead »).
      */
     void sendDidClose() {
-        // Annule le thread de debounce didChange en cours pour éviter
-        // qu'il n'écrive dans un pipe fermé → « Write end dead ».
-        if (didChangeThread != null) {
-            didChangeThread.interrupt();
-            didChangeThread = null;
-        }
+        // Arrête les débounceurs : plus AUCUN thread « lsp-* » vivant
+        // après la déconnexion (test de non-fuite), plus d'écriture dans
+        // un pipe fermé → « Write end dead ».
+        didChangeDebouncer.shutdown();
+        didSaveDebouncer.shutdown();
+        pendingText = null;
         try {
             LanguageServerWrapper wrapper = editor.currentWrapper();
             if (wrapper != null && wrapper.getServer() != null) {
