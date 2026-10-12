@@ -89,6 +89,13 @@ import jo.codeeditor.view.chrome.GutterView;
  */
 public class EditorView extends View {
 
+    static {
+        // Première vue créée ⇒ journal Android installé pour toute la
+        // bibliothèque (modules purs inclus, via EditorLog).
+        jo.codeeditor.util.EditorLog.install(
+                new jo.codeeditor.view.log.AndroidEditorLogger());
+    }
+
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
     public EditorSession session;
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
