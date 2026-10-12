@@ -96,4 +96,74 @@ final class IoCompat {
             return false;
         }
     }
+
+    /**
+     * Hook appelé après l'écriture complète du fichier temporaire, juste
+     * avant le renommage final — point d'injection des tests de panne.
+     */
+    interface AtomicWriteListener {
+        void onTempWritten(File tempFile) throws IOException;
+    }
+
+    /**
+     * Écriture ATOMIQUE du texte UTF-8 dans le fichier : le contenu part
+     * dans un fichier temporaire DU MÊME DOSSIER (même système de
+     * fichiers, renommage atomique), est intégralement écrit, puis
+     * {@code FileDescriptor.sync()}-édé AVANT le renommage final.
+     *
+     * <p>Garanties :</p>
+     * <ul>
+     *   <li>une panne au milieu de l'écriture ne JAMAIS corrompre le
+     *       fichier d'origine (contrairement à
+     *       {@link #writeUtf8(File, String)} qui tronque d'abord) ;</li>
+     *   <li>le fichier temporaire est supprimé en cas d'échec ;</li>
+     *   <li>les permissions du fichier d'origine (lecture seule, etc.)
+     *       sont conservées ;</li>
+     *   <li>compatible API 24 — {@code Files.move(ATOMIC_MOVE)} exige
+     *       l'API 26 et n'apporte rien de plus que {@code File.renameTo}
+     *       sur un même dossier.</li>
+     * </ul>
+     *
+     * @param listener hook de test (null en production)
+     * @return true si le renommage final a eu lieu
+     */
+    static boolean writeUtf8Atomically(File file, String text, AtomicWriteListener listener) {
+        if (file == null || text == null) return false;
+        File parent = file.getParentFile();
+        if (parent != null && !parent.isDirectory() && !parent.mkdirs()) {
+            android.util.Log.w("IoCompat", "writeUtf8Atomically: cannot create parent dir for " + file);
+            return false;
+        }
+        boolean originalLectureSeule = file.exists() && !file.canWrite();
+        long originalLastModified = file.exists() ? file.lastModified() : Long.MIN_VALUE;
+        File tmp = new File(parent, "." + file.getName() + "." + Long.toHexString(System.nanoTime()) + ".tmp");
+        try {
+            byte[] bytes = text.getBytes(Charset.forName("UTF-8"));
+            try (FileOutputStream fos = new FileOutputStream(tmp, false);
+                 OutputStream out = new BufferedOutputStream(fos, BUFFER_SIZE)) {
+                out.write(bytes);
+                out.flush();
+                // Persiste sur le disque AVANT le renommage : en cas de
+                // coupure de courant, le contenu renommé est complet.
+                fos.getFD().sync();
+            }
+            if (listener != null) listener.onTempWritten(tmp);
+            if (originalLectureSeule) tmp.setReadOnly();
+            if (!tmp.renameTo(file)) {
+                android.util.Log.w("IoCompat", "writeUtf8Atomically: rename failed for " + file);
+                return false;
+            }
+            if (originalLastModified != Long.MIN_VALUE
+                    && originalLastModified > 0) {
+                // Best effort — l'horodatage n'est pas une garantie.
+                file.setLastModified(originalLastModified);
+            }
+            return true;
+        } catch (IOException e) {
+            android.util.Log.w("IoCompat", "writeUtf8Atomically failed for " + file + ": " + e.getMessage());
+            return false;
+        } finally {
+            if (tmp.exists()) tmp.delete();
+        }
+    }
 }
