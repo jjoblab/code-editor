@@ -48,12 +48,24 @@ class LspDiagnosticsManager {
             for (org.eclipse.lsp4j.Diagnostic lspDiag : params.getDiagnostics()) {
                 int start = editor.positionToOffset(lspDiag.getRange().getStart());
                 int end = editor.positionToOffset(lspDiag.getRange().getEnd());
+                // Sévérité LSP : 1=Erreur, 2=Avertissement, 3=Info, 4=Hint.
+                // Absente → Information (3), pas Warning : la spec 3.17 laisse
+                // le choix au client ; un diagnostic sans sévérité n'a pas
+                // prouvé son urgence — le traiter en avertissement peint des
+                // jaunes injustifiés (Android Studio affiche « information »
+                // quand l'inspection ne précise pas).
                 int severity = lspDiag.getSeverity() != null
-                    ? lspDiag.getSeverity().ordinal() + 1 : 2; // sévérité LSP : 1=Erreur, 2=Avertissement, 3=Info, 4=Hint
+                    ? lspDiag.getSeverity().ordinal() + 1 : 3;
                 // Mappe la sévérité LSP (1=Erreur, 2=Avertissement, 3=Info, 4=Hint) vers la nôtre (3=erreur, 2=avertissement, 1=info)
                 int ourSeverity = severity == 1 ? 3 : severity == 2 ? 2 : 1;
+                // Tag Unnecessary (code inutilisé) — peinture estompée de la
+                // plage au lieu du soulignement (grisé Android Studio).
+                boolean unnecessary = lspDiag.getTags() != null
+                        && lspDiag.getTags().contains(
+                                org.eclipse.lsp4j.DiagnosticTag.Unnecessary);
                 diags.add(new Diagnostic(start, end, ourSeverity,
-                    lspDiag.getMessage(), lspDiag.getCode() != null ? lspDiag.getCode().getLeft() : ""));
+                    lspDiag.getMessage(), lspDiag.getCode() != null ? lspDiag.getCode().getLeft() : "",
+                    unnecessary));
             }
         }
         cachedDiagnostics = new CopyOnWriteArrayList<>(diags);
@@ -70,19 +82,31 @@ class LspDiagnosticsManager {
         }
         EditorView editorView = editor.getEditorView();
         if (editorView != null) {
-            // Poste setDiagnostics sur le thread UI pour éviter la concurrence
-            // avec le chemin de rendu. L'exécuteur LSP4J appelle
-            // publishDiagnostics sur un thread de fond — les champs
-            // d'EditorSession ne sont pas synchronisés pour la mutation.
             final List<Diagnostic> diagsFinal = diags;
-            editorView.post(() -> {
+            Runnable push = () -> {
                 EditorView view = editor.getEditorView();
                 if (view != null && view.getSession() != null) {
                     view.getSession().setDiagnostics(
                         convertToLegacyDiagnostics(diagsFinal));
-                    view.invalidate();
+                    // P2-11c — voie UNIQUE de sortie : la publication LSP
+                    // emprunte le même chemin que la voie locale
+                    // (notifyDiagnosticsChanged) — reconstruction du tableau
+                    // de sévérité par ligne pour la gouttière (les points
+                    // restaient périmés après une publication LSP),
+                    // notification de l'hôte (OnDiagnosticsPublishedListener,
+                    // resté muet côté LSP — le futur onglet Problèmes de
+                    // l'hôte en dépend), invalidation comprise.
+                    view.notifyDiagnosticsChanged();
                 }
-            });
+            };
+            // Pattern applyServerEdit : vue ATTACHÉE → handler (thread UI,
+            // la mutation de session est sérialisée avec le rendu) ;
+            // vue NON attachée (pas de handler) → exécution EN LIGNE —
+            // un View.post resterait en file d'actions et ne serait jamais
+            // exécuté avant l'attachement : une publication serveur ne
+            // doit pas rester pendante.
+            android.os.Handler h = editorView.getHandler();
+            if (h != null) h.post(push); else push.run();
             // ★ R3 : chaque publication de diagnostics est
             // le signal naturel pour rafraîchir les couleurs sémantiques —
             // un seul déclencheur, déjà cadencé par le debounce didChange,
@@ -100,7 +124,7 @@ class LspDiagnosticsManager {
         List<jo.codeeditor.shift.DiagnosticShift.Diagnostic> out = new ArrayList<>();
         for (Diagnostic d : diags) {
             out.add(new jo.codeeditor.shift.DiagnosticShift.Diagnostic(
-                d.start, d.end, d.severity, d.message));
+                d.start, d.end, d.severity, d.message, d.unnecessary));
         }
         return out;
     }

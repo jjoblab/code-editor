@@ -2718,12 +2718,8 @@ public class EditorView extends View {
     // Popup de complétion
     // ════════════════════════════════════════════════════════════════
 
-    /**
-     * Fournisseur de complétion optionnel — l'hôte en branche un pour
-     * alimenter des complétions conscientes du langage. Sans fournisseur,
-     * la vue retombe sur la complétion par mots-clés intégrée pour
-     * java/kotlin/xml/markdown.
-     */
+    /** Fournisseur de complétion optionnel — sans fournisseur, repli sur
+     * la complétion par mots-clés intégrée (java/kotlin/xml/markdown). */
     public interface CompletionProvider {
         /**
          * @param text     le texte complet du document
@@ -2734,6 +2730,15 @@ public class EditorView extends View {
          */
         List<jo.codeeditor.completion.CompletionSession.Item> provide(
             String text, int caret, int tokenStart, String prefix);
+
+        /** Variante avec le caractère déclencheur (null = invocation
+         * explicite) — délègue par défaut à la variante 4 paramètres.
+         * @since 3.51.0 */
+        default List<jo.codeeditor.completion.CompletionSession.Item> provide(
+            String text, int caret, int tokenStart, String prefix,
+            Character triggerCharacter) {
+            return provide(text, caret, tokenStart, prefix);
+        }
     }
 
     public void setCompletionProvider(CompletionProvider provider) {
@@ -3036,12 +3041,10 @@ public class EditorView extends View {
     }
 
     /**
-     * Formate tout le document via le resolver de formatage branché.
-     * La requête LSP formatting quitte le thread UI ; le résultat est
-     * appliqué en un seul step d'undo quand il arrive.
+     * Formate tout le document via le resolver de formatage : requête
+     * LSP hors du thread UI, résultat appliqué en un seul step d'undo.
      *
-     * @param callback exécuté sur le thread UI après application :
-     *                 {@code Boolean.TRUE} si le texte a changé, FALSE sinon,
+     * @param callback thread UI : TRUE si le texte a changé, FALSE sinon,
      *                 null si aucun formatteur. Peut être null.
      */
     public void formatDocument(java.util.function.Consumer<Boolean> callback) {
@@ -3054,26 +3057,25 @@ public class EditorView extends View {
         return false;
     }
 
-    /**
-     * Ouvre le popup go-to-symbol. Appelle le resolver pour obtenir la
-     * liste complète des symboles, puis filtre selon le texte de filtre
-     * courant.
-     */
+    /** Ouvre le popup go-to-symbol (résolution + filtrage). */
     public void showGoToSymbol() {
         popupManager.showGoToSymbol();
     }
 
     /**
-     * Exécute l'action « source.organizeImports » via le fournisseur
-     * d'actions LSP (l'action est reconstruite par le serveur à la demande
-     * et applique son WorkspaceEdit localement). Résout en arrière-plan —
-     * le thread UI n'attend jamais.
+     * « source.organizeImports » (resp. « source.fixAll » via
+     * {@link #performFixAll}) : UNE requête par document avec le filtre
+     * de famille dans le contexte LSP, résolution en arrière-plan.
      *
-     * @param callback thread UI : TRUE si une action a été trouvée+exécutée,
-     *                 FALSE sinon (aucun provider / action absente).
+     * @param callback thread UI : TRUE si action trouvée+exécutée, FALSE sinon.
      */
     public void performOrganizeImports(java.util.function.Consumer<Boolean> callback) {
         documentActions.performOrganizeImports(callback);
+    }
+
+    /** {@link #performOrganizeImports} pour « source.fixAll ». @since 3.51.0 */
+    public void performFixAll(java.util.function.Consumer<Boolean> callback) {
+        documentActions.performFixAll(callback);
     }
 
     /** Referme le popup go-to-symbol. */
@@ -3081,10 +3083,7 @@ public class EditorView extends View {
         popupManager.dismissGoToSymbol();
     }
 
-    /**
-     * Met à jour le texte de filtre et re-filtre la liste de symboles.
-     * Appelé par l'hôte à chaque frappe dans le champ de filtre du popup.
-     */
+    /** Met à jour le filtre et re-filtre la liste de symboles. */
     public void setGoToSymbolFilter(String filter) {
         popupManager.setGoToSymbolFilter(filter);
     }

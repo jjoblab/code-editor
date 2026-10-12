@@ -72,12 +72,22 @@ public final class DiagnosticShift {
         public int end;
         public final int severity;
         public final String message;
+        /** Tag LSP Unnecessary (code inutilisé) — la plage est peinte
+         * estompée (grisé Android Studio) au lieu du soulignement de
+         * sévérité. @since 3.51.0 */
+        public final boolean unnecessary;
 
         public Diagnostic(int start, int end, int severity, String message) {
+            this(start, end, severity, message, false);
+        }
+
+        public Diagnostic(int start, int end, int severity, String message,
+                boolean unnecessary) {
             this.start = start;
             this.end = end;
             this.severity = severity;
             this.message = message;
+            this.unnecessary = unnecessary;
         }
     }
 
@@ -91,7 +101,8 @@ public final class DiagnosticShift {
             int newStart = mapStart(d.start, span);
             int newEnd = mapEnd(d.end, span);
             if (newEnd > newStart) {
-                result.add(new Diagnostic(newStart, newEnd, d.severity, d.message));
+                result.add(new Diagnostic(newStart, newEnd, d.severity, d.message,
+                        d.unnecessary));
             }
         }
         return result;

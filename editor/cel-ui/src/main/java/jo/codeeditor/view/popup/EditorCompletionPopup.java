@@ -268,23 +268,26 @@ public class EditorCompletionPopup {
         }
 
         // ── Préfixe vide : ouverture légitime après un char déclencheur ? ──
+        // Le caractère reconnu est capturé pour le contexte LSP
+        // (triggerKind = TriggerCharacter) — le serveur affine alors ses
+        // propositions (membres d'une instance après « . »).
         boolean triggeredByTriggerChar = false;
+        char triggerChar = 0;
         if (prefix.isEmpty()) {
-            boolean triggered = false;
             if (caret > 0) {
                 char prev = text.charAt(caret - 1);
                 for (String t : triggerCharacters()) {
                     if (t != null && !t.isEmpty() && prev == t.charAt(0)) {
-                        triggered = true;
+                        triggeredByTriggerChar = true;
+                        triggerChar = prev;
                         break;
                     }
                 }
             }
-            if (!triggered) {
+            if (!triggeredByTriggerChar) {
                 dismissCompletion();
                 return;
             }
-            triggeredByTriggerChar = true;
         }
         // ★ Après un char déclencheur (ex : "."), on lance la
         // requête moteur IMMÉDIATEMENT (immediate=true) au lieu d'attendre
@@ -295,7 +298,8 @@ public class EditorCompletionPopup {
         // que le serveur voit déjà le texte à jour (flushPendingChange
         // SYNCHRONE).
         // Gain perçu : ~80 ms de latence supprimés sur chaque frappe de ".".
-        scheduleAsyncFetch(tokenStart, triggeredByTriggerChar);
+        scheduleAsyncFetch(tokenStart, triggeredByTriggerChar,
+                triggeredByTriggerChar ? triggerChar : null);
     }
 
     /**
@@ -340,30 +344,35 @@ public class EditorCompletionPopup {
         return !jo.codeeditor.edit.EditOps.isInStringOrComment(text, caret);
     }
 
-    /** Point d'entrée hôte (Ctrl+Espace / bouton Cmplt) — SANS debounce. */
+    /** Point d'entrée hôte (Ctrl+Espace / bouton Cmplt) — SANS debounce,
+     *  invocation EXPLICITE (triggerKind Invoked). */
     void refreshCompletionFromHost() {
         if (view.session == null) return;
         int caret = view.session.getSelection().start;
         int tokenStart = tokenStartAt(view.session.getDocument().charSequence(), caret); // ★ B19
-        scheduleAsyncFetch(tokenStart, true);
+        scheduleAsyncFetch(tokenStart, true, null);
     }
 
-    /** Planifie la requête moteur avec debounce sauf demande explicite. */
-    private void scheduleAsyncFetch(int tokenStart, boolean immediate) {
+    /** Planifie la requête moteur avec debounce sauf demande explicite.
+     *  {@code triggerCharacter} : caractère déclencheur capté à la frappe
+     *  (transporté jusqu'au CompletionContext LSP), ou null. */
+    private void scheduleAsyncFetch(int tokenStart, boolean immediate, Character triggerCharacter) {
         final int gen = completionGeneration.incrementAndGet();
         cancelPendingFetch();
-        Runnable launch = () -> launchFetch(gen, tokenStart);
+        Runnable launch = () -> launchFetch(gen, tokenStart, triggerCharacter);
         android.os.Handler h = view.getHandler();
         if (!immediate && h != null) {
             completionDebounceTask = launch;
             h.postDelayed(launch, COMPLETION_DEBOUNCE_MS);
         } else {
-            launchFetch(gen, tokenStart);
+            launchFetch(gen, tokenStart, triggerCharacter);
         }
     }
 
-    /** Requête moteur sur la lane dédiée — le thread UI n'attend JAMAIS. */
-    private void launchFetch(final int gen, final int tokenStart) {
+    /** Requête moteur sur la lane dédiée — le thread UI n'attend JAMAIS.
+     *  {@code triggerCharacter} : caractère déclencheur (ou null) transporté
+     *  jusqu'au fournisseur — il devient le CompletionContext LSP. */
+    private void launchFetch(final int gen, final int tokenStart, final Character triggerCharacter) {
         if (gen != completionGeneration.get()) return; // superseded pendant le debounce
         if (view.session == null) return;
         fetchInFlight = true;
@@ -384,7 +393,8 @@ public class EditorCompletionPopup {
             java.util.List<jo.codeeditor.completion.CompletionSession.Item> result = null;
             try {
                 if (provider != null) {
-                    result = provider.provide(snapText, snapCaret, safeTokenStart, prefix);
+                    result = provider.provide(snapText, snapCaret, safeTokenStart, prefix,
+                            triggerCharacter);
                 } else {
                     result = builtinKeywordCompletions(langName, prefix);
                 }

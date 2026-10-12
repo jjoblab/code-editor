@@ -40,6 +40,9 @@ public class EditorDiagnosticsPainter {
     // Soulignement ondulé de diagnostic
     static final float SQUIGGLE_PERIOD = 6f;
     static final float SQUIGGLE_AMPLITUDE = 2f;
+    // Voile gris du code inutilisé (tag LSP Unnecessary) — le grisé
+    // Android Studio des imports morts : ~20 % d'alpha sur la plage.
+    static final int UNNECESSARY_VEIL_COLOR = 0x338A8A8A;
     // Couches overlay (chips de diagnostic / popup / sheet)
     static final float OVERLAY_RADIUS_DP = 6f;
     static final float OVERLAY_ROW_HEIGHT_DP = 26f;
@@ -70,15 +73,28 @@ public class EditorDiagnosticsPainter {
             if (endCol <= startCol) endCol = startCol + 1;
             float y = view.docLineToY(line) - view.vOffset; // Y sensible aux plis
             float baseY = y + lineHeight - 2;
-            view.squigglePaint.setColor(getSquiggleColor(d.severity));
-            view.squigglePaint.setStrokeWidth(1.4f);
-            view.squigglePaint.setStyle(Paint.Style.STROKE);
-            view.squigglePaint.setAntiAlias(true);
             // Colonnes visuelles sensibles aux inlays — le soulignement
             // couvre la même plage écran que le texte (décalé) qu'il
             // souligne.
             float x1 = textAreaLeft + view.visualColFor(line, startCol) * charWidth - view.hOffset;
             float x2 = textAreaLeft + view.visualColFor(line, endCol) * charWidth - view.hOffset;
+            // Tag Unnecessary (code inutilisé) : peinture ESTOMPÉE de la
+            // plage (voile gris, texte atténué — le grisé Android Studio
+            // des imports morts) AU LIEU du soulignement de sévérité :
+            // l'information portée est « ce code ne sert à rien », pas
+            // « cette ligne est fausse ».
+            if (d.unnecessary) {
+                view.squigglePaint.setStyle(Paint.Style.FILL);
+                view.squigglePaint.setAntiAlias(false);
+                view.squigglePaint.setColor(UNNECESSARY_VEIL_COLOR);
+                canvas.drawRect(Math.min(x1, x2), y + 2,
+                        Math.max(x1, x2), y + lineHeight - 2, view.squigglePaint);
+                continue;
+            }
+            view.squigglePaint.setColor(getSquiggleColor(d.severity));
+            view.squigglePaint.setStrokeWidth(1.4f);
+            view.squigglePaint.setStyle(Paint.Style.STROKE);
+            view.squigglePaint.setAntiAlias(true);
             Path path = scratchPath;
             path.reset();
             path.moveTo(x1, baseY);

@@ -2,8 +2,6 @@ package jo.codeeditor.view;
 
 import jo.codeeditor.view.popup.EditorPopupManager;
 
-import jo.codeeditor.document.EditorDocument;
-
 import java.util.List;
 
 /**
@@ -18,9 +16,14 @@ import java.util.List;
  *       confiées au {@code OnDefinitionRequestedListener} de l'hôte ;</li>
  *   <li><b>formatDocument</b> — requête LSP formatting hors du thread UI,
  *       résultat appliqué en un seul step d'undo quand il arrive ;</li>
- *   <li><b>performOrganizeImports</b> — sonde le provider d'actions de code
- *       autour du caret pour une action {@code source.*}, puis l'applique
- *       localement.</li>
+ *   <li><b>performOrganizeImports</b> — sollicite le provider d'actions de
+ *       code avec {@code only = ["source.organizeImports"]} : UNE requête
+ *       par document (les actions source ne dépendent pas de la ligne),
+ *       puis l'applique localement ;</li>
+ *   <li><b>performFixAll</b> — symétrique avec
+ *       {@code only = ["source.fixAll"]} (visible pour l'hôte ; les serveurs
+ *       actuels ne le proposent pas tous — le callback reçoit FALSE sans
+ *       action trouvée).</li>
  * </ul>
  *
  * <p>Le pattern commun « résoudre en arrière-plan, rappliquer via le
@@ -141,46 +144,68 @@ class EditorDocumentActions {
      * et applique son WorkspaceEdit localement). Résout en arrière-plan —
      * le thread UI n'attend jamais.
      *
+     * <p>P2-10 : UNE requête par document avec
+     * {@code only = ["source.organizeImports"]} — les actions source ne
+     * dépendent pas de la ligne visée (le serveur CodeIDE les propose pour
+     * toute plage), le filtre de famille voyage dans le contexte LSP au
+     * lieu d'être appliqué localement sur un sondage multi-lignes.</p>
+     *
      * @param callback thread UI : TRUE si une action a été trouvée+exécutée,
      *                 FALSE sinon (aucun provider / action absente).
      */
     void performOrganizeImports(java.util.function.Consumer<Boolean> callback) {
+        performSourceAction("source.organizeImports", callback);
+    }
+
+    /**
+     * Exécute l'action « source.fixAll » (toutes les corrections
+     * automatiques du document) — même contrat que
+     * {@link #performOrganizeImports} : UNE requête par document avec
+     * {@code only = ["source.fixAll"]}, résolution en arrière-plan,
+     * application locale de l'édition retournée.
+     *
+     * <p>Réservée à l'hôte (menu, activité) : les serveurs Java actuels
+     * (CodeIDE inclus) ne proposent pas encore {@code source.fixAll} —
+     * l'API est prête pour quand ils l'ajouteront, sans exiger d'entrée
+     * de menu morte entre-temps.</p>
+     *
+     * @param callback thread UI : TRUE si une action a été trouvée+exécutée,
+     *                 FALSE sinon.
+     * @since 3.51.0
+     */
+    void performFixAll(java.util.function.Consumer<Boolean> callback) {
+        performSourceAction("source.fixAll", callback);
+    }
+
+    /**
+     * Cœur commun des actions source : UNE requête au document avec la
+     * famille demandée en {@code only} (la plage — début de document — est
+     * indifférente pour les actions source), puis application locale de
+     * la première action retournée.
+     */
+    private void performSourceAction(String onlyKind,
+            java.util.function.Consumer<Boolean> callback) {
         jo.codeeditor.lang.provider.CodeActionsProvider provider =
                 view.language != null ? view.language.getCodeActionsProvider() : null;
         if (provider == null || view.session == null) {
             if (callback != null) callback.accept(false);
             return;
         }
-        final int caretLine;
-        try {
-            caretLine = view.session.getDocument().lineForOffset(view.session.getSelection().start);
-        } catch (Exception t) {
-            jo.codeeditor.util.EditorLog.warn("EditorActions",
-                "calcul de la ligne du caret échoué", t);
-            if (callback != null) callback.accept(false);
-            return;
-        }
         final String text = view.session.getText();
         final jo.codeeditor.lang.provider.CodeActionsProvider fProvider = provider;
         jo.codeeditor.view.EditorTaskLanes.submitFeature(() -> {
-            // Le serveur propose « Organiser les imports » quelle que soit
-            // la ligne demandée ; on sonde autour du curseur par sécurité.
-            EditorDocument doc = view.session != null ? view.session.getDocument() : null;
-            int max = doc != null ? doc.lineCount() - 1 : caretLine;
             List<jo.codeeditor.lang.model.CodeAction> found = new java.util.ArrayList<>();
-            int[] probes = {caretLine, 0};
-            for (int probe : probes) {
-                if (!found.isEmpty()) break;
-                if (probe < 0 || probe > max) continue;
-                try {
-                    for (jo.codeeditor.lang.model.CodeAction a : fProvider.codeActions(text, probe)) {
-                        String kind = a.kind == null ? "" : a.kind;
-                        if (kind.contains("source") && !found.contains(a)) found.add(a);
-                    }
-                } catch (Exception e) {
-                    jo.codeeditor.util.EditorLog.warn("EditorActions",
-                        "énumération des actions source échouée", e);
+            try {
+                // UNE requête par document : la plage (début de document)
+                // est indifférente aux actions source ; le filtre de
+                // famille voyage dans le contexte LSP (only).
+                for (jo.codeeditor.lang.model.CodeAction a : fProvider.codeActions(
+                        text, 0, 0, 0, List.of(onlyKind))) {
+                    if (!found.contains(a)) found.add(a);
                 }
+            } catch (Exception e) {
+                jo.codeeditor.util.EditorLog.warn("EditorActions",
+                    "énumération des actions source échouée", e);
             }
             final boolean anySourceAction = !found.isEmpty();
             Runnable apply = () -> {

@@ -126,12 +126,31 @@ final class EditorLanguageBridge {
             if (language.getCompletionProvider() != null) {
                 final jo.codeeditor.lang.provider.CompletionProvider spiComp =
                     language.getCompletionProvider();
-                view.setCompletionProvider((text, caret, tokenStart, prefix) -> {
-                    java.util.List<jo.codeeditor.completion.CompletionSession.Item> items =
-                        new java.util.ArrayList<>();
-                    jo.codeeditor.lang.provider.CompletionPublisher pub = new CompletionPublisherAdapter(items);
-                    spiComp.complete(text, caret, pub);
-                    return items;
+                // Classe anonyme (et non lambda) : l'interface interne garde
+                // sa méthode abstraite 4 paramètres (compatibilité des
+                // fournisseurs existants) ; on surcharge la variante par
+                // défaut 5 paramètres pour transporter le caractère
+                // déclencheur jusqu'au serveur (CompletionContext
+                // triggerKind) — null = invocation explicite (Invoked).
+                view.setCompletionProvider(new EditorView.CompletionProvider() {
+                    @Override
+                    public java.util.List<jo.codeeditor.completion.CompletionSession.Item> provide(
+                            String text, int caret, int tokenStart, String prefix) {
+                        return provide(text, caret, tokenStart, prefix, null);
+                    }
+
+                    @Override
+                    public java.util.List<jo.codeeditor.completion.CompletionSession.Item> provide(
+                            String text, int caret, int tokenStart, String prefix,
+                            Character triggerCharacter) {
+                        java.util.List<jo.codeeditor.completion.CompletionSession.Item> items =
+                            new java.util.ArrayList<>();
+                        jo.codeeditor.lang.provider.CompletionPublisher pub =
+                            new CompletionPublisherAdapter(items);
+                        spiComp.complete(text, caret,
+                            triggerCharacter != null ? triggerCharacter.toString() : null, pub);
+                        return items;
+                    }
                 });
             } else {
                 view.setCompletionProvider(null);
