@@ -6,11 +6,13 @@ import java.util.concurrent.atomic.AtomicReference;
  * Point d'accès au {@link EditorLogger} installé — inert tant que l'hôte
  * n'en fournit pas.
  *
- * <p>Installation unique à l'initialisation de l'application hôte (ou
- * automatique par {@code EditorView} pour l'implémentation Android) ;
- * les modules de la bibliothèque journalisent via
- * {@code EditorLog.get().warn(...)}. L'état est un {@link AtomicReference}
- * : lisible depuis n'importe quel thread sans verrou.</p>
+ * <p>Installation unique à l'initialisation de l'application hôte, ou
+ * automatique par {@code EditorView} pour l'implémentation Android — dans
+ * ce cas <b>seulement si l'hôte n'a rien installé</b>
+ * ({@code installIfAbsent}) ; les modules de la bibliothèque journalisent
+ * via {@code EditorLog.get().warn(...)}. L'état est un
+ * {@link AtomicReference} : lisible depuis n'importe quel thread sans
+ * verrou.</p>
  */
 public final class EditorLog {
 
@@ -32,6 +34,20 @@ public final class EditorLog {
     /** Installe (ou remplace) le logger de l'hôte. */
     public static void install(EditorLogger logger) {
         LOGGER.set(logger != null ? logger : NOOP);
+    }
+
+    /**
+     * Installe le logger uniquement si rien n'est installé (hôte prioritaire).
+     *
+     * <p>Utilisé par l'installation automatique d'{@code EditorView} : si
+     * l'hôte a déjà fourni son propre logger, il n'est PAS écrasé.</p>
+     *
+     * @return true si ce logger a été installé, false si un logger était
+     *         déjà présent.
+     */
+    public static boolean installIfAbsent(EditorLogger logger) {
+        if (logger == null) return false;
+        return LOGGER.compareAndSet(NOOP, logger);
     }
 
     /** Le logger courant (jamais null — inert par défaut). */
