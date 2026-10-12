@@ -78,6 +78,16 @@ jobs:
       - name: Lint (tous les modules)
         run: ./gradlew lint --stacktrace
 
+      - name: Téléversement des rapports lint (toujours)
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-reports
+          path: |
+            **/build/reports/lint-results*.html
+            **/build/reports/lint-results*.txt
+          if-no-files-found: ignore
+          retention-days: 14
+
       - name: Téléversement des rapports en cas d'échec
         if: failure()
         uses: actions/upload-artifact@v4
@@ -85,7 +95,6 @@ jobs:
           name: ci-reports-failure
           path: |
             **/build/reports/tests/
-            **/build/reports/lint-results*.html
             **/build/intermediates/lint-cache/
           if-no-files-found: ignore
           retention-days: 7

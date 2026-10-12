@@ -31,8 +31,14 @@ android {
     }
 
     lint {
-        abortOnError = false
+        // Bloquant : une nouvelle violation (erreur OU avertissement non
+        // couvert par la baseline) échoue le build. La baseline
+        // lint-baseline.xml fige l'existant connu — elle ne doit jamais
+        // être régénérée pour « faire passer » un nouveau problème.
+        abortOnError = true
+        warningsAsErrors = true
         checkReleaseBuilds = false
+        baseline = file("lint-baseline.xml")
     }
 
     // Les tests Robolectric en ont besoin pour éviter les erreurs « SDK not found ».
@@ -61,6 +67,9 @@ dependencies {
 
 tasks.withType<JavaCompile>().configureEach {
     options.encoding = "UTF-8"
+    // Tous les avertissements javac (unchecked, deprecation…) visibles ;
+    // -Werror sera envisagé quand le bruit historique sera éliminé.
+    options.compilerArgs.add("-Xlint:all")
 }
 
 // JUnit 4 pour Robolectric (Robolectric ne supporte pas encore JUnit 5).
