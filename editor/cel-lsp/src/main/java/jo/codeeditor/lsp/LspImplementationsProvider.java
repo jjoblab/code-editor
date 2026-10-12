@@ -75,13 +75,14 @@ class LspImplementationsProvider implements ImplementationsProvider {
                     // file://.
                     String content = IoCompat.readUtf8(uri);
                     targetOffset = content != null
-                            ? LspRenameProvider.lspPositionToOffset(content, p) : 0;
+                            ? LspTextUtils.positionToOffset(content, p) : 0;
                     if (targetOffset < 0) targetOffset = 0;
                 }
                 // Libellé : le nom COURT du fichier (une classe publique
                 // Java vit dans le fichier de son nom — « ImplA.java »).
-                String path = uri.startsWith("file://")
-                        ? uri.substring("file://".length()) : uri;
+                String path = uri;
+                java.io.File uriFile = UriUtils.toFile(uri);
+                if (uriFile != null) path = uriFile.getPath();
                 int slash = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
                 label = slash >= 0 ? path.substring(slash + 1) : path;
                 out.add(new DefinitionLocation(uri, targetOffset, label));

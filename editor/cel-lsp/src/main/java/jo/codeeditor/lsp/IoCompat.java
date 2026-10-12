@@ -58,18 +58,15 @@ final class IoCompat {
     }
 
     /**
-     * Lit tout le fichier au chemin donné (URI ou chemin simple) en texte
-     * UTF-8. Retire un éventuel schéma {@code file://} en tête, comme
-     * l'attendent les points d'appel.
+     * Lit tout le fichier au chemin donné (URI encodée ou chemin simple)
+     * en texte UTF-8, via {@link UriUtils#toFile} — décodage %XX inclus.
      *
      * @return le contenu du fichier, ou {@code null} si illisible
      */
     static String readUtf8(String uriOrPath) {
         if (uriOrPath == null || uriOrPath.isEmpty()) return null;
-        String path = uriOrPath.startsWith("file://")
-                ? uriOrPath.substring("file://".length())
-                : uriOrPath;
-        return readUtf8(new File(path));
+        File file = UriUtils.toFile(uriOrPath);
+        return file != null ? readUtf8(file) : null;
     }
 
     /**

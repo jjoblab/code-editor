@@ -54,8 +54,8 @@ class LspSuperDefinitionProvider implements SuperDefinitionProvider {
                 if (hit == null || hit.path == null) continue;
                 // Le serveur envoie un chemin ABSOLU ; l'éditeur attend
                 // une URI (ou un chemin nu — openFileAt accepte les deux).
-                String uri = hit.path.startsWith("file://")
-                        ? hit.path : "file://" + hit.path;
+                String uri = UriUtils.fromPath(hit.path);
+                if (uri == null) uri = hit.path; // repli : chemin reçu tel quel
                 String label = hit.label != null && !hit.label.isEmpty()
                         ? hit.label : uri;
                 out.add(new DefinitionLocation(uri, hit.start, label));
