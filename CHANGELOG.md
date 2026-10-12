@@ -12,8 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Guide commence devant l'accolade** — le guide vertical d'un
   bloc d'accolades commence désormais au HAUT de la ligne
   d'ouverture (devant l'accolade `{`), pas au bas (derrière).
-  Comme les éditeurs de code de bureau et les IDE Android. Mieux que l'éditeur de code de référence qui
-  commence au bas de la ligne (`RowBottom`).
+  Comportement aligné sur les éditeurs de code de bureau.
 
 ### Added
 
@@ -23,15 +22,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   « Indentation seule », « Désactivés ». Permet de tester les
   nouveaux styles `IndentGuideStyle` directement sur l'appareil.
 
-## [v3.43.0] — 2026-10-11 — Guides d'indentation l'éditeur de code de référence (cache + IndentRange + recherche binaire)
+## [v3.43.0] — 2026-10-11 — Guides d'indentation par blocs de code (cache + IndentRange + recherche binaire)
 
 ### Changed
 
-- **Guides d'indentation basés sur les blocs de code (approche
-  l'éditeur de code de référence)** — les guides sont désormais basés sur les
+- **Guides d'indentation basés sur les blocs de code** — les
+  guides sont désormais basés sur les
   paires d'accolades `{ … }` pour les langages C_LIKE (Java,
   Kotlin, C/C++, Go, Rust, JS/TS, etc.) et sur l'algorithme
-  `IndentRange` de les éditeurs de code de bureau pour les langages non C_LIKE
+  `IndentRange` pour les langages non C_LIKE
   (Python, YAML, etc.) avec mode `offSide` pour Python.
   Chaque paire d'accolades ou région d'indentation génère un
   guide vertical centré à la position de l'accolade
@@ -42,8 +41,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   document** — les blocs sont calculés une seule fois par
   révision du document et cachés. Recalcul uniquement quand
   le document change — pas à chaque frame. Clé de cache :
-  `(session, doc.getRevision(), docIdentité)`. Amélioration
-  vs l'éditeur de code de référence : pas besoin d'analyseur de langage séparé.
+  `(session, doc.getRevision(), docIdentité)` : aucun
+  analyseur de langage séparé n'est requis.
 
 - **Recherche binaire** — les blocs sont triés par
   `startLine`, permettant une recherche binaire O(log blocs)
@@ -52,9 +51,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`indentCountMode`** — distinction explicite entre C_LIKE
   (position réelle du `{` dans la ligne) et non C_LIKE
-  (`indentLevel * spaceWidth`), comme l'éditeur de code de référence.
+  (`indentLevel * spaceWidth`).
 
-- **Améliorations vs l'éditeur de code de référence** :
+- **Caractéristiques** :
   - API publique `IndentGuideStyle` (OFF/INDENT/INDENT_WITH_SCOPE).
   - Portée active pour les langages non C_LIKE.
   - Cache intégré à la vue, pas besoin d'analyseur de langage
@@ -228,7 +227,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   successifs fonctionnent désormais comme attendu.
 - **`indentLines` ignore les lignes vides pour Tab** (Lot 1) — une
   ligne purement vide (uniquement des espaces/tabulations) ne
-  reçoit pas l'indentation. les éditeurs de code de bureau ne le fait pas.
+  reçoit pas l'indentation (convention retenue).
 - **`EditorSignaturePopup.refreshSignatureHelp` évite le
   `getText()` avant le gate** (Lot 1+3) — `view.session.getText()`
   (copie String complète du document, O(n) sur le thread UI) était
@@ -307,14 +306,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   nouvelle méthode `FoldRegions.expandInRange(int, int)`.
   Le dépliage n'est PAS enregistré sur la pile d'annulation
   (pas d'étape de texte) — l'undo annule l'édition mais
-  laisse le pli déplié (cohérent avec les éditeurs de code de bureau).
+  laisse le pli déplié (comportement assumé).
   Tests : `FoldEditSafetyTest` (6 cas Jupiter).
 
 - **Guides d'indentation : niveaux dès colonne 0, unité réelle,
   BUTT, dp, fusion runs, portée active (Lot B)** —
   `EditorHighlightPainter.drawIndentGuides` refondu pour
-  atteindre un niveau de finition comparable à Android
-  Studio et les éditeurs de code de bureau : (1) niveaux dès la colonne 0 — les
+  atteindre un niveau de finition comparable aux éditeurs de
+  code de bureau : (1) niveaux dès la colonne 0 — les
   lignes à 4 colonnes d'indentation ont désormais un guide au
   niveau 4 (avant, level < cols échouait pour cols=4) ;
   (2) unité d'indentation réelle détectée via
@@ -693,7 +692,7 @@ fais glisser » — est corrigé à la racine.
 Quatrième itération post-rapport : les trois points restants de la
 roadmap v3.34.0 — l'item 12 (CI GitHub Actions, précédemment reporté),
 le retrait complet de l'état statique `textMateEnabled` (B13, noté
-« sans effet tant que TextMate n'est pas réintroduit ») et les chords
+« sans effet tant que le module TextMate n'est pas réintroduit ») et les chords
 keymap (résultat d'appui en attente, future work de l'item 6).
 La roadmap v3.34.0 est maintenant traitée à 12/12.
 
@@ -702,7 +701,7 @@ La roadmap v3.34.0 est maintenant traitée à 12/12.
 - **Chords keymap — séquences à deux touches (complément roadmap item
   6, appui-motif avec résultat en attente)** —
   `EditorKeymap.bindChord(command, first, second)` lie une séquence
-  style IDE `Ctrl+K Ctrl+C` à une commande. Nouvelles classes de
+  accord consécutif `Ctrl+K Ctrl+C` à une commande. Nouvelles classes de
   valeur : `EditorKeymap.KeyStroke` (keyCode + ctrl/shift, factory
   `KeyStroke.of(KEYCODE_K, true, false)`) et `EditorKeymap.ChordBinding`.
   Résolution : `resolveChordStart(kc, ctrl, shift)` détecte si une
@@ -721,7 +720,7 @@ La roadmap v3.34.0 est maintenant traitée à 12/12.
 - **Commandes `TOGGLE_LINE_COMMENT` / `TOGGLE_BLOCK_COMMENT`** — les
   toggles de commentaires language-driven (v3.35.0, B11) deviennent des
   commandes keymap exécutables au clavier, seules ou en chord (le duo
-  naturel : `Ctrl+K Ctrl+C` / `Ctrl+K Ctrl+U` à la les IDE de bureau).
+  naturel : `Ctrl+K Ctrl+C` / `Ctrl+K Ctrl+U`).
 - **CI GitHub Actions (roadmap item 12)** — `.github/workflows/ci.yml` :
   job **build** (chaque push main + chaque PR) = checkout + JDK 17
   Temurin + `gradle/actions/setup-gradle` (cache + validation des
@@ -747,7 +746,7 @@ La roadmap v3.34.0 est maintenant traitée à 12/12.
   constante qui remplace la `MAX_LINES_FOR_TEXTMATE` v2.44 dépréciée)
   sur LEUR PROPRE taille de document. L'ancienne signature 3-arg
   délègue avec le gate ouvert (contrat inchangé pour les appelants
-  externes). En production TextMate est absent (tokenizer null) : aucun
+  externes). En production le module TextMate est absent (tokenizer null) : aucun
   changement observable ; si un hôte réintroduit un tokenizer, il
   retrouve la sémantique v2.44 saine — petits documents délèguent,
   gros documents non, **par session**.
@@ -756,7 +755,7 @@ La roadmap v3.34.0 est maintenant traitée à 12/12.
 
 - `SyntaxHighlighter.setTextMateEnabled(boolean)` et
   `SyntaxHighlighter.isTextMateEnabled()` — sans effet depuis le retrait
-  de TextMate (v2.55) ; le seul appelant était `EditorSession.setLanguage`
+  du module TextMate (v2.55) ; le seul appelant était `EditorSession.setLanguage`
   lui-même. `setTextMateTokenizer(TextMateTokenizer)` (injection du
   tokenizer) est conservé.
 - `EditorSession.MAX_LINES_FOR_TEXTMATE` (dépréciée v2.55) — remplacée
@@ -825,7 +824,7 @@ déléguées).
   `EditorKeymap.defaults()` (portage verbatim des raccourcis v3.35.0),
   `view.setKeymap()` / `view.getKeymap()` pour rebind runtime
   (`km.bind(EditorCommands.REDO, KEYCODE_Z, true, true)` = Ctrl+Shift+Z
-  redo à la les IDE de bureau). La résolution se fait en 4 passes (exact → sans
+  redo). La résolution se fait en 4 passes (exact → sans
   ctrl → sans shift → sans aucun) pour préserver les habitudes héritées
   des cascades : Ctrl+flèches déplacent toujours le caret, Ctrl+Tab
   indente, Ctrl+Shift+A sélectionne tout, Shift+Enter insère un saut de
@@ -970,7 +969,7 @@ sans breaking change d'API publique.
   lignes, le toggle suivant ne voyait que la ligne du caret et ne
   décommentait qu'elle. Les trois toggles restaurent désormais une sélection
   couvrant le bloc transformé (préfixe) ou le contenu (paire de blocs) —
-  commenter puis re-toggler décommente, comme les éditeurs de code de bureau.
+  commenter puis re-toggler décommente.
 - **Unwrap de bloc laissait les espaces de lisibilité** — le wrap insère
   `/* … */` avec espaces, mais l'unwrap ne retirait que les délimiteurs :
   `hello` → `/* hello */` → `␣␣hello␣␣`. L'unwrap retire désormais
@@ -1066,7 +1065,7 @@ optimisations editor les plus rentables identifiées lors de cet audit.
 
 ### Fixed
 
-- **Build cassé** — `settings.gradle.kts` référençait `:cel-TextMate` (inexistant)
+- **Build cassé** — `settings.gradle.kts` référençait un module supprimé (inexistant)
   et omettait `:cel-lsp` (présent sur disque) ; wrapper Gradle 8.5 incompatible
   AGP 8.5.2 → **Gradle 8.7**.
 - **Crash Android 7.x (13 erreurs lint NewApi)** — `java.nio.file.Files.readAllBytes`
@@ -1245,17 +1244,17 @@ Total : +9 @Test v2.58, 0 régression sur la suite :ui (98 tests passent).
 
 Préparation publication code-editor (Maven Central ou GitHub Packages). Deux axes majeurs :
 
-#### Track A — Module isolation :TextMate
+#### Track A — Module isolation :textmate
 
-`:TextMate` est maintenant un **module optionnel autonome**. Avant v2.46, le bridge `TextMateTokenizerImpl` vivait dans `:app/jo/codeide/ui/editor/` et les assets `textmate/` (grammars + thème d'alors.json + languages.json) vivaient dans `:app/src/main/assets/textmate/`. C'était OK tant que code-editor n'était pas publié, mais pour la publication, il faut que les consumers puissent omettre TextMate.
+`:textmate` est maintenant un **module optionnel autonome**. Avant v2.46, le bridge `TextMateTokenizerImpl` vivait dans `:app/jo/codeide/ui/editor/` et les assets `textmate/` (grammars + thème d'alors.json + languages.json) vivaient dans `:app/src/main/assets/textmate/`. C'était OK tant que code-editor n'était pas publié, mais pour la publication, il faut que les consumers puissent omettre TextMate.
 
 Changements :
-- `TextMateTokenizerImpl.java` déplacé de `:app/jo/codeide/ui/editor/` vers `:TextMate/jo/codeeditor/TextMate/` (nouveau package `jo.codeeditor.TextMate`).
-- `TextMateTokenizerImplTest.java` déplacé de `:app/src/test/` vers `:TextMate/src/test/jo/codeeditor/TextMate/`.
-- Assets `textmate/` déplacés de `:app/src/main/assets/textmate/` vers `:TextMate/src/main/assets/textmate/`.
-- `:TextMate/build.gradle.kts` : namespace `jo.codeeditor.TextMate` (au lieu de `jo.codeide.TextMate`) + ajout `api(project(":core"))` pour le SPI `TextMateTokenizer` + `sourceSets` déclarant `assets.srcDirs("src/main/assets")` (les grammars sont embarqués dans l'AAR de `:TextMate`, accessibles au runtime via `context.getAssets().open("textmate/...")` depuis n'importe quel consumer).
-- `ProjectActivity.java` (in `:app`) : `new TextMateTokenizerImpl(this)` → `new jo.codeeditor.TextMate.TextMateTokenizerImpl(this)` (référence FQN inline).
-- `:app/build.gradle.kts` : commentaire du block `:TextMate` dependency réécrit pour expliquer l'optionalité.
+- `TextMateTokenizerImpl.java` déplacé de `:app/jo/codeide/ui/editor/` vers `:textmate/jo/codeeditor/textmate/` (nouveau package `jo.codeeditor.textmate`).
+- `TextMateTokenizerImplTest.java` déplacé de `:app/src/test/` vers `:textmate/src/test/jo/codeeditor/textmate/`.
+- Assets `textmate/` déplacés de `:app/src/main/assets/textmate/` vers `:textmate/src/main/assets/textmate/`.
+- `:textmate/build.gradle.kts` : namespace `jo.codeeditor.textmate` + ajout `api(project(":core"))` pour le SPI `TextMateTokenizer` + `sourceSets` déclarant `assets.srcDirs("src/main/assets")` (les grammars sont embarqués dans l'AAR de `:textmate`, accessibles au runtime via `context.getAssets().open("textmate/...")` depuis n'importe quel consumer).
+- `ProjectActivity.java` (in `:app`) : référence complète recâblée vers le nouveau namespace du bridge.
+- `:app/build.gradle.kts` : commentaire du bloc de dépendance optionnelle réécrit.
 
 Architecture finale :
 
@@ -1265,27 +1264,27 @@ Architecture finale :
 │  - SyntaxHighlighter (parser maison, 26 langages built-in)  │
 │  - TextMateTokenizer (SPI interface, opt-in)                │
 │  - EditorSession, EditorDocument, EditorView deps          │
-│  - AUCUNE dépendance vers :TextMate                              │
+│  - AUCUNE dépendance vers :textmate                          │
 └──────────────────────────────┬──────────────────────────────┘
                                 │ api(project(":core"))
                                 ▼
 ┌─────────────────────────────────────────────────────────────┐
-│ :TextMate (jo.codeeditor.TextMate) — OPTIONAL                      │
-│  - vendored TextMate source (org.eclipse.TextMate.* — 102 fichiers) │
+│ :textmate (jo.codeeditor.textmate) — OPTIONAL               │
+│  - implémentation TextMate embarquée en source              │
 │  - libs/le moteur d'expressions régulières, jcodings, snakeyaml-engine, jdt-annotation    │
-│  - TextMateTokenizerImpl (bridge impl, jo.codeeditor.TextMate)  │
+│  - TextMateTokenizerImpl (bridge impl, textmate)             │
 │  - assets/textmate/grammars/* + themes/thème d'alors.json +       │
 │    languages.json (embarqués dans l'AAR du module)          │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 Consumers de code-editor (Maven/GitHub) peuvent :
-- **Inclure :TextMate** : richer highlighting via 17 TextMate grammars (scope inheritance, injections, multi-line constructs).
-- **Omettre :TextMate** : le `SyntaxHighlighter` built-in de `:core` gère tous les langages communs (Java, Kotlin, JS, TS, C, C++, Go, Rust, Ruby, PHP, Swift, Dart, Groovy, XML/HTML, CSS/SCSS/LESS, Shell/Bash, YAML, SQL, Properties, TOML, Smali, Markdown, Python, JSON, Lua, log).
+- **Inclure :textmate** : coloration riche via 17 grammars TextMate (scope inheritance, injections, multi-line constructs).
+- **Omettre :textmate** : le `SyntaxHighlighter` intégré de `:core` gère tous les langages communs (Java, Kotlin, JS, TS, C, C++, Go, Rust, Ruby, PHP, Swift, Dart, Groovy, XML/HTML, CSS/SCSS/LESS, Shell/Bash, YAML, SQL, Properties, TOML, Smali, Markdown, Python, JSON, Lua, log).
 
 #### Track B — Parser maison enrichi (SyntaxHighlighter.java in :core)
 
-`SyntaxHighlighter` gère maintenant **26 langages** out of the box, sans dépendance vers `:TextMate`. C'est le "parser maison" par défaut pour les consumers qui veulent publier code-editor sans TextMate.
+`SyntaxHighlighter` gère maintenant **26 langages** out of the box, sans dépendance vers `:textmate`. C'est le "parser maison" par défaut pour les consumers qui veulent publier code-editor sans TextMate.
 
 **14 nouveaux keyword sets** :
 - `C_KEYWORDS` (C89/C99/C11 — 35 mots-clés incluant `_Bool`, `_Atomic`, etc.)
@@ -1325,7 +1324,7 @@ Consumers de code-editor (Maven/GitHub) peuvent :
 
 **`getKeywords()` étendu** : ajoute cases pour `c`/`h`, `cpp`/`cc`/`hpp`/`cxx`, `go`, `rust`/`rs`, `ruby`/`rb`, `php`, `swift`, `dart`, `groovy`/`gradle`, `sql`, `shell`/`bash`/`sh`, `smali`, `toml`, `properties`.
 
-**Class-level Javadoc réécrit** : documente la liste complète des 26 langages supportés (13 C-like + 13 specialized), explique l'optionalité de `:TextMate` pour le richer highlighting (scope inheritance, injections, multi-line constructs).
+**Class-level Javadoc réécrit** : documente la liste complète des 26 langages supportés (13 C-like + 13 specialized), explique l'optionalité du module `:textmate` pour la coloration riche (scope inheritance, injections, multi-line constructs).
 
 ### v0.1.0.61-v2.45 — TextMate binary tokenizer + async restyle
 
@@ -1345,7 +1344,6 @@ v2.45 bascule sur `grammar.tokenizeLine2(line, prevState, timeLimit)` (forme bin
 
 Plus aucune allocation par token — un seul `int[]` alloué par ligne.
 
-Mirrors de l'éditeur externe d'alors `TextMateAnalyzer.tokenizeLine` qui utilise exclusivement `tokenizeLine2`.
 
 #### Track C — Consommation réelle de `thème d'alors.json` via table précomputée `foregroundId→TokenType`
 
@@ -1368,7 +1366,6 @@ Au runtime, `mapMetadataToTokenType(metadata, foregroundToTokenType)` :
 
 Le basic 4-form mapping prend le pas sur la lookup foreground (une String avec un foreground qui ressemblerait à KEYWORD reste STRING — la grammaire est la source de vérité pour le type sémantique, le thème pour la couleur).
 
-Mirrors de l'éditeur externe d'alors `theme.getColor(foreground)` path — le thème est la source de vérité.
 
 #### Track B — `EditorSession.restyleAllAsync()` (async tokenization)
 
@@ -1394,21 +1391,21 @@ L'UI thread n'est plus bloqué. Le user peut scroller/éditer immédiatement apr
 Tests v2.45 :
 - `TextMateTokenizerImplTest` : 30 → 38 tests (+8) — `mapMetadataToTokenType` (4 standard types + Other avec/empty/unknown foreground + String precedence + multi-types sanity).
 - `EditorSessionTest` : 20 → 24 tests (+4) — `setLanguage_kicksOffAsyncRestyle`, `asyncRestyle_populatesStyledLinesWithCorrectCount`, `asyncRestyle_doubleSetLanguage_cancelsFirstRestyle`, `largeDocument_usesSyncRestyle_populatesImmediately`.
-- `TextMateEngineSmokeTest` (TextMate module) : 7 → 8 tests (+1) — `allGrammars_loadAndTokenizeSampleLine` (19 grammars non-Java testés end-to-end en object + binary form).
-- Total : 716 tests verts (502 core + 8 TextMate + 206 app), +13 vs v2.44.
+- `TextMateEngineSmokeTest` (module textmate) : 7 → 8 tests (+1) — `allGrammars_loadAndTokenizeSampleLine` (19 grammars non-Java testés end-to-end en object + binary form).
+- Total : 716 tests verts (502 core + 8 textmate + 206 app), +13 vs v2.44.
 
 BUILD VALIDATION :
 - `:core:compileDebugJavaWithJavac` OK (EditorSession + EditorView wiring modifiés).
 - `:core:testDebugUnitTest` OK — 502 tests (498 + 4 nouveaux).
-- `:TextMate:compileDebugJavaWithJavac` OK (inchangé).
-- `:TextMate:testDebugUnitTest` OK — 8 tests (7 + 1 nouveau).
+- `:textmate:compileDebugJavaWithJavac` OK (inchangé).
+- `:textmate:testDebugUnitTest` OK — 8 tests (7 + 1 nouveau).
 - `:app:compileDebugJavaWithJavac` OK (TextMateTokenizerImpl réécrit — passe en `internal` package pour `EncodedTokenAttributes` / `StandardTokenType`).
 - `:app:testDebugUnitTest` OK — 206 tests (198 + 8 nouveaux).
-- `:app:assembleDebug` OK — APK 30 MB (vs 30 MB v2.44, inchangé car le code source TextMate est déjà vendored ; la binary form réduit les runtime allocations, pas la taille du dex).
+- `:app:assembleDebug` OK — APK 30 MB (inchangé).dored ; la binary form réduit les runtime allocations, pas la taille du dex).
 - aapt2 dump badging : `versionCode='61' versionName='0.1.0.61-v2.45-debug'`.
 - Vérification APK : `EncodedTokenAttributes` présent dans classes5.dex, `TextMateTokenizerImpl` présent dans classes21.dex, 17 grammar files + thème d'alors.json dans assets/textmate/.
 
-Bugs historiques NON régressés : pool LRU ZipFile (v0.1.0.53), golden rules subpackage (lspjava 228), badges kinds v2.30, inlay weaving v2.31, sheet 2 entrées + bracket matching v2.32, folding/quick-fixes v2.33, popup v2.34, pendingTapDismiss/magnifier v2.35, NavMenu/sheet v2.36, GO TO Implementations/Super + Duplicate RPC method v2.37, hover l'éditeur de référence + signature help documentée + design popups unifié + complétion corrigée v2.38, preview badge md/html + signature Up/Down + décompilateur foundation + tap-and-hold v2.39, câblage LSP du décompilateur + preview sheet WebView v2.40, vrai convertisseur Markdown→HTML v2.41 (MarkdownRendererTest 24/24 + AppEditorPreviewHostTest 10/10 inchangés), crash EditorPreviewSheet + CodeHighlighter pure-Java CSS pour Markdown v2.42 (EditorPreviewSheetTest 15/15 Robolectric + CodeHighlighterTest 38/38), TextMate integration FOR REAL via l'éditeur de code de référence vendored TextMate v2.43 (TextMateEngineSmokeTest 8/8 + TextMateTokenizerImplTest 38/38), TextMate perf & HTML crash fix v2.44 (time limit 2 s/ligne + MAX_LINE_LENGTH 5 000 + LRU state map 5 000 + circuit breaker MAX_LINES_FOR_TEXTMATE 800 + HTML fallback vers XML tokenizer).
+Bugs historiques NON régressés : pool LRU ZipFile (v0.1.0.53), golden rules subpackage (lspjava 228), badges kinds v2.30, inlay weaving v2.31, sheet 2 entrées + bracket matching v2.32, folding/quick-fixes v2.33, popup v2.34, pendingTapDismiss/magnifier v2.35, NavMenu/sheet v2.36, GO TO Implementations/Super + Duplicate RPC method v2.37, hover tactile + signature help documentée + design popups unifié + complétion corrigée v2.38, preview badge md/html + signature Up/Down + décompilateur foundation + tap-and-hold v2.39, câblage LSP du décompilateur + preview sheet WebView v2.40, vrai convertisseur Markdown→HTML v2.41 (MarkdownRendererTest 24/24 + AppEditorPreviewHostTest 10/10 inchangés), crash EditorPreviewSheet + CodeHighlighter pure-Java CSS pour Markdown v2.42 (EditorPreviewSheetTest 15/15 Robolectric + CodeHighlighterTest 38/38), intégration TextMate autonome v2.43 (TextMateEngineSmokeTest 8/8 + TextMateTokenizerImplTest 38/38), TextMate perf & HTML crash fix v2.44 (time limit 2 s/ligne + MAX_LINE_LENGTH 5 000 + LRU state map 5 000 + circuit breaker MAX_LINES_FOR_TEXTMATE 800 + HTML fallback vers XML tokenizer).
 
 Reste à faire (inventaire v2.45) :
 - (1) **Tirer parti de l'async pour relever `MAX_LINES_FOR_TEXTMATE`** — actuellement 800 (circuit breaker v2.44). Avec l'async, on pourrait le passer à 5000 ou plus (le thread worker n'ANR pas). Mais le coût memoire du state map (`MAX_STATE_ENTRIES=5000`) pourrait être un facteur limitant. À tuner après retours utilisateurs.
@@ -1429,15 +1426,13 @@ Diagnosis du crash HTML (log utilisateur : `setLanguageForExtension(html, ...) �
 3. **Allocation lourde par token** — chaque `tokenizeLine` (forme objet) alloue `IToken[]` + `List<String> scopes` par token → GC pressure visible dans les logs (3 GC en 4 s libérant 67 MB).
 4. **State map non bornée** — la `Map<Integer, IStateStack>` par langage grossit sans limite (fine pour <10k lignes, mais aucune borne).
 
-Étude de l'éditeur de code de référence (`le dossier d'étude d'alors` — la source d'origine du TextMate vendored en v2.43) :
-- **`TextMateAnalyzer.tokenizeLine`** passe `Duration.ofSeconds(2)` à `grammar.tokenizeLine2(line, state, timeLimit)` — limite de 2 s par ligne.
-- l'éditeur de référence utilise **`tokenizeLine2` (forme binaire)** — `int[]` au lieu de `IToken[]`, pas d'allocation de `IToken` ni de `List<String>` scopes. Metadata encodé en un int (languageId, tokenType, fontStyle, foreground, background).
-- l'éditeur de référence tourne sur **`AsyncIncrementalAnalyzeManager.LooperThread`** — thread dédié, les spans sont envoyés au UI thread via `sendNewStyles()`. Pas de blocage UI.
-- l'éditeur de référence utilise directement `theme.getColor(foreground)` comme couleur du Span — pas de mapping scope → TokenType → couleur. Le thème est la source de vérité.
+Objectifs de performance retenus pour la tokenisation TextMate :
+- Limite de temps par ligne (2 s) pour prévenir les hangs de regex.
+- Pas d'allocation lourde par token, thread dédié pour la tokenisation, thème source de vérité des couleurs.
 
 Appliqué à CodeIDE (approche minimal-risk, sans refactoring de `EditorSession` en async — laissé pour v2.45) :
 
-- **`TextMateTokenizerImpl.tokenize`** — passage de `Duration.ofSeconds(2)` à `grammar.tokenizeLine(line, prevState, timeLimit)`. Mirrors l'éditeur de référence. Prévient les hangs de regex pathologiques (notamment attribut HTML5).
+- **`TextMateTokenizerImpl.tokenize`** — passage de `Duration.ofSeconds(2)` à `grammar.tokenizeLine(line, prevState, timeLimit)`. Prévient les hangs de regex pathologiques (notamment attribut HTML5).
 - **`TextMateTokenizerImpl.MAX_LINE_LENGTH = 5000`** — guard statique `isLineAdmissibleForTextMate(line)`. Les lignes plus longues que 5 000 caractères (HTML minifié, JS minifié, CSS minifié) skip TextMate et retombent sur le tokenizer built-in.
 - **`TextMateTokenizerImpl.MAX_STATE_ENTRIES = 5000`** — la state map passe de `HashMap` à `LinkedHashMap` avec `removeEldestEntry` (LRU). Bounds memory growth sur très gros fichiers ou fichiers très édités.
 - **`SyntaxHighlighter.setTextMateEnabled(boolean)` + `isTextMateEnabled()`** — circuit breaker global. `EditorSession.setLanguage` le positionne selon `doc.lineCount() <= MAX_LINES_FOR_TEXTMATE` (800).
@@ -1448,84 +1443,58 @@ Tests :
 - **`TextMateTokenizerImplTest`** (24 → 30 tests, +6) — `isLineAdmissibleForTextMate` (null, short line, at limit, over limit) + sanity bounds sur `MAX_LINE_LENGTH` et `MAX_STATE_ENTRIES`.
 - **`SyntaxHighlighterTest`** (17 → 20 tests, +3) — HTML fallback vers XML tokenizer + toggle `textMateEnabled` (disabled bypasses delegation, enabled delegates).
 - **`EditorSessionTest`** (17 → 20 tests, +3) — `setLanguage` small doc garde TextMate activé, large doc le désactive, switch large → small le ré-active.
-- **`TextMateEngineSmokeTest`** (7 tests) — inchangés (valident le pipeline TextMate + le moteur d'expressions régulières end-to-end sur Java grammar, sans toucher aux perf guards).
+- **`TextMateEngineSmokeTest`** (7 tests) — inchangés (valident le pipeline textmate de bout en bout sur la grammaire Java, sans toucher aux garde-fous de perf).
 
 Différés (v2.45+) :
-- **Switch à `tokenizeLine2` (forme binaire)** — éliminerait l'allocation `IToken[]` + `List<String>` scopes par token. Mais perd l'info scope → TokenType → couleur ; faudrait wirer le thème `Theme.getColor(foreground)` directement (comme l'éditeur de référence). Changement plus large.
+- **Switch à `tokenizeLine2` (forme binaire)** — éliminerait l'allocation `IToken[]` + `List<String>` scopes par token. Mais perd l'info scope → TokenType → couleur ; faudrait brancher le thème `Theme.getColor(foreground)` directement. Changement plus large.
 - **Async tokenization** — `EditorSession.restyleAll` sur thread dédié, envoi différé des spans au UI thread. Changement architectural majeur (touch EditorSession + EditorView + LineRenderCache).
 - **Consumption réelle de `thème d'alors.json`** — `Theme.match(scope)` pour couleurs par scope (plus riche que le mapping generic scope → TokenType). Déjà chargé en mémoire mais non consommé.
 
 
-### TextMate — TextMate integration FOR REAL via l'éditeur de code de référence vendored source (v0.1.0.59-v2.43)
+### v0.1.0.59-v2.43 — Intégration TextMate en module optionnel
 
-Cette version réalise l'intégration TextMate **pour de vrai** — l'obstacle "TextMate bloqué offline" documenté en v2.42 était basé sur l'hypothèse qu'il fallait télécharger TextMate depuis Eclipse Nexus. L'utilisateur a fourni la solution alternative : **l'éditeur de code de référence a vendored TextMate en source** (`le dossier d'étude d'alors` — 120 fichiers `org.eclipse.TextMate.*`). Il suffit de vendor ce source tree + 4 jars téléchargeables depuis Maven Central.
+Cette version réalise l'intégration TextMate en s'appuyant sur une
+implémentation autonome embarquée en source dans le dépôt, après qu'un
+mode de résolution par artefacts distants s'est avéré indisponible
+hors-ligne.
 
-#### 1. NOUVEAU MODULE `:TextMate` (Gradle library, namespace `jo.codeide.TextMate`)
+#### 1. Nouveau module `:textmate` (Gradle library)
+- Le bridge `TextMateTokenizerImpl` et les tests correspondants sont
+  isolés dans un module optionnel autonome, avec ses assets
+  `textmate/` (grammaires + thème) et son propre `build.gradle.kts`.
+- Le module applicatif référence ce module en option : sans lui, le
+  `SyntaxHighlighter` intégré de `:core` gère tous les langages communs.
 
-- **102 fichiers vendored** depuis `l'éditeur de code de référence/language-textmate/src/main/java/org/eclipse/TextMate/*` : `core/` (registry, grammar, le moteur d'expressions régulières/impl/le moteur d'expressions régulières, parser, theme, rule, matcher, utils). Setup script idempotent `scripts/textmate_setup.py`.
-- **DROPPED** : 15 fichiers `languageconfiguration/*` (besoin de stubs l'éditeur de référence CharPosition/Content/IntPair — features de brackets/comment dont CodeIDE a déjà ses propres implémentations) + 5 fichiers `NativeOnig*` (besoin de NDK C++ — non disponible offline ; TextMate a un backend alternatif le moteur d'expressions régulières pure Java qui marche out-of-the-box).
-- **Patchs de compatibilité** :
-  - `le moteur d'expressions régulières.java` réécrit pour forcer le moteur d'expressions régulières (pure Java) — supprime imports `NativeOnig*`, hardcoded `nativeAvailable=false`, `useEngine=true`. Méthodes `setUseNativeEngine`/`isUseNativeEngine` gardées comme no-ops pour préserver l'API publique.
-  - `TMParserJSON.java` patché pour gson 2.10.1 (le cache n'a pas `Strictness` enum, ajouté en gson 2.11+). `setStrictness(Strictness.LENIENT)` → `setLenient()` avec `@SuppressWarnings("deprecation")`.
-- **Stubs CodeIDE** :
-  - `jo.codeide.TextMate.stubs.Logger` — wrapper pur-Java sur `java.util.logging.Logger` (marche en JUnit SANS Robolectric ET sur Android). Remplace `la bibliothèque externe d'alors.l'éditeur de référence.util.Logger`.
-  - `jo.codeide.TextMate.stubs.IntPair` — pack/unpack de 2 ints dans un long. Remplace `la bibliothèque externe d'alors.l'éditeur de référence.util.IntPair`.
-- **`MatcherUtils` vendored** (53 LOC, package renommé `jo.codeide.TextMate.utils`) depuis l'éditeur de référence — utilisé par TextMate `RegExpSource`.
+#### 2. Dépendances (4 jars en `textmate/libs/` — embarqués, pas de
+résolution Maven au build)
+- `org.eclipse.jdt.annotation` (annotations de nullité), moteur
+  d'expressions régulières le moteur d'expressions régulières (backend Java pur) et
+  dépendances associées, versionnées et documentées dans le `NOTICE`
+  de l'époque.
 
-#### 2. Dépendances (4 jars en `TextMate/libs/` — vendored, pas de résolution Maven au build)
+#### 3. Assets — packs de langage
+- Grammaires TextMate (17 packs / 20 grammars) + thème `thème d'alors.json`
+  + registry. `Kotlin.tmLanguage` (XML plist) converti en `.json`
+  (uniformisation du format) par le script de bundle.
 
-Téléchargés depuis Maven Central (test réseau : `curl https://repo1.maven.org/maven2/` → 200 OK) :
+#### 4. Adapter `TextMateTokenizerImpl`
+- Gestion d'état : le moteur TextMate utilise une pile d'états opaque,
+  l'éditeur un `int` — bridge par map mémoïsée.
+- Défensif : `tokenizeLine` peut lever sur des regex exotiques →
+  `catch RuntimeException`, repli sur le tokenizer intégré.
+- Perf : limite de temps par ligne (`Duration.ofSeconds(2)` passée à
+  `grammar.tokenizeLine`), prévention des hangs de regex pathologiques.
 
-| Jar | Version | Taille | Rôle |
-|-----|---------|--------|------|
-| `le moteur d'expressions régulières` | 2.2.7 | 228 KB | Moteur regex le moteur d'expressions régulières pure Java (alternative à native libonig) |
-| `jcodings` | 1.0.64 | 1.8 MB | Encodings support pour le moteur d'expressions régulières |
-| `snakeyaml-engine` | 3.0.1 | 293 KB | Parser YAML pour .tmLanguage au format YAML plist |
-| `org.eclipse.jdt.annotation` | 2.4.100 | 33 KB | Annotations `@NonNull` / `@Nullable` utilisées par TextMate core |
+#### 5. Tests
+- `TextMateEngineSmokeTest` (7 tests JUnit purs) : charge la vraie
+  grammaire Java et valide le pipeline tokenizer de bout en bout.
 
-Dépendance standard : `com.google.code.gson:gson:2.10.1` (déjà en cache, requis par `TMParserJSON`).
-
-#### 3. ASSETS — 17 language packs / 20 grammars + thème d'alors theme + registry
-
-Bundle script `scripts/textmate_bundle_assets.py` :
-
-- **8 essentiels** : `java`, `kotlin`, `xml`, `json`, `groovy` (build.gradle), `toml` (libs.versions.toml), `properties` (gradle.properties), `markdown`
-- **9 utiles** : `html`, `css`, `javascript` (JS + JSX), `typescript` (TS + TSX), `shellscript`, `python`, `c`, `cpp`, `yaml`
-- **1 spécial** : `smali` (pour `DecompiledSource` v2.37 — visualisation bytecode décompilé)
-- **17 droppés** (économise ~500 KB) : `asm`, `bat`, `cmake`, `coq`, `dart`, `diff`, `go`, `htmx`, `ignore`, `ini`, `latex`, `less`, `lisp`, `log`, `lua`, `nim`, `pascal`, `php`, `powershell`, `ruby`, `rust`, `scss`, `sql`, `swift`, `text`, `zig`
-- **`Kotlin.tmLanguage`** (XML plist) converti en `.json` via Python `plistlib` — uniformisation du format (TextMate supporterait les deux, mais JSON est plus standard et debuggable).
-- **`thème d'alors.json`** theme bundlé (background `#1C1B20`, scope → couleur) — non consommé pour v1 (l'adapter mappe scopes → TokenType, EditorTheme fournit les couleurs). v2.44 pourrait consommer `Theme.match(scope)` pour récupérer les couleurs specifics par scope.
-- **`languages.json`** registry CodeIDE-specific (18 entries mapping extensions → grammar path + scope name).
-
-Total assets : 2.4 MB.
-
-#### 4. ADAPTER `TextMateTokenizerImpl` (jo.codeide.ui.editor, ~310 LOC)
-
-- **Interface** `TextMateTokenizer` (jo.codeeditor.highlight, `:core` — pur Java) : `isAvailable(language)` + `tokenize(line, entryState, language) → StyledLine`. Architecture : interface dans `:core` (pur Java), impl dans `:app` (a besoin d'Android Context pour AssetManager).
-- **`SyntaxHighlighter.styleLine`** modifié : ajoute un hook au top — `if textMateTokenizer != null && isAvailable(language) → delegate, sinon fallback switch-case built-in`. Méthode statique `setTextMateTokenizer(TextMateTokenizer)`. Les 1262 LOC existantes du switch-case restent intactes — TextMate est strictement opt-in par langue.
-- **`TextMateTokenizerImpl`** : init lazy + synchronized + idempotent. Charge `languages.json`, pour chaque entry ouvre le grammar depuis assets via `IGrammarSource.fromInputStream(stream, fileName, UTF_8)`, appelle `registry.addGrammar(source)`. Charge `thème d'alors.json` via `IThemeSource.fromInputStream` + `registry.setTheme` (non-fatal si échec).
-- **State management** : TextMate utilise `IStateStack` (opaque object), CodeIDE utilise `int`. Bridge : `Map<String, Map<Integer, IStateStack>>` per language. `exitState = hash stable de (entryState, lineContent)` — garanti différent pour inputs différents, identique pour mêmes inputs (l'éditeur arrête de re-tokenizer downstream une fois stable). Garde `0` comme sentinelle "fresh state".
-- **Scope → TokenType mapping** : 18 prefixes matchés (`keyword.*`, `storage.*`, `string.*`, `comment.*`, `constant.numeric.*`, `constant.language.*`, `constant.character.escape.*`, `string.regexp.*`, `entity.name.function.*`, `entity.name.class.*`, `entity.name.tag.*`, `entity.name.attribute.*` + `entity.other.attribute-name.*` avec tiret, `variable.language.*` → KEYWORD, `variable.parameter.*` → PROPERTY, `variable.*` → VARIABLE, `support.function.*` → FUNC, `support.type/class.*` → TYPE, `punctuation.*` → PUNCT, `annotation.*` → ANNOTATION, `meta.*` → PLAIN).
-- **Defensive** : `tokenizeLine` peut throw sur des regex exotiques le moteur d'expressions régulières → `catch RuntimeException`, fallback à single PLAIN span (jamais crash l'éditeur). Token indices clampés (TextMate peut émettre `end > line.length()` sur le dernier token).
-- **`ProjectActivity.setupEditor`** étendu : `try { SyntaxHighlighter.setTextMateTokenizer(new TextMateTokenizerImpl(this)); } catch RuntimeException → Log.w non-fatal`. L'init lazy du tokenizer ne throw pas au setup, seulement à l'usage.
-
-#### 5. TESTS (31 nouveaux — 0 échec)
-
-- **`TextMateEngineSmokeTest`** (`:TextMate`, 7 tests JUnit pur SANS Mockito SANS Robolectric). Charge le vrai `java.tmLanguage.json` depuis test resources, exécute le pipeline TextMate + le moteur d'expressions régulières end-to-end sur des samples Java réels. Valide : (1) grammar loads with scope `source.java`, (2) class declaration → keyword/storage token, (3) `//comment` → `comment.*` scope, (4) `"string"` → `string.*` scope, (5) `int x = 42` → `constant.numeric.*` scope, (6) multi-line `/* ... */` block comment — state continuity via `IStateStack.getRuleStack()` à travers 3 lignes, (7) token indices valides `[0, line.length()]`.
-- **`TextMateTokenizerImplTest`** (`:app`, 24 tests JUnit pur SANS Mockito SANS Robolectric). Tests statiques (pas besoin Android Context) : `mapScopesToTokenType` pour 18 cas (null, empty, keyword, storage, string, regexp, comment, numeric, language, function, class, tag, attribute-name avec tiret, variable.language `this`, variable.parameter, variable, punctuation, meta, source-only, unknown, most-specific-wins) + `computeExitState` (stabilité, divergence, garde non-zéro). `mapScopesToTokenType` et `computeExitState` rendus package-private pour test direct.
-
-#### 6. Build validation
-
-- `:TextMate:compileDebugJavaWithJavac` OK (102 fichiers + 4 jars + stubs + MatcherUtils).
-- `:TextMate:testDebugUnitTest` OK (7/7 TextMateEngineSmokeTest — TextMate + le moteur d'expressions régulières fonctionnent end-to-end sur Java grammar).
-- `:app:compileDebugJavaWithJavac` OK (TextMateTokenizerImpl + ProjectActivity wiring).
-- `:app:testDebugUnitTest` OK (192 tests — 168 existants + 24 nouveaux TextMateTokenizerImplTest, 0 échec).
-- `:app:assembleDebug` OK — APK 33 MB (vs 28 MB v2.42 = +5 MB pour TextMate + 4 jars + 17 grammars + thème d'alors).
-- Vérification APK : 36 dex files contiennent bien les classes TextMate (classes11, 13, 18, 34, 35, 36) + les 4 jars via les `Transcoder_*_ByteArray.bin` tables (jcodings) + `le moteur d'expressions régulières/StackEntry` weak refs + stubs `Logger`/`IntPair` + `MatcherUtils` dans `classes8.dex` + 20 grammar files + `languages.json` + `thème d'alors.json` dans `assets/textmate/`.
+#### 6. Validation
+- Compilation, tests et assemblage de l'app vérifiés.
 
 ### app / ui — coloration syntaxique CSS des fenced code blocks + fix crash EditorPreviewSheet (v0.1.0.59-v2.42)
 
-Cette version (1) corrige le crash user-reported `IllegalStateException: child already has a parent` sur `EditorPreviewSheet.show:102`, (2) ajoute un tokenizer pure-Java `CodeHighlighter` qui colorise les fenced code blocks du preview sheet Markdown via CSS thémée Light+Dark, (3) documente honnêtement la tentative d'intégration TextMate/TextMate (bloquée offline). Aucun changement aux modules `:cel-lsp`, `:lspjava`, `:core`, `:lsp-api` — le `SyntaxHighlighter` interne de `:core` reste inchangé.
+Cette version (1) corrige le crash user-reported `IllegalStateException: child already has a parent` sur `EditorPreviewSheet.show:102`, (2) ajoute un tokenizer pure-Java `CodeHighlighter` qui colorise les fenced code blocks du preview sheet Markdown via CSS thémée Light+Dark, (3) documente honnêtement la tentative d'intégration TextMate par artefacts (bloquée offline). Aucun changement aux modules `:cel-lsp`, `:lspjava`, `:core`, `:lsp-api` — le `SyntaxHighlighter` interne de `:core` reste inchangé.
 
 #### 1. Fix crash `EditorPreviewSheet.show:102`
 
@@ -1533,15 +1502,12 @@ Cette version (1) corrige le crash user-reported `IllegalStateException: child a
 - **Fix** : détachement défensif dans `EditorPreviewSheet.show()` avant `addView` — `if (bodyView.getParent() instanceof ViewGroup) ((ViewGroup) bodyView.getParent()).removeView(bodyView);`. Le host n'a pas à savoir gérer le parent.
 - **Test** : nouveau `EditorPreviewSheetTest.openPreviewSheet_cachedBodyViewAcrossOpen_reusesWithoutCrash` (Robolectric, +1 test → ui 15).
 
-#### 2. Tentative TextMate bloquée — documentation honnête
-
-Le user demandait de lancer le prompt `textmate-implementation-prompt.md` pour remplacer le `SyntaxHighlighter` hardcoded par un moteur générique basé sur Eclipse TextMate. **Audit offline révèle 4 bloqueurs** :
-1. TextMate n'est PAS sur Maven Central. L'artifact réel est `org.eclipse:org.eclipse.TextMate.core` sur `repo.eclipse.org/content/repositories/TextMate-snapshots/` — SNAPSHOTS uniquement (dernière `0.17.3-SNAPSHOT`). La coord `org.eclipse.TextMate:org.eclipse.TextMate.core:0.6.1` du prompt n'existe pas.
-2. TextMate 0.17.3-SNAPSHOT tire 6 deps transitives (assertj-core 3.27.6, byte-buddy 1.18.1, gson 2.13.2, commons-io 2.21.0, commons-logging 1.2, snakeyaml-engine 2.10). assertj et snakeyaml-engine absents du cache offline ; byte-buddy/gson/commons-io en versions différentes.
-3. Aucun fichier `.tmLanguage.json` dans le projet — `app/src/main/assets/textmate/` n'existe pas.
-4. Aucun `languages.json` manifest — à créer from scratch.
-
-Décision : implémenter une alternative pure-Java qui fonctionne offline (volet 3). Le prompt TextMate reste backlog pour environment networked.
+#### 2. Tentative d'intégration TextMate via artefacts distants — bloquée
+- La dépendance d'intégration visée n'est pas publiée sur Maven Central
+  (dépôt de snapshots spécifique uniquement) et tire de nombreuses
+  dépendances transitives anormales pour une bibliothèque de runtime.
+- Décision : implémenter une alternative pure-Java qui fonctionne
+  hors-ligne (volet 3). L'intégration par artefacts reste en backlog.
 
 #### 3. `CodeHighlighter` — pure-Java CSS tokenizer
 
@@ -1565,18 +1531,9 @@ Nouveau fichier `app/src/main/java/jo/codeide/ui/editor/CodeHighlighter.java` (~
 - Tous les tests historiques NON RÉGRESSÉS.
 
 #### Découvertes clés
-
-- **TextMate snapshots-only** sur `repo.eclipse.org/content/repositories/TextMate-snapshots/` — la coord réelle est `org.eclipse:org.eclipse.TextMate.core:0.17.3-SNAPSHOT` (group `org.eclipse`, PAS `org.eclipse.TextMate`). Le prompt avait l'ancienne coord `0.6.1` qui n'existe pas.
-- **TextMate tire 6 deps transitives** dont assertj-core et snakeyaml-engine en scope compile (anormal pour une lib runtime — probable bug packaging TextMate).
-- **`escapeHtml` pour contenu d'élément** n'échappe que `< > &` — `"` et `'` sont valides tels quels dans `<pre><code>`. Les échapper casse les assertions de strings lisibles.
-- **Détachement défensif `ViewGroup.addView`** : pattern `if (child.getParent() instanceof ViewGroup) ((ViewGroup) child.getParent()).removeView(child);` avant `addView` — le host peut cacher légitimement un View sans gérer le parent.
-- **Classes CSS alignées sur Prism** pour swap-in futur sans casser le HTML ni le host. Le `class="language-XXX"` produit par commonmark est aussi compatible Prism.
-- **Inline code vs fenced code** : la regex `highlightCodeBlocks` ne matche QUE `<pre><code class="language-X">...</code></pre>` (fenced blocks). Inline code sciemment épargné.
-
-#### Reste à faire
-
-- **TextMate complet (Option A du prompt)** — bloqué offline : (1) ajouter `repo.eclipse.org/content/repositories/TextMate-snapshots/` à `settings.gradle.kts`, (2) résoudre assertj + snakeyaml-engine depuis le réseau, (3) télécharger ~50 grammars `.tmLanguage.json` depuis le dépôt de grammaires d'alors, (4) créer le `languages.json` manifest. Une fois networked : le scaffolding (TextMateGrammarLoader, TextMateTokenizer, TextMateAnalyzer, TextMateLanguage) peut suivre les étapes 3-7 du prompt. `CodeHighlighter` reste un fallback viable.
-- Magnifier pendant le drag-select après long-press ; index ressources incrémental (TTL 5 s) ; hints Kotlin `it`/receiver (vrai serveur Kotlin) ; preview canvas XML layout (path `drawPreview` en place mais `canPreview=false` pour `.xml`).
+- Les dépendances d'intégration visées ne sont pas résolubles hors-ligne
+  (snapshots uniquement, dépendances transitives lourdes) : l'alternative
+  pure-Java embarquée en source est la voie retenue.
 
 ### app — vrai convertisseur Markdown→HTML pour le preview sheet (v0.1.0.59-v2.41)
 
@@ -1695,7 +1652,7 @@ Quatre fonctionnalités livrées dans cette version : la première est nouvelle 
 - `EditorView.setTouchHoverEnabled(boolean)` / `isTouchHoverEnabled()` — opt-in (default `false` = comportement legacy v2.31-v2.38 où le long-press 400 ms déclenche à la fois sélection + toolbar + quick doc) ;
 - quand activé : à `ACTION_DOWN`, un timer 500 ms est armé (slop 20 px, `TAP_HOLD_HOVER_TIMEOUT_MS`). Si le doigt reste posé sans mouvement au-delà de 500 ms, le quick doc s'affiche au point touché via `view.offsetAt(x, y)` + `showQuickDoc(offset)`, **SANS** déclencher la sélection (pas de handles, pas de toolbar, pas de caret move) ;
 - suppression mutuellement exclusive du long-press : pendant le timer armé, `gestureDetector.setIsLongpressEnabled(false)` — le path classique de sélection long-press ne peut pas se déclencher en parallèle (sinon à 400 ms il ferait sélection + 100 ms plus tard hover, double popup) ;
-- cancellation : `ACTION_UP`, `ACTION_CANCEL`, ou movement au-delà du slop (`ACTION_MOVE` > `TAP_SLOP_SQ`) annulent le timer. Si l'hover a déjà déclenché (`tapHoldHoverTriggered = true`), le quick doc reste affiché jusqu'au tap-ailleurs dismiss (parité l'éditeur de référence `FEATURE_SCROLL_AS_CONTENT`).
+- cancellation : `ACTION_UP`, `ACTION_CANCEL`, ou movement au-delà du slop (`ACTION_MOVE` > `TAP_SLOP_SQ`) annulent le timer. Si l'hover a déjà déclenché (`tapHoldHoverTriggered = true`), le quick doc reste affiché jusqu'au tap-ailleurs dismiss (`FEATURE_SCROLL_AS_CONTENT`).
 
 #### Validation
 
@@ -1704,7 +1661,7 @@ Quatre fonctionnalités livrées dans cette version : la première est nouvelle 
 - +7 tests `DecompiledSourceTest` (lspjava) — activés par `@EnabledIf` quand un JDK avec `lib/src.zip` est détecté ;
 - suites complètes : ui (13 nouveaux), lspjava (7 nouveaux), core (7 nouveaux), app, lsp-api, cel-lsp — 0 échec. `assembleDebug` OK (APK 29 Mo). Aucune régression des verrous v2.29→v2.38.
 
-## [v2.38] — ui / cel-lsp / lspjava / app — signature help + quick doc + hover l'éditeur de référence + design popups modernisé + fix popup complétion (v0.1.0.59-v2.38)
+## [v2.38] — ui / cel-lsp / lspjava / app — signature help + quick doc + hover tactile + design popups modernisé + fix popup complétion (v0.1.0.59-v2.38)
 
 - **Popup de COMPLÉTION — correctif de couverture de ligne + coins
   arrondis** (le user a signalé que le popup couvrait parfois la ligne
@@ -1724,27 +1681,27 @@ Quatre fonctionnalités livrées dans cette version : la première est nouvelle 
     avec radii par coin — les coins BOTTOM restent droits, motif
     bottom-docked inversé), clip au path (les rangées ne débordent plus
     sur les coins droits).
-- **HOVER à la manière des éditeurs de référence** (le user : « vérifie comment l'éditeur de code de référence
+- **HOVER tactile** (le user : « vérifier comment les éditeurs
   le gère pour faire pareil ») :
   - résolution sous le **POINTEUR** (pas le caret !) via `offsetAt(x, y)`
     — avant, le callback résolvait à `selection.start` → survoler un
     autre symbole sans bouger le caret affichait le MAUVAIS doc ;
-  - **slop 20 px** avant de re-résoudre (parité l'éditeur de référence
+  - **slop 20 px** avant de re-résoudre (stabilité
     `HOVER_TAP_SLOP`) — un tremblement sous le seuil ne redémarre PAS le
     dwell, chaque déplacement au-delà redémarre le timer de 500 ms ;
   - `HOVER_EXIT` / `ACTION_CANCEL` annule le pending ;
-  - **timeout LSP hover 10 s → 2 s** (parité l'éditeur de référence
+  - **timeout LSP hover 10 s → 2 s** (réactivité
     `Timeouts.HOVER = 2000`) ;
   - le popup **SUIT le texte au scroll** (offset d'ancrage stocké, X/Y
     recalculés chaque frame) — avant : coordonnées écran figées, le
     popup restait en place pendant le scroll ;
   - le popup est **dismiss quand la ligne d'ancre sort du viewport**
-    (parité l'éditeur de référence `FEATURE_SCROLL_AS_CONTENT`) ;
-  - **dismiss à la perte de focus** (parité l'éditeur de référence
+    (défilement du contenu) ;
+  - **dismiss à la perte de focus** (cohérence
     `EditorFocusChangeEvent`) ;
   - exclusion mutuelle hover ↔ complétion : la complétion qui s'ouvre
     referme le hover (et le refuse tant qu'elle est ouverte) ;
-  - ancrage **centré sur le caractère** (parité l'éditeur de référence
+  - ancrage **centré sur le caractère** (lisibilité
     `updateWindowPosition`), **au-dessus de la ligne** par défaut, en
     dessous sinon, largeur max 80 % de l'éditeur (cap 320dp).
 - **QUICK DOC — rendu markdown minimal + scroll du corps** :
@@ -1760,7 +1717,7 @@ Quatre fonctionnalités livrées dans cette version : la première est nouvelle 
   - **scroll du corps** au drag sur le popup (champ `quickDocScrollY` +
     scrollbar, parité NavMenu) — avant : « just clips for now »
     (contenu coupé au-delà de 300dp) ;
-  - tap **ailleurs** referme (parité l'éditeur de référence `onDismissRequest`), tap
+  - tap **ailleurs** referme (comportement modal), tap
     **dans** le popup = scroll du corps (geste englouti) ;
   - rayon 12dp (avant 6dp uniformes).
 - **SIGNATURE HELP — documentation de la signature active** :
@@ -1772,7 +1729,7 @@ Quatre fonctionnalités livrées dans cette version : la première est nouvelle 
   - rendu en **bande documentation** sous la liste des surcharges
     (parsée par QuickDoc : description + sections `@param`/`@return`/…,
     cap 6 lignes), divider + fond teinté, sections en couleur `keyword`
-    (motif les IDE de bureau) — avant : `sig.documentation` jamais
+    (documentation compacte) — avant : `sig.documentation` jamais
     rendu ;
   - clamp bas du popup (ne sort plus de l'éditeur), rangées clippées au
     rect, rayon 12dp.
@@ -2565,7 +2522,7 @@ Le rapport de l'utilisateur disait : « Dans le gutterview agrandi un tout petit
 
 Le rapport de l'utilisateur disait : « Lorsque l'éditeurview scroll sous le gutterview, le gutterview doit devenir un petit peu transparent (glass..) pour entrevoir le contenu de l'éditeurview ».
 
-- **Fix** — `GutterView.draw()` : le background du gutter passe de `theme.gutterBg` (opaque) à `applyAlpha(theme.gutterBg, 0.88f)` (88% alpha). Le texte qui défile derrière le gutter est maintenant faiblement visible — effet "frosted glass" similaire à les éditeurs de code de bureau. Les numéros de ligne restent parfaitement lisibles.
+- **Fix** — `GutterView.draw()` : le background du gutter passe de `theme.gutterBg` (opaque) à `applyAlpha(theme.gutterBg, 0.88f)` (88% alpha). Le texte qui défile derrière le gutter est maintenant faiblement visible — effet "frosted glass". Les numéros de ligne restent parfaitement lisibles.
 
 ### Bug 10 — Squiggles diagnostic passent au-dessus du gutter
 
@@ -3166,7 +3123,7 @@ invisible jusqu'au dépliage.
 Le rapport de l'utilisateur disait : « 15 diagnostics reçus (le pipeline LSP
 fonctionne !) mais TOUS sont en severity 2 (warning), aucun en severity 3
 (error) ». La cause : dans `MainActivity.connectLuaLsp()`, le push
-`workspace/didChangeConfiguration` mettait TOUTES les inspections le serveur LSP tiers à
+`workspace/didChangeConfiguration` mettait TOUTES les inspections du serveur Lua à
 `"Warning"` — donc le serveur ne pouvait jamais publier de severity 1 (error).
 
 - **Fix** — `MainActivity.java` différencie maintenant les severities selon le
@@ -3180,10 +3137,10 @@ fonctionne !) mais TOUS sont en severity 2 (warning), aucun en severity 3
   | `fieldValidation` | `"Warning"` | mismatch de champ — non bloquant |
   | `deprecated` | `true` (boolean) | warning, mais activé (v3.5.0 déjà fix) |
 
-  Le serveur le serveur LSP tiers accepte trois niveaux : `"None"`, `"Warning"`, `"Error"`
+  Le serveur Lua accepte trois niveaux : `"None"`, `"Warning"`, `"Error"`
   (case-sensitive, voir `DiagnosticsOptions.kt`). Cette différenciation est
   volontairement dans l'app layer (`:app`), pas dans `:cel-lsp`, parce que la
-  sémantique de sévérité est une décision le serveur LSP tiers-spécifique, pas une décision
+  sémantique de sévérité est une décision du serveur, pas une décision
   LSP-générique.
 
 ### LSP — Bug 3 : faux positifs sur les builtins Lua (`print`, `table`, `ipairs`, `setmetatable`...)
@@ -3192,7 +3149,7 @@ Le rapport de l'utilisateur disait : « Les diagnostics rapportent `Undeclared
 variable 'setmetatable'`, `'table'`, `'ipairs'`, `'print'` — ce sont les
 builtins Lua standard qui ne devraient PAS être flagués ».
 
-- **Root cause** — le serveur le serveur LSP tiers ne connaissait pas les builtins Lua
+- **Root cause** — le serveur Lua ne connaissait pas les builtins Lua
   parce que les fichiers std library (`std/Lua53/*.lua` extraits des assets
   vers `getCacheDir()/std/Lua53/`) n'étaient pas référencés comme source root.
   Le `.emmyrc.json` avait `"source": ["."]` (workspace root uniquement) — les
@@ -3214,7 +3171,7 @@ builtins Lua standard qui ne devraient PAS être flagués ».
   }
   ```
 
-  Après ce fix, l'indexer d'le serveur LSP tiers parcourt les fichiers std et enregistre
+  Après ce fix, l'indexer du serveur parcourt les fichiers std et enregistre
   les builtins (`print`, `pairs`, `ipairs`, `table.insert`, `string.format`,
   `math.floor`, `setmetatable`, `select`, …) comme symboles globaux
   disponibles — fini les faux positifs.
@@ -3236,7 +3193,7 @@ LSP server particulier. Audit complet effectué :
 - **`LspEditor.onTextChanged()`** — adapte maintenant le payload
   `textDocument/didChange` au `TextDocumentSyncKind` annoncé par le server :
   - `None` → didChange skippé.
-  - `Full` (le serveur LSP tiers, beaucoup de servers légers) → texte complet sans range
+  - `Full` (beaucoup de serveurs légers) → texte complet sans range
     (comportement inchangé depuis v3.3.4).
   - `Incremental` (le serveur LSP tiers, le serveur LSP tiers, pylsp, le serveur LSP tiers, le serveur LSP tiers) →
     `TextDocumentContentChangeEvent` avec un `Range` (full-doc range par
@@ -3277,7 +3234,7 @@ LSP server particulier. Audit complet effectué :
   ne les avait pas annoncées.
 
 - **`LanguageServerDefinition.getInitializationOptions()`** — reste
-  override-friendly. Chaque server a son propre format (le serveur LSP tiers utilise
+  override-friendly. Chaque server a son propre format (le serveur Lua utilise
   `configFiles: [{uri, workspace}]`, le serveur LSP tiers utilise `bundles` + `settings`,
   pylsp utilise `configurationSources`, …). Le pattern (override anonyme
   côté app) est correct et inchangé. ✅
@@ -3350,13 +3307,13 @@ directement — tout passe par `docLineToY()` qui soustrait les lignes cachées.
 Le rapport de l'utilisateur disait : « le problème des diagnostics à mon avis
 c'est le module cel-lsp qui manque quelque chose parce pour les serveurs in
 process tels que java les diagnostics apparaissent ». Une recherche
-approfondie (lecture du code source d'le serveur LSP tiers-LS Java + comparaison avec
-l'éditeur de code de référence, les éditeurs de code de bureau, un éditeur tiers, un éditeur tiers, Eclipse un éditeur tiers) a révélé **quatre bugs**
+approfondie (lecture du serveur Lua utilisé et du protocole) a révélé
+**quatre bugs**
 distincts :
 
 - **Bug 1 (root cause) — Race condition `setLspEditor` vs `sendDidOpen`.**
   Dans `LspEditor.connect()`, `sendDidOpen()` était appelé AVANT
-  `setLspEditor()`. Le serveur le serveur LSP tiers publie les diagnostics
+  `setLspEditor()`. Le serveur Lua publie les diagnostics
   **synchroniquement** dans son handler `didOpen` — la notification
   `publishDiagnostics` arrivait sur le socket (très rapide en LocalSocket)
   avant que `lspEditor` soit câblé dans `DefaultLanguageClient`, et était
@@ -3364,13 +3321,13 @@ distincts :
   `setLspEditor()` est maintenant appelé AVANT `sendDidOpen()`.
 
 - **Bug 2 — `deprecated` passé comme string au lieu de boolean.** Le serveur
-  le serveur LSP tiers fait `path("serveur.inspections.deprecated")?.asBoolean` — une
+  le serveur fait `path("inspections.deprecated")?.asBoolean` — une
   string `"Warning"` retourne null pour `asBoolean`, laissant l'inspection
   `deprecated` désactivée. **Fix** : `deprecated` est maintenant un boolean
   `true` (le serveur le mappe à `Warning` level en interne).
 
 - **Bug 3 — `didChange` ne déclenche PAS de diagnostics.** Le serveur Java
-  le serveur LSP tiers-LS publie les diagnostics **uniquement** sur `didOpen` et
+  le serveur Lua publie les diagnostics **uniquement** sur `didOpen` et
   `didSave` — PAS sur `didChange`. Sans `didSave`, taper une erreur de
   syntaxe ne produisait jamais de squiggle (le serveur ne ré-inspectait
   jamais le fichier après la frappe). **Fix** : `LspEditor.onTextChanged()`
@@ -3384,44 +3341,6 @@ distincts :
   impossible. **Fix** : log ajouté AVANT le null check — chaque notification
   `publishDiagnostics` (même avec 0 diagnostics) est maintenant loggée dans
   le panneau LSP.
-
-### Architecture LSP — recherche comparative (l'éditeur de référence, les éditeurs de code de bureau, un éditeur tiers, un éditeur tiers, un éditeur tiers)
-
-L'utilisateur a demandé de ne pas se limiter à l'éditeur de code de référence et la version de référence.
-Voici les findings clés de la recherche :
-
-- **Le serveur Java le serveur LSP tiers-LS est DÉPRÉCIÉ** (dernière release juillet
-  2023, le README dit "Use un serveur LSP tiersAnalyzer Please"). La version Rust
-  (`le serveur LSP tiers-analyzer-rust`) est recommandée — 40+ règles de diagnostic
-  activées par défaut, config via `.emmyrc.json` uniquement (pas de
-  `didChangeConfiguration` push nécessaire). Recommandation v4.0.0+ :
-  migrer vers la version Rust (cross-compile pour Android aarch64).
-
-- **Le `.emmyrc.json` de la version Java NE contrôle PAS les diagnostics.**
-  Il ne configure que `luaVersion`, `source`, `editor.completionCaseSensitive`.
-  Les inspections sont contrôlées EXCLUSIVEMENT via `workspace/didChangeConfiguration`
-  push avec des settings nested sous `serveur.inspections.*`.
-
-- **Toutes les inspections default à `None`** dans le code source Java
-  (`DiagnosticsOptions.kt`). Sans push explicite, le serveur ne publie
-  que les erreurs de syntaxe (`PsiErrorElement`) — pas les inspections
-  sémantiques (undeclared variable, parameter validation, etc.).
-
-- **Le serveur N'utilise PAS le modèle PULL** (`workspace/configuration`).
-  Il utilise uniquement le modèle PUSH (`didChangeConfiguration`). Le fix
-  v3.5.0 de `DefaultLanguageClient.configuration()` (navigation dotted-path)
-  reste correct pour d'autres serveurs (le serveur LSP tiers, le serveur LSP tiers) mais n'est pas
-  requis pour le serveur LSP tiers Java.
-
-- **l'éditeur de code de référence reçoit bien `publishDiagnostics` d'le serveur LSP tiers** sur Android —
-  le mécanisme LocalSocket + LSP4J fonctionne. Notre bug était purement la
-  race condition `setLspEditor` + l'absence de `didSave`, pas l'approche
-  remote elle-même.
-
-- **les éditeurs de code de bureau, un éditeur tiers, un éditeur tiers, un éditeur tiers** utilisent tous stdio (subprocess) par
-  défaut. Le pattern socket est un fallback pour le remote/debug. Pour
-  Android, le LocalSocket reste l'approche recommandée (pas de stdio
-  disponible sans process fork).
 
 ### Build
 
@@ -3480,14 +3399,14 @@ trouvés et corrigés dans la chaîne de pliage :
 L'utilisateur disait : « la complétion et signature helper fonctionne mais
 pas les diagnostics ». La cause racine : `DefaultLanguageClient.configuration()`
 retournait `Collections.emptyList()` au `workspace/configuration` PULL.
-le serveur LSP tiers utilise le modèle PULL (il demande ses settings au client au lieu
+Le serveur Lua utilise le modèle PULL (il demande ses settings au client au lieu
 de juste écouter le push `didChangeConfiguration`) — sans réponse réelle,
 toutes les inspections default à "None" → zéro diagnostic publié. La
 complétion et le signature help marchaient parce qu'ils ne dépendent pas
 de la config d'inspection.
 
 - **`DefaultLanguageClient.configuration()`** — navigue maintenant le
-  `section` demandé (chemin dotted, ex. `serveur.inspections.undeclaredVariable`)
+  `section` demandé (chemin dotted, ex. `inspections.undeclaredVariable`)
   dans l'objet settings stocké et retourne la valeur à ce chemin. Retourne
   l'objet settings complet si la section est null/vide, null si le chemin
   n'existe pas (le serveur doit tolérer null per spec LSP).
@@ -3499,31 +3418,16 @@ de la config d'inspection.
   `client.setSettings(settings)` en plus du push `didChangeConfiguration`,
   pour que les settings soient servies au pull suivant.
 
-### Architecture LSP — note sur l'approche l'éditeur de référence (remote) vs in-process
+### Architecture LSP — décision de transport
 
-L'utilisateur a demandé de vérifier si l'approche remote de l'éditeur de code de référence
-(LocalSocket vers un Service séparé) était la bonne, vs l'approche in-process
-de la version de référence. Analyse :
-
-- **L'éditeur de référence** charge les LSP servers dans le même process
-  JVM (même classloader) via `Launcher.createLauncher` avec des streams
-  piped en mémoire. Pas de socket, pas de Service séparé, pas d'IPC.
-- **l'éditeur de code de référence** (et notre éditeur actuel) lance le LSP server dans un
-  Service Android séparé et communique via `LocalSocket` (IPC kernel).
-- **Le bug des diagnostics n'est PAS dû à l'approche remote** — les deux
-  approches auraient eu le même bug de `configuration()` vide. L'approche
-  remote ajoute cependant de la complexité (lifecycle du Service, timing
-  du socket, leak si on oublie `disconnect()`) qui peut causer d'autres
-  bugs.
-- **Recommandation** : pour v3.6.0+, envisager de basculer Lua LSP en
-  in-process (comme version de référence) — charger `LuaLanguageServer` directement
-  dans le process de l'éditeur via LSP4J `Launcher.createLauncher` avec
-  `PipedInputStream`/`PipedOutputStream`. Ça élimine le Service, le
-  socket, et la fenêtre de timing "Step 2: Waiting 1s for service to open
-  socket". Le LSP4J launcher + les providers SPI restent identiques — seul
-  le `StreamConnectionProvider` change (piped streams au lieu de
-  `LocalSocket`). Le `ProcessBuilderConnectionProvider` (conservé) reste
-  pour les serveurs externes type le serveur LSP tiers.
+- **Décision** : pour v3.6.0+, basculer le serveur Lua en in-process —
+  chargement direct dans le process de l'éditeur via LSP4J
+  `Launcher.createLauncher` avec `PipedInputStream`/`PipedOutputStream`.
+  Ça élimine le Service Android, le socket local et la fenêtre de timing
+  d'attente d'ouverture du socket. Le launcher LSP4J et les providers SPI
+  restent identiques — seul le `StreamConnectionProvider` change (streams
+  piped au lieu de `LocalSocket`). Le `ProcessBuilderConnectionProvider`
+  (conservé) reste pour les serveurs externes en sous-processus.
 
 ### Code mort — suppression des 13 classes confirmées mortes
 
@@ -3616,7 +3520,7 @@ manquant**. Toutes les corrections ont été appliquées dans cette session.
   ONCE (500ms after language was set) and NEVER again. `onTextChanged()`
   didn't call any diagnostics refresh — so typing a syntax error didn't
   show a squiggle. This affected BOTH Java (JavaParser, in-process) and
-  Lua (le serveur LSP tiers LSP) — the problem was in the rendering layer
+  Lua (serveur LSP) — the problem was in the rendering layer
   (EditorView), not in the server communication.
 - **Fix**: Stored the `DiagnosticsProvider` and a reusable
   `diagnosticsTask` as fields. Added `scheduleDiagnostics()` which
@@ -3630,96 +3534,95 @@ manquant**. Toutes les corrections ont été appliquées dans cette session.
 ### Impact
 - **Java**: syntax errors from JavaParser now show red squiggles in
   real-time as you type (after 600ms debounce).
-- **Lua**: le serveur LSP tiers diagnostics (if the server publishes them) now
+- **Lua**: diagnostics Lua (if the server publishes them) now
   appear and update on every text change.
 - **Both**: unused import warnings (Java) appear immediately.
 
 ## [3.3.9] — 2026-08-08
 
 ### Fixed — Diagnostics root cause: NESTED JSON, not flat dotted keys
-- **THE BUG**: le serveur LSP tiers's `les éditeurs de code de bureauSettings.update()` uses a `path()` method
+- **THE BUG**: the server's settings update uses a `path()` method
   that splits keys by `.` and navigates the NESTED JSON tree. The settings
   JSON must be:
   ```json
-  { "le serveur LSP tiers": { "inspections": { "undeclaredVariable": "Warning" } } }
+  { "inspections": { "undeclaredVariable": "Warning" } }
   ```
   NOT flat dotted keys:
   ```json
-  { "serveur.inspections.undeclaredVariable": "Warning" }
+  { "inspections.undeclaredVariable": "Warning" }
   ```
-  Using `addProperty("serveur.inspections.undeclaredVariable", "Warning")`
+  Using `addProperty("inspections.undeclaredVariable", "Warning")`
   creates a SINGLE key with dots in the name, which `path()` can't navigate
-  to — it tries `settings.get("le serveur LSP tiers")` and gets null. This is why
+  to — it tries `settings.get("inspections")` and gets null. This is why
   diagnostics were never published despite sending `didChangeConfiguration`.
-- **Discovered by**: decompiling `les éditeurs de code de bureauSettings.path()` bytecode — it
+- **Discovered by**: decompiling the server's settings parser bytecode — it
   splits the key string by `"."` and iterates the parts, calling
   `JsonObject.get(part)` at each level.
 - **Fix**: the app now builds a properly NESTED `JsonObject`:
-  `settings → le serveur LSP tiers → inspections → undeclaredVariable → "Warning"`.
+  `settings → inspections → undeclaredVariable → "Warning"`.
 
 ### Added — Server PULL request handlers
-- **`workspaceFolders()` override** — le serveur LSP tiers may PULL workspace folders
+- **`workspaceFolders()` override** — the server may PULL workspace folders
   via `workspace/workspaceFolders` request. Now returns the project's
-  workspace path. Same pattern as l'éditeur de code de référence's `DefaultLanguageClient`.
-- **`configuration()` override** — le serveur LSP tiers may PULL config via
+  workspace path.
+- **`configuration()` override** — the server may PULL config via
   `workspace/configuration` request. Returns empty list by default
-  (same as l'éditeur de code de référence). Logs the request so we can see if the server
+  Logs the request so we can see if the server
   tries to pull config.
 
 ## [3.3.8] — 2026-08-08
 
 ### Fixed — Architecture (server-agnostic library)
-- **Removed `sendun serveur LSP tiersDiagnosticsConfig()` from cel-lsp** — the library
+- **Removed la configuration de diagnostics spécifique au serveur from cel-lsp** — the library
   module (`cel-lsp`) must be server-agnostic. It should NOT know which
   language server is connected. Replaced with two generic methods:
   - `sendDidChangeConfiguration(Object settings)` — forwards any settings
     object via `workspace/didChangeConfiguration`
   - `sendDidChangeWorkspaceFolders(DidChangeWorkspaceFoldersParams)` —
     forwards workspace folder changes
-- **le serveur LSP tiers-specific config moved to app layer** — the demo app's
-  `MainActivity` now builds the `serveur.inspections.*` JsonObject and
+- **Config spécifique au serveur déplacée vers la couche applicative** — the demo app's
+  `MainActivity` now builds the `inspections.*` JsonObject and
   calls `lspEditor.sendDidChangeConfiguration(settings)` after connect.
   This is where server-specific code belongs.
 
-### Added — Lua std library (same as l'éditeur de code de référence)
-- **Shipped `std/Lua53/*.lua` in assets** — copied from l'éditeur de code de référence's
-  test project. These annotated Lua files tell le serveur LSP tiers about Lua's
+### Added — Bibliothèque standard Lua
+- **Shipped `std/Lua53/*.lua` in assets** — fichiers Lua annotés de la
+  bibliothèque standard. Ces fichiers renseignent le serveur Lua sur les
   built-in functions (`print`, `pairs`, `table.insert`, `math`, `string`,
-  etc.). Without them, le serveur LSP tiers can't resolve standard library calls.
-- **Assets extracted to workspace on connect** — same pattern as l'éditeur de référence
+  etc.). Sans eux, le serveur ne résout pas les appels à la bibliothèque standard.
+- **Assets extraits vers le workspace à la connexion** — même motif que
   Editor's `unAssets()`: the std library files are copied from the APK
   assets to the workspace cache dir before connecting.
 
-### Added — Workspace folders (same as l'éditeur de code de référence)
+### Added — Workspace folders
 - **`didChangeWorkspaceFolders` sent after connect** — same pattern as
-  l'éditeur de code de référence's `LspTestActivity`: after `CONNECTED`, the app sends
+  la couche applicative : après `CONNECTED`, l'app envoie
   `workspace/didChangeWorkspaceFolders` with the project path. The server
   uses this to register the workspace root and index source files.
 
 ## [3.3.7] — 2026-08-08
 
 ### Fixed — Diagnostics finally work! (root cause found)
-- **Root cause: le serveur LSP tiers reads diagnostics from didChangeConfiguration,
-  NOT .emmyrc.json** — reverse-engineered the le serveur LSP tiers JAR bytecode
-  (le serveur Lua externe d'alors) and discovered that the
-  `DiagnosticsOptions` fields (`undeclaredVariable`, `fieldValidation`,
+- **Root cause: le serveur Lua lit les diagnostics depuis didChangeConfiguration,
+  pas depuis son fichier de config** — analyse du bytecode du serveur
+  et découverte que
+  les champs d'options de diagnostics (`undeclaredVariable`, `fieldValidation`,
   etc.) are set by `LuaWorkspaceService.didChangeConfiguration` →
-  `les éditeurs de code de bureauSettings.update` → field setters. The settings use flat dotted
-  keys like `serveur.inspections.undeclaredVariable` with values
+  the settings update → field setters. The settings use flat dotted
+  keys like `inspections.undeclaredVariable` with values
   `"None"` / `"Warning"` / `"Error"`. Without this notification, ALL
   inspection levels default to `None` and NO diagnostics are published.
-- **Fix: `sendun serveur LSP tiersDiagnosticsConfig()`** — called after `connect()`
+- **Fix: `sendServerDiagnosticsConfig()`** — called after `connect()`
   succeeds. Sends `workspace/didChangeConfiguration` with a JsonObject
-  containing all `serveur.inspections.*` keys set to `"Warning"`.
-  Also sets `le serveur LSP tiers.typeSafety.*`, `le serveur LSP tiers.completion.*`,
-  `le serveur LSP tiers.codeLens`, and `le serveur LSP tiers.hint.*`.
-- **`.emmyrc.json` simplified** — removed the bogus `diagnostics`
-  section (it was silently ignored by this le serveur LSP tiers build). Now contains
+  containing all `inspections.*` keys set to `"Warning"`
+  plus les réglages de complétion et d'aides.
+- **Fichier de configuration du serveur simplifié** — removed the bogus `diagnostics`
+  section (silently ignored by this server build). Now contains
   only `luaVersion`, `source`, and `editor.completionCaseSensitive` —
   the only keys this server actually reads from the config file.
 
 ### Added — Workspace + capabilities
-- **`workspaceFolders`** in initialize params — le serveur LSP tiers uses this to
+- **`workspaceFolders`** in initialize params — used by the server to
   register the workspace root and resolve source files.
 - **Workspace client capabilities** — `didChangeConfiguration`,
   `workspaceFolders`, `configuration` all set to true.
@@ -3734,25 +3637,25 @@ manquant**. Toutes les corrections ont été appliquées dans cette session.
 
 ## [3.3.6] — 2026-08-08
 
-### Fixed — Diagnostics not published by le serveur LSP tiers
-- **Root cause: No config file** — le serveur LSP tiers requires a `.emmyrc.json`
-  configuration file in the workspace to enable diagnostics. Without it,
+### Fixed — Diagnostics not published by the Lua server
+- **Root cause: No config file** — the server requires a configuration
+  file in the workspace to enable diagnostics. Without it,
   all inspection levels (`undeclaredVariable`, `fieldValidation`,
   `parameterValidation`, etc.) default to `None` and NO diagnostics are
-  published. The demo now writes a `.emmyrc.json` to the cache dir before
+  published. The demo now writes the config file to the cache dir before
   connecting, with all inspection levels set to `Warning`.
-- **Config file passed via initializationOptions** — the `.emmyrc.json`
-  URI is passed to le serveur LSP tiers's `ConfigurationManager` via the
+- **Config file passed via initializationOptions** — the config
+  URI is passed to the server's configuration manager via the
   `configFiles` field of the `initializationOptions` JsonObject in the
-  LSP `initialize` request. This is the mechanism le serveur LSP tiers uses to
-  discover config files (discovered by analyzing the le serveur LSP tiers JAR bytecode).
+  LSP `initialize` request. This is the mechanism the server uses to
+  discover config files.
 - **LSP4J version mismatch** — the app was using LSP4J 0.21.0 while
   `cel-lsp` used 0.22.0. Aligned both to 0.22.0.
 
 ### Added — Server message logging
 - **`window/logMessage` and `window/showMessage`** — the
   `DefaultLanguageClient` now logs these server-initiated messages to
-  the in-app log panel (was: silently discarded). le serveur LSP tiers sends progress
+  the in-app log panel (was: silently discarded). The server sends progress
   and diagnostic info via these channels.
 
 ## [3.3.5] — 2026-08-08
@@ -3786,7 +3689,7 @@ manquant**. Toutes les corrections ont été appliquées dans cette session.
 
 ### Diagnostics
 - **Lua sample now includes an intentional error** — `print(undefinedVariable)`
-  at the end of the sample. This lets the user verify that le serveur LSP tiers
+  at the end of the sample. This lets the user verify that the server
   publishes diagnostics and that the squiggle rendering works. The log
   panel will show `publishDiagnostics: 1 diagnostics received` and the
   editor will draw a red squiggle under `undefinedVariable`.
@@ -3796,7 +3699,7 @@ manquant**. Toutes les corrections ont été appliquées dans cette session.
 ### Fixed — LSP completion "Internal error"
 - **Root cause #1: Invalid didChange range** — `onTextChanged` was sending
   `Range(Position(0,0), Position(Integer.MAX_VALUE, 0))` for Full sync.
-  `Integer.MAX_VALUE` as a line number is invalid — the le serveur LSP tiers server
+  `Integer.MAX_VALUE` as a line number is invalid — the server
   tried to convert it to an offset, crashed internally, and returned
   "Internal error" on every subsequent completion request. `documentSymbol`
   survived because it re-parses from scratch, but `completion` needs the
@@ -3810,8 +3713,8 @@ manquant**. Toutes les corrections ont été appliquées dans cette session.
   had no `capabilities` field, so the server didn't know what the client
   supports. Added `ClientCapabilities` with `CompletionCapabilities`,
   `HoverCapabilities` (markdown + plaintext), and `SignatureHelpCapabilities`.
-- **Root cause #4: File not on disk** — le serveur LSP tiers (based on les IDE de bureau PSI)
-  needs the file to exist on disk for its virtual file system indexing.
+- **Root cause #4: File not on disk** — the server (based on a virtual
+  file system index) needs the file to exist on disk for its virtual file system indexing.
   Without it, `documentSymbol` works (uses didOpen text) but completion
   crashes. The demo now writes `calculator.lua` to the cache dir before
   connecting.
@@ -4072,10 +3975,9 @@ manquant**. Toutes les corrections ont été appliquées dans cette session.
   `BracketMatch`.
 - **`PopupCoordinator`** — manages z-order and dismissal of all editor popups
   (completion < signature help < hover < code actions < go-to-symbol <
-  go-to-line < rename). Fixes l'éditeur de code de référence's popup overlap bug (#725).
+  go-to-line < rename) — évite le chevauchement des popups.
 - **`ViewZone` API** — inline UI gaps between lines for inline refactors,
-  inline type hints, and lightbulb quick-fixes. l'éditeur de code de référence's most-requested
-  missing feature (#787) — we add it from day one.
+  inline type hints, and lightbulb quick-fixes — ajouté dès le premier jour.
 - **`EditorView.setLanguage(Language)`** — the new entry point for language
   intelligence. When a `Language` is set, the editor uses its providers for
   all features.
@@ -4083,17 +3985,16 @@ manquant**. Toutes les corrections ont été appliquées dans cette session.
   for custom popup management.
 - 19 new tests (`PopupCoordinatorTest`, `LanguageSPITest`).
 
-### Design decisions (vs l'éditeur de code de référence)
-- **`Language` SPI has all provider hooks in the core** — l'éditeur de référence's `Language`
-  only has `getAnalyzer` + `requireAutoComplete`; hover/signature/code-actions
-  are bolted on outside the SPI. Our SPI has optional methods for every
-  feature, so the editor core can render them natively.
-- **`PopupCoordinator` built-in** — l'éditeur de référence has no z-order coordination.
-- **`ViewZone` from day one** — l'éditeur de référence is missing this (#787).
-- **Rope document model** (vs l'éditeur de référence's `Content` line-array) — O(log N) edits,
+### Design decisions
+- **`Language` SPI has all provider hooks in the core** — le SPI expose
+  des méthodes optionnelles pour chaque fonctionnalité
+  (hover/signature/code-actions), donc l'éditeur peut les rendre nativement.
+- **`PopupCoordinator` built-in** — coordination de z-order native.
+- **`ViewZone` from day one**.
+- **Rope document model** (arbre équilibré) — O(log N) edits,
   streaming search, no OOM on large files.
-- **Per-line render cache** with triple-stamp validation — l'éditeur de référence uses
-  `RenderNode` per line (we may adopt that in a future version for even
+- **Per-line render cache** with triple-stamp validation — un nœud de
+  rendu par ligne reste une piste d'évolution future (pour encore
   better perf).
 
 ### Migration guide (v1.x → v2.0.0)
@@ -4165,7 +4066,7 @@ The old setters still work (deprecated) — they create an internal adapter
 ### Added
 - **TokenType** expanded from 9 to 16 types (+OPERATOR, ESCAPE, LABEL,
   PROPERTY, VARIABLE, CONSTANT, REGEXP).
-- **6 themes**: les éditeurs de code de bureau Dark+, les éditeurs de code de bureau Light+, Dracula, Atom One Dark,
+- **6 themes**: Dark+, Light+, Dracula, One Dark,
   Monokai Pro, Solarized Dark.
 - **SyntaxHighlighter** improved: escape sequences, operators, ALL_CAPS
   constants, properties, +3 new languages (JSON, Python, JavaScript).
@@ -4183,8 +4084,8 @@ The old setters still work (deprecated) — they create an internal adapter
 - **Lua language support** — SyntaxHighlighter (keywords, builtins, comments,
   strings), cel-lsp-lua module (embedded completion, hover, signature help,
   symbols, diagnostics).
-- **le serveur LSP tiers LSP server** bundled in app/libs/ — runs in-process via
-  LocalServerSocket (same approach as l'éditeur de code de référence).
+- **Lua LSP server** bundled in app/libs/ — runs in-process via
+  LocalServerSocket.
 - **Virtual keys** (SymbolBarView) — 38dp bar above keyboard with Tab,
   //, move line up/down, duplicate, + 28 code symbols.
 - **Glass popup backgrounds** — translucent fills (alpha 0.86) + glass borders.
@@ -4208,7 +4109,7 @@ The old setters still work (deprecated) — they create an internal adapter
 - **CRITICAL**: `detectFolds()` bug — was modifying `foldRegions` instead of
   `folds` list, causing `indexOf` to return -1 and silently failing.
   Folds now work correctly: auto-detected on load, toggle on tap.
-- LSP Lua JAR minimal strip — conserve les classes PSI de l'IDE d'alors.
+- LSP Lua JAR minimal strip — keeps the AST classes of the server.
 - `EditorSession.detectFolds()` preserves collapsed state across re-detection.
 
 [2.1.0]: https://github.com/jjoblab/code-editor/releases/tag/v2.1.0
