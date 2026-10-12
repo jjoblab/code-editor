@@ -56,7 +56,8 @@ public class MagnifierPaintIsolationTest {
         Canvas canvas = new Canvas(bmp);
         try {
             EditorTextPainter text = new EditorTextPainter(view);
-            EditorChromePainter chrome = new EditorChromePainter(view, text);
+            EditorChromePainter chrome = new EditorChromePainter(view, text,
+                    new EditorHighlightPainter(view), new EditorDiagnosticsPainter(view));
             chrome.drawMagnifier(canvas);
         } finally {
             bmp.recycle();

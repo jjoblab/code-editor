@@ -67,7 +67,7 @@ public class EditorRenderer {
         this.highlights = new EditorHighlightPainter(view);
         this.diagnostics = new EditorDiagnosticsPainter(view);
         this.assist = new EditorAssistPopupPainter(view);
-        this.chrome = new EditorChromePainter(view, text);
+        this.chrome = new EditorChromePainter(view, text, highlights, diagnostics);
     }
 
     // ════════════════════════════════════════════════════════════════

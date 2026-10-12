@@ -34,6 +34,11 @@ import java.util.List;
 public class EditorChromePainter {
     private final EditorView view;
     private final EditorTextPainter text;
+    // ★ M1 : la loupe redessine la bande de sélection, les squiggles
+    // et le caret — mêmes peintres que le pipeline principal (mêmes
+    // géométries wrap/inlay/plis), passés par composition.
+    private final EditorHighlightPainter highlights;
+    private final EditorDiagnosticsPainter diagnostics;
 
     // Objet de travail réutilisable — évite les allocations par frame.
     // Usage mono-thread (uniquement depuis onDraw sur le thread UI).
@@ -50,9 +55,12 @@ public class EditorChromePainter {
     static final float MINIMAP_WIDTH_DP = 60f;
     static final float MINIMAP_LINE_HEIGHT_PX = 2.5f;  // px par ligne doc
 
-    EditorChromePainter(EditorView view, EditorTextPainter text) {
+    EditorChromePainter(EditorView view, EditorTextPainter text,
+            EditorHighlightPainter highlights, EditorDiagnosticsPainter diagnostics) {
         this.view = view;
         this.text = text;
+        this.highlights = highlights;
+        this.diagnostics = diagnostics;
     }
 
     /**
@@ -336,6 +344,20 @@ public class EditorChromePainter {
             int lastLine = Math.min(doc.lineCount() - 1, caretLine + 3);
             float textAreaLeft = view.metrics.getGutterWidth() + view.metrics.getPadLeft();
             float lineHeight = view.metrics.getLineHeight();
+
+            // ★ M1 — la loupe est un instrument de RÉGLAGE : montrer ce
+            // qu'on règle, dans l'ordre du pipeline principal (bande
+            // SOUS le texte, puis texte, puis squiggle, puis caret).
+            // Bande de sélection : même peintre et même géométrie que la
+            // passe principale (wrap par rangées, inlays tissés,
+            // saute les lignes repliées).
+            jo.codeeditor.document.Selection sel = view.clampSelection(
+                    view.session.getSelection(), doc);
+            if (!sel.isCursor()) {
+                highlights.drawSelection(canvas, doc, sel, textAreaLeft,
+                        lineHeight, 0f, firstLine, lastLine);
+            }
+
             // Paint dédié : synchronisé depuis le paint du texte (typeface,
             // taille), couleur de base posée explicitement. Le paint partagé
             // du rendu principal n'est touché nulle part ci-dessous.
@@ -360,6 +382,32 @@ public class EditorChromePainter {
                 } else {
                     magnifierPaint.setColor(view.theme.textColor);
                     canvas.drawText(lineText, textAreaLeft - view.hOffset, lineY + lineHeight * 0.78f, magnifierPaint);
+                }
+            }
+
+            // ★ M1 — squiggles de diagnostic sur la même fenêtre de
+            // lignes : même peintre que la passe principale (ondulé de
+            // sévérité, voile Unnecessary, colonnes visuelles inlay-aware).
+            diagnostics.drawSquiggles(canvas, doc, firstLine, lastLine,
+                    textAreaLeft, lineHeight, 0f);
+
+            // ★ M1 — barre de caret si la ligne du curseur est dans la
+            // fenêtre (wrap/inlay-aware par caretScreenPos, source
+            // unique du pipeline principal). Le clignotement reste
+            // piloté par le drawCaret principal : la loupe est active
+            // pendant un geste, phase pleine du curseur.
+            if (sel.isCursor() && view.caretVisible) {
+                int caretDocLine = jo.codeeditor.view.EditorView.clamp(
+                        doc.lineForOffset(sel.start), 0, doc.lineCount() - 1);
+                if (caretDocLine >= firstLine && caretDocLine <= lastLine
+                        && !view.isLineFoldedCached(caretDocLine)) {
+                    float[] caretPos = view.caretScreenPos(sel.start);
+                    float lineTop = view.docLineToY(caretDocLine) - view.vOffset;
+                    view.caretPaint.setColor(view.theme.caret);
+                    view.caretPaint.setStyle(Paint.Style.STROKE);
+                    view.caretPaint.setStrokeWidth(2f);
+                    canvas.drawLine(caretPos[0], lineTop,
+                            caretPos[0], lineTop + lineHeight, view.caretPaint);
                 }
             }
         }
