@@ -34,7 +34,13 @@ android {
     }
 
     lint {
-        abortOnError = false
+        // Bloquant : une nouvelle violation (erreur OU avertissement non
+        // couvert par la baseline) échoue le build. La baseline
+        // lint-baseline.xml fige l'existant connu — elle ne doit jamais
+        // être régénérée pour « faire passer » un nouveau problème.
+        abortOnError = true
+        warningsAsErrors = true
+        baseline = file("lint-baseline.xml")
     }
 }
 
@@ -51,4 +57,11 @@ dependencies {
     testImplementation("org.robolectric:robolectric:4.13")
     testImplementation("androidx.test:core:1.6.1")
     testImplementation("androidx.test.ext:junit:1.2.1")
+}
+
+tasks.withType<JavaCompile>().configureEach {
+    options.encoding = "UTF-8"
+    // Tous les avertissements javac visibles ; -Werror sera envisagé
+    // quand le bruit historique sera éliminé.
+    options.compilerArgs.add("-Xlint:all")
 }
