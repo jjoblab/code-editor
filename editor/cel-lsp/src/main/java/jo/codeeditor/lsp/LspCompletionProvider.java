@@ -33,6 +33,14 @@ class LspCompletionProvider implements CompletionProvider {
 
     @Override
     public void complete(CharSequence text, int caret, CompletionPublisher publisher) {
+        // Invocation explicite (raccourci, menu) : pas de caractère
+        // déclencheur — Invoked.
+        complete(text, caret, (String) null, publisher);
+    }
+
+    @Override
+    public void complete(CharSequence text, int caret, String triggerCharacter,
+                         CompletionPublisher publisher) {
         LanguageServer server = wrapper.getServer();
         if (server == null) {
             log("completion: server is null — not connected?", null);
@@ -55,12 +63,20 @@ class LspCompletionProvider implements CompletionProvider {
         params.setTextDocument(editor.getTextDocumentIdentifier());
         params.setPosition(editor.offsetToPosition(caret));
         // Définit le CompletionContext — certains serveurs rejettent
-        // les requêtes sans lui. Trigger kind Invoked (demande explicite
-        // de l'utilisateur).
+        // les requêtes sans lui. Trigger kind réel (modèle Alt+Entrée /
+        // Android Studio) : TriggerCharacter + le caractère quand la
+        // complétion a été auto-déclenchée par sa frappe (ex. « . » →
+        // membres d'une instance), Invoked pour toute demande explicite.
         org.eclipse.lsp4j.CompletionContext ctx = new org.eclipse.lsp4j.CompletionContext();
-        ctx.setTriggerKind(org.eclipse.lsp4j.CompletionTriggerKind.Invoked);
+        if (triggerCharacter != null && !triggerCharacter.isEmpty()) {
+            ctx.setTriggerKind(org.eclipse.lsp4j.CompletionTriggerKind.TriggerCharacter);
+            ctx.setTriggerCharacter(String.valueOf(triggerCharacter.charAt(0)));
+        } else {
+            ctx.setTriggerKind(org.eclipse.lsp4j.CompletionTriggerKind.Invoked);
+        }
         params.setContext(ctx);
-        log("completion: requesting at caret=" + caret, null);
+        log("completion: requesting at caret=" + caret
+                + (triggerCharacter != null ? " trigger=" + triggerCharacter : " invoked"), null);
         // ★ Fraîcheur : version du document au moment de la requête —
         // l'acceptation du candidat est asynchrone, un écart (l'utilisateur
         // a tapé) fera refuser les additionalTextEdits plutôt que de

@@ -2734,6 +2734,28 @@ public class EditorView extends View {
          */
         List<jo.codeeditor.completion.CompletionSession.Item> provide(
             String text, int caret, int tokenStart, String prefix);
+
+        /**
+         * Variante informant du caractère déclencheur — modèle Alt+Entrée :
+         * la complétion auto-déclenchée par la frappe d'un caractère
+         * déclencheur (ex. « . ») se distingue de l'invocation explicite
+         * (Ctrl+Espace, bouton) ; le protocole LSP transporte cette
+         * distinction (CompletionContext.triggerKind).
+         *
+         * <p>Implémentation par défaut : délègue à la variante 4 paramètres
+         * (l'information est ignorée) — les fournisseurs existants ne
+         * changent pas.</p>
+         *
+         * @param triggerCharacter le caractère qui a auto-déclenché la
+         *                         complétion, ou {@code null} (invocation
+         *                         explicite)
+         * @since 3.51.0
+         */
+        default List<jo.codeeditor.completion.CompletionSession.Item> provide(
+            String text, int caret, int tokenStart, String prefix,
+            Character triggerCharacter) {
+            return provide(text, caret, tokenStart, prefix);
+        }
     }
 
     public void setCompletionProvider(CompletionProvider provider) {
