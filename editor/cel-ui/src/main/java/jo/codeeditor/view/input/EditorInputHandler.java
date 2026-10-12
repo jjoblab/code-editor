@@ -58,15 +58,15 @@ public class EditorInputHandler {
     // ── État tactile ────────────────────────────────────────────────
     private boolean isDragging = false;
     private boolean isScrolling = false;
-    // ── Drag-select (modèle l'éditeur de référence) ──
+    // ── Drag-select ──
     // Le drag-select au doigt est armé par l'APPUI LONG (via
     // EditorSelectionGestures.armDragSelect) — jamais par un tap. L'état
     // d'armement vit dans EditorSelectionGestures (isDragSelectArmed) ;
     // il est désarmé à toute terminaison de geste et à tout nouveau DOWN
-    // (l'éditeur de référence : finishDragSelect au DOWN). Un simple tap ne peut donc
+    // (désarmement au DOWN). Un simple tap ne peut donc
     // JAMAIS créer de sélection, même avec le jitter naturel du doigt.
-    /** Vrai dès qu'un drag de poignée a dépassé le touch-slop (parité
-     *  l'éditeur de référence selHandleMoving) — la poignée ne bouge pas avant. */
+    /** Vrai dès qu'un drag de poignée a dépassé le touch-slop
+     *  (la poignée ne bouge pas avant). */
     private boolean handleMoving = false;
     private float lastTouchX = 0;
     private float lastTouchY = 0;
@@ -251,7 +251,7 @@ public class EditorInputHandler {
                 }
                 // Quick doc : un DOWN DANS le popup l'engloutit
                 // (drag = scroll du corps, parité NavMenu) ; un DOWN
-                // HORS du popup le referme (parité l'éditeur de référence : tap ailleurs →
+                // HORS du popup le referme (tap ailleurs →
                 // dismiss) sans engloutir le geste — le tap continue de
                 // placer le caret derrière.
                 if (view.quickDocVisible) {
@@ -278,8 +278,8 @@ public class EditorInputHandler {
                     return true;
                 }
                 view.handleDragMode = 0;
-                // Tout nouveau DOWN désarme le drag-select (l'éditeur de référence :
-                // finishDragSelect) — l'état d'un geste précédent ne
+                // Tout nouveau DOWN désarme le drag-select
+                // (finishDragSelect) — l'état d'un geste précédent ne
                 // peut jamais fuiter dans celui-ci.
                 selectionGestures.disarmDragSelect();
                 if (x < view.metrics.getGutterWidth()
@@ -364,7 +364,7 @@ public class EditorInputHandler {
                     return true;
                 }
                 if (view.handleDragMode > 0) {
-                    // Parité l'éditeur de référence (selHandleMoving) : la poignée ne bouge
+                    // La poignée ne bouge
                     // qu'après dépassement du touch-slop depuis le DOWN —
                     // le jitter d'un appui sur la poignée ne déplace ni
                     // la sélection ni la loupe.
@@ -391,7 +391,7 @@ public class EditorInputHandler {
                     if (beyondSlop
                             && (isDragging || selectionGestures.isDragSelectArmed())) {
                         // Drag-select au doigt, armé par l'APPUI LONG
-                        // (modèle l'éditeur de référence dragSelectAfterLongPress) : le
+                        // (armé par l'appui long) : le
                         // glissement au-delà du slop étend la sélection
                         // depuis le mot sélectionné par l'appui long. Le
                         // premier MOVE engage le geste, ce qui neutralise
@@ -414,8 +414,8 @@ public class EditorInputHandler {
                         touchHover.cancel();
                     }
                     // ★ SOUS le touch-slop : RIEN. Ni tap ni drag — la
-                    // séparation tap/drag passe par le slop (parité
-                    // l'éditeur de référence). C'est ce qui corrige le bug « j'ai
+                    // séparation tap/drag passe par le slop.
+                    // C'est ce qui corrige le bug « j'ai
                     // seulement appuyé et plusieurs lignes/mots se sont
                     // sélectionnés » : le jitter naturel du doigt sous
                     // le seuil ne crée plus jamais de sélection.
@@ -433,7 +433,7 @@ public class EditorInputHandler {
                 touchHover.cancel();
                 view.invalidate();
                 // Toute terminaison de geste désarme le drag-select
-                // (l'éditeur de référence finishDragSelect) : l'armement ne survit JAMAIS
+                // : l'armement ne survit JAMAIS
                 // à un geste — seul un nouvel appui long le réarme.
                 selectionGestures.disarmDragSelect();
                 if (sheetGesture) {
@@ -526,7 +526,7 @@ public class EditorInputHandler {
                 // CE geste : son UP ne doit pas résoudre un tap (qui
                 // reposerait le caret et écraserait la sélection du
                 // drag). Le tap lui-même ne nuit plus aucun état de
-                // drag-select (modèle l'éditeur de référence : seul l'appui long arme).
+                // drag-select (seul l'appui long arme).
                 boolean wasDragging = isDragging;
                 isDragging = false;
                 handleMoving = false;

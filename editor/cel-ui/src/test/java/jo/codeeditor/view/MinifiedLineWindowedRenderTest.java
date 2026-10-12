@@ -19,9 +19,9 @@ import static org.junit.Assert.assertTrue;
 
 /**
  * Régression « minifier » : le rendu d'une ligne minifiée (des centaines
- * de Ko sur une seule ligne) doit être FENÊTRÉ — parité l'éditeur de code de référence
- * ({@code TextRow.draw(canvas, beginOffset, endOffset)} borne le dessin à
- * la fenêtre horizontale visible).
+ * de Ko sur une seule ligne) doit être FENÊTRÉ — le dessin est
+ * borné à la fenêtre horizontale visible
+ * ({@code [beginOffset, endOffset)}).
  *
  * <p>Avant le correctif : le chemin ligatures construisait un
  * {@code StaticLayout} de la ligne ENTIÈRE (secondes de façonnage +

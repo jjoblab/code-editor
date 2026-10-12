@@ -279,7 +279,7 @@ public class EditorRenderer {
                     }
                 } else {
                     view.textPaint.setColor(view.theme.textColor);
-                    // Fenêtré (comportement de référence) : une ligne minifiée sans
+                    // Fenêtré : une ligne minifiée sans
                     // style ne dessine que sa tranche visible.
                     text.drawPlainLine(canvas, lineText,
                             textAreaLeft - view.hOffset,

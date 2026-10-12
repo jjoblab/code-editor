@@ -358,41 +358,38 @@ public class EditorHighlightPainter {
      * Lot B refonte : guides d'indentation basés sur les blocs
      * de code (paires d'accolades pour C_LIKE, régions
      * d'indentation pour non C_LIKE), avec cache par révision
-     * du document (approche l'éditeur de code de référence améliorée).
+     * du document, calculés à la demande.
      *
      * <p><b>Cache (CodeBlockIndex) :</b> les blocs sont calculés
      * une fois par révision du document et cachés. La clé de
      * cache est {@code (session, doc.getRevision(), doc)}.
      * Recalcul uniquement quand le document change — pas à
-     * chaque frame. C'est l'approche de l'éditeur de code de référence (qui
-     * calcule les blocs dans l'analyseur), adaptée à notre
-     * architecture (cache intégré à la vue, pas besoin
+     * chaque frame : les blocs sont calculés une fois par
+     * révision et servis par le cache intégré à la vue (pas besoin
      * d'analyseur de langage séparé).</p>
      *
      * <p><b>Deux modes (indentCountMode) :</b></p>
      * <ul>
      *   <li><b>C_LIKE</b> (Java, Kotlin, etc.) : le guide est
      *       centré à la position réelle du {@code {} dans la
-     *       ligne ({@code startCol * charWidth}). Mode l'éditeur de référence
-     *       {@code indentCountMode=false}.</li>
+     *       ligne ({@code startCol * charWidth}).</li>
      *   <li><b>Non C_LIKE</b> (Python, YAML, etc.) : le guide
      *       est positionné à {@code indentLevel * spaceWidth}.
-     *       Mode l'éditeur de référence {@code indentCountMode=true}. Utilise
-     *       l'algorithme IndentRange de les éditeurs de code de bureau avec mode
-     *       {@code offSide} pour Python.</li>
+     *       Utilise l'algorithme IndentRange (balayage
+     *       bas-vers-haut) avec mode {@code offSide} pour
+     *       Python.</li>
      * </ul>
      *
      * <p><b>Recherche binaire :</b> les blocs sont triés par
      * {@code startLine}, ce qui permet une recherche binaire
      * pour trouver le premier bloc visible en O(log blocs).</p>
      *
-     * <p><b>Améliorations par rapport à l'éditeur de code de référence :</b></p>
+     * <p><b>Caractéristiques :</b></p>
      * <ul>
      *   <li>API publique {@link IndentGuideStyle} pour
-     *       activer/désactiver les guides (OFF/INDENT/INDENT_WITH_SCOPE)
-     *       — l'éditeur de référence n'a pas d'équivalent.</li>
+     *       activer/désactiver les guides (OFF/INDENT/INDENT_WITH_SCOPE).</li>
      *   <li>Portée active pour les langages non C_LIKE (basée
-     *       sur l'indentation) — l'éditeur de référence ne le fait pas.</li>
+     *       sur l'indentation).</li>
      *   <li>Cache intégré à la vue, pas besoin d'analyseur de
      *       langage dédié — fonctionne pour tous les langages
      *       enregistrés dans le registre.</li>
@@ -453,7 +450,7 @@ public class EditorHighlightPainter {
             // X : les IDE de bureau centre le guide au MILIEU de la colonne
             // d'indentation : x = (col_x + (col+1)_x) / 2.
             // On utilise min(startCol, endCol) pour la position de
-            // base (comme l'éditeur de code de référence), puis on ajoute un demi-
+            // base, puis on ajoute un demi-
             // caractère pour centrer.
             int baseCol = Math.min(startCol, endCol);
             float centerX = offsetX + (baseCol + 0.5f) * charWidth;

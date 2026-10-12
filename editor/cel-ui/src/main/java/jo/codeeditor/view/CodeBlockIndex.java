@@ -7,10 +7,10 @@ import jo.codeeditor.session.EditorSession;
  * Cache des paires d'accolades {@code { … }} et des régions
  * d'indentation, mémoïsé par révision du document.
  *
- * <p><b>Modèle l'éditeur de code de référence :</b> l'éditeur de référence calcule les blocs
- * ({@code CodeBlock}) dans l'analyseur de langage (asynchrone,
- * incrémental). Notre approche est plus simple mais aussi
- * performante : on calcule les blocs à la demande et on les
+ * <p><b>Modèle de calcul :</b> les blocs
+ * ({@code CodeBlock}) sont calculés à la demande et mémoïsés
+ * par révision du document — pas d'analyseur de langage
+ * asynchrone requis : on calcule les blocs à la demande et on les
  * cache par révision du document. La clé de cache est
  * {@code (identité session, doc.getRevision(), identité doc)}.
  * Une simple comparaison de référence NE PEUT PAS suffire car
@@ -22,16 +22,15 @@ import jo.codeeditor.session.EditorSession;
  *       etc.) : les blocs sont des paires d'accolades
  *       {@code { … }}. Le {@code startColumn} est la position
  *       réelle du {@code {} dans la ligne. Le guide est centré
- *       à cette position. Mode l'éditeur de code de référence
- *       {@code indentCountMode=false}.</li>
+ *       à cette position (centrage sur l'accolade).</li>
  *   <li><b>Non C_LIKE</b> (Python, YAML, etc.) : les blocs sont
  *       des régions d'indentation calculées par l'algorithme
- *       {@code IndentRange} de les éditeurs de code de bureau (balayage bas-vers-haut,
- *       mode {@code offSide} pour Python). Le
+ *       {@code IndentRange} (balayage bas-vers-haut, mode
+ *       {@code offSide} pour Python). Le
  *       {@code startColumn} est le compte d'espaces
  *       d'indentation de la ligne de début. Le guide est
- *       positionné à {@code startColumn * spaceWidth}. Mode
- *       l'éditeur de code de référence {@code indentCountMode=true}.</li>
+ *       positionné à {@code startColumn * spaceWidth} (compte
+ *       d'espaces d'indentation).</li>
  * </ul>
  *
  * <p><b>Recherche binaire :</b> les blocs sont triés par
@@ -39,7 +38,7 @@ import jo.codeeditor.session.EditorSession;
  * trouver le premier bloc visible en O(log blocs) au lieu
  * d'un balayage linéaire à chaque frame.</p>
  *
- * <p><b>Améliorations par rapport à l'éditeur de code de référence :</b></p>
+ * <p><b>Caractéristiques :</b></p>
  * <ul>
  *   <li>Le cache est intégré à la vue (pas besoin d'un
  *       analyseur de langage séparé) — fonctionne pour tous

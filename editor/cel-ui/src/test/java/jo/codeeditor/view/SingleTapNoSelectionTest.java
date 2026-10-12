@@ -27,7 +27,7 @@ import static org.junit.Assert.assertTrue;
  * plusieurs lignes ou mots sont sélectionnés alors que j'ai seulement
  * appuyé ».
  *
- * <p>Cause racine (lecture croisée, confirmée par le modèle l'éditeur de code de référence) :
+ * <p>Cause racine (lecture croisée, confirmée par le modèle d'ancrage) :
  * chaque tap simple armait le drag-select ({@code armDragSelect()} au
  * cas 1 de {@code EditorTapResolver.handleTap}) et l'armement survivait
  * au geste suivant ; la branche MOVE engageait alors le drag-select dès
@@ -36,10 +36,10 @@ import static org.junit.Assert.assertTrue;
  * tap N+1 sélectionnait la plage entre le caret du tap N et le doigt
  * (plusieurs mots sur la même ligne, plusieurs lignes en dessous).</p>
  *
- * <p>Modèle l'éditeur de référence ({@code EditorTouchEventHandler}) : le tap pose le caret
- * — point final ; le drag-select au doigt est armé par l'APPUI LONG
- * ({@code dragSelectAfterLongPress}) ; le touch-slop sépare strictement
- * tap et drag ; tout DOWN désarme ({@code finishDragSelect}).</p>
+ * <p>Modèle : le tap pose le caret — point final ; le drag-select
+ * au doigt est armé par l'APPUI LONG ; le touch-slop sépare
+ * strictement tap et drag ; tout DOWN désarme
+ * ({@code finishDragSelect}).</p>
  *
  * @author jo@Dev
  */

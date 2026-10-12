@@ -256,10 +256,10 @@ public class EditorView extends View {
     final EditorFoldIndex foldIndex = new EditorFoldIndex(this);
     // Cache des blocs de code (paires d'accolades ou régions
     // d'indentation) pour les guides d'indentation — mémoïsé
-    // par révision du document (approche l'éditeur de code de référence améliorée).
+    // par révision du document.
     final CodeBlockIndex codeBlockIndex = new CodeBlockIndex(this);
     // Détecteur de lignes sticky (en-têtes collés en haut pendant
-    // le scroll) — inspiré d'les IDE de bureau 2024.x.
+    // le scroll, à la manière des éditeurs de code de bureau).
     final StickyLineDetector stickyLineDetector = new StickyLineDetector(this);
     // Sticky lines activées/désactivées (défaut : true).
     public boolean stickyLinesEnabled = true;
@@ -2603,8 +2603,7 @@ public class EditorView extends View {
     public boolean isFontLigatures() { return fontLigatures; }
 
     /**
-     * Bascule du survol par appui long maintenu (parité l'éditeur de référence
-     * "alwaysShowOnTouchHover").
+     * Bascule du survol par appui long maintenu.
      *
      * <p>Activé, un maintien de 500 ms sans mouvement ni relâchement affiche
      * le popup quick doc à l'offset touché — SANS déclencher la sélection

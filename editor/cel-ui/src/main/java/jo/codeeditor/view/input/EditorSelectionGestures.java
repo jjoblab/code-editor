@@ -30,20 +30,20 @@ public class EditorSelectionGestures {
      *  doigt au MOVE suivant). */
     private int handleDragAnchor = -1;
 
-    // ── Drag-select au doigt, armé par l'APPUI LONG (modèle l'éditeur de référence) ──
-    // Portage de l'approche l'éditeur de code de référence (EditorTouchEventHandler :
-    // beginDragSelect/handleDragSelect + prop dragSelectAfterLongPress) :
+    // ── Drag-select au doigt, armé par l'APPUI LONG ──
+    // Modèle d'ancrage (beginDragSelect/handleDragSelect, armé
+    // après l'appui long) :
     // le drag-select n'est PLUS armé par un simple tap — le jitter
     // naturel du doigt sous le seuil du touch-slop déclenchait une
     // sélection depuis le caret posé par le tap précédent (« plusieurs
     // lignes ou mots sélectionnés alors que j'ai seulement appuyé »).
     // Il est armé par l'appui long, qui a déjà sélectionné le mot : le
     // glissement étend alors la sélection depuis la borne du mot
-    // OPPOSÉE au doigt (l'éditeur de référence : anchor = right si doigt < point
+    // OPPOSÉE au doigt (ancre = borne droite si doigt < point
     // d'appui, left sinon). Toute terminaison de geste (UP/CANCEL) et
-    // tout nouveau DOWN désarment (l'éditeur de référence : finishDragSelect au DOWN).
+    // tout nouveau DOWN désarment (désarmement explicite au DOWN).
     private static final int NO_DRAG_SELECT = -1;
-    /** Offset du point d'appui long (le « character index » de l'éditeur de référence). */
+    /** Offset du point d'appui long (l'offset du caractère sous le doigt). */
     private int dragSelectPressOffset = NO_DRAG_SELECT;
     /** Borne GAUCHE de la sélection au moment de l'appui long. */
     private int dragSelectLeft = NO_DRAG_SELECT;
@@ -70,7 +70,7 @@ public class EditorSelectionGestures {
         int offset = view.offsetAt(x, y);
         view.session.selectWordAt(offset);
         view.handlesVisible = true;
-        // ★ Arme le drag-select (modèle l'éditeur de référence dragSelectAfterLongPress) :
+        // ★ Arme le drag-select (armé par l'appui long) :
         // le mot vient d'être sélectionné — un glissement ultérieur du
         // doigt étendra la sélection depuis la borne du mot opposée au
         // doigt. C'est l'APPUI LONG qui arme, jamais le tap.
@@ -89,7 +89,7 @@ public class EditorSelectionGestures {
     }
 
     /** À appeler à l'armement du drag-select (appui long, juste après
-     *  selectWordAt) : fige les trois indices du modèle l'éditeur de référence — offset du
+     *  selectWordAt) : fige les trois indices du drag-select — offset du
      *  point d'appui et bornes gauche/droite de la sélection courante
      *  (le mot sélectionné par l'appui long). */
     void armDragSelect(int pressOffset) {
@@ -103,7 +103,7 @@ public class EditorSelectionGestures {
         dragSelectRight = Math.max(sel.start, sel.end);
     }
 
-    /** Désarme le drag-select (l'éditeur de référence finishDragSelect) : toute terminaison
+    /** Désarme le drag-select : toute terminaison
      *  de geste (UP/CANCEL), tout nouveau DOWN et tout changement de
      *  session l'appellent — le drag-select ne survit JAMAIS à un geste. */
     void disarmDragSelect() {
@@ -121,11 +121,11 @@ public class EditorSelectionGestures {
 
     /**
      * Glissement de drag-select (armé par l'appui long). Règle d'ancre
-     * l'éditeur de référence : la borne du MOT opposée au doigt reste l'ancre — doigt à
+     * du drag-select : la borne du MOT opposée au doigt reste l'ancre — doigt à
      * gauche du point d'appui → ancre = borne droite, doigt à droite →
      * ancre = borne gauche. La sélection contient toujours le mot
      * d'origine et suit le doigt. La loupe s'affiche pendant le
-     * glissement (l'éditeur de référence updateDragSelectMagnifier).
+     * glissement.
      */
     void handleTouchDrag(MotionEvent event) {
         int offset = view.offsetAt(event.getX(), event.getY());

@@ -13,7 +13,7 @@ import java.io.OutputStream;
  * </ul>
  *
  * <p>Couche indépendante du processus : le module LSP ne connaît que des
- * flux, jamais la manière dont ils sont créés. Contrairement à l'éditeur de code de référence,
+ * flux, jamais la manière dont ils sont créés ;
  * un {@link ProcessBuilderConnectionProvider} est fourni intégré.
  */
 public interface StreamConnectionProvider {
