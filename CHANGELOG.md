@@ -5,6 +5,60 @@ All notable changes to **code-editor-lib** are documented in this file.
 Le format suit la convention [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.51.0] — 2026-10-13 — Finitions du lot actions : complétion, source, cosmétique
+
+Achève le plan du rapport d'audit (P2-9 → P2-11) : les trois derniers
+chantiers du modèle « Android Studio », tous additifs — les surfaces
+publiques d'origine (constructeurs, signatures, lambdas) délèguent à
+l'identique.
+
+### Added
+
+- **Trigger kind réel de la complétion (P2-9)** — la complétion
+  auto-déclenchée par la frappe d'un caractère déclencheur (ex. « . »)
+  part avec `CompletionContext.triggerKind = TriggerCharacter` + le
+  caractère ; toute invocation explicite (Ctrl+Espace, bouton) reste
+  `Invoked`. Chaîne additive : `CompletionProvider` gagne une variante
+  par défaut `complete(text, caret, triggerCharacter, publisher)` ; le
+  popup capture le caractère reconnu et le véhicule jusqu'au serveur.
+- **Actions source au document (P2-10)** — « Organiser les imports »
+  devient une action d'hôte : UNE requête par document avec
+  `only = ["source.organizeImports"]` dans le contexte LSP (le filtre de
+  famille part au serveur — plus de sondage multi-lignes filtré
+  localement), entrée « Organize imports » du menu contextuel (visible
+  seulement quand un fournisseur d'actions est branché). Nouvelle API
+  `EditorView.performFixAll(callback)` (`only = ["source.fixAll"]`) :
+  prête pour les serveurs qui la proposeront — pas d'entrée de menu
+  morte tant qu'aucun ne la propose.
+- **Tag `Unnecessary` peint estompé (P2-11)** — le tag LSP du code
+  inutilisé (import mort) est transporté bout-en-bout (Diagnostic SPI,
+  DiagnosticShift — conservé au décalage) : la plage est peinte en voile
+  gris (~20 % d'alpha) au lieu du soulignement de sévérité — le grisé
+  Android Studio des imports morts.
+- **Rapport d'audit et guide de montée CodeIDE archivés** —
+  `docs/RAPPORT-ACTIONS-LSP-CODE-EDITOR.md` (avec note d'état de
+  livraison : les 11 chantiers du plan sont livrés) et
+  `docs/MISE-A-JOUR-CODEIDE.md` (montée de version du consommateur,
+  protocole de vérification sur appareil).
+
+### Changed
+
+- **Sévérité absente → Information (P2-11)** — la spec LSP 3.17 laisse
+  le choix au client ; un diagnostic sans sévérité n'a pas prouvé son
+  urgence : Information (était Warning — des jaunes injustifiés).
+
+### Fixed
+
+- **Publication LSP par la voie unique (P2-11c)** — la voie LSP appelait
+  `session.setDiagnostics` + `invalidate` mais JAMAIS
+  `notifyDiagnosticsChanged` : les points de diagnostic de la gouttière
+  restaient périmés après une publication serveur, et le listener hôte
+  `OnDiagnosticsPublishedListener` restait muet côté LSP (le futur
+  onglet Problèmes en dépend). La publication emprunte désormais le même
+  chemin de sortie que la voie locale ; le post adopte le pattern
+  `applyServerEdit` (vue non attachée → exécution en ligne — une
+  publication serveur ne reste jamais pendante).
+
 ## [3.50.1] — 2026-10-12 — Re-publication du lot actions
 
 Aucun changement de code par rapport à 3.50.0. Le premier build JitPack
