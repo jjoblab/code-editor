@@ -131,4 +131,32 @@ class LspTextUtilsTest {
     private static List<TextEdit> edits(TextEdit... es) {
         return new ArrayList<>(Arrays.asList(es));
     }
+
+    // ── Fraîcheur des éditions (contrôle de version) ──────────────────
+
+    @Test
+    void isStaleEdit_nullVersion_pasDeControle() {
+        // LSP 3.13 (changes par URI) ne porte pas de version : pas de
+        // contrôle possible — pas considéré périmé.
+        assertFalse(LspTextUtils.isStaleEdit(null, 42));
+    }
+
+    @Test
+    void isStaleEdit_versionEgale_frais() {
+        assertFalse(LspTextUtils.isStaleEdit(7, 7));
+    }
+
+    @Test
+    void isStaleEdit_versionInferieure_perime() {
+        // L'utilisateur a tapé depuis la requête : les positions du
+        // serveur ne sont plus fiables.
+        assertTrue(LspTextUtils.isStaleEdit(3, 7));
+    }
+
+    @Test
+    void isStaleEdit_versionSuperieure_perime() {
+        // Un serveur qui annonce une version inconnue du client est
+        // incohérent : refus prudent.
+        assertTrue(LspTextUtils.isStaleEdit(11, 7));
+    }
 }

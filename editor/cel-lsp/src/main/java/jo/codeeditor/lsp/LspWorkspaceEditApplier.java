@@ -41,6 +41,19 @@ class LspWorkspaceEditApplier {
      * @return le compte rendu structuré (appliqué / motifs de rejet)
      */
     WorkspaceDiskEdits.Result applyWorkspaceEdit(org.eclipse.lsp4j.WorkspaceEdit edit) {
+        return applyWorkspaceEdit(edit, null);
+    }
+
+    /**
+     * @param versionAtRequest version du document capturée au moment où
+     *        la requête à l'origine de cet edit est partie (null = pas
+     *        de contrôle). Si le document a changé depuis, les positions
+     *        du serveur sont périmées : l'édition est REFUSÉE (voir
+     *        {@link LspTextUtils#isStaleEdit}) au lieu de corrompre le
+     *        texte.
+     */
+    WorkspaceDiskEdits.Result applyWorkspaceEdit(org.eclipse.lsp4j.WorkspaceEdit edit,
+            Integer versionAtRequest) {
         EditorView editorView = editor.getEditorView();
         if (editorView == null || editorView.getSession() == null) {
             android.util.Log.w("LspEditor", "applyWorkspaceEdit: no editor bound");
@@ -50,6 +63,21 @@ class LspWorkspaceEditApplier {
         if (edit == null) return new WorkspaceDiskEdits.Result(true, java.util.Collections.emptyList(), 0, 0);
         String currentUri = editor.getFileUri();
         File workspaceRoot = workspaceRoot();
+
+        // ── Phase 0 : fraîcheur du document. Version portée par le
+        // WorkspaceEdit (LSP 3.16 documentChanges) OU version capturée à
+        // la requête — tout écart avec la version synchronisée courante
+        // ⇒ refus net (l'utilisateur est informé par le journal).
+        Integer versionPortee = versionDuDocumentCourant(edit, currentUri);
+        int versionCourante = editor.getDocumentVersion();
+        if (LspTextUtils.isStaleEdit(versionPortee, versionCourante)
+                || LspTextUtils.isStaleEdit(versionAtRequest, versionCourante)) {
+            String motif = "éditions périmées (document modifié depuis la requête : version "
+                    + versionCourante + " ≠ " + (versionPortee != null ? versionPortee : versionAtRequest) + ")";
+            android.util.Log.w("LspEditor", "applyWorkspaceEdit REFUSÉ : " + motif);
+            return new WorkspaceDiskEdits.Result(false,
+                    java.util.Collections.singletonList(motif), 0, 0);
+        }
 
         // ── Phase 1 : sépare éditions du fichier courant / fichiers
         // tiers, en signalant les ResourceOperation refusées.
@@ -64,30 +92,26 @@ class LspWorkspaceEditApplier {
             return new WorkspaceDiskEdits.Result(false, rejections, 0, 0);
         }
 
-        // ── Phase 2 : valide les plages du fichier courant (sur la
-        // session) AVANT toute écriture disque — même politique
-        // tout-ou-rien que les fichiers tiers.
-        SessionEdits sessionEdits = planSessionEdits(currentEdits);
-        if (sessionEdits == null) {
+        // ── Phase 2 : applique les éditions du fichier courant (thread
+        // UI) — validation complète + groupe d'annulation unique via
+        // SessionEditGroup — AVANT toute écriture disque (même politique
+        // tout-ou-rien que les fichiers tiers).
+        if (!applySessionEdits(currentEdits)) {
             rejections.add("éditions invalides sur le fichier courant");
             android.util.Log.w("LspEditor", "WorkspaceEdit refusé : " + rejections);
             return new WorkspaceDiskEdits.Result(false, rejections, 0, 0);
         }
 
-        // ── Phase 3 : applique (session sur le thread UI, disque en
-        // arrière-plan avec confinement + écriture atomique).
+        // ── Phase 3 : disque en arrière-plan (confinement + écriture
+        // atomique) — la session est déjà appliquée.
         int diskCount = countDiskEdits(diskOnly);
         if (diskCount > 0) {
             applyDiskEditsAsync(diskOnly, workspaceRoot);
+            // Le détail du résultat disque arrive de façon asynchrone.
+            return new WorkspaceDiskEdits.Result(true,
+                    java.util.Collections.emptyList(), 0, diskCount);
         }
-        sessionEdits.apply();
-        if (diskCount == 0) {
-            return new WorkspaceDiskEdits.Result(true, java.util.Collections.emptyList(), 0, 0);
-        }
-        // Le détail du résultat disque arrive de façon asynchrone ; le
-        // compte rendu synchrone porte les éditions de session.
-        return new WorkspaceDiskEdits.Result(true, java.util.Collections.emptyList(), 0,
-                sessionEdits.edits + diskCount);
+        return new WorkspaceDiskEdits.Result(true, java.util.Collections.emptyList(), 0, 0);
     }
 
     /** Racine du workspace du projet lié à l'éditeur. */
@@ -143,53 +167,55 @@ class LspWorkspaceEditApplier {
     }
 
     /**
-     * Valide les plages des éditions de session (offsets cohérents) et
-     * prépare leur application. Retourne null si invalide.
+     * Résout les TextEdits LSP en offsets session, les valide puis les
+     * applique via {@link SessionEditGroup} : éditions INDIVIDUELLES
+     * (pipeline commun — plis/annotations décalés, caret et sélection
+     * préservés) regroupées en UNE SEULE étape d'annulation.
+     *
+     * @return true si appliqué (ou rien à faire) ; false si invalide
      */
-    private SessionEdits planSessionEdits(List<org.eclipse.lsp4j.TextEdit> edits) {
-        if (edits.isEmpty()) return new SessionEdits(0);
+    private boolean applySessionEdits(List<org.eclipse.lsp4j.TextEdit> edits) {
+        if (edits == null || edits.isEmpty()) return true;
         EditorView editorView = editor.getEditorView();
         jo.codeeditor.session.EditorSession session = editorView.getSession();
         String text = session.getText().toString();
-        // Validation complète d'abord (tout-ou-rien sur le document).
+        List<SessionEditGroup.Edit> resolues = new ArrayList<>(edits.size());
         for (org.eclipse.lsp4j.TextEdit te : edits) {
-            if (te == null || te.getRange() == null) return null;
+            if (te == null || te.getRange() == null) return false;
             int start = editor.positionToOffset(te.getRange().getStart());
             int end = editor.positionToOffset(te.getRange().getEnd());
-            if (start < 0 || end < start || end > text.length()) return null;
+            if (start < 0 || end < start || end > text.length()) return false;
+            resolues.add(new SessionEditGroup.Edit(start, end, te.getNewText()));
         }
-        // Application triée par offset décroissant (voir
-        // LspTextUtils.applyEdits — même discipline).
-        List<org.eclipse.lsp4j.TextEdit> sorted = new ArrayList<>(edits);
-        sorted.sort((a, b) -> Integer.compare(
-                editor.positionToOffset(b.getRange().getStart()),
-                editor.positionToOffset(a.getRange().getStart())));
-        return new SessionEdits(sorted.size()) {
-            @Override void run() {
-                StringBuilder sb = new StringBuilder(session.getText());
-                for (org.eclipse.lsp4j.TextEdit te : sorted) {
-                    int start = editor.positionToOffset(te.getRange().getStart());
-                    int end = editor.positionToOffset(te.getRange().getEnd());
-                    sb.replace(start, end, te.getNewText() != null ? te.getNewText() : "");
-                }
-                String newText = sb.toString();
-                jo.codeeditor.document.EditorDocument doc = session.getDocument();
-                if (!newText.equals(session.getText().toString())) {
-                    session.replaceRange(0, doc.length(), newText);
-                    editorView.notifyTextChanged();
-                    android.util.Log.i("LspEditor",
-                            "applyWorkspaceEdit: applied " + sorted.size() + " edits");
-                }
-            }
-        };
+        if (!SessionEditGroup.apply(session, resolues)) return false;
+        editorView.notifyTextChanged();
+        android.util.Log.i("LspEditor",
+                "applyWorkspaceEdit: applied " + edits.size() + " edits (un groupe d'annulation)");
+        return true;
     }
 
-    /** Éditions de session prêtes à appliquer (0 = rien à faire). */
-    private static class SessionEdits {
-        final int edits;
-        SessionEdits(int edits) { this.edits = edits; }
-        void run() { }
-        void apply() { if (edits > 0) run(); }
+    /**
+     * Version du document courant portée par le WorkspaceEdit
+     * (documentChanges → TextDocumentEdit.textDocument.version),
+     * ou null si absente (LSP 3.13).
+     */
+    private static Integer versionDuDocumentCourant(
+            org.eclipse.lsp4j.WorkspaceEdit edit, String currentUri) {
+        List<org.eclipse.lsp4j.jsonrpc.messages.Either<
+                org.eclipse.lsp4j.TextDocumentEdit,
+                org.eclipse.lsp4j.ResourceOperation>> docChanges = edit.getDocumentChanges();
+        if (docChanges == null) return null;
+        for (org.eclipse.lsp4j.jsonrpc.messages.Either<
+                org.eclipse.lsp4j.TextDocumentEdit,
+                org.eclipse.lsp4j.ResourceOperation> either : docChanges) {
+            if (either == null || !either.isLeft()) continue;
+            org.eclipse.lsp4j.TextDocumentEdit tde = either.getLeft();
+            if (tde == null || tde.getTextDocument() == null) continue;
+            if (currentUri.equals(tde.getTextDocument().getUri())) {
+                return tde.getTextDocument().getVersion();
+            }
+        }
+        return null;
     }
 
     /**
@@ -268,17 +294,27 @@ class LspWorkspaceEditApplier {
      * {@code CompletionSession.Item.attachment}.</p>
      */
     void applyAdditionalEdits(java.util.List<org.eclipse.lsp4j.TextEdit> edits) {
+        applyAdditionalEdits(edits, null);
+    }
+
+    void applyAdditionalEdits(java.util.List<org.eclipse.lsp4j.TextEdit> edits,
+            Integer versionAtRequest) {
         if (edits == null || edits.isEmpty()) return;
         EditorView editorView = editor.getEditorView();
         if (editorView == null || editorView.getSession() == null) return;
-        SessionEdits plan = planSessionEdits(new ArrayList<>(edits));
-        if (plan == null) {
-            // additionalTextEdits périmés : refus silencieux documenté —
+        // Contrôle de fraîcheur : l'utilisateur peut avoir tapé entre la
+        // réponse de complétion et l'acceptation du candidat.
+        if (versionAtRequest != null
+                && LspTextUtils.isStaleEdit(versionAtRequest, editor.getDocumentVersion())) {
+            android.util.Log.w("LspEditor",
+                    "additionalTextEdits refusés (document modifié depuis la complétion)");
+            return;
+        }
+        if (!applySessionEdits(new ArrayList<>(edits))) {
+            // additionalTextEdits invalides : refus journalisé —
             // l'insertion de l'identifiant reste correcte.
             android.util.Log.w("LspEditor",
                     "additionalTextEdits refusés (plages invalides)");
-            return;
         }
-        plan.apply();
     }
 }
