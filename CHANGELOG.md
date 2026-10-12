@@ -5,7 +5,23 @@ All notable changes to **code-editor-lib** are documented in this file.
 Le format suit la convention [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [3.51.0] — 2026-10-13 — Finitions du lot actions : complétion, source, cosmétique
+## [3.51.1] — 2026-10-13 — Re-publication des finitions
+
+Aucun changement de code par rapport à 3.51.0. Le build JitPack de
+`v3.51.0` a été frappé par le même incident d'infrastructure que
+`v3.50.0` (HTTP 429 « Too Many Requests » de Maven Central pendant la
+résolution des dépendances, côté JitPack) et sa clé est restée en
+erreur sans artefact servi. Le même contenu, construit par hash de
+commit (`37b8c84`), est vert chez JitPack (4 modules servis) — le code
+est bon, seule la clé est compromise. Le lot est re-publié sous
+`3.51.1` : nouvelle clé JitPack fraîche, GitHub Packages re-publié par
+le workflow de tag. La 3.51.0 reste servie sur GitHub Packages
+(publication réussie) mais pas sur JitPack.
+
+## [3.51.0] — 2026-10-13 — Finitions du lot actions : complétion, source, cosmétique (non servie par JitPack)
+
+> Publiée sur GitHub Packages uniquement ; build JitPack en échec
+d'infrastructure — voir 3.51.1 pour la re-publication consommable.
 
 Achève le plan du rapport d'audit (P2-9 → P2-11) : les trois derniers
 chantiers du modèle « Android Studio », tous additifs — les surfaces
