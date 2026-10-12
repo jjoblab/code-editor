@@ -4302,7 +4302,7 @@ The old setters still work (deprecated) — they create an internal adapter
 
 ### Added
 - **cel-lsp-kotlin module** — Kotlin embedded language support + LSP definition
-  for le serveur LSP tiers.
+  for an external Kotlin language server.
 - 20 new tests. Total: 533 tests.
 
 ## [3.0.0] — 2026-08-08
