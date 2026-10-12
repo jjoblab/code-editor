@@ -114,4 +114,40 @@ public class ProcessLifecycleTest {
         }
         assertFalse("la pompe stderr doit être arrêtée avec le processus", found);
     }
+
+    /**
+     * Reproduction du défaut observé en intégration continue : le serveur
+     * lance un processus arrière-plan (petit-fils) qui DÉTIENT l'extrémité
+     * d'écriture du pipe stderr. Tuer le seul parent ne ferme pas le pipe :
+     * la pompe restait bloquée en lecture (une interruption ne réveille pas
+     * une lecture de flux de processus) et survivait au processus — le
+     * thread fui faisait échouer d'autres tests du module.
+     * stop() doit liquider les descendants puis attendre la fin de la
+     * pompe : aucun thread de pompe ne survit à stop().
+     */
+    @Test
+    public void stop_petitFilsDetenantStderr_pompeArreteeQuandMeme() throws Exception {
+        ProcessBuilderConnectionProvider p = new ProcessBuilderConnectionProvider(
+                "/bin/sh", List.of("-c", "sleep 40 >&2 & wait"), null);
+        p.start();
+        long t0 = System.nanoTime();
+        p.stop();
+        long ms = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - t0);
+        assertTrue("stop() doit rester borné (rapport : " + ms + " ms)", ms < 15000);
+        // Au retour de stop(), la pompe doit être morte (attente bornée
+        // interne sur la fin de flux, garantie par la liquidation de tous
+        // les détenteurs de l'extrémité d'écriture).
+        assertFalse("aucun thread de pompe ne doit survivre à stop()",
+                threadPompeVivant());
+    }
+
+    /** Un thread de pompe stderr vivant existe-t-il ? */
+    private static boolean threadPompeVivant() {
+        for (Thread t : Thread.getAllStackTraces().keySet()) {
+            if (t.isAlive() && t.getName().contains("cel-lsp-stderr")) {
+                return true;
+            }
+        }
+        return false;
+    }
 }

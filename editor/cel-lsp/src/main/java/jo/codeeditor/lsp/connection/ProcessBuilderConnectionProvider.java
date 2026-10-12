@@ -23,10 +23,12 @@ import java.util.concurrent.TimeUnit;
  *       continu vers {@link StderrListener} (journal borné par défaut) :
  *       un serveur bavard remplirait sinon le tampon du pipe (~64 Kio) et
  *       se bloquerait définitivement sur {@code write()} ;</li>
- *   <li><b>arrêt échelonné</b> — {@link #stop()} envoie
- *       {@code destroy()}, attend la fin du processus (5 s au plus), puis
- *       force l'arrêt : {@code stop()} ne rend la main qu'une fois le
- *       processus mort et la pompe interrompue ;</li>
+ *   <li><b>arrêt échelonné</b> — {@link #stop()} liquide d'abord les
+ *       processus descendants (un petit-fils détient l'extrémité
+ *       d'écriture du pipe stderr), envoie {@code destroy()}, attend la
+ *       fin du processus (5 s au plus), puis force l'arrêt, et attend
+ *       (borné) la mort du thread de pompe : au retour de {@link #stop()},
+ *       le processus est mort et plus aucune pompe ne vit ;</li>
  *   <li><b>échec typé</b> — le démarrage impossible lève
  *       {@link LspStartException}.</li>
  * </ul>
@@ -43,6 +45,9 @@ public class ProcessBuilderConnectionProvider implements StreamConnectionProvide
 
     /** Attente maximale de la fin du processus après destroy() (ms). */
     private static final long STOP_TIMEOUT_MS = 5000;
+
+    /** Attente maximale de la mort du thread de pompe à l'arrêt (ms). */
+    private static final long PUMP_JOIN_MS = 2000;
 
     private final String command;
     private final List<String> args;
@@ -172,8 +177,24 @@ public class ProcessBuilderConnectionProvider implements StreamConnectionProvide
 
     @Override
     public void stop() {
-        if (process != null) {
-            Process proc = process;
+        final Thread pump = stderrPump;
+        final Process proc = process;
+        stderrPump = null;
+        process = null;
+        // 1) Drapeau d'interruption d'abord : la boucle de la pompe le
+        //    constate à la prochaine ligne lue (la lecture d'un flux de
+        //    processus n'est pas interruptible).
+        if (pump != null) {
+            pump.interrupt();
+        }
+        if (proc != null) {
+            // 2) Liquidation des descendants AVANT celle du parent : un
+            //    petit-fils vivant détient l'extrémité d'écriture du pipe
+            //    stderr et prive la pompe de fin de flux ; une fois le
+            //    parent mort, les orphelins sont reparentés et injoignables.
+            //    (Inutile de tuer le parent d'abord : sa mort ne clôt pas
+            //    le pipe tant qu'un descendant le détient.)
+            tuerDescendants(proc);
             proc.destroy();
             // Attente bornée de la fin du processus — destroy() est une
             // demande, pas une garantie (les SIGTERM ignorés existent).
@@ -191,11 +212,70 @@ public class ProcessBuilderConnectionProvider implements StreamConnectionProvide
             } else {
                 waitForBorneApi24(proc);
             }
-            process = null;
         }
-        if (stderrPump != null) {
-            stderrPump.interrupt();
-            stderrPump = null;
+        // 3) La pompe s'arrête à la fin de flux, désormais garantie par la
+        //    mort de tous les détenteurs de l'extrémité d'écriture :
+        //    stop() l'attend de façon bornée — aucun thread de pompe ne
+        //    survit à stop().
+        if (pump != null) {
+            rejoindrePump(pump, proc);
+        }
+    }
+
+    /**
+     * Tue les processus descendants du serveur (petits-fils) : ils
+     * détiennent l'extrémité d'écriture du pipe stderr et priveraient la
+     * pompe de fin de flux. Meilleur effort, par réflexion — l'API
+     * {@code ProcessHandle} n'existe pas dans android.jar ; sans effet
+     * silencieux là où elle est absente (sur Android, le serveur est de
+     * toute façon lancé directement, sans interpréteur de commandes).
+     */
+    private static void tuerDescendants(Process proc) {
+        try {
+            Class<?> handleClass = Class.forName("java.lang.ProcessHandle");
+            java.lang.reflect.Method destroy = handleClass.getMethod("destroyForcibly");
+            @SuppressWarnings("unchecked")
+            java.util.stream.Stream<Object> descendants =
+                    (java.util.stream.Stream<Object>)
+                            Process.class.getMethod("descendants").invoke(proc);
+            descendants.forEach(handle -> {
+                try {
+                    destroy.invoke(handle);
+                } catch (ReflectiveOperationException | RuntimeException ignored) {
+                    // Chaque descendant est indépendant : meilleur effort.
+                }
+            });
+        } catch (ReflectiveOperationException | RuntimeException ignored) {
+            // API absente (Android) : sans effet, le parent reste la cible.
+        }
+    }
+
+    /**
+     * Attente bornée de la mort du thread de pompe. En dernier recours,
+     * ferme le flux stderr : les lectures suivantes de la pompe échouent
+     * alors (IOException) et la sortie de boucle est immédiate.
+     */
+    private static void rejoindrePump(Thread pump, Process proc) {
+        try {
+            pump.join(PUMP_JOIN_MS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return;
+        }
+        if (!pump.isAlive()) {
+            return;
+        }
+        if (proc != null) {
+            try {
+                proc.getErrorStream().close();
+            } catch (IOException ignored) {
+                // Flux déjà fermé : rien de plus à tenter.
+            }
+            try {
+                pump.join(PUMP_JOIN_MS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
         }
     }
 
