@@ -155,7 +155,7 @@ public class DefaultLanguageClient implements LanguageClient {
         if (lspEditor != null && lspEditor.getProject() != null) {
             String workspacePath = lspEditor.getProject().getWorkspacePath();
             WorkspaceFolder folder = new WorkspaceFolder();
-            folder.setUri("file://" + workspacePath);
+            folder.setUri(UriUtils.fromPath(workspacePath));
             folder.setName(new java.io.File(workspacePath).getName());
             android.util.Log.i("LspClient", "server requested workspaceFolders (returning " + folder.getUri() + ")");
             if (lspEditor.getProject().getLogSink() != null) {
