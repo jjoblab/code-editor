@@ -1,0 +1,11 @@
+# check-external-refs.exceptions — bruit résiduel justifié, une regex ERE par ligne.
+# Chaque exception doit rester motivée ; à réévaluer à chaque version du garde-fou.
+
+# AGENT.md documente lui-même les formulations interdites pour les définir :
+# les lignes qui les citent « entre guillemets » ne sont pas des usages.
+^AGENT\.md:10[5-9].*(Formulations interdites|inspiré de|mieux que|équivalent de|port de|résumé de lecture)
+^AGENT\.md:106.*(comme X|mieux que X|équivalent de X|port de X)
+
+# Le garde-fou et ses tests citent inévitablement les motifs qu'ils vérifient.
+^scripts/check-external-refs\.sh:.*
+^scripts/check-external-refs-test\.sh:.*

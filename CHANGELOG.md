@@ -2,7 +2,7 @@
 
 All notable changes to **code-editor-lib** are documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+Le format suit la convention [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [v3.44.0] — 2026-10-11 — Guide devant l'accolade + menu démo guides d'indentation
@@ -432,9 +432,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [v3.41.0] — 2026-09-30 — Scans feuille par feuille (rope) + cycle de vie session→vue (B21h) + demo à jour
 
-Quatrième session d'exécution du plan 1D de l'audit : le port amont
-`` (parcours de la rope feuille par feuille au lieu d'une
-descente d'arbre par caractère), le cycle de vie B21h (référence forte
+Quatrième session d'exécution du plan 1D de l'audit : le parcours de
+la rope feuille par feuille au lieu d'une descente d'arbre par
+caractère, le cycle de vie B21h (référence forte
 session→vue après détachement — suspect [S] levé par test de cycle de
 vie), et la mise à jour de l'application demo pour exposer les
 fonctionnalités du Lot 4 (#25 #26 #27). L'historique des commits a
@@ -1920,8 +1920,7 @@ Quatre fonctionnalités livrées dans cette version : la première est nouvelle 
 
 - **Inlay hints XML — valeur résolue des références de ressources locales**
   (portage `XmlInlayHintService` de version de référence) :
-  - `XmlResourceIndex` (app, `jo.codeide.lang`) — équivalent de l'index
-    `AndroidResourceIndex` : scan borné des `res/values` et `values-…`
+  - `XmlResourceIndex` (app, `jo.codeide.lang`) — index équivalent : scan borné des `res/values` et `values-…`
     (64 rép. res / 384 fichiers / 1 Mo par fichier, `build/` `.gradle/`
     ignorés), précédence base `values/` > variantes qualifiées, sanitize
     des noms (`.`/`-` → `_`), littéral capé 60 chars, types porteurs de
@@ -2421,7 +2420,7 @@ Material Toolbar n'étaient donc pas affichées pour les fichiers XML.
 
 #### Nouvelle application LayoutEditor
 
-Application mobile autonome — éditeur de layout visuel inspiré d'Android
+Application mobile autonome — éditeur de layout visuel pour Android
 Studio. Dépend UNIQUEMENT de `:preview-api`, `:preview-android`,
 `:preview-panels` (PAS de `:ui`).
 
@@ -3595,7 +3594,7 @@ manquant**. Toutes les corrections ont été appliquées dans cette session.
   assets to the workspace cache dir before connecting.
 
 ### Added — Workspace folders
-- **`didChangeWorkspaceFolders` sent after connect** — same pattern as
+- **`didChangeWorkspaceFolders` sent after connect** — même motif que
   la couche applicative : après `CONNECTED`, l'app envoie
   `workspace/didChangeWorkspaceFolders` with the project path. The server
   uses this to register the workspace root and index source files.
@@ -3664,7 +3663,7 @@ manquant**. Toutes les corrections ont été appliquées dans cette session.
 - **Completion filtering** — suggestions are now filtered client-side by the
   typed prefix, using case-insensitive prefix match + fuzzy subsequence
   (camel-hump). Re-ranks: exact match > case-insensitive exact > prefix >
-  fuzzy. Ported from the reference implementation's `CompletionSession.filtered()`. Typing
+  fuzzy. Reprise de `CompletionSession.filtered()` pour la fuzziness. Typing
   `end` now correctly shows `end` first, not `and`.
 - **Enter accepts the wrong item** — the soft-keyboard Enter was bypassing
   the completion popup's selection logic. Both `commitText("\n")` and
@@ -3713,7 +3712,7 @@ manquant**. Toutes les corrections ont été appliquées dans cette session.
   had no `capabilities` field, so the server didn't know what the client
   supports. Added `ClientCapabilities` with `CompletionCapabilities`,
   `HoverCapabilities` (markdown + plaintext), and `SignatureHelpCapabilities`.
-- **Root cause #4: File not on disk** — the server (based on a virtual
+- **Root cause #4: File not on disk** — the server (virtual
   file system index) needs the file to exist on disk for its virtual file system indexing.
   Without it, `documentSymbol` works (uses didOpen text) but completion
   crashes. The demo now writes `calculator.lua` to the cache dir before
