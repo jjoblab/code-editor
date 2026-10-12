@@ -35,7 +35,7 @@ public class EditorQuickDocPopup {
      */
     void showQuickDoc(int offset) {
         if (view.session == null || view.quickDocResolver == null) return;
-        // Parité l'éditeur de référence : pas de hover quand la complétion est
+        // Pas de hover quand la complétion est
         // ouverte (le tooltip ne vole pas le focus à la popup).
         if (view.completionVisible) return;
         final String text = view.session.getText();
@@ -64,7 +64,7 @@ public class EditorQuickDocPopup {
                 // coordonnées écran figées mais l'OFFSET d'ancrage — le
                 // renderer recalcule X/Y à chaque frame (wrap/fold-aware)
                 // et referme le popup quand la ligne sort du viewport
-                // (parité l'éditeur de référence HoverWindow : suit le contenu, dismiss quand
+                // (le popup suit le contenu et se referme quand
                 // l'ancre sort de la vue).
                 view.quickDocAnchorOffset = fOffset;
                 view.quickDocScrollY = 0f;

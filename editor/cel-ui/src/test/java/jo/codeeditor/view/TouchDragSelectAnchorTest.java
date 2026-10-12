@@ -22,13 +22,13 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 /**
- * Drag-select au doigt — sémantique l'éditeur de code de référence (réécriture) : le
- * drag-select est armé par l'APPUI LONG (l'éditeur de référence {@code beginDragSelect},
- * prop {@code dragSelectAfterLongPress}), pas par un tap.
+ * Drag-select au doigt — sémantique (réécriture) : le
+ * drag-select est armé par l'APPUI LONG ({@code beginDragSelect}),
+ * pas par un tap.
  *
  * <p>L'appui long sélectionne le mot sous le doigt ; le glissement
  * ultérieur étend la sélection depuis la borne du mot OPPOSÉE au doigt
- * (l'éditeur de référence : ancre = borne droite si le doigt est avant le point d'appui,
+ * (ancre = borne droite si le doigt est avant le point d'appui,
  * borne gauche sinon). La sélection contient donc toujours le mot
  * d'origine, se rétrécit en revenant en arrière et survit au relâchement
  * (l'UP d'un drag ne résout pas de tap).</p>
@@ -115,7 +115,7 @@ public class TouchDragSelectAnchorTest {
         int wordEnd = c + "name".length();  // borne exclusive
 
         // 1. Appui long sur « name » : le mot est sélectionné et le
-        //    drag-select est armé (modèle l'éditeur de référence).
+        //    drag-select est armé (appui long).
         float[] pc = midCharPos(view, c);
         long t0 = SystemClock.uptimeMillis();
         longPress(view, pc[0], pc[1], t0);
@@ -128,7 +128,7 @@ public class TouchDragSelectAnchorTest {
 
         // 2. Glissement au-delà du slop (40 px = 4 caractères) vers la
         //    DROITE du point d'appui : l'ancre est la borne GAUCHE du mot
-        //    (règle l'éditeur de référence) — la sélection s'étend du début du mot au doigt.
+        //    (règle d'ancre) — la sélection s'étend du début du mot au doigt.
         int right = c + 4;
         float[] pr = midCharPos(view, right);
         send(view, MotionEvent.ACTION_MOVE, t0, SystemClock.uptimeMillis(),
@@ -144,7 +144,7 @@ public class TouchDragSelectAnchorTest {
         // 3. Retour en arrière qui FRANCHIT le point d'appui vers la
         //    GAUCHE : l'ancre bascule sur la borne DROITE du mot — la
         //    sélection va du doigt à la fin du mot (elle contient toujours
-        //    le mot d'origine, l'éditeur de référence anchorIndex).
+        //    le mot d'origine, anchorIndex).
         int left = c - 3;
         float[] pl = midCharPos(view, left);
         send(view, MotionEvent.ACTION_MOVE, t0, SystemClock.uptimeMillis(),
@@ -207,7 +207,7 @@ public class TouchDragSelectAnchorTest {
 
         // Geste SUIVANT (après UP, l'armement est mort) : un jitter sous le
         // slop ne doit RIEN sélectionner — la sélection du drag précédent
-        // n'est étendue par aucun état résiduel (l'éditeur de référence finishDragSelect).
+        // n'est étendue par aucun état résiduel (désarmement à la fin du geste).
         float[] pj = midCharPos(view, c + 4 + 2);
         long t1 = t0 + 900;
         send(view, MotionEvent.ACTION_DOWN, t1, t1, pr[0], pr[1]);

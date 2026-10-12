@@ -151,9 +151,9 @@ public class EditorCompletionPopup {
             view.completionScrollOffset = view.completionSelected - rowsVisible + 1;
         }
         view.completionVisible = true;
-        // Parité l'éditeur de référence : la complétion qui s'ouvre referme le hover
-        // (exclusion mutuelle — l'éditeur de référence dismiss le tooltip quand la complétion
-        // s'ouvre, et refuse le hover tant qu'elle est ouverte).
+        // La complétion qui s'ouvre referme le hover
+        // (exclusion mutuelle — le tooltip est refermé quand la complétion
+        // s'ouvre, et le hover est refusé tant qu'elle est ouverte).
         if (view.quickDocVisible) popups.dismissQuickDoc();
         view.invalidate();
     }

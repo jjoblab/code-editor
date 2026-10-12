@@ -25,7 +25,7 @@ final class DemoSamples {
         LANGUAGES.put("JavaScript", "javascript");
         // Échantillon « bundle de production » : une seule ligne de ~14 Ko
         // pour tester le rendu fenêtré des lignes minifiées (correctif
-        // « minifier » — comportement de référence TextRow.draw).
+        // « minifier » — rendu fenêtré aux colonnes visibles).
         LANGUAGES.put("Minifié (JS)", "minified-js");
         LANGUAGES.put("TypeScript", "typescript");
         LANGUAGES.put("PHP", "php");

@@ -159,7 +159,7 @@ public class IndentGuidesBraceScopeTest {
         ShadowCanvas shadow = Shadows.shadowOf(canvas);
         int activeCount = 0;
         // Les guides basés sur les blocs utilisent drawRect (approche
-        // l'éditeur de code de référence), pas drawLine. Chercher les deux.
+        ), pas drawLine. Chercher les deux.
         for (int i = 0; i < shadow.getLinePaintHistoryCount(); i++) {
             ShadowCanvas.LinePaintHistoryEvent e = shadow.getDrawnLine(i);
             if (e.paint != null && e.paint.getColor() == activeColor) {

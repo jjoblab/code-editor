@@ -21,7 +21,7 @@ import static org.junit.Assert.*;
 
 /**
  * Tests pour les guides d'indentation basés sur les paires
- * d'accolades (approche l'éditeur de code de référence). Chaque paire d'accolades
+ * d'accolades. Chaque paire d'accolades
  * {@code { ... }} crée un bloc, et un guide vertical est dessiné
  * au centre de la colonne d'indentation de l'accolade ouvrante,
  * du bas de la ligne d'ouverture jusqu'au haut de la ligne de
@@ -80,15 +80,15 @@ public class IndentGuidesBlockBasedTest {
     private static List<float[]> linesOfColor(Canvas canvas, int color) {
         ShadowCanvas shadow = Shadows.shadowOf(canvas);
         List<float[]> out = new ArrayList<>();
-        // Les guides basés sur les blocs utilisent drawRect (approche
-        // l'éditeur de code de référence), pas drawLine. Chercher les deux.
+        // Les guides basés sur les blocs utilisent drawRect, pas
+        // drawLine. Chercher les deux.
         for (int i = 0; i < shadow.getLinePaintHistoryCount(); i++) {
             ShadowCanvas.LinePaintHistoryEvent e = shadow.getDrawnLine(i);
             if (e.paint != null && e.paint.getColor() == color) {
                 out.add(new float[]{e.startX, e.startY, e.stopX, e.stopY});
             }
         }
-        // Chercher aussi les drawRect (approche l'éditeur de code de référence).
+        // Chercher aussi les drawRect.
         for (int i = 0; i < shadow.getRectPaintHistoryCount(); i++) {
             ShadowCanvas.RectPaintHistoryEvent e = shadow.getDrawnRect(i);
             if (e.paint != null && e.paint.getColor() == color) {
@@ -127,7 +127,7 @@ public class IndentGuidesBlockBasedTest {
      * Le guide est positionné au MINIMUM des positions du { et
      * du }. Pour « class Foo { » (startCol=10) et « } » (endCol=0),
      * le guide est à min(10, 0) = 0 (col 0). C'est l'approche
-     * l'éditeur de code de référence : Math.min(offsetEnd, offsetStart).
+     * Position de base : Math.min(offsetEnd, offsetStart).
      */
     @Test
     public void guide_isCenteredInIndentColumn() {
@@ -165,7 +165,7 @@ public class IndentGuidesBlockBasedTest {
     /**
      * Le guide doit s'étendre du BAS de la ligne d'ouverture
      * au HAUT de la ligne de fermeture — pas au-delà.
-     * l'éditeur de référence : top = rowBottom(startLine), bottom = rowTop(endLine).
+     * Bornes : top = rowBottom(startLine), bottom = rowTop(endLine).
      */
     @Test
     public void guide_extendsFromBottomOfOpeningToTopOfClosing() {
