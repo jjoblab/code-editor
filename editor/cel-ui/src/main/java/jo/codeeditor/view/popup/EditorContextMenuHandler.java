@@ -55,6 +55,26 @@ public class EditorContextMenuHandler {
         popup.getMenu().add(0, 1002, 0, "Redo").setOnMenuItemClickListener(i -> {
             view.session.redo(); view.notifyTextChanged(); return true;
         });
+        // P2-10 : entrée d'action source « Organiser les imports » — UNE
+        // requête par document (only transporté dans le contexte LSP),
+        // visible seulement quand un fournisseur d'actions est branché
+        // (pas d'entrée morte sans langage serveur). L'entrée fixAll
+        // n'est pas exposée par défaut : les serveurs Java actuels ne la
+        // proposent pas — l'hôte dispose de performFixAll() pour la
+        // brancher quand ils l'ajouteront.
+        if (hasCodeActionsProvider()) {
+            popup.getMenu().add(0, 1003, 0, "Organize imports")
+                    .setOnMenuItemClickListener(i -> {
+                        view.performOrganizeImports(null);
+                        return true;
+                    });
+        }
         popup.show();
+    }
+
+    /** True si un fournisseur d'actions de code est branché (langage LSP). */
+    private boolean hasCodeActionsProvider() {
+        return view.language != null
+                && view.language.getCodeActionsProvider() != null;
     }
 }

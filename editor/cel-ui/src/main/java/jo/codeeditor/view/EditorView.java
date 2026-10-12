@@ -3098,6 +3098,22 @@ public class EditorView extends View {
         documentActions.performOrganizeImports(callback);
     }
 
+    /**
+     * Exécute l'action « source.fixAll » (toutes les corrections
+     * automatiques du document) — même contrat que
+     * {@link #performOrganizeImports} : UNE requête par document avec
+     * {@code only = ["source.fixAll"]}, résolution en arrière-plan,
+     * application locale de l'édition retournée. Les serveurs qui ne le
+     * proposent pas → callback FALSE.
+     *
+     * @param callback thread UI : TRUE si une action a été trouvée+exécutée,
+     *                 FALSE sinon.
+     * @since 3.51.0
+     */
+    public void performFixAll(java.util.function.Consumer<Boolean> callback) {
+        documentActions.performFixAll(callback);
+    }
+
     /** Referme le popup go-to-symbol. */
     public void dismissGoToSymbol() {
         popupManager.dismissGoToSymbol();
