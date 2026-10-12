@@ -5,6 +5,56 @@ All notable changes to **code-editor-lib** are documented in this file.
 Le format suit la convention [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.52.0] — 2026-10-13 — Lot 2 tactile, jalon J1 : les deux P0
+
+Premier jalon du plan du rapport « édition tactile et contexte visuel »
+(`docs/RAPPORT-TACTILE-CONTEXTE-CODE-EDITOR.md`) : les deux chantiers
+P0 — lecture d'un diagnostic au tap et extensibilité de la pill de
+sélection. Tout est additif, zéro rupture d'API.
+
+### Added
+
+- **Popup ancré au tap sur le squiggle (D1)** — le squiggle redevient
+  tappable, mais pour un popup ANCRÉ non modal au lieu de poser le
+  caret. Un tap au cœur d'une plage soulignée (bords ±1 caractère
+  exclus — le caret reste plaçable avant/après la plage ; voile gris
+  Unnecessary exclu) ouvre une fiche compacte au-dessus de la ligne
+  (flip en dessous, clamp X sur le centre du mot). Parité caret par le
+  motif différé existant : le premier tap arme, un re-tap sur la même
+  plage referme et pose le caret. Contenu : en-tête sévérité + message
+  replié (≤ 3 lignes) + boutons de quick-fixes (résolus à l'ouverture,
+  la voie du lot 1) + bouton « See all » vers la fiche basse existante —
+  architecture à deux niveaux, rien n'est supprimé. Plusieurs
+  diagnostics superposés → mini-liste ancrée (tri sévérité
+  décroissante), tap de rangée → détail de ce diagnostic.
+- **SPI d'injection d'actions de la pill (T1)** — la barre flottante de
+  sélection n'est plus un pilier fermé de six actions : nouvelle API
+  `EditorView.addSelectionAction(SelectionAction)` /
+  `removeSelectionAction(String)` (ordre stable = ordre d'injection).
+  `SelectionAction { id, label, perform, enabled? }` : un tap exécute
+  `perform` puis referme la pill (contrat Copy/Cut/Paste) ; une action
+  désactivée est dessinée estompée et son tap rejeté. Les actions
+  injectées se placent entre les canoniques d'édition et les icônes
+  Docs/Actions, uniquement avec une vraie sélection. La métrique passe
+  de tableaux fixes (capacité 8) à des tableaux croissants : la largeur
+  de vue est le plafond d'affichage ; au-delà, les actions suivantes
+  basculent dans « ⋯ » qui ouvre le menu contextuel unifié (section
+  « MORE », zéro nouveau chrome).
+
+### Changed
+
+- Le test v2.32 `EditorBracketSheetTapTest` (la fiche basse ne
+  s'ouvre PAS depuis le squiggle) est étendu : le popup ancré s'ouvre
+  maintenant au tap squiggle, la fiche basse reste réservée à la chip
+  et au point de gouttière.
+
+### Tests
+
+- 23 nouveaux tests (1 452 au total) : `SquiggleTapOpensAnchoredPopup`,
+  `SquiggleTapCaretParity`, `SquiggleTapQuickFix`,
+  `SquiggleTapMultiDiagnostic` (15), `SelectionToolbarSpiInject`,
+  `SelectionToolbarOverflow` (8).
+
 ## [3.51.1] — 2026-10-13 — Re-publication des finitions
 
 Aucun changement de code par rapport à 3.51.0. Le build JitPack de
