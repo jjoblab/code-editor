@@ -170,12 +170,18 @@ public final class EditorDocument {
     /**
      * Renvoie le contenu texte de la ligne donnée (sans le retour à la
      * ligne final).
+     *
+     * <p>★ B19 : délègue à {@link #subText} — le cache de
+     * {@link #getText()} est invalidé à CHAQUE édition, l'ancienne
+     * implantation ({@code getText().substring}) matérialisait donc tout
+     * le document pour lire une tranche de quelques caractères, à chaque
+     * frappe, sur le chemin du rendu et du hit-test.</p>
      */
     public String lineText(int line) {
         int start = lineStart(line);
         int end = lineEnd(line);
         if (start >= end) return "";
-        return getText().substring(start, end);
+        return subText(start, end);
     }
 
     private int clampLine(int line) {
