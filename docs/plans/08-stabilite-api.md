@@ -16,8 +16,8 @@
 
 ## 2. Cible
 
-1. **Nullité** : annotations `la bibliothèque d'annotations externe`
-   (`@Nullable`/`@NotNull`) — dépendance compileOnly, taille nulle
+1. **Nullité** : annotations de nullité (`@Nullable`/`@NotNull`, à
+   rétention `CLASS`) — dépendance compileOnly, taille nulle
    dans l'AAR (annotations de classe `CLASS` retention), compatible
    API 24, MIT/e licence Apache-2.0 — à valider par le propriétaire
    (ajout de dépendance, règle 8 du protocole agent).
@@ -48,8 +48,9 @@
 
 ## 4. Risques
 
-- Ajout de dépendance : règle 8 (justification écrite) — les IDE professionnels
-  annotations : ~20 Ko, compileOnly, licence Apache-2.0/MIT,
+- Ajout de dépendance : règle 8 (justification écrite) — la
+  bibliothèque d'annotations retenue : ~20 Ko, compileOnly, licence
+  Apache-2.0/MIT,
   compatibilité API 24 : validé par le propriétaire AVANT (décision
   à inscrire au compte rendu).
 - `javap` sur AAR : extraire classes.jar d'abord ; comparer les
