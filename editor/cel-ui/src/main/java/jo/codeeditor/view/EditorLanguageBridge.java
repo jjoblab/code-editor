@@ -418,7 +418,12 @@ final class EditorLanguageBridge {
                                 new java.util.ArrayList<>();
                         if (spiHints != null) {
                             for (jo.codeeditor.lang.model.InlayHint hint : spiHints) {
-                                legacy.add(new DiagnosticShift.InlayHint(hint.offset, hint.text, true));
+                                // I1 (lot 2, J3) : le kind est recopié — le
+                                // rendu distingue paramètre (italique, plus
+                                // effacé) de type (droit). Avant, il mourait
+                                // ici et tous les hints rendaient pareil.
+                                legacy.add(new DiagnosticShift.InlayHint(
+                                        hint.offset, hint.text, true, hint.kind));
                             }
                         }
                         final java.util.List<DiagnosticShift.InlayHint> computed = legacy;
