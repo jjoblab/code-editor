@@ -46,6 +46,101 @@ public final class EditorPopupAnchors {
     private EditorPopupAnchors() {}
 
     // ════════════════════════════════════════════════════════════════
+    // D2 — pattern « popup ancré » factorisé
+    // ════════════════════════════════════════════════════════════════
+
+    /**
+     * D2 (P1) — la géométrie partagée du pattern « popup ancré » :
+     * positionner un rectangle de taille {@code (w, h)} ancré à la
+     * bande verticale {@code [anchorTopY, anchorBottomY]} d'une ligne
+     * du document (le flip vertical ne recouvre JAMAIS la ligne
+     * d'ancre), avec clamp horizontal dans la vue.
+     *
+     * <p>Avant D2, ce calcul (ancre + flip + clamp) était dupliqué
+     * méthode par méthode ; les trois consommateurs historiques le
+     * partagent désormais — chaque paramétrage reproduit EXACTEMENT le
+     * comportement précédent (aucun déplacement de popup, tests
+     * existants inchangés) :</p>
+     * <ul>
+     *   <li><b>popup de complétion</b> ({@code EditorCompletionPopup})
+     *       — {@code preferAbove=false}, gap 4 px, yMargin 0, seuil X 0,
+     *       inset X 4 px, ancre = X du caret aligné à gauche, borne
+     *       gauche = gouttière ;</li>
+     *   <li><b>NavMenu</b> ({@code navMenuMetrics}) —
+     *       {@code preferAbove=false}, gap et marges NAV_MENU, ancre
+     *       pré-décalée de la marge, alignée à gauche, borne gauche =
+     *       marge ;</li>
+     *   <li><b>popup de diagnostic ancré</b> ({@code squigglePopupMetrics})
+     *       — {@code preferAbove=true} (au-dessus de la ligne, flip
+     *       dessous), gap et marge 4 dp, ancre centrée sur le mot
+     *       diagnostiqué, borne gauche = gouttière + 4 dp.</li>
+     * </ul>
+     *
+     * <p>Placement vertical : {@code preferAbove} place le BAS du popup
+     * à {@code anchorTopY - gap} ; s'il ne tient pas (marge haute), il
+     * passe SOUS la ligne ({@code anchorBottomY + gap}) ; en dernier
+     * recours il est clampé en bas de vue. {@code preferBelow} place le
+     * HAUT du popup à {@code anchorBottomY + gap} ; s'il déborde, il
+     * passe AU-DESSUS de la ligne ; clampé en haut de vue en dernier
+     * recours. Placement horizontal : centré sur l'ancre
+     * ({@code centerOnAnchor}) ou aligné à gauche dessus ; déborde à
+     * droite au-delà de {@code viewW - xThresholdInset} → ramené à
+     * {@code viewW - xInset - w} ; jamais à gauche de
+     * {@code leftBound}.</p>
+     *
+     * @param view la vue hôte (largeur/hauteur du viewport)
+     * @param anchorX l'ancre horizontale (colonne du caret, centre du
+     *                mot diagnostiqué, ou position pré-décalée)
+     * @param anchorTopY le HAUT de la ligne d'ancre (bande fold/wrap
+     *                   aware côté appelant)
+     * @param anchorBottomY le BAS de la ligne d'ancre
+     * @param w largeur du popup
+     * @param h hauteur du popup
+     * @param preferAbove vrai = AU-DESSUS de la ligne en priorité,
+     *                    faux = EN DESSOUS en priorité
+     * @param gap l'écart visuel entre le popup et la ligne d'ancre
+     * @param yMargin la marge verticale minimale aux bords de la vue
+     * @param xThresholdInset l'inset du SEUIL de débordement droit
+     * @param xInset l'inset de la valeur clampée à droite
+     * @param centerOnAnchor vrai = popup centré sur l'ancre X
+     * @param leftBound la borne gauche (gouttière + inset, ou marge)
+     * @return {@code {x, y}} — le coin haut-gauche du popup
+     */
+    public static float[] anchorAboveBelow(EditorView view, float anchorX,
+            float anchorTopY, float anchorBottomY, float w, float h,
+            boolean preferAbove, float gap, float yMargin,
+            float xThresholdInset, float xInset, boolean centerOnAnchor,
+            float leftBound) {
+        float viewW = view.getWidth();
+        float viewH = view.getHeight();
+        float y;
+        if (preferAbove) {
+            y = anchorTopY - gap - h;
+            if (y < yMargin) {
+                // Pas de place au-dessus — bascule SOUS la ligne.
+                y = anchorBottomY + gap;
+            }
+            if (y + h > viewH - yMargin) {
+                y = Math.max(yMargin, viewH - yMargin - h);
+            }
+            if (y < 0) y = 0;
+        } else {
+            y = anchorBottomY + gap;
+            if (y + h > viewH - yMargin) {
+                // Pas de place en dessous — bascule AU-DESSUS de la ligne.
+                y = anchorTopY - gap - h;
+            }
+            if (y < yMargin) y = yMargin;
+        }
+        float x = centerOnAnchor ? anchorX - w * 0.5f : anchorX;
+        if (x + w > viewW - xThresholdInset) {
+            x = viewW - xInset - w;
+        }
+        if (x < leftBound) x = leftBound;
+        return new float[]{x, y};
+    }
+
+    // ════════════════════════════════════════════════════════════════
     // Compteur de retour à la ligne partagé
     // ════════════════════════════════════════════════════════════════
 
@@ -415,16 +510,8 @@ public final class EditorPopupAnchors {
         DiagnosticShift.Diagnostic anchor = listMode ? m.choices.get(0) : item;
         int anchorLine = doc.lineForOffset(anchor.start);
         float lineTop = view.docLineToY(anchorLine) - view.vOffset;
+        float lineBottom = lineTop + view.metrics.getLineHeight();
         float gap = SQUIGGLE_POPUP_GAP_DP * density;
-        m.y = lineTop - gap - m.h;
-        if (m.y < 4 * density) {
-            // Pas de place au-dessus — bascule SOUS la ligne (motif complétion).
-            m.y = lineTop + view.metrics.getLineHeight() + gap;
-        }
-        if (m.y + m.h > view.getHeight() - 4 * density) {
-            m.y = Math.max(4 * density, view.getHeight() - m.h - 4 * density);
-        }
-        if (m.y < 0) m.y = 0;
 
         // X ancré au centre du mot diagnostiqué (clamp zone de texte).
         int lineStart = doc.lineStart(anchorLine);
@@ -439,11 +526,16 @@ public final class EditorPopupAnchors {
         float midX = textAreaLeft
                 + view.visualColFor(anchorLine, (startCol + endCol) / 2) * charWidth
                 - view.hOffset;
-        m.x = midX - m.w * 0.5f;
-        float minX = view.metrics.getGutterWidth() + 4 * density;
-        float maxX = view.getWidth() - m.w - 4 * density;
-        if (m.x < minX) m.x = minX;
-        if (m.x > maxX) m.x = Math.max(minX, maxX);
+        // D2 : pattern « popup ancré » factorisé — préfère AU-DESSUS de la
+        // ligne (flip dessous), marge 4 dp, ancre centrée sur le mot,
+        // borne gauche = gouttière + 4 dp. Paramétrage identique au
+        // calcul historique (motif complétion).
+        float[] pos = anchorAboveBelow(view, midX, lineTop, lineBottom,
+                m.w, m.h, true, gap, 4 * density,
+                4 * density, 4 * density, true,
+                view.metrics.getGutterWidth() + 4 * density);
+        m.x = pos[0];
+        m.y = pos[1];
 
         m.rowTop = m.y + contentTop;
         m.seeAllY = m.rowTop + m.rows * rowH;
@@ -795,21 +887,21 @@ public final class EditorPopupAnchors {
         float anchorX = Math.max(
                 view.metrics.getGutterWidth() + EditorView.NAV_MENU_MARGIN_DP * density,
                 caret[0]);
-        float anchorY = view.docLineToY(view.navMenuLine) - view.vOffset
-                + view.metrics.getLineHeight() + EditorView.NAV_MENU_GAP_DP * density;
-        float x = anchorX - EditorView.NAV_MENU_MARGIN_DP * density;
-        if (x + w > view.getWidth() - EditorView.NAV_MENU_MARGIN_DP * density) {
-            x = view.getWidth() - EditorView.NAV_MENU_MARGIN_DP * density - w;
-        }
-        if (x < EditorView.NAV_MENU_MARGIN_DP * density) x = EditorView.NAV_MENU_MARGIN_DP * density;
-        float y = anchorY;
-        if (y + h > view.getHeight() - EditorView.NAV_MENU_MARGIN_DP * density) {
-            // Pas de place en dessous — bascule AU-DESSUS de la ligne.
-            y = view.docLineToY(view.navMenuLine) - view.vOffset - h
-                    - EditorView.NAV_MENU_GAP_DP * density;
-        }
-        if (y < EditorView.NAV_MENU_MARGIN_DP * density) y = EditorView.NAV_MENU_MARGIN_DP * density;
-        return new float[]{x, y, w, h};
+        float lineTop = view.docLineToY(view.navMenuLine) - view.vOffset;
+        float lineBottom = lineTop + view.metrics.getLineHeight();
+        // D2 : pattern « popup ancré » factorisé — préfère SOUS la ligne,
+        // bascule AU-DESSUS (jamais sur la ligne d'ancre), marges
+        // NAV_MENU partout, ancre pré-décalée de la marge (alignée à
+        // gauche). Paramétrage identique au calcul historique.
+        float[] pos = anchorAboveBelow(view,
+                anchorX - EditorView.NAV_MENU_MARGIN_DP * density,
+                lineTop, lineBottom, w, h,
+                false, EditorView.NAV_MENU_GAP_DP * density,
+                EditorView.NAV_MENU_MARGIN_DP * density,
+                EditorView.NAV_MENU_MARGIN_DP * density,
+                EditorView.NAV_MENU_MARGIN_DP * density,
+                false, EditorView.NAV_MENU_MARGIN_DP * density);
+        return new float[]{pos[0], pos[1], w, h};
     }
 
     // ════════════════════════════════════════════════════════════════
