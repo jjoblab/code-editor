@@ -53,15 +53,21 @@ public class FakeActionsCodeServer implements LanguageServer {
     public final List<org.eclipse.lsp4j.ExecuteCommandParams> executeCommandRequests =
             new ArrayList<>();
 
-    /** Réponses codeAction/resolve : action reçu → action résolue. */
-    public final Map<org.eclipse.lsp4j.CodeAction, org.eclipse.lsp4j.CodeAction> resolveAnswers =
-            new LinkedHashMap<>();
-
     /** Réponse codeAction imposée par le test (prioritaire sur la réponse par défaut). */
     public volatile List<Either<org.eclipse.lsp4j.Command, org.eclipse.lsp4j.CodeAction>> answerOverride;
 
     /** Valeur retournée par workspace/executeCommand (null par défaut). */
     public volatile Object commandResult;
+
+    /** Annonce codeActionOptions.resolveProvider quand vrai. */
+    public volatile boolean resolveProvider;
+
+    /** Résolutions par TITRE (l'objet résolu arrive désérialisé — l'identité objet est perdue). */
+    public final Map<String, org.eclipse.lsp4j.CodeAction> resolveByTitle =
+            new LinkedHashMap<>();
+
+    /** Compteur de requêtes codeAction/resolve reçues. */
+    public volatile int resolveRequests;
 
     /**
      * Reçu du pont in-process (découvert par réflexion — doit rester
@@ -129,7 +135,13 @@ public class FakeActionsCodeServer implements LanguageServer {
     @Override
     public CompletableFuture<InitializeResult> initialize(InitializeParams params) {
         ServerCapabilities caps = new ServerCapabilities();
-        caps.setCodeActionProvider(Either.forLeft(true));
+        if (resolveProvider) {
+            org.eclipse.lsp4j.CodeActionOptions options = new org.eclipse.lsp4j.CodeActionOptions();
+            options.setResolveProvider(true);
+            caps.setCodeActionProvider(Either.forRight(options));
+        } else {
+            caps.setCodeActionProvider(Either.forLeft(true));
+        }
         return CompletableFuture.completedFuture(new InitializeResult(caps));
     }
 
@@ -173,7 +185,9 @@ public class FakeActionsCodeServer implements LanguageServer {
             @Override
             public CompletableFuture<org.eclipse.lsp4j.CodeAction> resolveCodeAction(
                     org.eclipse.lsp4j.CodeAction unresolved) {
-                org.eclipse.lsp4j.CodeAction resolved = resolveAnswers.get(unresolved);
+                resolveRequests++;
+                org.eclipse.lsp4j.CodeAction resolved = unresolved != null
+                        ? resolveByTitle.get(unresolved.getTitle()) : null;
                 return CompletableFuture.completedFuture(
                         resolved != null ? resolved : unresolved);
             }

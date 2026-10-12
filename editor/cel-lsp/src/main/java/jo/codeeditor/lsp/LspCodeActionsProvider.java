@@ -156,21 +156,68 @@ class LspCodeActionsProvider implements CodeActionsProvider {
         final String actionTitle = ca.getTitle() != null ? ca.getTitle() : "";
         final String kind = ca.getKind() != null ? ca.getKind() : "";
         final boolean preferred = Boolean.TRUE.equals(ca.getIsPreferred());
+        final String disabledReason = ca.getDisabled() != null
+                ? ca.getDisabled().getReason() : null;
         final org.eclipse.lsp4j.WorkspaceEdit editToApply = ca.getEdit();
+        final org.eclipse.lsp4j.CodeAction unresolved = ca;
         final LspEditor editorRef = editor;
+        final LanguageServerWrapper wrapperRef = wrapper;
         Runnable apply = () -> {
-            if (editToApply == null) {
-                log("codeAction: '" + actionTitle + "' has no edit — nothing to apply");
+            if (disabledReason != null) {
+                log("codeAction: '" + actionTitle + "' est désactivée ("
+                        + disabledReason + ") — non appliquée");
                 return;
             }
+            org.eclipse.lsp4j.WorkspaceEdit edit = editToApply;
+            if (edit == null) {
+                // Résolution différée : le serveur a gardé l'édition hors
+                // de la réponse (données dans le champ data) et annonce
+                // resolveProvider — on résout à L'APPLICATION, une seule
+                // fois, puis on applique l'édition obtenue.
+                edit = resolveEdit(wrapperRef, unresolved);
+                if (edit == null) {
+                    log("codeAction: '" + actionTitle + "' has no edit — nothing to apply");
+                    return;
+                }
+            }
             try {
-                editorRef.applyWorkspaceEdit(editToApply, versionAtRequest);
+                editorRef.applyWorkspaceEdit(edit, versionAtRequest);
                 log("codeAction: applied '" + actionTitle + "'");
             } catch (Exception t) {
                 log("codeAction: FAILED to apply '" + actionTitle + "': " + t.getMessage());
             }
         };
-        return new CodeAction(actionTitle, kind, preferred, apply);
+        return new CodeAction(actionTitle, kind, preferred, disabledReason, apply);
+    }
+
+    /**
+     * Résout une action non résolue via {@code codeAction/resolve} —
+     * seulement si le serveur l'annonce (resolveProvider) et porte
+     * l'édition. Borné : un serveur muet ne doit pas figer l'application.
+     */
+    private static org.eclipse.lsp4j.WorkspaceEdit resolveEdit(
+            LanguageServerWrapper wrapperRef, org.eclipse.lsp4j.CodeAction unresolved) {
+        if (unresolved == null || !resolveSupported(wrapperRef)) return null;
+        try {
+            LanguageServer server = wrapperRef.getServer();
+            if (server == null) return null;
+            org.eclipse.lsp4j.CodeAction resolved = server.getTextDocumentService()
+                    .resolveCodeAction(unresolved)
+                    .get(CODE_ACTION_TIMEOUT_MS, java.util.concurrent.TimeUnit.MILLISECONDS);
+            return resolved != null ? resolved.getEdit() : null;
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    /** True si le serveur annonce la résolution différée des actions. */
+    private static boolean resolveSupported(LanguageServerWrapper wrapperRef) {
+        org.eclipse.lsp4j.ServerCapabilities caps = wrapperRef.getCapabilities();
+        if (caps == null || caps.getCodeActionProvider() == null) return false;
+        if (!caps.getCodeActionProvider().isRight()) return false;
+        org.eclipse.lsp4j.CodeActionOptions options =
+                caps.getCodeActionProvider().getRight();
+        return options != null && Boolean.TRUE.equals(options.getResolveProvider());
     }
 
     /**
