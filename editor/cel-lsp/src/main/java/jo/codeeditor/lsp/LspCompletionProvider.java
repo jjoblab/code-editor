@@ -61,6 +61,11 @@ class LspCompletionProvider implements CompletionProvider {
         ctx.setTriggerKind(org.eclipse.lsp4j.CompletionTriggerKind.Invoked);
         params.setContext(ctx);
         log("completion: requesting at caret=" + caret, null);
+        // ★ Fraîcheur : version du document au moment de la requête —
+        // l'acceptation du candidat est asynchrone, un écart (l'utilisateur
+        // a tapé) fera refuser les additionalTextEdits plutôt que de
+        // corrompre le texte.
+        final int versionAtRequest = editor.getDocumentVersion();
         try {
             CompletableFuture<org.eclipse.lsp4j.jsonrpc.messages.Either<List<org.eclipse.lsp4j.CompletionItem>, CompletionList>> future =
                 server.getTextDocumentService().completion(params);
@@ -109,7 +114,7 @@ class LspCompletionProvider implements CompletionProvider {
                         final String itemLabel = label;
                         out.postApplyAction = () -> {
                             try {
-                                editorRef.applyAdditionalEdits(extraEdits);
+                                editorRef.applyAdditionalEdits(extraEdits, versionAtRequest);
                                 android.util.Log.i("LspCompletion",
                                     "auto-import appliqué pour " + itemLabel);
                             } catch (Throwable t) {

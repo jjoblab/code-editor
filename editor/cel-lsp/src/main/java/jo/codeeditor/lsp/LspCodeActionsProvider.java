@@ -83,6 +83,11 @@ class LspCodeActionsProvider implements CodeActionsProvider {
         params.setContext(ctx);
         log("codeAction: requesting for line=" + line
             + " (context: " + intersecting.size() + " diagnostics)");
+        // ★ Fraîcheur : capture la version du document AVANT d'envoyer la
+        // requête — à l'acceptation de l'action (asynchrone), un écart
+        // signifie que l'utilisateur a modifié le document : les
+        // positions du serveur seraient périmées → l'édition sera refusée.
+        final int versionAtRequest = editor.getDocumentVersion();
         try {
             CompletableFuture<List<org.eclipse.lsp4j.jsonrpc.messages.Either<org.eclipse.lsp4j.Command, org.eclipse.lsp4j.CodeAction>>> future =
                 server.getTextDocumentService().codeAction(params);
@@ -119,7 +124,7 @@ class LspCodeActionsProvider implements CodeActionsProvider {
                         return;
                     }
                     try {
-                        editorRef.applyWorkspaceEdit(editToApply);
+                        editorRef.applyWorkspaceEdit(editToApply, versionAtRequest);
                         log("codeAction: applied '" + actionTitle + "'");
                     } catch (Throwable t) {
                         log("codeAction: FAILED to apply '" + actionTitle + "': " + t.getMessage());

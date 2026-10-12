@@ -91,4 +91,26 @@ final class LspTextUtils {
         }
         return sb.toString();
     }
+
+    /**
+     * Décide si des éditions renvoyées par le serveur sont PÉRIMÉES par
+     * rapport à la version du document synchronisée.
+     *
+     * <p>Politique : {@code null} (LSP 3.13, « changes » sans version)
+     * → aucun contrôle possible, considéré frais ; version identique →
+     * frais ; tout écart (le client a avancé — l'utilisateur a tapé — ou
+     * le serveur annonce une version inconnue) → périmé : les positions
+     * ne sont plus fiables, l'édition est REFUSÉE plutôt que corrompre
+     * le texte. La rebase automatique des positions serait risquée (elle
+     * n'est sûre que si les zones éditées ne se chevauchent pas) : le
+     * refus est le comportement déterministe et sûr.</p>
+     *
+     * @param versionFromServer version portée par l'édition (peut être null)
+     * @param currentVersion    version courante du document côté client
+     * @return true si l'édition doit être refusée
+     */
+    static boolean isStaleEdit(Integer versionFromServer, int currentVersion) {
+        if (versionFromServer == null) return false;
+        return versionFromServer != currentVersion;
+    }
 }

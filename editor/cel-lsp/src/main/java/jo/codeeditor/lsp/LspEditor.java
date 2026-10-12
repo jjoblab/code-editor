@@ -381,7 +381,23 @@ public class LspEditor {
      * <p>Doit être appelée sur le thread UI (elle mute la session).</p>
      */
     public void applyWorkspaceEdit(org.eclipse.lsp4j.WorkspaceEdit edit) {
-        workspaceEdits.applyWorkspaceEdit(edit);
+        workspaceEdits.applyWorkspaceEdit(edit, null);
+    }
+
+    /**
+     * Variante avec contrôle de fraîcheur : {@code versionAtRequest} est
+     * la version du document CAPTURÉE au moment où la requête est partie
+     * (code action, complétion). Si le document a changé depuis, les
+     * positions renvoyées par le serveur sont périmées — l'édition est
+     * refusée plutôt que d'appliquer des positions fausses.
+     */
+    public void applyWorkspaceEdit(org.eclipse.lsp4j.WorkspaceEdit edit, Integer versionAtRequest) {
+        workspaceEdits.applyWorkspaceEdit(edit, versionAtRequest);
+    }
+
+    /** Version courante du document LSP (strictement croissante). */
+    int getDocumentVersion() {
+        return synchronizer.getDocumentVersion();
     }
 
     /**
@@ -400,6 +416,16 @@ public class LspEditor {
      * {@code CompletionSession.Item.attachment}.</p>
      */
     public void applyAdditionalEdits(java.util.List<org.eclipse.lsp4j.TextEdit> edits) {
-        workspaceEdits.applyAdditionalEdits(edits);
+        workspaceEdits.applyAdditionalEdits(edits, null);
+    }
+
+    /**
+     * Variante avec contrôle de fraîcheur : {@code versionAtRequest} est
+     * la version capturée au moment de la requête de complétion — si
+     * l'utilisateur a tapé depuis, les additionalTextEdits (auto-import)
+     * sont refusés au lieu de corrompre le texte.
+     */
+    public void applyAdditionalEdits(java.util.List<org.eclipse.lsp4j.TextEdit> edits, Integer versionAtRequest) {
+        workspaceEdits.applyAdditionalEdits(edits, versionAtRequest);
     }
 }

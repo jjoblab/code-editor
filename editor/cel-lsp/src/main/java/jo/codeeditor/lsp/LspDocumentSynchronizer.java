@@ -42,7 +42,14 @@ class LspDocumentSynchronizer {
      */
     private volatile String lastSyncedText = null;
 
-    private int documentVersion = 0;
+    /**
+     * Version du document LSP — strictement croissante, thread-safe :
+     * les envois viennent du thread de debounce, de
+     * {@code flushPendingChange} (exécuteur de complétion) et de
+     * didOpen ; un simple int produisait des versions dupliquées sous
+     * charge (la spécification LSP exige une croissance stricte).
+     */
+    private final VersionCounter documentVersion = new VersionCounter();
 
     /** Le texte en attente d'envoi via didChange. */
     private volatile String pendingText = null;
@@ -207,7 +214,8 @@ class LspDocumentSynchronizer {
         DidChangeTextDocumentParams params = new DidChangeTextDocumentParams();
         VersionedTextDocumentIdentifier id = new VersionedTextDocumentIdentifier();
         id.setUri(editor.getFileUri());
-        id.setVersion(++documentVersion);
+        int v = documentVersion.next();
+        id.setVersion(v);
         params.setTextDocument(id);
         TextDocumentContentChangeEvent change = new TextDocumentContentChangeEvent();
         String baseline = lastSyncedText;
@@ -237,10 +245,10 @@ class LspDocumentSynchronizer {
         try {
             editor.currentWrapper().getServer().getTextDocumentService().didChange(params);
             lastSyncedText = text;  // ★ R1 : la nouvelle base devient synced.
-            android.util.Log.i("LspEditor", "didChange v" + documentVersion + " ("
+            android.util.Log.i("LspEditor", "didChange v" + v + " ("
                     + (change.getRange() != null ? "range " + editDeltaHint(baseline, text) : text.length() + " chars") + ")");
             final LspLogSink sink = editor.getProject().getLogSink();
-            if (sink != null) sink.log("didChange v" + documentVersion + " (" + text.length() + " chars)");
+            if (sink != null) sink.log("didChange v" + v + " (" + text.length() + " chars)");
         } catch (Exception e) {
             android.util.Log.e("LspEditor", "didChange FAILED: " + e.getMessage(), e);
             final LspLogSink sink = editor.getProject().getLogSink();
@@ -349,7 +357,7 @@ class LspDocumentSynchronizer {
         TextDocumentItem item = new TextDocumentItem();
         item.setUri(editor.getFileUri());
         item.setLanguageId(editor.extension());
-        item.setVersion(documentVersion);
+        item.setVersion(documentVersion.get());
         item.setText(editorView.getSession().getText());
         params.setTextDocument(item);
         try {
@@ -387,6 +395,6 @@ class LspDocumentSynchronizer {
 
     /** La version courante du document (incrémentée à chaque didChange). */
     int getDocumentVersion() {
-        return documentVersion;
+        return documentVersion.get();
     }
 }
