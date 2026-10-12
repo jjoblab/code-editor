@@ -232,7 +232,7 @@ class LspWorkspaceEditApplier {
         }
         final org.eclipse.lsp4j.WorkspaceEdit fEdit = diskOnly;
         final File fRoot = workspaceRoot;
-        DISK_EDITS_EXECUTOR.execute(() -> {
+        editor.submitBackground(() -> {
             WorkspaceDiskEdits.Result r = WorkspaceDiskEdits.applyAll(fEdit, fRoot);
             if (!r.applied) {
                 android.util.Log.w("LspEditor",
@@ -270,13 +270,6 @@ class LspWorkspaceEditApplier {
         return op.getClass().getSimpleName();
     }
 
-    /** Exécuteur dédié aux réécritures disque des fichiers tiers (daemon). */
-    private static final ExecutorService DISK_EDITS_EXECUTOR =
-            Executors.newSingleThreadExecutor(r -> {
-                Thread t = new Thread(r, "cel-lsp-disk-edits");
-                t.setDaemon(true);
-                return t;
-            });
 
     /**
      * Applique des éditions LSP ADDITIONNELLES (ex:

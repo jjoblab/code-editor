@@ -18,13 +18,6 @@ class LspSemanticTokensPuller {
 
     private final LspEditor editor;
 
-    /** Exécuteur dédié aux tirs textDocument/semanticTokens/full (daemon). */
-    private static final java.util.concurrent.ExecutorService SEMANTIC_EXECUTOR =
-            java.util.concurrent.Executors.newSingleThreadExecutor(r -> {
-                Thread t = new Thread(r, "cel-lsp-semantic");
-                t.setDaemon(true);
-                return t;
-            });
 
     /** Génération anti-obsolescence : toute nouvelle demande invalide la précédente. */
     private final java.util.concurrent.atomic.AtomicInteger semanticGeneration =
@@ -79,7 +72,7 @@ class LspSemanticTokensPuller {
     private void doPullSemanticTokens() {
         lastSemanticPullMs = System.currentTimeMillis();
         final int gen = semanticGeneration.incrementAndGet();
-        SEMANTIC_EXECUTOR.execute(() -> {
+        editor.submitBackground(() -> {
             try {
                 if (!editor.isConnected()) return;
                 LanguageServerWrapper wrapper = editor.currentWrapper();
