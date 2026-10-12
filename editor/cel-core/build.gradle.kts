@@ -39,6 +39,16 @@ android {
         warningsAsErrors = true
         checkReleaseBuilds = false
         baseline = file("lint-baseline.xml")
+
+        // La version de Gradle est épinglée volontairement (9.5.1, alignée
+        // sur jitpack.yml) : la vérification « une version plus récente
+        // existe » est désactivée — elle pointe le fichier wrapper du
+        // PROJET RACINE (hors module), ce que lint rapporte avec un chemin
+        // dépendant du dossier de build : l'entrée de baseline
+        // correspondante était fragile (rebuild dans un autre dossier →
+        // LintBaselineFixed → échec), et signaler une mise à jour
+        // disponible n'est pas un défaut de code.
+        disable += "AndroidGradlePluginVersion"
     }
 }
 
