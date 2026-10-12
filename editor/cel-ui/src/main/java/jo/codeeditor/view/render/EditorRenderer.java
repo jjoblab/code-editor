@@ -418,9 +418,10 @@ public class EditorRenderer {
 
         // Sticky lines (en-têtes collés en haut pendant le scroll).
         // Dessiné EN DERNIER pour être par-dessus tout le reste.
+        // La liste des lignes ACTIVES (rendu + hit-test S3, plafond
+        // stickyMaxLines S4) est résolue dans la vue.
         if (view.stickyLinesEnabled && view.session != null) {
-            drawStickyLines(canvas, doc, lineHeight, paddingTop,
-                    textAreaLeft, firstDocVisible, view.detectStickyLines(doc));
+            drawStickyLines(canvas, doc, lineHeight, paddingTop, textAreaLeft);
         }
     }
 
@@ -499,45 +500,24 @@ public class EditorRenderer {
      * <ol>
      *   <li>Détecter toutes les lignes sticky du document (lignes
      *       contenant un en-tête de classe/méthode/fonction).</li>
-     *   <li>Parcourir les lignes sticky de bas en haut.</li>
-     *   <li>Pour chaque ligne sticky dont le Y (après vOffset) est
-     *       au-dessus du viewport (y < paddingTop), la redessiner
-     *       en haut, empilée par-dessus la précédente.</li>
-     *   <li>Limiter à 2 lignes sticky maximum (classe + méthode).</li>
+     *   <li>La sélection des lignes ACTIVES (au-dessus du viewport,
+     *       non repliées, plafonnées à
+     *       {@code view.stickyMaxLines} — S4) vit dans
+     *       {@code EditorView.activeStickyLines()} : la MÊME liste
+     *       sert au rendu et au hit-test du tap de navigation (S3) —
+     *       une seule source de vérité.</li>
+     *   <li>Chaque ligne active est redessinée en haut, empilée
+     *       par-dessus la précédente (extérieure → intérieure).</li>
      *   <li>Détacher une ligne sticky quand la suivante entre dans
      *       le viewport — elle n'est plus sticky car elle est visible.</li>
      * </ol>
      */
     private void drawStickyLines(Canvas canvas, EditorDocument doc,
-            float lineHeight, float paddingTop,
-            float textAreaLeft, int firstDocVisible,
-            java.util.List<int[]> stickyLines) {
-        if (stickyLines.isEmpty()) return;
-
-        float gutterWidth = view.metrics.getGutterWidth();
-        float editorWidth = view.getWidth();
-        float vOffset = view.vOffset;
-
-        // Trouver les lignes sticky qui sont au-dessus du viewport.
-        // Une ligne sticky est "active" si son Y écran est négatif
-        // (scrollée hors du viewport).
-        java.util.List<int[]> activeSticky = new java.util.ArrayList<>();
-        for (int i = stickyLines.size() - 1; i >= 0; i--) {
-            int[] sticky = stickyLines.get(i);
-            int docLine = sticky[0];
-            float lineY = view.docLineToY(docLine) - vOffset;
-            // La ligne est au-dessus du viewport si son Y écran est
-            // avant le paddingTop (haut de la zone de texte).
-            if (lineY < paddingTop - 1f) {
-                // Vérifier que la ligne n'est pas repliée.
-                if (!view.isLineFoldedCached(docLine)) {
-                    activeSticky.add(0, sticky);
-                    if (activeSticky.size() >= 2) break; // max 2 lignes
-                }
-            }
-        }
-
+            float lineHeight, float paddingTop, float textAreaLeft) {
+        java.util.List<int[]> activeSticky = view.activeStickyLines();
         if (activeSticky.isEmpty()) return;
+
+        float editorWidth = view.getWidth();
 
         // ★ S2 : synchro du paint dédié (typeface, taille) depuis le
         // paint du texte ; couleur de base posée explicitement — le

@@ -264,6 +264,10 @@ public class EditorView extends View {
     final StickyLineDetector stickyLineDetector = new StickyLineDetector(this);
     // Sticky lines activées/désactivées (défaut : true).
     public boolean stickyLinesEnabled = true;
+    // S4 (lot 2, J4) : nombre MAXIMAL de lignes sticky empilées en haut
+    // (défaut mobile : 2 — classe + méthode ; 3-5 tenable sur tablette,
+    // cf. setStickyMaxLines). Borné [1, 5].
+    public int stickyMaxLines = 2;
     // Carrés colorés inline pour #RGB/#RRGGBB/#AARRGGBB (défaut : true).
     public boolean colorSwatchesEnabled = true;
     // Variable-specific colors : chaque variable reçoit une teinte
@@ -1655,7 +1659,8 @@ public class EditorView extends View {
      * code qui restent visibles en haut pendant le scroll).
      *
      * <p>Sur mobile, garde au plus
-     * 2 lignes sticky (classe + méthode) pour ne pas consommer
+     * {@link #setStickyMaxLines(int) stickyMaxLines} lignes sticky
+     * (défaut : 2 — classe + méthode) pour ne pas consommer
      * trop d'espace.</p>
      *
      * @param enabled {@code true} pour activer (défaut), {@code false}
@@ -1670,9 +1675,89 @@ public class EditorView extends View {
     /** @return {@code true} si les sticky lines sont activées. */
     public boolean isStickyLinesEnabled() { return stickyLinesEnabled; }
 
+    /**
+     * S4 (lot 2, J4) — nombre MAXIMAL de lignes sticky empilées en
+     * haut pendant le scroll (1 à 5, défaut mobile : 2 — classe +
+     * méthode ; 3 à 5 est tenable sur tablette où l'espace vertical
+     * est moins rare).
+     *
+     * <p>Le plafond s'applique au rendu ET au hit-test de la bande
+     * ({@link #activeStickyLines()}) — une seule source de vérité.
+     * Les valeurs hors plage [1, 5] sont proprement refusées : la
+     * valeur courante est conservée (pas de crash, pas de clamp
+     * silencieux).</p>
+     *
+     * @param max le plafond voulu (1 à 5)
+     * @since 3.55.0
+     */
+    public void setStickyMaxLines(int max) {
+        if (max < 1 || max > 5) return;
+        if (this.stickyMaxLines == max) return;
+        this.stickyMaxLines = max;
+        invalidate();
+    }
+
+    /**
+     * S4 — @return le nombre maximal de lignes sticky (1 à 5,
+     * défaut 2).
+     * @since 3.55.0
+     */
+    public int getStickyMaxLines() { return stickyMaxLines; }
+
     /** Lot B : détecte les lignes sticky du document (package render). */
     public java.util.List<int[]> detectStickyLines(EditorDocument doc) {
         return stickyLineDetector.detect(doc);
+    }
+
+    /**
+     * S3 (lot 2, J4) — les lignes sticky <b>actives</b> (effectivement
+     * empilées en haut) : celles scrollées AU-DESSUS du viewport et
+     * non repliées, en ordre d'empilement (extérieure → intérieure),
+     * plafonnées à {@link #setStickyMaxLines(int) stickyMaxLines}.
+     *
+     * <p>Source unique partagée par le rendu
+     * ({@code EditorRenderer.drawStickyLines}) et le hit-test de la
+     * bande ({@code EditorTapResolver}) — le tap sur la bande navigue
+     * vers la ligne d'origine (S3). Chaque élément est la paire
+     * {@code [docLine, yContenu]} du détecteur.</p>
+     *
+     * @return la liste (vide si rien n'est collé) ; jamais null
+     * @since 3.55.0
+     */
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public java.util.List<int[]> activeStickyLines() {
+        if (!stickyLinesEnabled || session == null) {
+            return java.util.Collections.emptyList();
+        }
+        EditorDocument doc = session.getDocument();
+        if (doc == null) return java.util.Collections.emptyList();
+        float paddingTop = metrics.getPadTop();
+        java.util.List<int[]> sticky = stickyLineDetector.detect(doc);
+        java.util.List<int[]> active = new java.util.ArrayList<>();
+        for (int i = sticky.size() - 1; i >= 0; i--) {
+            int[] pair = sticky.get(i);
+            float lineY = docLineToY(pair[0]) - vOffset;
+            // Active = scrollée au-dessus de la zone de texte, non
+            // repliée (même règle que le rendu, avant factorisation).
+            if (lineY < paddingTop - 1f && !isLineFoldedCached(pair[0])) {
+                active.add(0, pair);
+                if (active.size() >= stickyMaxLines) break;
+            }
+        }
+        return active;
+    }
+
+    /**
+     * D3 (lot 2, J4) — copie un texte arbitraire au presse-papiers
+     * (message de diagnostic à l'appui long sur un squiggle) avec le
+     * même plafond Binder que copy() (200 000 caractères, la fin
+     * conservée). Relai vers {@code EditorClipboard}.
+     *
+     * @since 3.55.0
+     */
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public void copyToClipboard(String text) {
+        clipboard.copyText(text);
     }
 
     /**
