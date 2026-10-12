@@ -1,0 +1,94 @@
+package jo.codeeditor.lsp;
+
+import org.eclipse.lsp4j.Position;
+import org.eclipse.lsp4j.TextEdit;
+
+import java.util.List;
+
+/**
+ * Conversion Position LSP → offset et application d'éditions sur un
+ * contenu texte HORS éditeur (fichiers tiers du renommage et des
+ * WorkspaceEdit). Implémentation unique — l'ancien code la dupliquait
+ * dans {@code LspWorkspaceEditApplier} et {@code LspRenameProvider}.
+ *
+ * <p>Sémantique LSP (spécification 3.17) : la colonne compte les
+ * <b>unités de code UTF-16</b> — un caractère hors BMP (surrogate pair)
+ * vaut DEUX colonnes ; les positions sont bornées à la fin de ligne
+ * (avant le {@code \n} ; le {@code \r} d'une fin CRLF appartient à la
+ * ligne).</p>
+ */
+final class LspTextUtils {
+
+    private LspTextUtils() {
+        // Classe utilitaire.
+    }
+
+    /**
+     * Position LSP (ligne, colonne) → offset dans le texte.
+     *
+     * @return l'offset, ou {@code -1} si la position est incohérente
+     *         (ligne au-delà de la fin, position null)
+     */
+    static int positionToOffset(String text, Position pos) {
+        if (text == null || pos == null) return -1;
+        int line = Math.max(0, pos.getLine());
+        int lineStart = 0;
+        for (int i = 0; i < line; i++) {
+            int nl = text.indexOf('\n', lineStart);
+            if (nl < 0) return -1; // ligne au-delà de la fin du texte
+            lineStart = nl + 1;
+        }
+        if (lineStart > text.length()) return -1;
+        int lineEnd = text.indexOf('\n', lineStart);
+        if (lineEnd < 0) lineEnd = text.length();
+        int offset = lineStart + Math.max(0, pos.getCharacter());
+        return Math.min(offset, lineEnd);
+    }
+
+    /**
+     * Applique une liste de TextEdits LSP à un contenu texte : trie par
+     * offset de début DÉCROISSANT (les éditions postérieures ne décalent
+     * pas les offsets antérieures), vérifie le non-chevauchement et les
+     * bornes.
+     *
+     * @return le nouveau contenu, ou {@code null} si les éditions sont
+     *         invalides (chevauchement, plage hors bornes, texte null)
+     */
+    static String applyEdits(String content, List<TextEdit> edits) {
+        if (content == null) return null;
+        if (edits == null || edits.isEmpty()) return content;
+        // Résout toutes les plages d'abord — validation complète avant
+        // toute mutation (tout-ou-rien par fichier).
+        int n = edits.size();
+        int[] starts = new int[n];
+        int[] ends = new int[n];
+        String[] texts = new String[n];
+        for (int i = 0; i < n; i++) {
+            TextEdit te = edits.get(i);
+            if (te == null || te.getRange() == null) return null;
+            int start = positionToOffset(content, te.getRange().getStart());
+            int end = positionToOffset(content, te.getRange().getEnd());
+            if (start < 0 || end < start || end > content.length()) return null;
+            starts[i] = start;
+            ends[i] = end;
+            texts[i] = te.getNewText() == null ? "" : te.getNewText();
+        }
+        // Ordre de début croissant pour le contrôle de chevauchement,
+        // puis application en ordre décroissant.
+        Integer[] order = new Integer[n];
+        for (int i = 0; i < n; i++) order[i] = i;
+        java.util.Arrays.sort(order, (a, b) -> Integer.compare(starts[a], starts[b]));
+        for (int k = 1; k < n; k++) {
+            int prev = order[k - 1], cur = order[k];
+            if (starts[cur] < ends[prev]) {
+                return null; // chevauchement — interdit par le protocole
+            }
+        }
+        StringBuilder sb = new StringBuilder(content);
+        for (int k = n - 1; k >= 0; k--) { // décroissant
+            int i = order[k];
+            sb.replace(starts[i], ends[i], texts[i]);
+        }
+        return sb.toString();
+    }
+}
