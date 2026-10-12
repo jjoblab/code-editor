@@ -418,12 +418,15 @@ final class EditorLanguageBridge {
                                 new java.util.ArrayList<>();
                         if (spiHints != null) {
                             for (jo.codeeditor.lang.model.InlayHint hint : spiHints) {
-                                // I1 (lot 2, J3) : le kind est recopié — le
+                                // I1 (J3) : le kind est recopié — le
                                 // rendu distingue paramètre (italique, plus
-                                // effacé) de type (droit). Avant, il mourait
-                                // ici et tous les hints rendaient pareil.
+                                // effacé) de type (droit). I2 (J3) : le
+                                // tooltip direct traverse aussi (la
+                                // résolution paresseuse ne concerne que
+                                // les hints sans tooltip).
                                 legacy.add(new DiagnosticShift.InlayHint(
-                                        hint.offset, hint.text, true, hint.kind));
+                                        hint.offset, hint.text, true, hint.kind,
+                                        hint.tooltip));
                             }
                         }
                         final java.util.List<DiagnosticShift.InlayHint> computed = legacy;
@@ -443,6 +446,21 @@ final class EditorLanguageBridge {
                 inlayHintTask = null;
                 view.session.setInlayHints(new java.util.ArrayList<>());
             }
+
+            // I2 (lot 2, J3) : résolution paresseuse du tooltip des hints
+            // (au premier appui long) — le SPI expose resolveHint ; le
+            // resolver de vue le déporte sur la voie « features ». Sans
+            // provider, le resolver est retiré (l'appui long sur un hint
+            // retombe sur la sélection du mot).
+            view.setInlayTooltipResolver(inlayHintProviderSpi != null
+                    ? (docText, offset, hintText) -> {
+                        jo.codeeditor.lang.model.InlayHint resolved =
+                                inlayHintProviderSpi.resolveHint(docText,
+                                        new jo.codeeditor.lang.model.InlayHint(
+                                                offset, hintText, "type"));
+                        return resolved != null ? resolved.tooltip : null;
+                    }
+                    : null);
 
             // Déclenche un rafraîchissement initial des document highlights
             // au caret courant.

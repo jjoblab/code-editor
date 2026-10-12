@@ -9,6 +9,7 @@ import android.view.MotionEvent;
 import android.view.inputmethod.InputMethodManager;
 
 import jo.codeeditor.document.Selection;
+import jo.codeeditor.shift.DiagnosticShift;
 
 /**
  * Gestes de sélection d'EditorView, extraits d'EditorInputHandler : appui
@@ -67,6 +68,13 @@ public class EditorSelectionGestures {
         // État du dispatcher (longPressTriggered, fin de drag/scroll) via
         // l'orchestrateur — corps historique déplacé à l'identique.
         input.markLongPressTriggered();
+        // I2 (lot 2, J3) : un appui long sur un hint tissé ouvre son
+        // tooltip (quick doc) AVANT la sélection du mot — le hint est du
+        // texte fantôme, pas du code ; l'appui long « documentation »
+        // (survol des hints, parité IntelliJ) a la priorité sur l'appui
+        // long « sélection ». Hors hint (ou wrap, où le tissage n'est pas
+        // cartographié) : comportement historique inchangé.
+        if (handleInlayHintLongPress(x, y)) return;
         int offset = view.offsetAt(x, y);
         view.session.selectWordAt(offset);
         view.handlesVisible = true;
@@ -321,5 +329,83 @@ public class EditorSelectionGestures {
     private void hideSelectionChrome() {
         view.handlesVisible = false;
         dismissSelectionToolbar();
+    }
+
+    // ── I2 (lot 2, J3) : tooltip des inlay hints au long-press ──────
+
+    /**
+     * Appui long sur un hint tissé : ouvre le quick doc portant le
+     * tooltip du hint — direct si le serveur l'a servi avec le hint,
+     * sinon résolu paresseusement via {@code view.inlayTooltipResolver}
+     * (voie « features », une seule requête). Retourne true si le geste
+     * est CONSOMMÉ (le hint a été touché) ; false → appui long de
+     * sélection classique.
+     *
+     * <p>Hit-test : la plage tissée du hint est connue du layout de
+     * ligne ({@code layoutForLine} → rawToVisual + pièce) — colonne
+     * visuelle du doigt DANS [début du hint, début + longueur du
+     * texte). En mode wrap le tissage n'est pas cartographié par
+     * colonnes : repli sur l'appui long classique.</p>
+     */
+    private boolean handleInlayHintLongPress(float x, float y) {
+        if (view.session == null || view.wordWrap) return false;
+        jo.codeeditor.document.EditorDocument doc = view.session.getDocument();
+        int line = jo.codeeditor.view.EditorView.clamp(
+                view.docLineForScreenY(y), 0, doc.lineCount() - 1);
+        jo.codeeditor.cache.LineRenderCache.LineCacheEntry entry =
+                view.layoutForLine(line, doc.lineText(line));
+        if (entry == null || entry.inlays == null || entry.inlays.isEmpty()
+                || entry.rawToVisual == null) {
+            return false;
+        }
+        // Colonne VISUELLE du doigt (même formule que offsetAt hors wrap).
+        float charWidth = view.metrics.getCharWidth();
+        float textAreaLeft = view.metrics.getGutterWidth() + view.metrics.getPadLeft();
+        int visCol = (int) ((x - (textAreaLeft - view.hOffset)) / charWidth + 0.5f);
+        int lineStart = doc.lineStart(line);
+        for (jo.codeeditor.cache.LineRenderCache.InlayPiece p : entry.inlays) {
+            int hintStart = entry.rawToVisual[Math.min(p.col,
+                    entry.rawToVisual.length - 1)];
+            if (visCol < hintStart || visCol >= hintStart + p.text.length()) continue;
+            // Hint touché — retrouve le hint de session (tooltip + offset).
+            DiagnosticShift.InlayHint hint = hintAtCol(line, lineStart, p.col);
+            if (hint == null) return false;
+            if (hint.tooltip != null && !hint.tooltip.isEmpty()) {
+                // Tooltip direct : quick doc immédiat (zéro requête).
+                view.popupManager.showQuickDocRaw(hint.offset, hint.tooltip);
+                return true;
+            }
+            if (view.inlayTooltipResolver == null) return false;
+            // Résolution paresseuse sur la voie « features » — une seule
+            // requête par appui, livraison latest-wins (génération via
+            // showQuickDocRaw à l'arrivée).
+            final int fOffset = hint.offset;
+            final String fText = hint.text;
+            final String docText = view.session.getText();
+            jo.codeeditor.view.EditorTaskLanes.submitFeature(() -> {
+                String tooltip = null;
+                try {
+                    tooltip = view.inlayTooltipResolver.resolveInlayTooltip(
+                            docText, fOffset, fText);
+                } catch (Exception e) {
+                    jo.codeeditor.util.EditorLog.warn("EditorInlay",
+                        "résolution du tooltip d'inlay échouée", e);
+                }
+                if (tooltip != null && !tooltip.isEmpty()) {
+                    view.popupManager.showQuickDocRaw(fOffset, tooltip);
+                }
+            });
+            return true;
+        }
+        return false;
+    }
+
+    /** Le hint de SESSION ancré à la colonne brute {@code col} de la ligne
+     *  (porte le tooltip) — null si absent (pièce de cache orpheline). */
+    private DiagnosticShift.InlayHint hintAtCol(int line, int lineStart, int col) {
+        for (DiagnosticShift.InlayHint h : view.session.getInlayHintsForLine(line)) {
+            if (h.offset - lineStart == col) return h;
+        }
+        return null;
     }
 }

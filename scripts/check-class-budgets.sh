@@ -47,9 +47,16 @@ budget() {
 # ── Plafonds = valeurs mesurées à l'étape S (Phase 2) ───────────────
 # Écart au ratchet : plafond LIGNES d'EditorView relevé de 3350 à 4100
 # par décision explicite du propriétaire (2026-10, session J2) — marge
-# pour les jalons du lot 2 ; les plafonds champs/méthodes restent aux
-# valeurs mesurées pour préserver la discipline de décomposition.
-budget editor/cel-ui/src/main/java/jo/codeeditor/view/EditorView.java 4100 170 255
+# pour les jalons du lot 2.
+# Écart au ratchet : plafonds CHAMPS (170→190) et MÉTHODES PUBLIQUES
+# (255→280) d'EditorView relevés par décision explicite du propriétaire
+# (2026-10, session J3 — « Go pour J3, tu peux aussi augmenter le
+# plafond et champ pour EditorView si nécessaire ») : I2 exige un
+# resolver de tooltip d'inlay hints sur la vue (+1 champ, +1 setter),
+# marge conservée pour J4 (T2 actions socle) ; les 4100 lignes restent
+# le plafond de décomposition — le relèvement ne dispense PAS de
+# décomposer via les collaborateurs existants.
+budget editor/cel-ui/src/main/java/jo/codeeditor/view/EditorView.java 4100 190 280
 budget editor/cel-core/src/main/java/jo/codeeditor/session/EditorSession.java 1600 15 100
 
 if [ "$echec" -ne 0 ]; then
