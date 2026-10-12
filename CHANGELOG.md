@@ -1587,7 +1587,7 @@ Cette version CÂBLE DE BOUT EN BOUT la fonctionnalité « GO TO Definition sur 
 - `JavaTextDocumentService.definition` / `typeDefinition` : après le chemin JDT-first standard (intra-fichier), un fallback binaire `binaryDefinitionLocation(filePath, source, offset, targetType)` synthétise une `Location` à URI `jdt://decompiled/<fqcn-path>.java` (plage vide 0:0-0:0) — déclenché si `fqcnAt(...)` retourne un FQN non-nul ET `isBinaryType(fqcn)` retourne `true` ;
 - `JdtCompilerEngine.fqcnAt(filePath, source, offset, targetType)` — nouvelle méthode **publique** qui résout le FQN du binding au caret (`targetType=false` : classe déclarante ; `targetType=true` : type du symbole) ;
 - helpers privés `declaringTypeBindingOf(Binding)` + `stripGenericsFromFqn(TypeBinding)` — strippe le suffixe `<K,V>` de `readableName()` (sinon `isBinaryType("java.util.HashMap<K,V>")` retournerait faux car l'index ne connaît que le FQN nu) ;
-- `ServerCapabilitiesProvider` — la capability `experimental` gagne la clé `decompiledSourceProvider=true` à côté de `superDefinitionProvider` (pattern du serveur tiers) ;
+- `ServerCapabilitiesProvider` — la capability `experimental` gagne la clé `decompiledSourceProvider=true` à côté de `superDefinitionProvider` ;
 - nouveaux DTOs `jo.lspjava.api.DecompiledSourceParams` (champ `fqcn`) + `DecompiledSourceResult` (champ `source`) ;
 - `NavTextDocumentService` étendu : `@JsonRequest("textDocument/decompiledSource")` mirror du `superDefinition` (pattern v2.37) ;
 - `JavaTextDocumentService.decompiledSource(DecompiledSourceParams)` — implémente le handler (appelle `environment.jdt().decompiledSource(fqcn)` — source attachée depuis src.zip du JDK / -sources.jar / caches Gradle ; sinon stub décompilé depuis ClassFileReader) ;
@@ -1790,7 +1790,7 @@ Quatre fonctionnalités livrées dans cette version : la première est nouvelle 
   `Simple  ·  pkg`). La réponse transporte l'**offset EXACT** du nom
   dans le fichier déclarant + le libellé picker (aucun round-trip
   Position↔offset à risquer côté client). Annoncée par la capability
-  `experimental.superDefinitionProvider` (pattern du serveur tiers) — un serveur
+  `experimental.superDefinitionProvider` — un serveur
   tiers qui ne l'annonce pas → l'option n'apparaît pas, proprement.
 - **Pattern LSP4J de la méthode custom — les DEUX côtés** :
   - **serveur** (`:lspjava`) : `NavTextDocumentService` (interface qui
@@ -3180,9 +3180,9 @@ builtins Lua standard qui ne devraient PAS être flagués ».
 Le module `:cel-lsp` doit rester 100% générique — aucun code spécifique à un
 LSP server particulier. Audit complet effectué :
 
-- **Pas de hardcodage de server** — un grep `emmy|le serveur LSP tiers|pylsp|le serveur LSP tiers|rust.analyzer`
-  sur tout le module `:cel-lsp` ne trouve des références que dans des
-  commentaires/javadoc (exemples d'usage), jamais dans du code qui branche
+- **Pas de hardcodage de server** — aucune clé de réglage spécifique
+  à un serveur donné n'apparaît dans le code du module `:cel-lsp` : les
+  références vivent dans des commentaires/javadoc (exemples d'usage), jamais dans du code qui branche
   sur le type de server. ✅
 
 - **`DefaultLanguageClient.configuration()`** — gère le cas général
@@ -3194,7 +3194,7 @@ LSP server particulier. Audit complet effectué :
   - `None` → didChange skippé.
   - `Full` (beaucoup de serveurs légers) → texte complet sans range
     (comportement inchangé depuis v3.3.4).
-  - `Incremental` (le serveur LSP tiers, le serveur LSP tiers, pylsp, le serveur LSP tiers, le serveur LSP tiers) →
+  - `Incremental` (la plupart des serveurs de langage) →
     `TextDocumentContentChangeEvent` avec un `Range` (full-doc range par
     défaut, puisque l'éditor ne track pas les per-keystroke ranges).
   La méthode ne ment jamais au server sur le type de sync.
@@ -3227,15 +3227,15 @@ LSP server particulier. Audit complet effectué :
   - **General** : `markup` markdown/plaintext.
 
   Toutes ces capabilities sont pure advertisement (aucune n'implique du
-  code qui branche sur le server). Servers comme le serveur LSP tiers / le serveur LSP tiers / pylsp /
-  le serveur LSP tiers / le serveur LSP tiers qui implémentent ces features vont maintenant les
+  code qui branche sur le server). Les serveurs qui implémentent ces
+  features vont maintenant les
   activer pour nous — auparavant ils les skipaient silencieusement car on
   ne les avait pas annoncées.
 
 - **`LanguageServerDefinition.getInitializationOptions()`** — reste
   override-friendly. Chaque server a son propre format (le serveur Lua utilise
-  `configFiles: [{uri, workspace}]`, le serveur LSP tiers utilise `bundles` + `settings`,
-  pylsp utilise `configurationSources`, …). Le pattern (override anonyme
+  `configFiles: [{uri, workspace}]`, d'autres `bundles` + `settings`,
+  d'autres `configurationSources`, …). Le pattern (override anonyme
   côté app) est correct et inchangé. ✅
 
 ### Tests de régression
@@ -3464,7 +3464,7 @@ PAS être supprimées** (types SPI ou APIs publiques documentées) — l'audit
   retour/paramètres de l'interface `Analyzer` (SPI Language)
 - `lsp/LspFeature` — type du champ public `LanguageServerDefinition.disabledFeatures`
 - `lsp/ProcessBuilderConnectionProvider` — `StreamConnectionProvider` public
-  pour spawn de LSP servers externes (le serveur LSP tiers, le serveur LSP tiers)
+  pour spawn de LSP servers externes en sous-processus
 - `view/EditorLayoutManager` — instancié + `clear()` appelé par EditorView
 
 ### Build
@@ -4024,7 +4024,7 @@ The old setters still work (deprecated) — they create an internal adapter
   (~600 KB). Completion contextuelle, signature help, go-to-symbol, quick
   doc, diagnostics basiques.
 - **v2.2.0** — `cel-lsp` module: LSP4J integration + `cel-lsp-java` LSP
-  adapter for remote le serveur LSP tiers via TCP.
+  adapter pour un serveur Java distant via TCP.
 - **v2.3.0** — `cel-lsp-kotlin` module: Kotlin support.
 
 [2.0.0]: https://github.com/jjoblab/code-editor/releases/tag/v2.0.0
