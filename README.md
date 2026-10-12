@@ -2,7 +2,8 @@
 
 Une bibliothèque Java **standalone pour Android** qui fournit un éditeur de code
 complet — moteur d'édition pur, coloration syntaxique incrémentale, couche
-Android Canvas et intégration LSP — construite from scratch.
+Android Canvas et intégration LSP — conçue et implémentée intégralement pour
+ce projet.
 
 > L'historique complet des versions figure dans [`CHANGELOG.md`](CHANGELOG.md).
 > Les fonctionnalités sont détaillées dans [`FEATURES.md`](FEATURES.md), le
@@ -181,7 +182,7 @@ editorView.setKeymap(EditorKeymap.defaults()
         .bindChord(EditorCommands.TOGGLE_BLOCK_COMMENT,
                 EditorKeymap.KeyStroke.of(KeyEvent.KEYCODE_K, true, false),
                 EditorKeymap.KeyStroke.of(KeyEvent.KEYCODE_U, true, false)));
-// Ctrl+K Ctrl+C = commenter, Ctrl+K Ctrl+U = décommenter (style IDE)
+// Ctrl+K Ctrl+C = commenter, Ctrl+K Ctrl+U = décommenter (accords de touches consécutifs)
 
 // 3. Décorer l'éditeur depuis un plugin (un painter qui throw est retiré,
 //    jamais un crash) :
@@ -196,7 +197,7 @@ OpenTabDiagnosticsSweep.start(openEditorViews);
 
 ```java
 LspProject project = new LspProject("/path/to/workspace");
-project.addServerDefinition(myServerDefinition); // ex. le serveur LSP tiers, le serveur LSP tiers…
+project.addServerDefinition(myServerDefinition); // ex. un serveur Java, un serveur Lua…
 LspEditor editor = project.createEditor("file:///path/to/Foo.java");
 editor.setEditorView(editorView);
 editor.connect();
@@ -263,13 +264,6 @@ publication) et uploade les AAR/POM en artefacts. La publication sur GitHub
 Packages est automatique : pousser un tag de version strict `vX.Y.Z`
 déclenche `.github/workflows/publish.yml` (garde-fou tag = version du build,
 tests avant publication — voir [`BUILD.md`](BUILD.md)).
-
-## Crédits
-
-Certaines parties et fonctionnalités de l'éditeur ont été conçues en s'appuyant
-sur les patterns d'architecture utilisés par
-[l'outil tiers](https://(dépôt externe retiré)) (l'auteur tiers d'alors), avec des
-améliorations et une implémentation propre en Java pour Android.
 
 ## Licence
 
