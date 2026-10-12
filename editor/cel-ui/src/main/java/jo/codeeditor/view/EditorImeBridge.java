@@ -432,7 +432,12 @@ public class EditorImeBridge {
                 view.extractedTextMonitorToken = -1;
                 EditorSession s = session();
                 if (s != null && s.isInBatch()) {
-                    try { while (s.isInBatch()) s.endBatch(); } catch (RuntimeException ignored) {}
+                    // Fermeture best-effort des lots IME ouverts : la
+                    // connexion est déjà morte, un lot résiduel sera purgé
+                    // par la prochaine frappe.
+                    try { while (s.isInBatch()) s.endBatch(); } catch (RuntimeException ignored) {
+                        // Fermeture best-effort : voir commentaire ci-dessus.
+                    }
                 }
             }
             super.closeConnection();

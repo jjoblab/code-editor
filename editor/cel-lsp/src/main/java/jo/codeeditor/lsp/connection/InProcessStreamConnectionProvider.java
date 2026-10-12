@@ -125,7 +125,10 @@ public class InProcessStreamConnectionProvider implements StreamConnectionProvid
             try {
                 server.shutdown();
                 server.exit();
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) {
+                // Extinction best-effort : le serveur peut déjà être mort
+                // ou mal implémenter shutdown — on continue le démontage.
+            }
             server = null;
         }
         if (listeningThread != null) {

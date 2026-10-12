@@ -241,9 +241,11 @@ class LspDocumentSynchronizer {
                 change.setRange(new Range(positionOfIn(baseline, edit.start),
                         positionOfIn(baseline, edit.end())));
                 change.setText(insertion);
-            } catch (Throwable t) {
+            } catch (Exception t) {
+                // Diff incohérent (textes divergés) — repli universel
+                // texte complet, que tout serveur accepte.
                 change.setRange(null);
-                change.setText(text);  // repli universel texte complet
+                change.setText(text);
             }
         } else {
             change.setText(text);
@@ -386,7 +388,10 @@ class LspDocumentSynchronizer {
                 params.setTextDocument(new TextDocumentIdentifier(editor.getFileUri()));
                 wrapper.getServer().getTextDocumentService().didClose(params);
             }
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+            // didClose best-effort à l'extinction : le serveur peut être
+            // déjà parti — la connexion tombera avec le wrapper.
+        }
     }
 
     /** La version courante du document (incrémentée à chaque didChange). */

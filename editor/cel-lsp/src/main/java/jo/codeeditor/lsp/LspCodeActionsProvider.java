@@ -126,7 +126,7 @@ class LspCodeActionsProvider implements CodeActionsProvider {
                     try {
                         editorRef.applyWorkspaceEdit(editToApply, versionAtRequest);
                         log("codeAction: applied '" + actionTitle + "'");
-                    } catch (Throwable t) {
+                    } catch (Exception t) {
                         log("codeAction: FAILED to apply '" + actionTitle + "': " + t.getMessage());
                     }
                 };

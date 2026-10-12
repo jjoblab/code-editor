@@ -42,7 +42,9 @@ public class EditorGoToSymbolPopup {
             java.util.List<NavigationMenu.Symbol> symbols = null;
             try {
                 symbols = view.symbolResolver.resolve(text);
-            } catch (Throwable ignored) {
+            } catch (Exception e) {
+                jo.codeeditor.util.EditorLog.warn("EditorGoToSymbol",
+                    "récupération des symboles échouée", e);
             }
             final java.util.List<NavigationMenu.Symbol> all =
                     symbols != null ? symbols : new ArrayList<>();

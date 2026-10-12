@@ -117,7 +117,7 @@ class LspCompletionProvider implements CompletionProvider {
                                 editorRef.applyAdditionalEdits(extraEdits, versionAtRequest);
                                 android.util.Log.i("LspCompletion",
                                     "auto-import appliqué pour " + itemLabel);
-                            } catch (Throwable t) {
+                            } catch (Exception t) {
                                 android.util.Log.w("LspCompletion",
                                     "auto-import échoué pour "
                                         + itemLabel + ": " + t.getMessage());
@@ -191,7 +191,11 @@ class LspCompletionProvider implements CompletionProvider {
             if (je.isJsonPrimitive()) {
                 try {
                     s = je.getAsString();
-                } catch (Throwable ignored) {
+                } catch (Exception e) {
+                    // Le cast/accès typé peut échouer sur un serveur
+                    // exotique — journalisé, repli sur « pas de liste ».
+                    android.util.Log.w("LspCompletion",
+                        "réponse completion illisible : " + e);
                     return null;
                 }
             }

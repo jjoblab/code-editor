@@ -51,7 +51,9 @@ public class EditorCodeActionsPopup {
                 List<EditorView.CodeAction> actions;
                 try {
                     actions = view.codeActionsResolver.resolve(text, line);
-                } catch (Throwable t) {
+                } catch (Exception t) {
+                    jo.codeeditor.util.EditorLog.warn("EditorCodeActions",
+                        "récupération des actions de code échouée", t);
                     actions = null;
                 }
                 if (actions != null && !actions.isEmpty()) {

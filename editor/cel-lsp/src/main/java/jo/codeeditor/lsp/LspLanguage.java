@@ -205,8 +205,9 @@ public class LspLanguage implements Language {
                 return o.has("superDefinitionProvider")
                         && o.get("superDefinitionProvider").getAsBoolean();
             }
-        } catch (Throwable ignored) {
-            // Capability expérimentale absente/mal formée.
+        } catch (Exception ignored) {
+            // Capability expérimentale absente/mal formée : absence
+            // attendue chez les serveurs tiers, pas un défaut.
         }
         return false;
     }

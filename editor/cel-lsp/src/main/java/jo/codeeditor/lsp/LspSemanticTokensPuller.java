@@ -53,7 +53,10 @@ class LspSemanticTokensPuller {
         try {
             org.eclipse.lsp4j.ServerCapabilities caps = wrapper.getCapabilities();
             if (caps == null || caps.getSemanticTokensProvider() == null) return;
-        } catch (Throwable t) {
+        } catch (Exception t) {
+            // Le serveur a refusé/échoué la requête (capability mensongère,
+            // timeout) — repli : pas de tokens cette fois.
+            android.util.Log.w("LspEditor", "semanticTokens request failed: " + t);
             return;
         }
         long now = System.currentTimeMillis();
@@ -103,7 +106,7 @@ class LspSemanticTokensPuller {
                 if (editorView != null) {
                     editorView.post(() -> applySemanticTokens(gen, flat));
                 }
-            } catch (Throwable t) {
+            } catch (Exception t) {
                 android.util.Log.w("LspEditor", "semanticTokens failed: " + t);
             }
         });
@@ -136,14 +139,15 @@ class LspSemanticTokensPuller {
                 tokens.add(new jo.codeeditor.shift.DiagnosticShift.SemanticToken(
                         start, length, type));
             }
-        } catch (Throwable ignored) {
+        } catch (Exception ignored) {
             // Positions hors bornes (buffer divergé) — token partiel gardé.
+            // Frontière tolérante : l'écart est attendu, pas journalisé.
         }
         try {
             editorView.getSession().setSemanticTokens(tokens);
             editorView.invalidate();
             android.util.Log.i("LspEditor", "semanticTokens applied: " + tokens.size());
-        } catch (Throwable t) {
+        } catch (Exception t) {
             android.util.Log.w("LspEditor", "setSemanticTokens failed: " + t);
         }
     }

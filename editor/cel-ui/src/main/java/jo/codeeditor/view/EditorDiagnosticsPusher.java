@@ -142,7 +142,11 @@ final class EditorDiagnosticsPusher {
             try {
                 listener.onDiagnosticsPublished(
                         view.session.getDiagnostics());
-            } catch (Throwable ignored) {
+            } catch (Exception e) {
+                // Listener d'hôte défaillant : journalisé, les autres
+                // continuent.
+                jo.codeeditor.util.EditorLog.warn("EditorDiagnostics",
+                    "notification d'un auditeur de diagnostics échouée", e);
             }
         }
         view.invalidate();

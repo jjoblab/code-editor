@@ -46,7 +46,11 @@ public class LocalSocketConnectionProvider implements StreamConnectionProvider {
         if (socket != null) {
             try {
                 socket.close();
-            } catch (IOException ignored) {}
+            } catch (IOException ignored) {
+                // Fermeture best-effort : le socket local peut déjà être
+                // mort ; il est de toute façon détaché et remplacé par
+                // null.
+            }
             socket = null;
         }
     }

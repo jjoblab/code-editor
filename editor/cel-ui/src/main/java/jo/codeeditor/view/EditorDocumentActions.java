@@ -56,7 +56,11 @@ class EditorDocumentActions {
             List<jo.codeeditor.lang.model.DefinitionLocation> targets = null;
             try {
                 targets = view.definitionResolver.resolve(text, sel.start);
-            } catch (Exception ignored) {
+            } catch (Exception e) {
+                // Résolveur de définitions d'hôte défaillant : journalisé,
+                // repli sur « introuvable ».
+                jo.codeeditor.util.EditorLog.warn("EditorActions",
+                    "résolution de la définition échouée", e);
             }
             final List<jo.codeeditor.lang.model.DefinitionLocation> resolved = targets;
             Runnable apply = () -> {
@@ -103,6 +107,10 @@ class EditorDocumentActions {
             try {
                 formatted = view.formatterResolver.format(current);
             } catch (Exception e) {
+                // Formateur d'hôte défaillant : journalisé, le document
+                // reste inchangé (résultat null).
+                jo.codeeditor.util.EditorLog.warn("EditorActions",
+                    "formatage du document échoué", e);
             }
             final String result = formatted;
             Runnable apply = () -> {
@@ -116,6 +124,8 @@ class EditorDocumentActions {
                         view.invalidate();
                         changed = true;
                     } catch (Exception ignored) {
+                        // Application du format reformaté : si elle échoue,
+                        // repli sur « non modifié » signalé au callback.
                     }
                 }
                 if (callback != null) callback.accept(changed);
@@ -144,7 +154,9 @@ class EditorDocumentActions {
         final int caretLine;
         try {
             caretLine = view.session.getDocument().lineForOffset(view.session.getSelection().start);
-        } catch (Throwable t) {
+        } catch (Exception t) {
+            jo.codeeditor.util.EditorLog.warn("EditorActions",
+                "calcul de la ligne du caret échoué", t);
             if (callback != null) callback.accept(false);
             return;
         }
@@ -165,7 +177,9 @@ class EditorDocumentActions {
                         String kind = a.kind == null ? "" : a.kind;
                         if (kind.contains("source") && !found.contains(a)) found.add(a);
                     }
-                } catch (Throwable ignored) {
+                } catch (Exception e) {
+                    jo.codeeditor.util.EditorLog.warn("EditorActions",
+                        "énumération des actions source échouée", e);
                 }
             }
             final boolean anySourceAction = !found.isEmpty();
@@ -178,7 +192,9 @@ class EditorDocumentActions {
                             applied = true;
                             break; // une seule action source suffit
                         }
-                    } catch (Throwable ignored) {
+                    } catch (Exception e) {
+                        jo.codeeditor.util.EditorLog.warn("EditorActions",
+                            "application d'une action source échouée", e);
                         applied = false;
                     }
                 }

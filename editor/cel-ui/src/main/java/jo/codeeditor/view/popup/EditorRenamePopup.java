@@ -149,7 +149,10 @@ public class EditorRenamePopup {
                 String tmp = null;
                 try {
                     tmp = resolver.rename(text, caretOffset, fNewName);
-                } catch (Throwable ignored) {
+                } catch (Exception e) {
+                    // Le renommage peut ne pas être résolvable ici.
+                    jo.codeeditor.util.EditorLog.warn("EditorRename",
+                        "résolution du renommage échouée", e);
                 }
                 final String newText = tmp;
                 android.os.Handler h = view.getHandler();
@@ -161,7 +164,9 @@ public class EditorRenamePopup {
                                 view.session.getDocument().length(), newText);
                             view.notifyTextChanged();
                             replaced = true;
-                        } catch (Throwable ignored) {
+                        } catch (Exception e) {
+                            jo.codeeditor.util.EditorLog.warn("EditorRename",
+                                "application du renommage échouée", e);
                         }
                     }
                     if (!replaced) {
