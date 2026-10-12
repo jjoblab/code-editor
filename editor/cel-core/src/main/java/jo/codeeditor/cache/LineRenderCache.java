@@ -27,19 +27,30 @@ public class LineRenderCache {
 
     /**
      * Un morceau de texte fantôme/inlay inséré à une colonne.
+     *
+     * <p>I1 (lot 2, J3) : porte le genre du hint (« type » par défaut,
+     * « parameter ») pour que le rendu style par pièce — le constructeur
+     * 2-arg historique reste « type » (zéro rupture).</p>
      */
     public static final class InlayPiece {
         public final int col;
         public final String text;
+        /** Le genre du hint : « type » (droit) ou « parameter » (italique). */
+        public final String kind;
 
         public InlayPiece(int col, String text) {
+            this(col, text, "type");
+        }
+
+        public InlayPiece(int col, String text, String kind) {
             this.col = col;
             this.text = text;
+            this.kind = kind != null ? kind : "type";
         }
 
         @Override
         public String toString() {
-            return "InlayPiece(col=" + col + ", text=\"" + text + "\")";
+            return "InlayPiece(col=" + col + ", text=\"" + text + "\", kind=" + kind + ")";
         }
     }
 

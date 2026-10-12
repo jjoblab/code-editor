@@ -415,9 +415,11 @@ public class EditorTextPainter {
      * été décalé à droite par {@link #drawRawRange}, donc le hint ne recouvre
      * JAMAIS le code.
      *
-     * <p>Style : inlays rendus en texte atténué italique sans chip de fond —
-     * tonalité gutter-text + légère inclinaison (faux italique) à 85 % de la
-     * taille.
+     * <p>Style par GENRE (I1, lot 2 J3 — parité IntelliJ) : noms de
+     * paramètres en faux italique gris pâle (skew −0.25, alpha 0.75),
+     * types de variables gris DROITS (alpha 0.9) ; taille commune 85 % de
+     * la police du code, sans chip de fond. Avant I1, le kind mourait au
+     * pont et tous les hints rendaient en italique uniforme.
      */
     void drawCachedInlays(Canvas canvas, List<LineRenderCache.InlayPiece> inlays,
                            int[] rawToVisual, float lineY, Paint paint) {
@@ -426,9 +428,22 @@ public class EditorTextPainter {
         float textAreaLeft = view.metrics.getGutterWidth() + view.metrics.getPadLeft();
         paint.setTypeface(view.metrics.getTypeface());
         paint.setTextSize(view.metrics.getTextSize() * 0.85f);
-        paint.setColor(view.applyAlphaToColor(view.theme.gutterText, 0.9f));
-        paint.setTextSkewX(-0.25f); // faux italique pour monospace
+        // Style par pièce (I1) : type DROIT alpha courant, paramètre
+        // italique plus effacé — le paint n'est réécrit QUE quand le
+        // genre change entre deux pièces (deux hints de genres
+        // différents sur une même ligne rendent avec DEUX styles).
+        int typeColor = view.applyAlphaToColor(view.theme.gutterText, 0.9f);
+        int paramColor = view.applyAlphaToColor(view.theme.gutterText, 0.75f);
+        boolean italic = false;
+        paint.setTextSkewX(0f);
+        paint.setColor(typeColor);
         for (LineRenderCache.InlayPiece p : inlays) {
+            boolean param = "parameter".equals(p.kind);
+            if (param != italic) {
+                italic = param;
+                paint.setTextSkewX(param ? -0.25f : 0f);
+                paint.setColor(param ? paramColor : typeColor);
+            }
             int vis = (rawToVisual != null && p.col >= 0 && p.col < rawToVisual.length)
                 ? rawToVisual[p.col] : p.col;
             float x = textAreaLeft + vis * charWidth - view.hOffset;

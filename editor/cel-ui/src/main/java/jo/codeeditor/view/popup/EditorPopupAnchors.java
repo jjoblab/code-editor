@@ -276,6 +276,19 @@ public final class EditorPopupAnchors {
     /** Padding bas interne du popup. */
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
     public static final float SQUIGGLE_POPUP_PAD_BOTTOM_DP = 6f;
+    /** Largeur MINIMALE du popup (UX-3, J3 — la carte se resserre sur son
+     *  contenu mais garde une taille de carte décente : sévérité + une
+     *  courte rangée). */
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static final float SQUIGGLE_POPUP_MIN_WIDTH_DP = 132f;
+    /** Marge de sécurité ajoutée à la largeur mesurée du contenu (la
+     *  mesure omet le gras simulé et les métriques varient selon la
+     *  fonte). */
+    private static final float SQUIGGLE_POPUP_W_SAFETY_DP = 4f;
+    /** Largeur réservée au chevron « › » de la rangée « See all ». */
+    private static final float SQUIGGLE_POPUP_CHEVRON_DP = 12f;
+    /** Indent des rangées (point de sévérité + libellé) et de l'en-tête. */
+    private static final float SQUIGGLE_POPUP_INDENT_DP = 12f;
 
     /**
      * Géométrie partagée du popup ancré de squiggle (D1) — source unique
@@ -289,6 +302,14 @@ public final class EditorPopupAnchors {
      * rangées de quick-fixes + rangée « See all »). Ancrage : au-dessus de
      * la ligne du diagnostic (flip en dessous si pas de place), X ancré au
      * centre du mot diagnostiqué, clampé dans la zone de texte.</p>
+     *
+     * <p><b>UX-3 (J3 — retour terrain)</b> : la largeur se resserre sur le
+     * CONTENU (elle était TOUJOURS le maximum — un message court ouvrait
+     * une carte de 320 dp). Chaque pièce est mesurée avec le paint du
+     * painter ; le message n'est candidat que s'il tient SANS repli
+     * (sinon il a besoin de la pleine largeur pour se replier) ; les
+     * rangées ellipsées plafonnent leur candidature à la largeur
+     * disponible. Bornes : [MIN, min(MAX, viewport)].</p>
      */
     public static SquigglePopupMetrics squigglePopupMetrics(EditorView view) {
         if (!view.squigglePopupVisible || view.session == null) return null;
@@ -305,8 +326,11 @@ public final class EditorPopupAnchors {
         m.item = item;
         m.w = Math.min(SQUIGGLE_POPUP_MAX_WIDTH_DP * density,
                 view.getWidth() - 2 * SQUIGGLE_POPUP_GAP_DP * density);
+        // Largeur de la plus large pièce de contenu (UX-3) — m.w reste
+        // le MAXIMUM jusqu'au resserrement final.
+        float needed = 0f;
 
-        // ── Contenu : hauteurs par mode ─────────────────────────────
+        // ── Contenu : hauteurs + candidates de largeur par mode ────
         float rowH;
         float contentTop;
         if (listMode) {
@@ -314,6 +338,18 @@ public final class EditorPopupAnchors {
             rowH = SQUIGGLE_POPUP_LIST_ROW_DP * density;
             m.rowH = rowH;
             contentTop = 0f;
+            // Chaque rangée : 1re ligne du message, ellipsée par le
+            // painter — candidature plafonnée à la place disponible
+            // (une rangée longue garde la pleine largeur, une courte
+            // resserre la carte).
+            view.textPaint.setTypeface(view.metrics.getTypeface());
+            view.textPaint.setTextSize(view.metrics.getTextSize() * 0.9f);
+            float rowAvail = m.w - 2 * SQUIGGLE_POPUP_PAD_X_DP * density;
+            for (int i = 0; i < m.rows; i++) {
+                String first = firstLineOf(m.choices.get(i).message);
+                needed = Math.max(needed, Math.min(
+                        view.textPaint.measureText(first), rowAvail));
+            }
         } else {
             int line = doc.lineForOffset(item.start);
             List<EditorView.CodeAction> actions = view.codeActionsByLine.get(line);
@@ -325,6 +361,34 @@ public final class EditorPopupAnchors {
             int msgLines = Math.min(countWrappedLines(view, msg,
                     m.w - 2 * SQUIGGLE_POPUP_PAD_X_DP * density),
                     SQUIGGLE_POPUP_MAX_MSG_LINES);
+            // En-tête : point de sévérité + libellé (« Error », « Warning »).
+            String sevLabel = item.severity == 3 ? "Error"
+                    : item.severity == 2 ? "Warning" : "Info";
+            needed = Math.max(needed,
+                    SQUIGGLE_POPUP_INDENT_DP * density
+                            + view.textPaint.measureText(sevLabel));
+            // Le message n'est candidat que s'il tient SANS repli à la
+            // largeur max — sinon il a besoin de la PLEINE largeur pour
+            // se replier (msgLines a été calculé pour elle).
+            float msgW = view.textPaint.measureText(msg);
+            if (msgW <= m.w - 2 * SQUIGGLE_POPUP_PAD_X_DP * density) {
+                needed = Math.max(needed, msgW);
+            } else {
+                needed = m.w;
+            }
+            if (nActions > 0) {
+                view.textPaint.setTextSize(view.metrics.getTextSize() * 0.7f);
+                needed = Math.max(needed, view.textPaint.measureText("QUICK FIXES"));
+                view.textPaint.setTextSize(view.metrics.getTextSize() * 0.9f);
+                float rowAvail = m.w - 2 * SQUIGGLE_POPUP_PAD_X_DP * density
+                        - SQUIGGLE_POPUP_INDENT_DP * density;
+                for (int i = 0; i < nActions && i < actions.size(); i++) {
+                    String title = actions.get(i).title != null
+                            ? actions.get(i).title : "";
+                    needed = Math.max(needed, Math.min(
+                            view.textPaint.measureText(title), rowAvail));
+                }
+            }
             rowH = SQUIGGLE_POPUP_ROW_DP * density;
             m.rowH = rowH;
             m.rows = nActions;
@@ -333,7 +397,17 @@ public final class EditorPopupAnchors {
             m.msgLines = Math.max(1, msgLines);
             contentTop = m.headerH + m.msgLines * SQUIGGLE_POPUP_MSG_LINE_DP * density
                     + (nActions > 0 ? SQUIGGLE_POPUP_LABEL_DP * density : 0f);
+            // Rangée « See all » + chevron.
+            view.textPaint.setTextSize(view.metrics.getTextSize() * 0.9f);
+            needed = Math.max(needed, SQUIGGLE_POPUP_INDENT_DP * density
+                    + view.textPaint.measureText("See all")
+                    + SQUIGGLE_POPUP_CHEVRON_DP * density);
         }
+        // ── UX-3 : resserrement de la carte sur son contenu ────────
+        m.w = jo.codeeditor.view.EditorView.clamp(
+                needed + 2 * SQUIGGLE_POPUP_PAD_X_DP * density
+                        + SQUIGGLE_POPUP_W_SAFETY_DP * density,
+                SQUIGGLE_POPUP_MIN_WIDTH_DP * density, m.w);
         m.h = contentTop + m.rows * rowH
                 + (m.seeAll ? rowH : 0f) + SQUIGGLE_POPUP_PAD_BOTTOM_DP * density;
 
@@ -376,6 +450,14 @@ public final class EditorPopupAnchors {
         view.textPaint.setTypeface(view.metrics.getTypeface());
         view.textPaint.setTextSize(view.metrics.getTextSize());
         return m;
+    }
+
+    /** La première ligne d'un message (avant tout \n), sinon vide — même
+     *  règle que le painter de la mini-liste (mesure de candidature UX-3). */
+    private static String firstLineOf(String message) {
+        if (message == null || message.isEmpty()) return "";
+        int nl = message.indexOf('\n');
+        return nl >= 0 ? message.substring(0, nl) : message;
     }
 
     /**
@@ -438,11 +520,16 @@ public final class EditorPopupAnchors {
      * <p>T1 (lot 2) : les actions injectées par l'hôte
      * ({@code view.popupManager.selActions.actions}) s'insèrent ENTRE les
      * canoniques d'édition et les icônes Docs/Actions, uniquement avec
-     * une vraie sélection ; au-delà de ce qui tient dans la largeur de
-     * la vue, les suivantes basculent dans le débordement « ⋯ » (item
-     * {@code SEL_ACT_OVERFLOW}) — la liste {@code m.overflow} peuplée
-     * ici alimente la section « MORE » du NavMenu (la métrique reste la
-     * source unique : le débordement du menu lit
+     * une vraie sélection ; celles qui ne tiennent pas dans la largeur de
+     * la vue peuplent la liste de débordement {@code m.overflow}.</p>
+     *
+     * <p>UX-1 (lot 2, J3 — retour terrain) : la pill ne porte PLUS d'item
+     * « ⋯ » de débordement — elle affichait DEUX boutons à trois points
+     * (le débordement T1 + l'icône Actions du lot 1). L'icône Actions
+     * « ⋯ » en fin de pill est l'UNIQUE débordement : elle ouvre le menu
+     * contextuel unifié dont la section « MORE » liste les actions non
+     * affichées (la liste reste peuplée ICI — la métrique demeure la
+     * source unique ; le menu lit
      * {@code view.popupManager.selActions.overflow}).</p>
      */
     public static SelectionToolbarMetrics selectionToolbarMetrics(EditorView view) {
@@ -485,7 +572,6 @@ public final class EditorPopupAnchors {
             for (int i = 0; i < textCount; i++) base += m.itemW[i] + m.btnGap;
             base += 6 * density + iconW * 2 + 3 * m.btnGap;
             float avail = view.getWidth() - 8 * density - base;
-            float overflowW = view.textPaint.measureText("⋯") + 2 * m.padX + m.btnGap;
             int n = hostActions.size();
             int shown = 0;
             float used = 0;
@@ -493,15 +579,17 @@ public final class EditorPopupAnchors {
                 if (sa == null) continue;
                 float textW = view.textPaint.measureText(sa.label);
                 float w = textW + 2 * m.padX;
-                // La dernière injectée n'a besoin du ⋯ que si d'autres
-                // la suivent — réserver sa place sinon.
-                float limit = (shown == n - 1) ? avail : avail - overflowW;
-                if (used + w > limit) break;
+                // UX-1 : plus de réservation de place pour un item « ⋯ »
+                // (supprimé) — les injectées occupent toute la place
+                // disponible ; celles qui débordent peuplent la section
+                // « MORE » du menu unifié (via l'icône Actions).
+                if (used + w > avail) break;
                 m.addInjected(sa, textW);
                 used += w + m.btnGap;
                 shown++;
             }
-            // Le débordement alimente la section « MORE » du NavMenu.
+            // Le débordement alimente la section « MORE » du menu
+            // contextuel unifié (ouvert par l'icône Actions « ⋯ »).
             view.popupManager.selActions.overflow.clear();
             if (shown < n) {
                 for (int i = shown; i < hostActions.size(); i++) {
@@ -509,7 +597,6 @@ public final class EditorPopupAnchors {
                         view.popupManager.selActions.overflow.add(hostActions.get(i));
                     }
                 }
-                m.addOverflow(view.textPaint.measureText("⋯"));
             }
             for (SelectionAction sa : view.popupManager.selActions.overflow) {
                 m.overflow.add(sa);
@@ -569,7 +656,9 @@ public final class EditorPopupAnchors {
      * désormais le seul plafond d'affichage. {@code injected[i]}
      * référence l'action d'hôte d'un item injecté ;
      * {@code itemDisabled[i]} porte l'estompage ; {@code overflow}
-     * liste les actions non affichées (section « MORE » du NavMenu).</p>
+     * liste les actions non affichées (section « MORE » du menu unifié,
+     * atteinte par l'icône Actions « ⋯ » — plus d'item dédié depuis
+     * UX-1).</p>
      */
     public static final class SelectionToolbarMetrics {
         public float x, y;                       // coin haut-gauche de la pill
@@ -587,7 +676,8 @@ public final class EditorPopupAnchors {
                 new jo.codeeditor.view.SelectionAction[8];
         /** Item estompé (action désactivée) — tap rejeté. */
         public boolean[] itemDisabled = new boolean[8];
-        /** Actions non affichées (débordement ⋯ → NavMenu « MORE »). */
+        /** Actions non affichées (→ section « MORE » du menu unifié, via
+         *  l'icône Actions « ⋯ » — UX-1). */
         public final java.util.List<jo.codeeditor.view.SelectionAction> overflow =
                 new java.util.ArrayList<>();
         public float dividerX = Float.MIN_VALUE;  // 1 divider max (avant les icônes)
@@ -624,17 +714,6 @@ public final class EditorPopupAnchors {
             isIcon[count] = false;
             injected[count] = sa;
             itemDisabled[count] = !sa.isEnabled();
-            count++;
-        }
-
-        /** Item « ⋯ » de débordement (T1) : ouvre le NavMenu « MORE ». */
-        void addOverflow(float textWidth) {
-            ensure(count + 1);
-            itemX[count] = -1;
-            itemW[count] = textWidth + 2 * padX;
-            action[count] = jo.codeeditor.view.EditorSelectionActions.SEL_ACT_OVERFLOW;
-            label[count] = "⋯";
-            isIcon[count] = false;
             count++;
         }
 

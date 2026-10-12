@@ -137,7 +137,9 @@ class EditorLineLayoutResolver {
         List<LineRenderCache.InlayPiece> inlays = new ArrayList<>(lineHints.size());
         for (DiagnosticShift.InlayHint h : lineHints) {
             int col = h.offset - lineStart;
-            inlays.add(new LineRenderCache.InlayPiece(col, h.text));
+            // I1 (J3) : le genre traverse le layout — le rendu style par
+            // pièce (paramètre italique vs type droit).
+            inlays.add(new LineRenderCache.InlayPiece(col, h.text, h.kind));
         }
         // buildColumnMaps SUPPOSE les pièces triées par col (il avance un
         // seul index pendant que rawCol croît). La liste globale de hints

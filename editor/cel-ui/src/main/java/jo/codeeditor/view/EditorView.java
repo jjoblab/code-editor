@@ -422,6 +422,22 @@ public class EditorView extends View {
         String resolve(String text, int offset);
     }
 
+    /**
+     * Résolveur du tooltip d'un inlay hint (I2, lot 2 J3) — câblé par le
+     * pont de langage quand le provider expose la résolution paresseuse
+     * ({@code InlayHintProvider.resolveHint}). Appelé au PREMIER appui
+     * long sur le hint, sur la voie « features » ; retourne null si le
+     * serveur n'a rien (le hint reste muet, pas de requête en boucle).
+     */
+    public interface InlayTooltipResolver {
+        /** Retourne le tooltip du hint identifié par (offset, texte), ou null. */
+        String resolveInlayTooltip(CharSequence text, int offset, String hint);
+    }
+
+    /** Résolveur du tooltip des inlay hints (null = résolution absente). */
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public InlayTooltipResolver inlayTooltipResolver;
+
     // ── Ampoule des code actions ─────────────────────────────────
     // 💡 dans la gouttière des lignes de diagnostic ; tap → popup dont
     // le contenu est RÉSOLU À LA DEMANDE (plus de balayage pré-calculé).
@@ -2808,6 +2824,12 @@ public class EditorView extends View {
     /** Branche un resolver quick doc. */
     public void setQuickDocResolver(QuickDocResolver resolver) {
         this.quickDocResolver = resolver;
+    }
+
+    /** Branche un resolver de tooltip d'inlay hints (I2, lot 2 J3). */
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public void setInlayTooltipResolver(InlayTooltipResolver resolver) {
+        this.inlayTooltipResolver = resolver;
     }
 
     /**

@@ -200,27 +200,51 @@ public final class DiagnosticShift {
 
     /**
      * Inlay hint avec offset.
+     *
+     * <p>I1 (lot 2, J3) : le genre du hint ({@code "type"} par défaut,
+     * {@code "parameter"}) est porté jusqu'au rendu — le constructeur
+     * 3-arg historique reste « type » (zéro rupture) ; le décalage
+     * incrémental le conserve à travers les éditions. I2 (J3) : le champ
+     * {@code tooltip} (null par défaut) porte le tooltip direct du serveur
+     * — un tooltip null est résolu paresseusement par le provider au
+     * premier appui long.</p>
      */
     public static final class InlayHint {
         public int offset;
         public final String text;
         public final boolean before;
+        /** Le genre du hint : « type » (droit) ou « parameter » (italique). */
+        public final String kind;
+        /** Tooltip du hint (null = pas encore résolu — I2, J3). */
+        public final String tooltip;
 
         public InlayHint(int offset, String text, boolean before) {
+            this(offset, text, before, "type", null);
+        }
+
+        public InlayHint(int offset, String text, boolean before, String kind) {
+            this(offset, text, before, kind, null);
+        }
+
+        public InlayHint(int offset, String text, boolean before, String kind,
+                String tooltip) {
             this.offset = offset;
             this.text = text;
             this.before = before;
+            this.kind = kind != null ? kind : "type";
+            this.tooltip = tooltip;
         }
     }
 
     /**
-     * Décale les inlay hints à travers une édition.
+     * Décale les inlay hints à travers une édition (genre et tooltip
+     * conservés).
      */
     public static List<InlayHint> shiftInlayHints(List<InlayHint> hints, EditSpan span) {
         List<InlayHint> result = new ArrayList<>();
         for (InlayHint h : hints) {
             int newOffset = mapStart(h.offset, span);
-            result.add(new InlayHint(newOffset, h.text, h.before));
+            result.add(new InlayHint(newOffset, h.text, h.before, h.kind, h.tooltip));
         }
         return result;
     }

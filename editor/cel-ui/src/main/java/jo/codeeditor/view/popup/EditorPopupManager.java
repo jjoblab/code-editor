@@ -128,6 +128,11 @@ public class EditorPopupManager {
 
     public void showQuickDoc(int offset) { quickDoc.showQuickDoc(offset); }
 
+    /** Quick doc avec un texte brut fourni (tooltip d'inlay hint — I2, J3). */
+    public void showQuickDocRaw(int offset, String raw) {
+        quickDoc.showQuickDocRaw(offset, raw);
+    }
+
     public void dismissQuickDoc() { quickDoc.dismissQuickDoc(); }
 
     // ════════════════════════════════════════════════════════════════

@@ -20,20 +20,28 @@ import java.util.List;
 import static org.junit.Assert.*;
 
 /**
- * T1 (P0) — verrouille le <b>débordement « ⋯ » de la pill de
- * sélection</b> : au-delà de ce qui tient dans la largeur de la vue,
- * les actions injectées suivantes basculent dans le menu contextuel
- * unifié (NavMenu, section « MORE » — zéro nouveau chrome).
+ * T1/UX-1 (P0 + retour terrain J3) — verrouille le <b>débordement des
+ * actions injectées et l'UNICITÉ du « ⋯ » de la pill de sélection</b>.
+ *
+ * <p>Retour terrain (session J3) : la pill affichait DEUX boutons à trois
+ * points — l'item « ⋯ » de débordement (T1) et l'icône Actions du lot 1.
+ * L'icône Actions (celle qui ouvre le menu le plus riche) est désormais
+ * l'UNIQUE débordement : les actions injectées non affichées peuplent la
+ * section « MORE » du menu contextuel unifié qu'elle ouvre.</p>
  *
  * <ul>
+ *   <li><b>Un seul trois-points</b> — la métrique ne contient AUCUN item
+ *       SEL_ACT_OVERFLOW, exactement UNE icône SEL_ACT_ACTIONS ;</li>
  *   <li><b>Troncature</b> — 10 actions injectées → la pill n'en montre
- *       qu'une partie + l'item « ⋯ » ; les non-affichées peuplent la
- *       liste de débordement (métriques = source unique) ;</li>
- *   <li><b>Ouverture du menu</b> — un tap sur « ⋯ » referme le chrome de
- *       sélection et ouvre le NavMenu dont les rangées listent les
- *       actions débordantes ;</li>
+ *       qu'une partie ; les non-affichées peuplent la liste de
+ *       débordement (métriques = source unique) ;</li>
+ *   <li><b>Ouverture du menu</b> — un tap sur l'icône Actions referme le
+ *       chrome de sélection et ouvre le NavMenu unifié dont les rangées
+ *       listent AUSSI les actions débordantes (section MORE) ;</li>
  *   <li><b>Exécution</b> — un tap sur une rangée du menu exécute le
- *       perform de l'action et referme le menu.</li>
+ *       perform de l'action et referme le menu ;</li>
+ *   <li><b>Anti-périmé</b> — un menu ouvert HORS pill (sans métrique
+ *       fraîche) ne montre pas de section MORE résiduelle.</li>
  * </ul>
  *
  * @author jo@Dev
@@ -115,8 +123,28 @@ public class SelectionToolbarOverflowTest {
         }
     }
 
+    /** Index de l'icône Actions « ⋯ » (l'UNIQUE trois-points de la pill). */
+    private static int actionsIconIndex(
+            jo.codeeditor.view.popup.EditorPopupAnchors.SelectionToolbarMetrics m) {
+        for (int i = 0; i < m.count; i++) {
+            if (m.action[i] == EditorView.SEL_ACT_ACTIONS) return i;
+        }
+        return -1;
+    }
+
+    /** Attend l'ouverture async du menu (voie « features »). */
+    private static boolean awaitNavMenu(EditorView view, long timeoutMs)
+            throws InterruptedException {
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        while (System.currentTimeMillis() < deadline) {
+            if (view.navMenuVisible) return true;
+            Thread.sleep(20);
+        }
+        return view.navMenuVisible;
+    }
+
     @Test
-    public void dixActions_pillTronquéeEtDébordementPeuplé() {
+    public void dixActions_unSeulTroisPoints_débordementPeuplé() {
         EditorView view = newView();
         Journal journal = new Journal();
         injectTen(view, journal);
@@ -127,29 +155,35 @@ public class SelectionToolbarOverflowTest {
         assertNotNull(m);
 
         int shown = 0;
-        boolean overflowItem = false;
+        int overflowItems = 0;
+        int actionsIcons = 0;
         for (int i = 0; i < m.count; i++) {
             if (m.injected[i] != null) shown++;
             if (m.action[i] == jo.codeeditor.view.EditorSelectionActions.SEL_ACT_OVERFLOW) {
-                overflowItem = true;
+                overflowItems++;
             }
+            if (m.action[i] == EditorView.SEL_ACT_ACTIONS) actionsIcons++;
         }
         assertTrue("la pill est tronquée : toutes les actions ne tiennent pas",
                 shown < 10);
-        assertTrue("l'item « ⋯ » de débordement est présent", overflowItem);
+        assertEquals("PLUS D'ITEM « ⋯ » de débordement (UX-1 : deux"
+                + " trois-points se ressemblaient trop)",
+                0, overflowItems);
+        assertEquals("exactement UNE icône Actions « ⋯ » (l'unique débordement)",
+                1, actionsIcons);
         assertEquals("les non-affichées peuplent le débordement",
                 10 - shown, m.overflow.size());
         // La pill reste DANS le viewport (clamp).
         assertTrue(m.x >= 0);
         assertTrue(m.x + m.w <= view.getWidth() + 0.5f);
-        // La métrique est la source unique : le débordement du NavMenu
+        // La métrique est la source unique : le débordement du menu
         // lit la même liste.
         assertEquals(m.overflow,
                 view.popupManager.selActions.overflow);
     }
 
     @Test
-    public void tapSurLeDébordement_ouvreLeNavMenuAvecLesActions() {
+    public void tapSurLIcôneActions_ouvreLeMenuUnifiéAvecLaSectionMore() throws Exception {
         EditorView view = newView();
         Journal journal = new Journal();
         injectTen(view, journal);
@@ -157,23 +191,17 @@ public class SelectionToolbarOverflowTest {
 
         jo.codeeditor.view.popup.EditorPopupAnchors.SelectionToolbarMetrics m =
                 view.selectionToolbarMetrics();
-        int overflowIdx = -1;
-        for (int i = 0; i < m.count; i++) {
-            if (m.action[i] == jo.codeeditor.view.EditorSelectionActions.SEL_ACT_OVERFLOW) {
-                overflowIdx = i;
-                break;
-            }
-        }
-        assertTrue(overflowIdx >= 0);
-        float x = m.itemX[overflowIdx] + m.itemW[overflowIdx] * 0.5f;
+        int iconIdx = actionsIconIndex(m);
+        assertTrue(iconIdx >= 0);
+        float x = m.itemX[iconIdx] + m.itemW[iconIdx] * 0.5f;
         float y = m.y + m.h * 0.5f;
         tap(view, x, y);
 
         assertFalse("le chrome de sélection se referme (⋯ ouvre le menu)",
                 view.selectionToolbarVisible);
         assertFalse(view.handlesVisible);
-        assertTrue("le menu contextuel unifié est ouvert (hôte d'overflow)",
-                view.navMenuVisible);
+        assertTrue("le menu contextuel unifié s'ouvre (hôte du débordement, async)",
+                awaitNavMenu(view, 5000));
 
         // Les rangées du menu contiennent la section MORE avec les
         // actions débordantes.
@@ -196,7 +224,7 @@ public class SelectionToolbarOverflowTest {
     }
 
     @Test
-    public void tapSurUneRangéeDuMenu_exécuteEtReferme() {
+    public void tapSurUneRangéeDuMenu_exécuteEtReferme() throws Exception {
         EditorView view = newView();
         Journal journal = new Journal();
         injectTen(view, journal);
@@ -204,16 +232,11 @@ public class SelectionToolbarOverflowTest {
 
         jo.codeeditor.view.popup.EditorPopupAnchors.SelectionToolbarMetrics m =
                 view.selectionToolbarMetrics();
-        int overflowIdx = -1;
-        for (int i = 0; i < m.count; i++) {
-            if (m.action[i] == jo.codeeditor.view.EditorSelectionActions.SEL_ACT_OVERFLOW) {
-                overflowIdx = i;
-                break;
-            }
-        }
-        tap(view, m.itemX[overflowIdx] + m.itemW[overflowIdx] * 0.5f,
+        int iconIdx = actionsIconIndex(m);
+        assertTrue(iconIdx >= 0);
+        tap(view, m.itemX[iconIdx] + m.itemW[iconIdx] * 0.5f,
                 m.y + m.h * 0.5f);
-        assertTrue(view.navMenuVisible);
+        assertTrue(awaitNavMenu(view, 5000));
 
         // Tape la PREMIÈRE rangée d'action débordante du menu.
         float[] menu = view.navMenuMetrics();
@@ -239,5 +262,32 @@ public class SelectionToolbarOverflowTest {
             contentY += rh;
         }
         fail("aucune rangée d'action débordante trouvée dans le menu");
+    }
+
+    @Test
+    public void menuOuvertHorsPill_pasDeSectionMoreRésiduelle() throws Exception {
+        EditorView view = newView();
+        Journal journal = new Journal();
+        injectTen(view, journal);
+        armSelection(view);
+        // Peuple le débordement via la métrique de la pill…
+        view.selectionToolbarMetrics();
+        assertFalse(view.popupManager.selActions.overflow.isEmpty());
+
+        // … puis referme TOUT le chrome de sélection et ouvre le menu
+        // comme depuis le clavier/API (pill invisible → anti-périmé).
+        view.selectionToolbarVisible = false;
+        view.handlesVisible = false;
+        view.showNavMenu(2, DOC.indexOf("greet"));
+        assertTrue(awaitNavMenu(view, 5000));
+
+        List<EditorView.NavMenuRow> rows = view.navMenuRows();
+        for (EditorView.NavMenuRow row : rows) {
+            assertFalse("pas de section MORE résiduelle hors pill"
+                            + " (débordement purgé à l'ouverture)",
+                    row.type == EditorView.NavMenuRow.TYPE_HEADER
+                            && "MORE".equals(row.ref));
+        }
+        view.dismissNavMenu();
     }
 }

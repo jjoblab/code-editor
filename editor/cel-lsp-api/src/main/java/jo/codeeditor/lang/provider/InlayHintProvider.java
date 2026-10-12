@@ -26,4 +26,24 @@ public interface InlayHintProvider {
      * @return la liste des inlay hints (peut être vide)
      */
     List<InlayHint> inlayHints(CharSequence text, int startLine, int endLine);
+
+    /**
+     * Résout paresseusement le tooltip d'un hint — appelé au PREMIER
+     * appui long sur le hint, jamais au rendu (I2, lot 2 J3). Le hint
+     * retourné porte le tooltip résolu (null si le serveur n'en a pas).
+     *
+     * <p>Implémentation par défaut : le hint est retourné inchangé (pas
+     * de résolution) — un provider sans support de résolution (le démon
+     * interne, les serveurs sans {@code resolveProvider}) n'émet AUCUNE
+     * requête. Le hint passé référence un hint renvoyé précédemment par
+     * {@link #inlayHints} (même offset, même texte) ; un hint inconnu
+     * (périmé par une édition) est retourné inchangé.</p>
+     *
+     * @param text le texte complet du document (instantané)
+     * @param hint le hint à résoudre
+     * @return le hint portant son tooltip (jamais null)
+     */
+    default InlayHint resolveHint(CharSequence text, InlayHint hint) {
+        return hint;
+    }
 }

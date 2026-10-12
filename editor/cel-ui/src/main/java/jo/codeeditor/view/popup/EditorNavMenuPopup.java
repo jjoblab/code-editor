@@ -48,6 +48,15 @@ public class EditorNavMenuPopup {
      */
     void showNavMenu(int line, int offset) {
         if (view.session == null) return;
+        // UX-1 (J3) : la section « MORE » (actions injectées non
+        // affichées) n'est peuplé QUE par la métrique de la pill — depuis
+        // la pill, la métrique vient d'être calculée au tap (source
+        // unique, fraîche) ; depuis toute AUTRE entrée (raccourci clavier,
+        // API), un débordement résiduel d'un affichage précédent serait
+        // PÉRIMÉ → purge.
+        if (!view.selectionToolbarVisible) {
+            view.popupManager.selActions.overflow.clear();
+        }
         final String text = view.session.getText();
         final int gen = ++navMenuGeneration;
         final int fLine = line;

@@ -17,11 +17,24 @@ import java.util.concurrent.TimeoutException;
  * libellés (avec padding), kind et position en hints éditeur. Instancié par
  * {@link LspLanguage} quand le serveur annonce la capability
  * inlayHintProvider.
+ *
+ * <p>I2 (lot 2, J3) : le tooltip (direct ou résolu) est porté par le hint
+ * SPI ; la résolution {@code inlayHint/resolve} est PARESSEUSE — émise au
+ * premier appui long via {@link #resolveHint}, JAMAIS au rendu, et
+ * uniquement si le serveur annonce {@code resolveProvider}. Le cache des
+ * hints serveur originaux (clé offset+texte) vit le temps du dernier lot
+ * servi ; un hint périmé (édité depuis) est retourné inchangé.</p>
  */
 class LspInlayHintProvider implements InlayHintProvider {
     private final LanguageServerWrapper wrapper;
     private final LspEditor editor;
     private final LspLogSink logSink;
+
+    /** Hints serveur originaux du DERNIER lot servi (clé offset+texte du
+     *  hint SPI) — la cible de {@code inlayHint/resolve} (le champ data
+     *  du hint LSP ne traverse pas le SPI). */
+    private final java.util.HashMap<String, org.eclipse.lsp4j.InlayHint> serverHints =
+            new java.util.HashMap<>();
 
     LspInlayHintProvider(LanguageServerWrapper wrapper, LspEditor editor, LspLogSink logSink) {
         this.wrapper = wrapper;
@@ -63,6 +76,7 @@ class LspInlayHintProvider implements InlayHintProvider {
                 return Collections.emptyList();
             }
             List<InlayHint> out = new ArrayList<>();
+            serverHints.clear();
             for (org.eclipse.lsp4j.InlayHint h : hints) {
                 int offset = editor.positionToOffset(h.getPosition());
                 String label;
@@ -94,7 +108,13 @@ class LspInlayHintProvider implements InlayHintProvider {
                 if (Boolean.TRUE.equals(h.getPaddingRight())) {
                     label = label + " ";
                 }
-                out.add(new InlayHint(offset, label, kind));
+                // I2 : le tooltip servi DIRECTEMENT par le serveur est
+                // transporté (la résolution paresseuse ne concerne que
+                // les serveurs à resolveProvider sans tooltip initial).
+                String tooltip = tooltipText(h.getTooltip());
+                InlayHint converted = new InlayHint(offset, label, kind, tooltip);
+                serverHints.put(key(converted), h);
+                out.add(converted);
             }
             log("inlayHint: got " + out.size() + " hints");
             return out;
@@ -111,6 +131,63 @@ class LspInlayHintProvider implements InlayHintProvider {
             log(msg);
             return Collections.emptyList();
         }
+    }
+
+    @Override
+    public InlayHint resolveHint(CharSequence text, InlayHint hint) {
+        if (hint == null) return null;
+        LanguageServer server = wrapper.getServer();
+        if (server == null || !resolveSupported()) return hint;
+        org.eclipse.lsp4j.InlayHint original = serverHints.get(key(hint));
+        if (original == null) {
+            // Hint périmé (le lot a été recalculé depuis) : inchangé,
+            // AUCUNE requête n'est émise.
+            log("inlayHint/resolve: hint inconnu du dernier lot — ignoré");
+            return hint;
+        }
+        log("inlayHint/resolve: requesting tooltip for \"" + hint.text + "\"");
+        try {
+            org.eclipse.lsp4j.InlayHint resolved = server.getTextDocumentService()
+                    .resolveInlayHint(original).get(3, TimeUnit.SECONDS);
+            String tooltip = resolved != null ? tooltipText(resolved.getTooltip()) : null;
+            if (tooltip == null || tooltip.isEmpty()) return hint;
+            return new InlayHint(hint.offset, hint.text, hint.kind, tooltip);
+        } catch (TimeoutException e) {
+            log("inlayHint/resolve: TIMEOUT (3s) — hint inchangé");
+            return hint;
+        } catch (InterruptedException | ExecutionException e) {
+            log("inlayHint/resolve: ERROR " + e.getClass().getSimpleName()
+                    + ": " + e.getMessage());
+            return hint;
+        }
+    }
+
+    /** Vrai si le serveur annonce {@code inlayHint.resolveProvider}. */
+    private boolean resolveSupported() {
+        org.eclipse.lsp4j.ServerCapabilities caps = wrapper.getCapabilities();
+        if (caps == null || caps.getInlayHintProvider() == null) return false;
+        if (!caps.getInlayHintProvider().isRight()) return false;
+        return Boolean.TRUE.equals(
+                caps.getInlayHintProvider().getRight().getResolveProvider());
+    }
+
+    /** Clé de cache d'un hint SPI : offset + séparateur + texte (le hint
+     *  passé à resolveHint est reconstruit par l'appelant — seule la
+     *  VALEUR (offset, texte) identifie la cible). */
+    private static String key(InlayHint hint) {
+        return hint.offset + "\u0000" + hint.text;
+    }
+
+    /** Either&lt;String, MarkupContent&gt; → texte du tooltip (null si absent). */
+    private static String tooltipText(
+            org.eclipse.lsp4j.jsonrpc.messages.Either<String,
+                    org.eclipse.lsp4j.MarkupContent> tooltip) {
+        if (tooltip == null) return null;
+        if (tooltip.isLeft()) return tooltip.getLeft();
+        if (tooltip.isRight() && tooltip.getRight() != null) {
+            return tooltip.getRight().getValue();
+        }
+        return null;
     }
 
     private void log(String message) {

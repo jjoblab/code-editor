@@ -50,31 +50,56 @@ public class EditorQuickDocPopup {
                     "résolution de la documentation échouée", e);
             }
             final String raw = rawDoc;
-            final jo.codeeditor.doc.QuickDoc.QuickDocContent content =
-                    (raw == null || raw.isEmpty())
-                            ? null
-                            : jo.codeeditor.doc.QuickDoc.parseQuickDoc(raw, view.session.getLanguage());
-            android.os.Handler h = view.getHandler();
-            Runnable apply = () -> {
-                if (gen != quickDocGeneration || view.session == null) return;
-                if (content == null || content.isEmpty()) {
-                    dismissQuickDoc();
-                    return;
-                }
-                view.quickDocContent = content;
-                // Le popup SUIT le texte : on ne stocke plus des
-                // coordonnées écran figées mais l'OFFSET d'ancrage — le
-                // renderer recalcule X/Y à chaque frame (wrap/fold-aware)
-                // et referme le popup quand la ligne sort du viewport
-                // (le popup suit le contenu et se referme quand
-                // l'ancre sort de la vue).
-                view.quickDocAnchorOffset = fOffset;
-                view.quickDocScrollY = 0f;
-                view.quickDocVisible = true;
-                view.invalidate();
-            };
-            if (h != null) h.post(apply); else apply.run();
+            applyQuickDoc(fOffset, gen, raw);
         });
+    }
+
+    /**
+     * Affiche le quick doc avec un texte brut FOURNI (I2, lot 2 J3) —
+     * le tooltip d'un inlay hint, résolu par l'appelant (tooltip direct
+     * du serveur ou {@code resolveHint} paresseux). Réutilise TOUT le
+     * pipeline (parsing, ancrage par offset, suivi du texte,
+     * fermetures) : zéro nouveau chrome. Thread-safe (la livraison se
+     * poste sur le handler UI si la vue est attachée) ; une nouvelle
+     * demande invalide toute livraison en cours (génération).
+     */
+    void showQuickDocRaw(int offset, String raw) {
+        final int gen = ++quickDocGeneration;
+        applyQuickDoc(offset, gen, raw);
+    }
+
+    /**
+     * Applique un texte de quick doc déjà résolu : parsing, garde de
+     * génération, ancrage par offset. Appelé depuis la voie « features »
+     * (résolveur de quick doc OU tooltip d'inlay hint).
+     */
+    void applyQuickDoc(int offset, int gen, String raw) {
+        if (view.session == null) return;
+        if (view.completionVisible) return;
+        final jo.codeeditor.doc.QuickDoc.QuickDocContent content =
+                (raw == null || raw.isEmpty())
+                        ? null
+                        : jo.codeeditor.doc.QuickDoc.parseQuickDoc(raw, view.session.getLanguage());
+        android.os.Handler h = view.getHandler();
+        Runnable apply = () -> {
+            if (gen != quickDocGeneration || view.session == null) return;
+            if (content == null || content.isEmpty()) {
+                dismissQuickDoc();
+                return;
+            }
+            view.quickDocContent = content;
+            // Le popup SUIT le texte : on ne stocke plus des
+            // coordonnées écran figées mais l'OFFSET d'ancrage — le
+            // renderer recalcule X/Y à chaque frame (wrap/fold-aware)
+            // et referme le popup quand la ligne sort du viewport
+            // (le popup suit le contenu et se referme quand
+            // l'ancre sort de la vue).
+            view.quickDocAnchorOffset = offset;
+            view.quickDocScrollY = 0f;
+            view.quickDocVisible = true;
+            view.invalidate();
+        };
+        if (h != null) h.post(apply); else apply.run();
     }
 
     void dismissQuickDoc() {

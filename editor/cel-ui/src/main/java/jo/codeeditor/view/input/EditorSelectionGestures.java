@@ -9,6 +9,7 @@ import android.view.MotionEvent;
 import android.view.inputmethod.InputMethodManager;
 
 import jo.codeeditor.document.Selection;
+import jo.codeeditor.shift.DiagnosticShift;
 
 /**
  * Gestes de sélection d'EditorView, extraits d'EditorInputHandler : appui
@@ -50,6 +51,68 @@ public class EditorSelectionGestures {
     /** Borne DROITE de la sélection au moment de l'appui long. */
     private int dragSelectRight = NO_DRAG_SELECT;
 
+    // ── UX-2 (lot 2, J3) : auto-scroll directionnel du drag ──
+    // Retour terrain : pendant un drag de sélection (poignée ou
+    // drag-select au doigt), franchir le bord du viewport ne déclenche
+    // AUCUN défilement — il faut lâcher, reprendre, recommencer. Le
+    // standard mobile (TextView, Android Studio) : le doigt tenu dans
+    // une zone de bord fait défiler le document dans la direction de
+    // la pénétration, la sélection suit le contenu sous le doigt.
+    /** Hauteur de la zone de bord déclenchant l'auto-scroll (dp). */
+    private static final float EDGE_ZONE_DP = 56f;
+    /** Vitesse d'auto-scroll minimale (dp par tick ~16 ms). */
+    private static final float EDGE_MIN_SPEED_DP = 2f;
+    /** Vitesse d'auto-scroll maximale (dp par tick, pénétration totale). */
+    private static final float EDGE_MAX_SPEED_DP = 12f;
+    /** Période du tick d'auto-scroll (ms, ~une frame). */
+    private static final int AUTO_SCROLL_TICK_MS = 16;
+    /** Dernière position du doigt pendant un drag (memo du tick). */
+    private float lastDragX, lastDragY;
+    /** Vrai dès que le drag-select au doigt est ENGAGÉ (au-delà du slop) —
+     *  l'auto-scroll ne démarre jamais tant que le doigt n'a pas bougé. */
+    private boolean dragSelectEngaged = false;
+    /** Vrai pendant que le tick d'auto-scroll est posté (anti-doublon). */
+    private boolean autoScrollRunning = false;
+    /** Tick d'auto-scroll : défile selon la pénétration du bord et
+     *  ré-applique la sélection sous le doigt, puis se RE-poste tant
+     *  que le doigt reste dans la zone et que le document peut défiler. */
+    private final Runnable autoScrollTick = new Runnable() {
+        @Override
+        public void run() {
+            autoScrollRunning = false;
+            if (!isAutoScrollDragActive()) return;
+            float density = view.getResources().getDisplayMetrics().density;
+            float edge = EDGE_ZONE_DP * density;
+            float viewH = view.getHeight();
+            if (viewH <= 0) return;
+            int dir = 0;
+            float penetration = 0f;
+            if (lastDragY < edge) {
+                dir = -1;
+                penetration = (edge - lastDragY) / edge;
+            } else if (lastDragY > viewH - edge) {
+                dir = 1;
+                penetration = (lastDragY - (viewH - edge)) / edge;
+            }
+            if (dir == 0) return; // hors zone — le prochain MOVE ré-armera
+            if (penetration > 1f) penetration = 1f;
+            float speed = (EDGE_MIN_SPEED_DP
+                    + (EDGE_MAX_SPEED_DP - EDGE_MIN_SPEED_DP) * penetration) * density;
+            float before = view.vOffset;
+            view.scrollManager.scrollBy(dir * speed);
+            if (view.vOffset == before) return; // borné (début/fin) — stop
+            // Le contenu a défilé sous le doigt : ré-applique la
+            // sélection à la même position écran (offsetAt rend la
+            // nouvelle position sous le doigt).
+            if (view.handleDragMode > 0) {
+                dragHandle(lastDragX, lastDragY);
+            } else {
+                applyDragSelect(lastDragX, lastDragY);
+            }
+            postAutoScrollTick();
+        }
+    };
+
     EditorSelectionGestures(EditorView view, EditorInputHandler input) {
         this.view = view;
         this.input = input;
@@ -67,6 +130,13 @@ public class EditorSelectionGestures {
         // État du dispatcher (longPressTriggered, fin de drag/scroll) via
         // l'orchestrateur — corps historique déplacé à l'identique.
         input.markLongPressTriggered();
+        // I2 (lot 2, J3) : un appui long sur un hint tissé ouvre son
+        // tooltip (quick doc) AVANT la sélection du mot — le hint est du
+        // texte fantôme, pas du code ; l'appui long « documentation »
+        // (survol des hints, parité IntelliJ) a la priorité sur l'appui
+        // long « sélection ». Hors hint (ou wrap, où le tissage n'est pas
+        // cartographié) : comportement historique inchangé.
+        if (handleInlayHintLongPress(x, y)) return;
         int offset = view.offsetAt(x, y);
         view.session.selectWordAt(offset);
         view.handlesVisible = true;
@@ -105,11 +175,14 @@ public class EditorSelectionGestures {
 
     /** Désarme le drag-select : toute terminaison
      *  de geste (UP/CANCEL), tout nouveau DOWN et tout changement de
-     *  session l'appellent — le drag-select ne survit JAMAIS à un geste. */
+     *  session l'appellent — le drag-select ne survit JAMAIS à un geste.
+     *  UX-2 : désarme aussi l'engagement du drag (le tick d'auto-scroll
+     *  s'arrête de lui-même au prochain tour). */
     void disarmDragSelect() {
         dragSelectPressOffset = NO_DRAG_SELECT;
         dragSelectLeft = NO_DRAG_SELECT;
         dragSelectRight = NO_DRAG_SELECT;
+        dragSelectEngaged = false;
     }
 
     /** Vrai si le drag-select est armé (appui long déclenché, pas encore
@@ -128,7 +201,22 @@ public class EditorSelectionGestures {
      * glissement.
      */
     void handleTouchDrag(MotionEvent event) {
-        int offset = view.offsetAt(event.getX(), event.getY());
+        // UX-2 : mémorise la position et démarre l'auto-scroll de bord.
+        lastDragX = event.getX();
+        lastDragY = event.getY();
+        dragSelectEngaged = true;
+        ensureAutoScrollTick();
+        applyDragSelect(event.getX(), event.getY());
+    }
+
+    /** Corps du drag-select (partagé avec le tick d'auto-scroll UX-2 :
+     *  ré-appliquer la sélection après un défilement, sans MOVE). Règle
+     *  d'ancre : la borne du MOT opposée au doigt reste l'ancre — doigt à
+     *  gauche du point d'appui → ancre = borne droite, doigt à droite →
+     *  ancre = borne gauche. La sélection contient toujours le mot
+     *  d'origine et suit le doigt. */
+    private void applyDragSelect(float x, float y) {
+        int offset = view.offsetAt(x, y);
         int anchor;
         if (dragSelectPressOffset != NO_DRAG_SELECT
                 && dragSelectLeft != NO_DRAG_SELECT
@@ -145,8 +233,8 @@ public class EditorSelectionGestures {
         view.session.setSelection(Selection.range(
             Math.min(anchor, offset), Math.max(anchor, offset)));
         view.magnifierActive = true;
-        view.magnifierX = event.getX();
-        view.magnifierY = event.getY();
+        view.magnifierX = x;
+        view.magnifierY = y;
         view.invalidate();
     }
 
@@ -158,6 +246,10 @@ public class EditorSelectionGestures {
         // désactivent déjà. L'ancre est FIGÉE au DOWN (beginHandleDrag) :
         // chaque MOVE étend ou rétrécit la sélection entre l'ancre et le
         // doigt, y compris quand le doigt franchit l'autre poignée.
+        // UX-2 : mémorise la position et démarre l'auto-scroll de bord.
+        lastDragX = x;
+        lastDragY = y;
+        ensureAutoScrollTick();
         view.magnifierActive = true;
         view.magnifierX = x;
         view.magnifierY = y;
@@ -243,13 +335,12 @@ public class EditorSelectionGestures {
      * <p>Comportement de la toolbar de sélection : Copy/Cut/Paste
      * referment la pill (et masquent les poignées), Select all la laisse
      * ouverte (Copy/Cut deviennent disponibles), Docs ouvre le quick-doc,
-     * Actions ouvre le popup de quick-fixes de la ligne.</p>
+     * Actions « ⋯ » ouvre le menu contextuel unifié (GO TO / QUICK FIXES /
+     * INTENTIONS + section MORE des actions injectées non affichées).</p>
      *
      * <p>T1 (lot 2) : les items INJECTÉS par l'hôte exécutent leur
      * {@code perform} puis referment le chrome (contrat Copy/Cut/Paste)
-     * ; une action désactivée REJETTE le tap sans refermer. L'item
-     * « ⋯ » de débordement referme le chrome et ouvre le NavMenu en mode
-     * section « MORE » (liste des actions non affichées).</p>
+     * ; une action désactivée REJETTE le tap sans refermer.</p>
      */
     boolean handleSelectionToolbarTap(float x, float y) {
         if (!view.selectionToolbarVisible || view.session == null) return false;
@@ -287,13 +378,18 @@ public class EditorSelectionGestures {
                 view.showQuickDoc(sel.start);
                 break;
             case EditorView.SEL_ACT_ACTIONS:
-                hideSelectionChrome();
-                // ★ Ouvre le MENU CONTEXTUEL UNIFIÉ (portage
-                // menu contextuel unifié) : sections GO TO /
-                // QUICK FIXES / INTENTIONS, au lieu de la simple liste de
-                // quick-fixes.
+                // UX-1 (lot 2, J3 — retour terrain) : l'icône « ⋯ » en fin
+                // de pill est l'UNIQUE trois-points (l'item de
+                // débordement T1 est retiré — deux « ... » se
+                // ressemblaient trop). Elle ouvre le menu UNIFIÉ, qui
+                // liste AUSSI la section « MORE » (actions injectées non
+                // affichées — la métrique vient d'être rafraîchie
+                // ci-dessus, source unique). Le menu s'ouvre AVANT le
+                // refermeture du chrome pour que showNavMenu voie la
+                // pill encore visible (garde anti-périmé).
                 view.showNavMenu(view.session.getDocument()
                         .lineForOffset(sel.start), sel.start);
+                hideSelectionChrome();
                 break;
             case jo.codeeditor.view.EditorSelectionActions.SEL_ACT_INJECTED: {
                 // T1 : action injectée par l'hôte — désactivée = tap
@@ -305,8 +401,8 @@ public class EditorSelectionGestures {
                 break;
             }
             case jo.codeeditor.view.EditorSelectionActions.SEL_ACT_OVERFLOW:
-                // T1 : débordement — le NavMenu unifié sert d'hôte
-                // (section « MORE », zéro nouveau chrome).
+                // UX-1 : l'item ⋯ n'existe plus sur la pill — branche
+                // conservée par contrat (ouvre le mode MORE seul).
                 hideSelectionChrome();
                 view.popupManager.showSelectionOverflow(
                         view.session.getDocument().lineForOffset(sel.start), sel.start);
@@ -321,5 +417,114 @@ public class EditorSelectionGestures {
     private void hideSelectionChrome() {
         view.handlesVisible = false;
         dismissSelectionToolbar();
+    }
+
+    // ── UX-2 (J3) : plomberie du tick d'auto-scroll ─────────────────
+
+    /** Vrai si un drag de sélection est ACTIF (poignée ou drag-select
+     *  engagé) — condition de survie du tick. */
+    private boolean isAutoScrollDragActive() {
+        return view.session != null
+                && (view.handleDragMode > 0
+                    || (dragSelectEngaged && isDragSelectArmed()));
+    }
+
+    /** Poste le tick d'auto-scroll (une seule instance en vol) sur le
+     *  handler du looper principal — même paresse que le tap-dismiss
+     *  différé : resté testable sous l'horloge fantôme de Robolectric
+     *  (view.getHandler() est null tant que la vue n'est pas attachée). */
+    private void ensureAutoScrollTick() {
+        if (autoScrollRunning) return;
+        if (input.tapHandler == null) {
+            input.tapHandler = new android.os.Handler(
+                    android.os.Looper.getMainLooper());
+        }
+        autoScrollRunning = true;
+        input.tapHandler.postDelayed(autoScrollTick, AUTO_SCROLL_TICK_MS);
+    }
+
+    /** Re-post du tick par le tick lui-même (en vol). */
+    private void postAutoScrollTick() {
+        if (autoScrollRunning) return;
+        autoScrollRunning = true;
+        input.tapHandler.postDelayed(autoScrollTick, AUTO_SCROLL_TICK_MS);
+    }
+
+    // ── I2 (lot 2, J3) : tooltip des inlay hints au long-press ──────
+
+    /**
+     * Appui long sur un hint tissé : ouvre le quick doc portant le
+     * tooltip du hint — direct si le serveur l'a servi avec le hint,
+     * sinon résolu paresseusement via {@code view.inlayTooltipResolver}
+     * (voie « features », une seule requête). Retourne true si le geste
+     * est CONSOMMÉ (le hint a été touché) ; false → appui long de
+     * sélection classique.
+     *
+     * <p>Hit-test : la plage tissée du hint est connue du layout de
+     * ligne ({@code layoutForLine} → rawToVisual + pièce) — colonne
+     * visuelle du doigt DANS [début du hint, début + longueur du
+     * texte). En mode wrap le tissage n'est pas cartographié par
+     * colonnes : repli sur l'appui long classique.</p>
+     */
+    private boolean handleInlayHintLongPress(float x, float y) {
+        if (view.session == null || view.wordWrap) return false;
+        jo.codeeditor.document.EditorDocument doc = view.session.getDocument();
+        int line = jo.codeeditor.view.EditorView.clamp(
+                view.docLineForScreenY(y), 0, doc.lineCount() - 1);
+        jo.codeeditor.cache.LineRenderCache.LineCacheEntry entry =
+                view.layoutForLine(line, doc.lineText(line));
+        if (entry == null || entry.inlays == null || entry.inlays.isEmpty()
+                || entry.rawToVisual == null) {
+            return false;
+        }
+        // Colonne VISUELLE du doigt (même formule que offsetAt hors wrap).
+        float charWidth = view.metrics.getCharWidth();
+        float textAreaLeft = view.metrics.getGutterWidth() + view.metrics.getPadLeft();
+        int visCol = (int) ((x - (textAreaLeft - view.hOffset)) / charWidth + 0.5f);
+        int lineStart = doc.lineStart(line);
+        for (jo.codeeditor.cache.LineRenderCache.InlayPiece p : entry.inlays) {
+            int hintStart = entry.rawToVisual[Math.min(p.col,
+                    entry.rawToVisual.length - 1)];
+            if (visCol < hintStart || visCol >= hintStart + p.text.length()) continue;
+            // Hint touché — retrouve le hint de session (tooltip + offset).
+            DiagnosticShift.InlayHint hint = hintAtCol(line, lineStart, p.col);
+            if (hint == null) return false;
+            if (hint.tooltip != null && !hint.tooltip.isEmpty()) {
+                // Tooltip direct : quick doc immédiat (zéro requête).
+                view.popupManager.showQuickDocRaw(hint.offset, hint.tooltip);
+                return true;
+            }
+            if (view.inlayTooltipResolver == null) return false;
+            // Résolution paresseuse sur la voie « features » — une seule
+            // requête par appui, livraison latest-wins (génération via
+            // showQuickDocRaw à l'arrivée).
+            final int fOffset = hint.offset;
+            final String fText = hint.text;
+            final String docText = view.session.getText();
+            jo.codeeditor.view.EditorTaskLanes.submitFeature(() -> {
+                String tooltip = null;
+                try {
+                    tooltip = view.inlayTooltipResolver.resolveInlayTooltip(
+                            docText, fOffset, fText);
+                } catch (Exception e) {
+                    jo.codeeditor.util.EditorLog.warn("EditorInlay",
+                        "résolution du tooltip d'inlay échouée", e);
+                }
+                if (tooltip != null && !tooltip.isEmpty()) {
+                    view.popupManager.showQuickDocRaw(fOffset, tooltip);
+                }
+            });
+            return true;
+        }
+        return false;
+    }
+
+    /** Le hint de SESSION ancré à la colonne brute {@code col} de la ligne
+     *  (porte le tooltip) — null si absent (pièce de cache orpheline). */
+    private DiagnosticShift.InlayHint hintAtCol(int line, int lineStart, int col) {
+        for (DiagnosticShift.InlayHint h : view.session.getInlayHintsForLine(line)) {
+            if (h.offset - lineStart == col) return h;
+        }
+        return null;
     }
 }

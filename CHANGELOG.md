@@ -5,6 +5,68 @@ All notable changes to **code-editor-lib** are documented in this file.
 Le format suit la convention [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.54.0] — 2026-10-13 — Lot 2 tactile, jalon J3 : les inlays parlent, la main défile
+
+Troisième jalon du plan du rapport « édition tactile et contexte visuel »
+(`docs/RAPPORT-TACTIQUE-CONTEXTE-CODE-EDITOR.md`) : le kind et le tooltip
+des inlay hints, plus trois correctifs de retour terrain (retour du
+propriétaire sur l'APK démo 3.53.0). Tout est additif, zéro rupture
+d'API.
+
+### Added
+
+- **Kind des inlays jusqu'au rendu (I1)** — le genre du hint
+  (`type` / `parameter`) mourait au pont de langage : tous les hints
+  rendaient en italique uniforme. Le champ `kind` traverse désormais
+  le pont (constructeur 4-arg de `DiagnosticShift.InlayHint`, 3-arg
+  historique = « type »), le layout par ligne (`InlayPiece`) et le
+  rendu style PAR PIÈCE, parité IntelliJ : noms de paramètres en faux
+  italique plus effacés (skew −0.25, alpha 0.75), types de variables
+  gris droits (alpha 0.9).
+- **Tooltip des inlays (I2)** — le SPI porte `InlayHint.tooltip`
+  (null par défaut) et `InlayHintProvider.resolveHint` (défaut =
+  no-op, zéro requête). Le traducteur LSP transporte le tooltip servi
+  directement et résout paresseusement via `inlayHint/resolve`
+  (borné 3 s, uniquement si `resolveProvider` annoncé, hint périmé
+  ignoré sans requête). Côté UI, un appui long sur la plage tissée
+  d'un hint ouvre la fiche quick doc EXISTANTE portant son tooltip
+  (pipeline `showQuickDoc` réutilisé via `showQuickDocRaw`, zéro
+  nouveau chrome) ; hors hint, l'appui long de sélection est
+  inchangé.
+- **Auto-scroll directionnel du drag de sélection (UX-2, retour
+  terrain)** — glisser une poignée ou le drag-select au doigt vers le
+  bord du viewport faisait défiler… rien : il fallait lâcher et
+  reprendre. Le doigt tenu dans une zone de bord (56 dp) défile
+  maintenant le document dans la direction de la pénétration
+  (2→12 dp/tick), et la sélection est ré-appliquée sous le doigt à
+  chaque tick — l'ancre reste figée, la sélection suit le défilement.
+
+### Changed
+
+- **Un seul « ⋯ » sur la pill de sélection (UX-1, retour terrain)** —
+  la pill portait DEUX boutons à trois points (le débordement T1 +
+  l'icône Actions du lot 1). L'icône Actions devient l'UNIQUE
+  débordement : elle ouvre le menu contextuel unifié qui liste AUSSI
+  la section « MORE » (actions injectées non affichées — toujours
+  peuplées par la métrique, source unique) ; garde anti-périmé hors
+  pill. La constante `SEL_ACT_OVERFLOW` et `showSelectionOverflow`
+  restent par contrat.
+- **Popup diagnostic resserré sur son contenu (UX-3, retour
+  terrain)** — le popup ancré de squiggle (D1) était TOUJOURS à la
+  largeur maximale (320 dp) : un message court ouvrait une carte
+  immense. La métrique mesure la plus large pièce de contenu (le
+  message n'est candidat que s'il tient sans repli, les rangées
+  ellipsées plafonnent leur candidature) et borne la carte
+  [132 dp, 320 dp] ; l'ancrage et le hit-test suivent.
+
+### Budgets
+
+- Plafonds champs/méthodes publiques d'`EditorView` relevés
+  170→190 / 255→280 par décision explicite du propriétaire (session
+  J3) — I2 exige un resolver de tooltip sur la vue ; marge pour J4.
+  Le plafond de lignes (4 100) et la discipline de décomposition
+  restent intacts.
+
 ## [3.53.0] — 2026-10-13 — Lot 2 tactile, jalon J2 : la lieue visuelle
 
 Deuxième jalon du plan du rapport « édition tactile et contexte visuel »
