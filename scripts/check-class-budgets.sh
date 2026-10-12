@@ -45,7 +45,11 @@ budget() {
 }
 
 # ── Plafonds = valeurs mesurées à l'étape S (Phase 2) ───────────────
-budget editor/cel-ui/src/main/java/jo/codeeditor/view/EditorView.java 3350 170 255
+# Écart au ratchet : plafond LIGNES d'EditorView relevé de 3350 à 4100
+# par décision explicite du propriétaire (2026-10, session J2) — marge
+# pour les jalons du lot 2 ; les plafonds champs/méthodes restent aux
+# valeurs mesurées pour préserver la discipline de décomposition.
+budget editor/cel-ui/src/main/java/jo/codeeditor/view/EditorView.java 4100 170 255
 budget editor/cel-core/src/main/java/jo/codeeditor/session/EditorSession.java 1600 15 100
 
 if [ "$echec" -ne 0 ]; then

@@ -54,13 +54,20 @@ public class EditorRenderer {
     // donc aucune synchronisation nécessaire.
     private final RectF scratchRectF = new RectF();
 
+    // ★ S2 : paint DÉDIÉ au texte des lignes collées — jamais le
+    // textPaint partagé (muté en cours de frame par les couches
+    // précédentes) ni le guidePaint (réservé au fond, à la bordure et
+    // au numéro de ligne). Synchronisé depuis le paint du texte au
+    // début de chaque passe sticky (pattern magnifierPaint).
+    private final Paint stickyPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+
     public EditorRenderer(EditorView view) {
         this.view = view;
         this.text = new EditorTextPainter(view);
         this.highlights = new EditorHighlightPainter(view);
         this.diagnostics = new EditorDiagnosticsPainter(view);
         this.assist = new EditorAssistPopupPainter(view);
-        this.chrome = new EditorChromePainter(view, text);
+        this.chrome = new EditorChromePainter(view, text, highlights, diagnostics);
     }
 
     // ════════════════════════════════════════════════════════════════
@@ -532,6 +539,14 @@ public class EditorRenderer {
 
         if (activeSticky.isEmpty()) return;
 
+        // ★ S2 : synchro du paint dédié (typeface, taille) depuis le
+        // paint du texte ; couleur de base posée explicitement — le
+        // path stylé re-pose la couleur par span.
+        stickyPaint.set(view.textPaint);
+        stickyPaint.setTypeface(view.metrics.getTypeface());
+        stickyPaint.setTextSize(view.metrics.getTextSize());
+        stickyPaint.setColor(view.theme.textColor);
+
         // Dessiner les lignes sticky empilées en haut.
         float stickyY = paddingTop;
         for (int[] sticky : activeSticky) {
@@ -562,8 +577,16 @@ public class EditorRenderer {
 
     /**
      * Dessine le texte d'une ligne sticky à la position Y donnée.
-     * Réutilise le texte stylé de la ligne si disponible, sinon
-     * dessine en texte simple.
+     *
+     * <p>★ S2 : la ligne collée est LA MÊME ligne, coloration comprise —
+     * le texte passe par le pipeline stylé de la ligne visible
+     * ({@code drawStyledLine}, celui de la loupe) et non plus le
+     * {@code guidePaint} brut monochrome. Inlays exclus (une ligne
+     * collée n'est pas le lieu des hints), retour à la ligne
+     * désactivé (tronqué, cohérent mobile) — d'où les null passés à
+     * drawStyledLine. Une ligne plus large que le viewport est
+     * tronquée avec une ellipse « … » au lieu de la coupe muette à
+     * 120 caractères d'avant.</p>
      */
     private void drawStickyLineText(Canvas canvas, EditorDocument doc,
             int docLine, float y, float lineHeight,
@@ -585,11 +608,42 @@ public class EditorRenderer {
         canvas.drawText(lineStr, lineNumberX, y + lineHeight * 0.75f,
                 view.guidePaint);
 
-        // Texte de la ligne.
-        view.guidePaint.setColor(view.theme.textColor);
-        canvas.drawText(lineText, 0, Math.min(lineText.length(), 120),
-                textAreaLeft - view.hOffset, y + lineHeight * 0.75f,
-                view.guidePaint);
+        // ★ S2 : texte stylé — la couleur de chaque span de syntaxe
+        // (mot-clé, commentaire, nombre…) est appliquée par
+        // drawStyledLine via le paint dédié.
+        float textX = textAreaLeft - view.hOffset;
+        java.util.List<StyledLine> styledLines = view.session.getStyledLines();
+        StyledLine styled = docLine < styledLines.size()
+                ? styledLines.get(docLine) : null;
+        if (styled != null) {
+            // Inlays exclus (null) : une ligne collée n'est pas le lieu
+            // des hints ; wrap désactivé (rawToVisual null) : tronqué.
+            text.drawStyledLine(canvas, styled, lineText, textX, y,
+                    stickyPaint, null, null);
+        } else {
+            // Secours non encore stylé (restyle en cours) : texte brut
+            // fenêtré, le même repli monochrome que le pipeline normal.
+            stickyPaint.setColor(view.theme.textColor);
+            text.drawPlainLine(canvas, lineText, textX,
+                    y + lineHeight * 0.78f, stickyPaint);
+        }
+
+        // ★ S2 : ellipse « … » au-delà de la largeur visible — remplace
+        // la coupe muette : la troncature devient visible (même
+        // convention que la référence de l'éditeur de bureau).
+        float charWidth = view.metrics.getCharWidth();
+        if (charWidth > 0f) {
+            float lastVisibleCol = (view.getWidth() - textAreaLeft
+                    + view.hOffset) / charWidth;
+            if (lineText.length() > lastVisibleCol) {
+                float ellX = Math.min(
+                        textX + Math.max(0f, lastVisibleCol - 1f) * charWidth,
+                        view.getWidth() - charWidth * 1.5f);
+                stickyPaint.setColor(view.theme.textColor);
+                canvas.drawText("\u2026", ellX, y + lineHeight * 0.78f,
+                        stickyPaint);
+            }
+        }
     }
 
     // ════════════════════════════════════════════════════════════════

@@ -5,6 +5,68 @@ All notable changes to **code-editor-lib** are documented in this file.
 Le format suit la convention [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.53.0] — 2026-10-13 — Lot 2 tactile, jalon J2 : la lieue visuelle
+
+Deuxième jalon du plan du rapport « édition tactile et contexte visuel »
+(`docs/RAPPORT-TACTIQUE-CONTEXTE-CODE-EDITOR.md`) : le sticky devient
+correct ET bon marché, la loupe devient un instrument de réglage. Tout
+est additif, zéro rupture d'API.
+
+### Performance
+
+- **Cache de détection sticky (S1)** — le renderer appelait la
+  détection à CHAQUE frame : scan intégral du document avec une
+  `String` allouée par ligne — invisible en démo (300 lignes),
+  rédhibitoire en fichier réel (5 000+ lignes). Or la liste des
+  en-têtes ne dépend QUE du contenu du document (immuable par
+  révision) et du profil de langue : le résultat est mémoïsé sous la
+  clé [instance du document, révision, lineCount, profil]. Une édition
+  produit un nouveau document (révision +1), un changement de langue
+  un autre profil : miss automatique, zéro invalidation manuelle ; le
+  scroll, le zoom, le wrap et le pliage ne re-scannent JAMAIS. Les
+  yOffset, seule partie dépendante de la géométrie, sont recalculés en
+  place à chaque hit (zéro allocation).
+
+### Changed
+
+- **Lignes collées rendues stylées (S2)** — la ligne sticky est LA
+  MÊME ligne, coloration comprise : le texte passe par le pipeline
+  stylé de la ligne visible (`drawStyledLine`, celui de la loupe) et
+  non plus le `guidePaint` brut monochrome. Inlays exclus (une ligne
+  collée n'est pas le lieu des hints), retour à la ligne désactivé
+  (tronqué, cohérent mobile), ellipse « … » au-delà de la largeur
+  visible au lieu de la coupe muette à 120 caractères — la troncature
+  devient visible. Paint dédié `stickyPaint` (pattern
+  `magnifierPaint`) : le `textPaint` partagé n'est jamais touché ;
+  le secours non stylé passe par `drawPlainLine` fenêtré.
+- **La loupe montre ce qu'on règle (M1)** — le contenu redessiné de
+  la bulle était le texte seul : ni la bande de sélection, ni le
+  caret, ni les squiggles — l'objet de la manœuvre était invisible
+  dans l'instrument de visée. Le redessin réutilise les PEINTRES du
+  pipeline principal (passés par composition à
+  `EditorChromePainter`) : bande de sélection sous le texte (wrap par
+  rangées, colonnes inlay-aware, lignes repliées sautées), squiggle
+  de diagnostic après le texte (ondulé de sévérité, voile
+  Unnecessary), barre de caret (position `caretScreenPos`, source
+  unique) si la ligne du curseur est dans la fenêtre de la bulle.
+  L'ordre des couches respecte le pipeline principal ; le test
+  d'isolation du paint partagé reste vert.
+- Contrat agent (décisions propriétaire, session J2) : le push n'est
+  plus réservé au propriétaire — l'agent pousse systématiquement le
+  résultat validé et ne laisse qu'une seule branche (`main`,
+  branches de travail fusionnées puis supprimées) ; le plafond de
+  LIGNES d'`EditorView` passe de 3350 à 4100 (champs et méthodes
+  publiques inchangés : la décomposition reste obligatoire).
+
+### Tests
+
+- 13 nouveaux tests (1 465 au total) : `StickyDetectCached` (5),
+  `StickyStyledRender` (3), `MagnifierShowsCaret` +
+  `MagnifierShowsSelectionBand` (5). Rendus vérifiés par canvas
+  d'enregistrement — les events de ShadowCanvas gardent la RÉFÉRENCE
+  du paint muté au fil de la frame, la couleur y serait celle du
+  dernier usage et non celle du draw.
+
 ## [3.52.0] — 2026-10-13 — Lot 2 tactile, jalon J1 : les deux P0
 
 Premier jalon du plan du rapport « édition tactile et contexte visuel »

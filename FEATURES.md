@@ -233,11 +233,12 @@ et les barres d'habillage dans `view/chrome/`.
 | Renderer en couches | ✅ | `view/render/EditorRenderer.java` + `EditorTextPainter`, `EditorHighlightPainter`, `EditorDiagnosticsPainter`, `EditorAssistPopupPainter`, `EditorChromePainter` | 16 couches de dessin |
 | Painter SPI (plugins de décorations) | ✅ | `view/render/EditorPainterHost.java`, `view/render/EditorDecorationPainter.java` | Un painter qui throw est retiré, pas de crash |
 | Gutter (numéros + dots diagnostics) | ✅ | `view/chrome/GutterView.java` | Lignes + chevrons de pli + strip dédié |
-| Bande de ligne courante, caret animé, sélection | ✅ | `view/render/CaretAnimator.java`, painters | Clignotement, poignées + loupe |
+| Bande de ligne courante, caret animé, sélection | ✅ | `view/render/CaretAnimator.java`, painters | Clignotement, poignées + loupe instrument de réglage : bande, squiggle et caret dans la bulle (M1, lot 2) |
 | Squiggles / chips / sheets de diagnostics | ✅ | `view/render/EditorDiagnosticsPainter.java` | Groupés par ligne, badge de compte ; tap au cœur du squiggle → popup ancré (D1, lot 2) |
 | Popups (complétion, signature, quick doc, code actions, go-to-symbol, go-to-line, rename, références, NavMenu) | ✅ | `view/popup/EditorPopupManager.java` + classes `Editor*Popup` | Popups verre ancrés au caret ; débordement pill → section MORE |
 | Entrée tactile | ✅ | `view/input/EditorInputHandler.java` + `EditorTouchScroller`, `EditorSelectionGestures`, `EditorTapResolver`, `EditorTouchHoverController` + `view/popup/EditorPopupHitTester`, `EditorContextMenuHandler` | Tap, multi-tap, drag-select, loupe, toolbar, hover |
 | Toolbar de sélection extensible (T1, lot 2) | ✅ | `view/SelectionAction.java` + `view/EditorSelectionActions.java` | Actions d'hôte injectées, ordre stable, désactivée estompée, débordement ⋯ → NavMenu |
+| Sticky scrolling (S1 + S2, lot 2) | ✅ | `view/StickyLineDetector.java`, `view/render/EditorRenderer.java` | En-têtes collés en haut au scroll — coloration syntaxique + ellipse « … », cache par révision (zéro scan par frame) |
 | Clavier + keymap rebindable + chords | ✅ | `view/input/EditorKeyHandler.java`, `view/input/EditorKeymap.java` | Bind simple et séquences à deux touches |
 | Pont IME | ✅ | `view/EditorImeBridge.java` | Composing, SurroundingText (compat API 24) |
 | Scroll/fling/pinch-zoom | ✅ | `view/input/EditorScrollManager.java`, `view/input/EditorZoomController.java` | Suivi de vitesse, clamp de police |

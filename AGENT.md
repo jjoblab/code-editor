@@ -50,7 +50,7 @@ export ANDROID_HOME=<sdk>          # + local.properties : sdk.dir=<sdk>
 ./gradlew publishToMavenLocal      # publication locale (~/.m2)
 ```
 
-Base de référence constatée (3.52.0) : **1 452 tests verts, lint bloquant
+Base de référence constatée (3.53.0) : **1 465 tests verts, lint bloquant
 vert** — toute régression est la vôtre. Le nombre annoncé est contrôlé en
 CI (`scripts/check-doc-figures.sh`, échoue si l'écart dépasse 5 %).
 
@@ -148,10 +148,14 @@ comptes rendus, désigne tout projet externe par un identifiant neutre
 `./gradlew clean assembleDebug test lint --continue` vert · pas de nouveau
 avertissement lint ni de test en échec · `CHANGELOG.md` à jour ·
 `scripts/check-external-refs.sh` vert · `git status` propre. L'agent
-**ne pousse jamais** (`git push` est réservé au propriétaire).
+**pousse systématiquement** le résultat validé (branche intégrée, `main`,
+tag de version) — décision du propriétaire (2026-10) qui remplace
+l'ancienne règle « ne pousse jamais ». Une seule branche est maintenue :
+`main` (les branches de travail sont fusionnées puis supprimées).
 
 ## À ne pas faire
 
 - Toucher à `local.properties`, aux secrets, aux keystores.
 - Committer `build/`, `.gradle/`, `.idea/`, `*.iml`, `*.hprof`.
-- Pousser une branche, un tag ou `main` — jamais.
+- Laisser des branches autres que `main` après livraison (fusionner,
+  pousser, supprimer la branche de travail).
