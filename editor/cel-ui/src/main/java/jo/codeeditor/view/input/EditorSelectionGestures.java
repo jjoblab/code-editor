@@ -137,6 +137,14 @@ public class EditorSelectionGestures {
         // long « sélection ». Hors hint (ou wrap, où le tissage n'est pas
         // cartographié) : comportement historique inchangé.
         if (handleInlayHintLongPress(x, y)) return;
+        // D3 (lot 2, J4) : un appui long sur un squiggle COPIE le
+        // message du diagnostic au presse-papiers (retour terrain :
+        // coller le message exact ailleurs — rapport de bug, ticket).
+        // Même sémantique de hit que le popup D1 (cœur de plage, bords
+        // ±1 exclus, voile Unnecessary non tappable) ; priorité sur
+        // l'appui long « sélection » sur la plage soulignée. Zéro
+        // chrome : le message part silencieusement dans le clipboard.
+        if (handleSquiggleLongPressCopy(x, y)) return;
         int offset = view.offsetAt(x, y);
         view.session.selectWordAt(offset);
         view.handlesVisible = true;
@@ -517,6 +525,35 @@ public class EditorSelectionGestures {
             return true;
         }
         return false;
+    }
+
+    /**
+     * D3 (lot 2, J4) — appui long sur un squiggle : copie le message
+     * du diagnostic le plus sévère couvrant strictement l'offset
+     * (cœur de plage, bords ±1 exclus — même sémantique que le popup
+     * ancré D1 ; le voile Unnecessary n'est pas tappable).
+     *
+     * <p>Vrai si le message a été copié (l'appui long est CONSOMMÉ :
+     * ni sélection de mot, ni pill, ni clavier — le geste est
+     * « copier », pas « sélectionner »). Faux → comportement
+     * historique de l'appui long.</p>
+     */
+    private boolean handleSquiggleLongPressCopy(float x, float y) {
+        if (view.session == null) return false;
+        if (x < view.metrics.getGutterWidth()) return false;
+        int offset = view.offsetAt(x, y);
+        DiagnosticShift.Diagnostic best = null;
+        for (DiagnosticShift.Diagnostic d : view.session.getDiagnostics()) {
+            if (d == null || d.unnecessary) continue;
+            if (d.start + 1 < offset && offset < d.end) {
+                if (best == null || d.severity > best.severity) best = d;
+            }
+        }
+        if (best == null || best.message == null || best.message.isEmpty()) {
+            return false;
+        }
+        view.copyToClipboard(best.message);
+        return true;
     }
 
     /** Le hint de SESSION ancré à la colonne brute {@code col} de la ligne
