@@ -5,6 +5,91 @@ All notable changes to **code-editor-lib** are documented in this file.
 Le format suit la convention [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Non publié] — Durcissement : sécurité des écritures LSP, synchronisation, cycle de vie, performance
+
+### Security
+
+- **Écritures disque confinées au workspace** — les éditions de
+  fichiers reçues d'un serveur LSP (renommage, actions de code) ne
+  peuvent plus écrire en dehors du dossier du workspace : résolution
+  canonique, frontière de dossier vérifiée, liens symboliques sortants
+  refusés. Une URI hors workspace est rejetée et journalisée, jamais
+  écrite.
+- **URI correctement encodées** — nouveau `UriUtils` : décodage
+  `%XX`, rejet des schémas non `file` et des autorités non vides.
+  Les chemins contenant espaces, `#` ou caractères non ASCII sont
+  désormais retrouvés et réécrits correctement (forme
+  `file:///…` strict en sortie).
+- **Écritures atomiques** — `IoCompat.writeUtf8Atomically` : fichier
+  temporaire dans le même dossier, vidage complet, synchronisation du
+  descripteur (`fsync`), puis renommage. Un crash en cours d'écriture
+  ne corrompt plus le fichier d'origine.
+- **WorkspaceEdit tout-ou-rien** — un lot multi-fichiers est intégralement
+  validé (plages et chemins) avant la moindre écriture : un fichier
+  invalide ⇒ aucun fichier modifié. Les opérations de ressources
+  (création/renommage/suppression) sont explicitement refusées et
+  signalées au lieu d'être ignorées en silence.
+
+### Fixed
+
+- **Versions de document thread-safe** — le compteur de version LSP
+  passe en `AtomicInteger` : versions strictement croissantes exigées
+  par la spécification, même sous sollicitation concurrente (frappe +
+  correctifs simultanés).
+- **Éditions périmées refusées** — la version du document est
+  mémorisée au moment de la requête (complétion, action de code) et
+  comparée à l'arrivée de la réponse : une édition calculée sur un
+  texte périmé est rejetée au lieu de corrompre le buffer.
+- **Correctifs en une seule étape d'annulation** — les éditions
+  multiples d'un même correctif sont appliquées triées par offset
+  décroissant dans un groupe d'annulation unique : `undo` restaure
+  l'état exact, caret et sélection préservés, plis hors zone conservés.
+- **Serveur bavard ne bloquant plus** — le flux `stderr` du serveur
+  LSP est pompé par un thread daemon vers un récepteur borné (trace
+  circulaire 64 lignes) : un serveur écrivant 2 Mio sur `stderr` ne se
+  bloque plus.
+- **Arrêt du serveur borné et effectif** — `stop()` échelonné :
+  `destroy()` puis attente limitée puis arrêt forcé (branche protégée
+  API 26, repli pour l'API 24). L'échec de démarrage lève
+  `LspStartException` avec la trace `stderr` au lieu d'une
+  `RuntimeException` générique.
+- **Fini les threads jetables par frappe** — la synchronisation LSP
+  passe sur un planificateur daemon unique : plus de `new Thread` à
+  chaque frappe, plus de thread non daemon pour `didSave`, le texte
+  n'est matérialisé qu'au moment de l'envoi. Après extinction, aucun
+  thread `lsp-*` ne survit.
+
+### Performance
+
+- **`lineText` sans matérialisation** — délégation à `subText` (B19) :
+  plus de reconstruction du document entier à chaque lecture de ligne.
+  Mesure : 2 881 → 413 ns/op (×7) ; coût d'une édition maintenu à
+  0,11 ms sur un document de 50 000 lignes — chiffres reportés dans
+  `ARCHITECTURE.md` (affirmation « O(log N) » rectifiée).
+
+### Changed
+
+- **Lint bloquant** — `abortOnError = true` dans tous les modules avec
+  baselines figées : une nouvelle violation fait échouer le build (le
+  job « lint » de la CI peut désormais échouer). Le kind de surlignage
+  est normalisé en minuscules indépendant de la locale.
+- **Erreur d'un fournisseur : journalisée, plus avalée** — remplacement
+  des `catch (Throwable)` par des `catch` ciblés avec journalisation.
+  Les `Error` (mémoire saturée, pile débordée) ne sont plus avalés et
+  remontent à l'hôte. Deux frontières conservent `catch (Throwable)`
+  volontairement, documentées en commentaire (peintres de plugin
+  exécutés à chaque frame).
+
+### Added
+
+- **Journal injectable `EditorLog`** — interface `EditorLogger`
+  (niveaux info/warn/error, cause optionnelle) dans `cel-core`,
+  implémentation inert par défaut, implémentation Android fournie et
+  installée automatiquement (sans écraser un journal installé par
+  l'hôte : `installIfAbsent`). Fin des `System.err` en production.
+  Les anomalies avalées aux frontières d'extension sont désormais
+  traçables.
+
 ## [v3.44.0] — 2026-10-11 — Guide devant l'accolade + menu démo guides d'indentation
 
 ### Changed
