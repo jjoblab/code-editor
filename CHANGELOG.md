@@ -5,6 +5,71 @@ All notable changes to **code-editor-lib** are documented in this file.
 Le format suit la convention [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.56.0] — 2026-10-13 — Lot 2 tactile, jalon J5 : la loupe est un instrument, l'en-tête parle
+
+Cinquième jalon du plan du rapport « édition tactile et contexte visuel »
+(`docs/RAPPORT-TACTILE-CONTEXTE-CODE-EDITOR.md`) : la finition du lot —
+la pill suit le geste (T4), la loupe devient réglable et optionnellement
+native (M2/M3), le pattern des popups ancrés est factorisé (D2),
+l'en-tête des diagnostics s'enrichit (D4) et les libellés canoniques
+passent en ressources (T3). Tout est additif, zéro rupture d'API.
+
+### Added
+
+- **La pill suit la borne en cours de drag (T4)** — l'ancre de la
+  toolbar flottante était TOUJOURS `sel.end` (la sélection est
+  normalisée) : tirer la poignée GAUCHE envoyait la pill à l'opposé du
+  doigt. Depuis T4, l'ancre est la borne EN DÉPLACEMENT : pour le drag
+  de poignée, celle qui n'est PAS l'ancre figée du DOWN (y compris
+  après renormalisation) ; pour le drag-select au doigt, la borne du
+  doigt ; au repos, `sel.end` (inchangé). L'état du geste vit dans
+  `EditorSelectionGestures.pillAnchorOffset`.
+- **Zoom de loupe réglable (M2)** — `EditorView.setMagnifierZoom(float)`
+  (plage ×1.5–×3, clamp documenté, défaut ×2 inchangé) : le facteur de
+  la bulle custom devient un réglage de lecture, appliqué au
+  `canvas.scale` de la bulle.
+- **Loupe native en opt-in (M3)** —
+  `EditorView.setNativeMagnifierEnabled(boolean)` (défaut `false`) :
+  sur API 28+, le widget plateforme `android.widget.Magnifier` remplace
+  la bulle custom (rendu de la VRAIE frame, overlays système compris ;
+  compromis documenté : fidélité maximale, style non maîtrisé). Sous
+  API 28, repli custom silencieux. La bulle native est refermée via le
+  relais `dismissMagnifier()` routé aux cinq sites d'extinction (UP,
+  CANCEL, setSession, détachement, perte de focus). `setMagnifierZoom`
+  ne s'applique qu'à la bulle custom.
+- **En-tête enrichi des diagnostics (D4)** — le code et la source
+  publiés par les serveurs LSP sont enfin transportés jusqu'au rendu
+  (SPI `lang.model.Diagnostic` + champ `source` ; `DiagnosticShift`
+  conserve code/source à travers le décalage ; le pont LSP passe
+  `lspDiag.getSource()`). L'en-tête du popup ancré et de la fiche
+  basse affiche « Error · ecj:67 · java · 3:9 · ×2 » : sévérité,
+  code/source le cas échéant, ligne/colonne 1-based, badge de comptage
+  sur plage exacte. Libellé source unique
+  (`EditorPopupAnchors.diagnosticHeaderLabel`), mesure UX-3 incluse.
+
+### Changed
+
+- **Libellés canoniques en ressources (T3)** — premier `res/values` de
+  cel-ui : 20 chaînes (préfixe `cel_`) pour la pill, les actions socle,
+  le menu contextuel, les sévérités/sections de diagnostics et les
+  sections du NavMenu. Valeurs par défaut = littéraux historiques
+  anglais (aucun déplacement de pixel) ; l'hôte traduit en redéclarant
+  les mêmes noms dans ses propres ressources.
+
+### Fixed
+
+- **(interne)** Commentaire périmé de `magnifierActive` corrigé («
+  jamais pendant le drag-select » — faux depuis M1/J2).
+
+### Refactored
+
+- **Pattern « popup ancré » factorisé (D2)** —
+  `EditorPopupAnchors.anchorAboveBelow(...)` : la géométrie ancre +
+  flip + clamp partagée par la complétion, le NavMenu et le popup de
+  diagnostic ancré (chaque paramétrage reproduit exactement le
+  comportement précédent — aucun déplacement de popup, tests
+  existants inchangés).
+
 ## [3.55.0] — 2026-10-13 — Lot 2 tactile, jalon J4 : la pill agit, la bande navigue
 
 Quatrième jalon du plan du rapport « édition tactile et contexte visuel »
