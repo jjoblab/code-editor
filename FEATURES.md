@@ -152,7 +152,8 @@ par responsabilité.
 | isHidden / foldStartingAt | ✅ | `fold/FoldModel.java` | Ligne cachée ? info de pli |
 | docLineForVisual / visualForDocLine | ✅ | `fold/FoldModel.java` | Mapping document ↔ visuel |
 | compositeText | ✅ | `fold/FoldModel.java` | Préfixe + placeholder + suffixe |
-| Détection de plis par langage | ✅ | `highlight/FoldDetector.java` | Indentation, brackets, XML |
+| Détection de plis par langage | ✅ | `highlight/FoldDetector.java` | Indentation, brackets, XML ; B14 : régions nommées avec marqueur ESPACÉ ou NON (`//region`, `#region` C#) + correctif de l'off-by-one du nom de région (la chip porte le VRAI nom) |
+| Plis par niveau + tout replier/déplier (B14) | ✅ | `session/FoldRegions.java` (collapseAtLevel/collapseAll/expandAll), `session/EditorSession.java` | P1-5 : « Replier au niveau N » — profondeur d'imbrication EXACTE (1 = classes, 2 = méthodes, 3 = blocs ; les parents restent ouverts, chaque région porte son état — sémantique VS Code Fold Level N) ; « tout replier » / « tout déplier » avec retour compté ; foldRev++ → l'index mémoïsé de la vue se reconstruit sans re-pose de session |
 
 ---
 

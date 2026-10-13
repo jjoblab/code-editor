@@ -174,11 +174,23 @@ distances autour ; défaut ABSOLUTE inchangé. Historique de l'écart
 numéros relatifs pour la navigation `5j/10k`.
 
 **P1-5 · Plis : « tout replier/déplier » et plis par région.** Le toggle
-par ligne existe (bande + chips). Manquent : le pli sélectif par niveau
-(méthodes vs classes — `EditorFoldIndex` a déjà la hiérarchie), et les
-régions de commentaires `// region … // endregion` (AS les plie).
-**Recommandation** : action NavMenu « Replier au niveau N » + extension
-du scanner de plis aux régions de commentaire. Effort : moyen.
+par ligne existe (bande + chips). **✅ LIVRÉ en B14 (v3.68.0)** :
+« Replier au niveau N » (`EditorSession.collapseFoldsAtLevel` —
+profondeur d'imbrication EXACTE : 1 = classes, 2 = méthodes, 3 =
+blocs ; les parents restent ouverts, chaque région porte son état,
+sémantique VS Code Fold Level N — la hiérarchie « méthodes vs
+classes » d'AS) + « tout replier » / « tout déplier »
+(`collapseAllFolds`/`expandAllFolds`, retour compté, la révision de
+plis invalide l'index mémoïsé de la vue sans re-pose de session).
+Les régions de commentaire étaient déjà détectées
+(`detectNamedRegions` — `// region`, `# region`,
+`<editor-fold>`) : B14 y ajoute les marqueurs SANS espace (`#region`
+C#, `//region` IntelliJ) et CORRIGE l'off-by-one du nom de région
+(la chip portait un caractère parasite — « n Services »). Historique
+de l'écart (v3.67.0) : recommandation « action NavMenu Replier au
+niveau N + extension du scanner aux régions » — livrée (le menu
+était la voie démo ; la commande de session est l'API publique).
+Effort : moyen.
 
 ### P2 — différenciateurs à plus long terme
 
@@ -212,7 +224,7 @@ coût. À ne faire que sur demande explicite.
 | B12 | P1-3 persistance du zoom + P1-4 colonnes relatives — **livré v3.66.0** | P1 | petite |
 | B12 | P2-2 API `GutterAction` généralisée (fondée sur B9c) | P2 | moyenne |
 | B13 | P1-2 drag-déposer de bloc (mode pill ✥) — **livré v3.67.0** | P1 | moyenne |
-| B14 | P1-5 plis par niveau + régions de commentaire | P1 | moyenne |
+| B14 | P1-5 plis par niveau + régions de commentaire — **livré v3.68.0** | P1 | moyenne |
 | — | P2-1 multi-caret : génération API suivante (refonte Selection) | P2 | grande |
 
 Ordre recommandé : **B10 d'abord** — la recherche est le seul écart de
@@ -233,7 +245,12 @@ infrastructure de surlignage et de fenêtrage, désormais livrée. B12
 referme le palier CONFORM (P1-3 zoom persistant par type + P1-4
 colonnes relatives) — le zoom de l'utilisateur survit aux
 réouvertures et la gouttière parle « distance au caret » à la
-demande. Restent la parité riche d'édition (P1-2 drag de bloc,
-P1-5 plis par niveau) — B13/B14 de la feuille de route. L'API
-`GutterAction` (P2-2) reste le pari stratégique : B9c en a posé les
-fondations, et CodeIDE en est le premier consommateur naturel.
+demande. B13 (P1-2 drag-déposer de bloc, pill ✥) et B14 (P1-5 plis
+par niveau + régions, tout replier/déplier) referment la **parité
+riche d'édition** : la FEUILLE DE ROUTE P0/P1 EST ÉPUISÉE — tous les
+écarts P0 et P1 de l'analyse n°6 sont livrés (v3.68.0). Restent les
+différenciateurs P2 : `GutterAction` (P2-2, le pari stratégique —
+B9c en a posé les fondations et CodeIDE en est le premier
+consommateur naturel), la minimap (P2-3, volontairement écartée sur
+mobile) et le multi-caret (P2-1, génération API suivante — refonte
+du modèle unicaret de Selection).

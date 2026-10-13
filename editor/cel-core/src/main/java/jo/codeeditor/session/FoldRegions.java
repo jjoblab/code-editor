@@ -224,6 +224,98 @@ final class FoldRegions {
         }
     }
 
+    // ── B14 (P1-5) : plis par niveau + tout replier/déplier ──────
+
+    /**
+     * B14 — profondeur d'imbrication de la région i : 1 + le nombre de
+     * régions la CONTENANT strictement (s.start ≤ r.start ET s.end ≥
+     * r.end, inégalité stricte quelque part). Le niveau 1 désigne les
+     * régions racines (classes, imports), le 2 leurs enfants (méthodes),
+     * etc. — la hiérarchie « méthodes vs classes » d'Android Studio. Les
+     * régions bornées identiques (doublon region+accolade) restent au
+     * niveau 1 chacune ; les chevauchements PARTIELS ne comptent pas
+     * (ni contenant ni contenu). O(n²) assumé : la liste compte des
+     * dizaines d'entrées, l'appel est ponctuel (action de menu).
+     */
+    private int depthOf(int i) {
+        DiagnosticShift.FoldRegion r = foldRegions.get(i);
+        int depth = 1;
+        for (int j = 0; j < foldRegions.size(); j++) {
+            if (j == i) continue;
+            DiagnosticShift.FoldRegion s = foldRegions.get(j);
+            boolean contains = s.start <= r.start && s.end >= r.end
+                    && (s.start != r.start || s.end != r.end);
+            if (contains) depth++;
+        }
+        return depth;
+    }
+
+    /**
+     * B14 — « Replier au niveau N » (sémantique VS Code Fold Level N) :
+     * replie toute région de profondeur EXACTEMENT N (1 = classes,
+     * 2 = méthodes…). Les parents restent OUVERTS — les enfants cachés
+     * le sont par leur parent replié, et le restent à l'expansion
+     * (chaque région porte son propre état).
+     *
+     * @return le nombre de régions nouvellement repliées
+     */
+    int collapseAtLevel(int level) {
+        if (level < 1) return 0;
+        int changed = 0;
+        for (int i = 0; i < foldRegions.size(); i++) {
+            DiagnosticShift.FoldRegion r = foldRegions.get(i);
+            if (!r.collapsed && depthOf(i) == level) {
+                foldRegions.set(i, new DiagnosticShift.FoldRegion(
+                        r.start, r.end, r.placeholder, r.kind,
+                        true, r.collapsedByDefault));
+                changed++;
+            }
+        }
+        if (changed > 0) foldRev++;
+        return changed;
+    }
+
+    /**
+     * B14 — « Tout replier » : replie toute région ouverte (tous
+     * niveaux confondus).
+     *
+     * @return le nombre de régions nouvellement repliées
+     */
+    int collapseAll() {
+        int changed = 0;
+        for (int i = 0; i < foldRegions.size(); i++) {
+            DiagnosticShift.FoldRegion r = foldRegions.get(i);
+            if (!r.collapsed) {
+                foldRegions.set(i, new DiagnosticShift.FoldRegion(
+                        r.start, r.end, r.placeholder, r.kind,
+                        true, r.collapsedByDefault));
+                changed++;
+            }
+        }
+        if (changed > 0) foldRev++;
+        return changed;
+    }
+
+    /**
+     * B14 — « Tout déplier » : ouvre toute région repliée.
+     *
+     * @return le nombre de régions nouvellement ouvertes
+     */
+    int expandAll() {
+        int changed = 0;
+        for (int i = 0; i < foldRegions.size(); i++) {
+            DiagnosticShift.FoldRegion r = foldRegions.get(i);
+            if (r.collapsed) {
+                foldRegions.set(i, new DiagnosticShift.FoldRegion(
+                        r.start, r.end, r.placeholder, r.kind,
+                        false, r.collapsedByDefault));
+                changed++;
+            }
+        }
+        if (changed > 0) foldRev++;
+        return changed;
+    }
+
     /**
      * Lot A (audit v3.41.0) : déplie tous les plis repliés dont
      * l'intérieur est touché par la zone d'édition

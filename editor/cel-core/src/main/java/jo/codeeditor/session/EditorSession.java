@@ -473,6 +473,15 @@ public class EditorSession {
         folds.expandAt(offset);
     }
 
+    /** B14 (P1-5) — « Replier au niveau N » : profondeur EXACTE (1 = classes, 2 = méthodes). */
+    public int collapseFoldsAtLevel(int level) { return folds.collapseAtLevel(level); }
+
+    /** B14 (P1-5) — « Tout replier » (tous niveaux). */
+    public int collapseAllFolds() { return folds.collapseAll(); }
+
+    /** B14 (P1-5) — « Tout déplier ». */
+    public int expandAllFolds() { return folds.expandAll(); }
+
     public void setInlayHints(List<DiagnosticShift.InlayHint> hints) {
         annotations.setInlayHints(hints);
     }

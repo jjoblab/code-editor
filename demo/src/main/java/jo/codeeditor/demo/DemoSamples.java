@@ -76,6 +76,7 @@ final class DemoSamples {
                 private final List<String> history = new java.util.ArrayList<>();
                 private static final double TAX_RATE = 0.20;
 
+                // region Opérations (région nommée pliable — B14)
                 public int add(int a, int b) {
                     history.add(a + " + " + b + " = " + (a + b));
                     return a + b;
@@ -85,6 +86,7 @@ final class DemoSamples {
                 public double withTax(double amount) {
                     return Math.round(amount * (1 + TAX_RATE) * 100) / 100.0;
                 }
+                // endregion
 
                 public record Operation(String label, int result) {
                     public String pretty() {

@@ -1,4 +1,4 @@
-# MISE À JOUR DE CodeIDE — brancher la version 3.67.0 de `code-editor`
+# MISE À JOUR DE CodeIDE — brancher la version 3.68.0 de `code-editor`
 
 > **Destinataire** : agent IA chargé de la mise à jour du dépôt `CodeIDE`
 > (jjoblab/CodeIDE, audité @ `04a65ea`, v0.105.0).
@@ -24,7 +24,7 @@
 
 ---
 
-## 0. Résumé express — deux lots + quatre retours terrain + lots B10-B13, un seul changement requis
+## 0. Résumé express — deux lots + quatre retours terrain + lots B10-B14, un seul changement requis
 
 | Lot | Versions | Thème | Ce que CodeIDE y gagne |
 |---|---|---|---|
@@ -40,6 +40,7 @@
 | **Lot B11 (navigation)** | **3.65.0** | La navigation dans le contenu est au niveau AS | Fast-scroller : le drag de gouttière devient un positionnement ABSOLU (pouce + bulle de ligne, tout le fichier d'un seul geste, parité Android Studio) ; bande d'erreurs au bord droit : marqueurs de diagnostics de TOUT le fichier (même hors écran) + rect du viewport, tap = centrage + fiche, drag = scroll absolu — GRATUIT à la montée (aucune adoption), bascule `setErrorStripeEnabled` si CodeIDE préfère l'éteindre |
 | **Lot B12 (confort)** | **3.66.0** | Le zoom et les numéros se souviennent | P1-3 : zoom PERSISTANT par type de fichier — `setZoomMemoryKey(".java")` à l'ouverture, pincement/A± enregistrés, réouverture = réglage restauré, le zoom ne fuit pas entre types (adoption recommandée, §4.12 — trois lignes) ; P1-4 : numéros de gouttière RELATIFS/HYBRIDES façon AS (`LineNumberStyle`, optionnel) |
 | **Lot B13 (parité riche)** | **3.67.0** | Glisser-déposer une sélection la DÉPLACE | P1-2 : mode « drag de bloc » armé par la pill ✥ Move — le geste suivant déplace le texte (loupe + caret fantôme au point de dépôt + carte flottante + auto-scroll de bord), un tap annule ; dépôt en UNE annulation, sélection ré-épinglée (adoption recommandée, §4.13 — trois lignes) ; `EditorSession.moveRange` public pour les barres d'outils |
+| **Lot B14 (pliage)** | **3.68.0** | Replier au niveau, tout replier/déplier | P1-5 : « Replier au niveau N » (1 = classes, 2 = méthodes — profondeur EXACTE, sémantique VS Code) + « tout replier / tout déplier » (`collapseFoldsAtLevel`/`collapseAllFolds`/`expandAllFolds` — adoption recommandée, §4.14 : trois entrées de menu) ; régions `#region` (C#) et `//region` (IntelliJ) détectées + correctif du nom de région (la chip portait un « n » parasite) |
 
 **Un seul changement est indispensable** : monter la version dans
 `gradle/libs.versions.toml` (§2). Tout le reste est additif — les
@@ -51,7 +52,7 @@ surcharges ou des constructeurs étendus déléguant à l'existant.
 
 ---
 
-## 1. Les lots 3.52.0 → 3.57.0 (complets) puis les retours terrain 3.58.0/3.59.0/3.60.0/3.61.0/3.62.0/3.63.0 et les lots B10-B13 (3.64.0→3.67.0)
+## 1. Les lots 3.52.0 → 3.57.0 (complets) puis les retours terrain 3.58.0/3.59.0/3.60.0/3.61.0/3.62.0/3.63.0 et les lots B10-B14 (3.64.0→3.68.0)
 
 `code-editor` est le CLIENT ; `lsp/java` de CodeIDE est le SERVEUR. Le
 lot tactile travaille presque entièrement côté client (rendu, gestes,
@@ -535,11 +536,38 @@ de sélection : le mode « drag de bloc » est ARMÉ par la pill
 - **Zéro adoption requise** : sans l'item de pill, rien ne change.
   L'installation est recommandée (§4.13 — trois lignes).
 
+### 1.14 Lot B14 (3.68.0) — plis par niveau + régions, tout replier/déplier
+
+Cinquième lot de la feuille de route de l'analyse des écarts n°6 :
+le P1-5. Le toggle par ligne existait (chevrons de la bande de
+pli + chips) ; manquaient le pliage sélectif par niveau de la
+hiérarchie — « méthodes vs classes » — et la tolérance des
+marqueurs de région à la syntaxe C#/IntelliJ.
+
+- **`EditorSession.collapseFoldsAtLevel(n)`** — « Replier au niveau
+  N » (sémantique VS Code Fold Level N) : replie toute région de
+  profondeur d'imbrication EXACTE — 1 = classes, 2 = méthodes,
+  3 = blocs internes. Les parents restent OUVERTS et chaque région
+  porte son état : déplier la classe révèle les méthodes ENCORE
+  repliées. `collapseAllFolds()` / `expandAllFolds()` pour « tout
+  replier / tout déplier ». Retour compté (nb de régions touchées),
+  révision de plis incrémentée — l'index de la vue se reconstruit
+  sans re-pose de session.
+- **Régions nommées : `#region … #endregion` (C#) et
+  `//region … //endregion` (IntelliJ)** désormais détectées en plus
+  des formes historiques espacées ; le NOM de la région est extrait
+  des deux formes (chip).
+- **Correctif inclus** : le nom des régions historiques portait un
+  caractère parasite (off-by-one — « n Services » au lieu de
+  « Services ») ; la chip porte désormais le VRAI nom.
+- **Zéro adoption requise** : sans appel, rien ne change. Trois
+  entrées de menu sont recommandées (§4.14).
+
 ## 2. Changement REQUIS — montée de version de la dépendance
 
 ```toml
 # gradle/libs.versions.toml (CodeIDE) — ligne ~52
-code-editor = "3.67.0"     # était "3.49.2" (audit) / "3.51.1" (guide 3.51.1) / "3.57.0" (guide J6) / "3.58.0"-"3.60.0" (guides retours terrain) / "3.61.0"-"3.63.0" (guides retours n°4-6) / "3.64.0" (lot B10) / "3.65.0" (lot B11) / "3.66.0" (lot B12) / "3.67.0" (lot B13)
+code-editor = "3.68.0"     # était "3.49.2" (audit) / "3.51.1" (guide 3.51.1) / "3.57.0" (guide J6) / "3.58.0"-"3.60.0" (guides retours terrain) / "3.61.0"-"3.63.0" (guides retours n°4-6) / "3.64.0" (lot B10) / "3.65.0" (lot B11) / "3.66.0" (lot B12) / "3.67.0" (lot B13) / "3.68.0" (lot B14)
 ```
 
 Les deux modules consommateurs ne changent pas (ils suivent le
@@ -584,7 +612,31 @@ pose la clé/le style) ; 3.67.0 ajoute UNE méthode de session
 `cancelBlockDrag`) et UNE action pill (`BuiltinSelectionActions.
 blockDrag`) sans rien retirer ni changer aucun comportement par
 défaut — le mode drag de bloc n'existe QUE si l'hôte installe
-l'item de pill (ou arme explicitement).
+l'item de pill (ou arme explicitement)) ; 3.68.0 ajoute TROIS
+méthodes de session (`collapseFoldsAtLevel`/`collapseAllFolds`/
+`expandAllFolds`) sans rien retirer ni changer aucun comportement
+par défaut — les commandes de pliage de masse n'existent que si
+l'hôte les expose (le correctif du nom de région est automatique,
+transparent pour l'API).
+
+### Publication (2026-10-13, lot B14)
+
+- `main` poussé (merge du lot B14, trois commits) ; tag
+  **`v3.68.0`** posé sur le merge ; workflows CI + Publication
+  GitHub Packages déclenchés par le poussage (vérifier l'état sur
+  la page Actions du dépôt).
+- **Consigne du propriétaire (2026-10-13, lots B13/B14)** :
+  PUBLICATION JITPACK DEMANDÉE pour cette session (deux lots
+  majeurs au sens de la politique de version — une nouvelle
+  capacité d'édition B13 et la fermeture du palier de pliage B14) :
+  builds déclenchés sur les tags `v3.67.0` ET `v3.68.0` et
+  vérifiés (artefacts `cel-ui` servis) ; les 3.51.1+ restent
+  saines, seules `3.50.0`/`3.51.0` demeurent interdites via
+  JitPack (incident 429 historique, servies sur GitHub Packages
+  uniquement).
+- Coordonnées : `com.github.jjoblab.code-editor:cel-ui:3.68.0` et
+  modules frères (même version, dépôt `maven { url =
+  uri("https://jitpack.io") }`).
 
 ### Publication (2026-10-13, lot B13)
 
@@ -924,6 +976,24 @@ garantie). Sans l'item, `view.armBlockDrag()` reste accessible
 pour un bouton de barre d'outils dédié, et `session.moveRange`
 pour un déplacement programmatique.
 
+### 4.14 Offrir « Replier au niveau N » + tout replier/déplier (B14, 3.68.0) — trois entrées de menu, recommandé
+
+Les commandes de pliage de masse se posent où CodeIDE a déjà son
+menu de débordement (l'appel est direct sur la session, un simple
+`invalidate()` rafraîchit) :
+
+```java
+// feature/editor — handlers de menu
+editor.getSession().collapseFoldsAtLevel(2); // 1=classes, 2=méthodes…
+editor.getSession().expandAllFolds();        // « tout déplier »
+editor.invalidate();                          // rafraîchit la vue
+```
+
+Le retour compté permet un toast discret (« 12 méthodes repliées »).
+Les régions `// region` / `#region` sont déjà détectées — aucun
+réglage à faire pour elles ; le menu « Plis » de la démo
+(niveaux 1-3 + tout replier + tout déplier) est le modèle exact.
+
 ---
 
 ## 5. Protocole de vérification sur appareil (après montée de version)
@@ -1143,6 +1213,24 @@ ajouter les épreuves du lot tactile :
     relâcher → le dépôt atterrit à l'endroit VISÉ (parité
     drag-select). Bonus : armer puis pincer à deux doigts → le
     mode retombe proprement (document intact, zoom appliqué).
+
+23. **Lot B14 (3.68.0, via la démo)** — quatre vérifications ciblées :
+    **a)** échantillon Java → menu « Plis » → « Replier au niveau 1
+    (classes) » : la classe Calculator se replie (chip visible, le
+    reste du document reste lisible) ; chevron de la bande → la
+    classe se déplie ;
+    **b)** « Replier au niveau 2 (méthodes) » : les MÉTHODES se
+    replient (chips `add`, `withTax`…) mais la classe reste
+    OUVERTE — déplier la classe (niveau 1 d'abord replié) révèle
+    les méthodes ENCORE repliées (états indépendants) ;
+    **c)** la RÉGION « Opérations » de l'échantillon Java : son
+    chevron la replie et la chip porte le nom « Opérations » (pas
+    de caractère parasite) ; « Tout replier » puis « Tout déplier »
+    → retour intégral ;
+    **d)** échantillon Python → le code `# region` non espacé
+    (C#) et `//region` (IntelliJ) se replient aussi si présent —
+    parité de marqueurs (vérifiable sur tout échantillon les
+    contenant).
 
 ---
 

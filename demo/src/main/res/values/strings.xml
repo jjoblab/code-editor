@@ -16,6 +16,14 @@
     <string name="line_numbers_relative">Relatifs au caret (0, 1, 2…)</string>
     <string name="line_numbers_hybrid">Hybrides (numéro au caret)</string>
 
+    <!-- B14 (P1-5) : plis par niveau + tout replier/déplier -->
+    <string name="menu_folds">Plis</string>
+    <string name="folds_level_1">Replier au niveau 1 (classes)</string>
+    <string name="folds_level_2">Replier au niveau 2 (méthodes)</string>
+    <string name="folds_level_3">Replier au niveau 3 (blocs)</string>
+    <string name="folds_all">Tout replier</string>
+    <string name="folds_none">Tout déplier</string>
+
     <!-- Plafond de lignes sticky (S4, lot 2) -->
     <string name="sticky_max_1">Max : 1 ligne</string>
     <string name="sticky_max_2">Max : 2 lignes (défaut)</string>
@@ -42,7 +50,7 @@
 
     <!-- À propos -->
     <string name="about_title">À propos de la démo</string>
-    <string name="about_message">Terrain de jeu pour la bibliothèque code-editor v3.67.0 (Java, Canvas, MIT).
+    <string name="about_message">Terrain de jeu pour la bibliothèque code-editor v3.68.0 (Java, Canvas, MIT).
 
 \u2022 28 langages : basculez via le menu Langage.
 \u2022 Analyseur factice : diagnostics, complétion, signatures, quick doc et code actions synthétiques \u2014 sans serveur LSP.
