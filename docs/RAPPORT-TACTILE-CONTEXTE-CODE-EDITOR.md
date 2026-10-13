@@ -21,8 +21,8 @@
 > compatibles binairement), garde-fous verts (figures de tests, budgets de
 > lignes, baseline lint), un commit conventionné par changement logique.
 > **Statut** : **jalons J1 à J6 LIVRÉS (lot complet, 3.52.0 → 3.57.0),
-> PLUS les retours terrain post-J6 (3.58.0, 3.59.0, 3.61.0, 3.62.0) ET la
-> refonte B6 (3.60.0)** — B6 (3.60.0) : la barre de fil d'Ariane ne porte plus
+> PLUS les retours terrain post-J6 (3.58.0, 3.59.0, 3.61.0, 3.62.0,
+> 3.63.0) ET la refonte B6 (3.60.0)** — B6 (3.60.0) : la barre de fil d'Ariane ne porte plus
 > QUE les trois actions d'IDE via `addEditorActions()` (annuler/
 > rétablir câblés sur la session, aperçu qui n'EXISTE que pour un
 > fichier prévisualisable et BASCULE ouvrir/fermer), icônes
@@ -33,6 +33,25 @@
 > automatiques (setFileName/setPreviewMode rafraîchissent la barre
 > sœur), moteur Markdown v2 dans la démo (liens, tables, tâches,
 > barré) ; 1 618 tests verts, EditorView/EditorSession inchangés.
+> **Retour terrain n°6 (3.63.0)** : quatre irritants réglés à la
+> racine — B9a la « secousse » des lignes pendant le drag de sélection
+> (le recentrage du caret déclenché par CHAQUE application de
+> sélection du drag tirait le viewport vers l'ancre pendant que
+> l'auto-scroll UX-2 le poussait dans la direction du doigt — dent de
+> scie au rythme des ticks ; désormais suspendu pendant le drag via
+> `isSelectionDragActive`, la loupe en outre stabilisée : Y snappé au
+> centre de la rangée réglée, X amorti — régression prouvée par le
+> test de monotonie de vOffset) ; B9b le caret reste FIXE au
+> pincement (les traînées du doigt restant après le relevé de l'autre
+> déclenchaient un scroll juste après le zoom — englouties désormais ;
+> la lecture seule gagne l'ancrage au POINT FOCAL du pincement, elle
+> n'en avait aucun) ; B9c l'icône d'aperçu (œil) vit dans la
+> GOUTTIÈRE sur la rangée du caret, façon Android Studio (rect
+> déterministe partagé dessin/hit-test, tap = bascule sans déplacer
+> le caret, aucune zone fantôme) ; B9d sixième analyse des écarts
+> Android Studio ↔ code-editor (`docs/ANALYSE-GAPS-ANDROID-STUDIO.md`
+> — P0 n°1 : recherche/remplacement dans le fichier, le moteur
+> `FindReplace` existe déjà en cel-core) ; 1 664 tests verts (+12).
 > **Retour terrain n°5 (3.62.0)** : trois irritants réglés à la racine —
 > B8a le modèle de wrap suit le document après `setSession()` (avant :
 > le modèle de l'ANCIEN fichier rendait le nouveau et son clamp de

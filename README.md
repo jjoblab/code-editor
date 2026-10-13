@@ -212,8 +212,8 @@ figure dans [`USAGE.md`](USAGE.md).
 
 ```bash
 ./gradlew test
-# 1 652 tests, 0 failure :
-#   cel-core 900 · cel-lsp-api 28 · cel-lsp 142 · cel-ui 555 · demo 27
+# 1 664 tests, 0 failure :
+#   cel-core 900 · cel-lsp-api 28 · cel-lsp 142 · cel-ui 567 · demo 27
 # (contrôle d'écart : scripts/check-doc-figures.sh, exécuté en CI)
 ```
 

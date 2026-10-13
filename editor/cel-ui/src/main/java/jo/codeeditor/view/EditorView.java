@@ -2064,6 +2064,37 @@ public class EditorView extends View {
     }
 
     /**
+     * B9c (retour terrain n°6) — hit-teste l'icône d'aperçu de la
+     * GOUTTIÈRE (œil sur la rangée du caret, façon Android Studio).
+     *
+     * <p>Vrai quand le fichier courant est prévisualisable ET que le
+     * point tombe dans la pill de l'icône. Le rectangle est recalculé
+     * DÉTERMINISTEMENT (même formule que le dessin —
+     * {@code GutterView.previewActionRect}) : aucun état mutable partagé
+     * entre le rendu et le hit-test. Le tap de bascule vit dans
+     * EditorTapResolver (parité avec l'œil du fil d'Ariane B6 :
+     * ouvert → closePreviewSheet, fermé → openPreview).</p>
+     */
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public boolean hitTestGutterPreviewAction(float x, float y) {
+        if (!previewable || session == null || session.getDocument() == null) {
+            return false;
+        }
+        EditorDocument doc = session.getDocument();
+        if (doc.lineCount() <= 0) return false;
+        Selection sel = clampSelection(session.getSelection(), doc);
+        int currentLine = clamp(doc.lineForOffset(sel.start), 0, doc.lineCount() - 1);
+        float rowTop = docLineToY(currentLine) - vOffset;
+        float lineHeight = metrics.getLineHeight();
+        // Rangée hors écran (repliée au-dessus ou en dessous du viewport) :
+        // l'icône n'est pas visible — pas de zone tactile fantôme.
+        if (rowTop + lineHeight < 0 || rowTop > getHeight()) return false;
+        return jo.codeeditor.view.chrome.GutterView.previewActionContains(
+                metrics, getResources().getDisplayMetrics().density,
+                rowTop, lineHeight, x, y);
+    }
+
+    /**
      * Listener des changements de mode d'aperçu. Le hôte l'implémente
      * pour montrer/cacher/redimensionner son overlay WebView.
      */
@@ -2706,6 +2737,24 @@ public class EditorView extends View {
         scrollManager.scrollCaretIntoView();
     }
 
+    /**
+     * B9 (retour terrain n°6) — vrai pendant qu'un drag de sélection
+     * (poignée traînée ou drag-select au doigt) possède le viewport.
+     *
+     * <p>Consulté par l'IME bridge pour suspendre le recentrage du
+     * caret pendant le geste : chaque application de sélection pendant
+     * le drag déclenchait {@code scrollCaretIntoView()}, qui TIRAIT le
+     * viewport vers le caret pendant que l'auto-scroll UX-2 du drag le
+     * poussait dans la direction du doigt — les deux luttant au rythme
+     * des MOVE, les lignes « secouaient » pendant le drag (retour
+     * terrain : « les lignes ont tendance à secouer »). Pendant le
+     * drag, le geste et son auto-scroll dirigent SEULS le viewport.</p>
+     */
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public boolean isSelectionDragActive() {
+        return inputHandler.isSelectionDragActive();
+    }
+
     public void scrollToLine(int line) {
         scrollManager.scrollToLine(line);
     }
@@ -2835,6 +2884,17 @@ public class EditorView extends View {
 
         public void applyPinchScale(float scaleFactor) {
         zoom.applyPinchScale(scaleFactor);
+    }
+
+    /**
+     * B9 (retour terrain n°6) — pincement avec POINT FOCAL : l'ancre
+     * prioritaire reste le caret (visible), de repli le contenu sous le
+     * milieu des deux doigts (lecture seule, caret hors écran). Voir
+     * {@link jo.codeeditor.view.input.EditorZoomController#applyPinchScale(float, float, float)}.
+     */
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public void applyPinchScale(float scaleFactor, float focusX, float focusY) {
+        zoom.applyPinchScale(scaleFactor, focusX, focusY);
     }
 
     // Méthodes de commodité pour la taille de police +/- depuis les icônes Canvas.

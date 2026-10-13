@@ -113,6 +113,22 @@ public class EditorTapResolver {
                 return;
             }
         }
+
+        // ── B9c (retour terrain n°6) : tap sur l'icône d'aperçu de la
+        // GOUTTIÈRE (œil sur la rangée du caret, façon Android Studio) —
+        // BASCULE : feuille scindée si fermée, fermeture si ouverte
+        // (parité exacte avec l'œil du fil d'Ariane B6). Contrôlé AVANT
+        // les branches gouttière (fold/diagnostics) : l'icône vit dans
+        // la zone des numéros et possède SA rangée. Le caret n'est PAS
+        // déplacé — le geste appartient à l'icône.
+        if (tapCount == 1 && view.hitTestGutterPreviewAction(x, y)) {
+            if (view.previewMode.isSheet()) {
+                view.closePreviewSheet();
+            } else {
+                view.openPreview(false);
+            }
+            return;
+        }
         // UX-5 : les zones de tap de l'ancienne toolbar canvas (A+, A−,
         // ¶, ligatures) sont retirées — les icônes ne sont plus dessinées
         // depuis l'extraction d'EditorBarTools et les boutons vivent dans

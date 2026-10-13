@@ -25,6 +25,12 @@ import static org.junit.Assert.*;
  * tap sur la poignée ne la fait pas flasher), désactivée sur UP/CANCEL,
  * et JAMAIS pendant un scroll/drag-select ordinaire.
  *
+ * <p>B9 (retour terrain n°6 — « les lignes secouent pendant le drag ») :
+ * la bulle suit désormais une position STABILISÉE — Y snappé au centre
+ * de la RANGÉE réglée (offsetAt→caretScreenPos : la sous-rangée wrap),
+ * X amorti exponentiellement (α = 0,55 par frame). Le jitter capteur ne
+ * se amplifie plus ×2 dans la bulle.</p>
+ *
  * @author jo@Dev
  */
 @RunWith(RobolectricTestRunner.class)
@@ -90,7 +96,7 @@ public class EditorMagnifierHandleDragTest {
     }
 
     @Test
-    public void handleDrag_activatesMagnifierOnFirstMove_andFeedsFinger() {
+    public void handleDrag_activatesMagnifierOnFirstMove_andFeedsStabilizedPos() {
         EditorView view = newView();
         int start = DOC.indexOf("greet");
         int end = DOC.indexOf("name") + 4;
@@ -106,20 +112,40 @@ public class EditorMagnifierHandleDragTest {
         assertEquals(1, view.handleDragMode);
         assertFalse("DOWN alone must not show the magnifier", view.magnifierActive);
 
-        // Premier MOVE : la bulle s'allume et suit le doigt.
-        send(view, MotionEvent.ACTION_MOVE, down, down + 50, handle[0] + 40f, handle[1] + 12f);
+        // Premier MOVE (activation) : X = position BRUTE (pas d'amortissement
+        // depuis une valeur périmée), Y = CENTRE de la rangée sous le doigt.
+        float fx1 = handle[0] + 40f;
+        float fy1 = handle[1] + 12f;
+        send(view, MotionEvent.ACTION_MOVE, down, down + 50, fx1, fy1);
         assertTrue("first MOVE must activate the magnifier", view.magnifierActive);
-        assertEquals(handle[0] + 40f, view.magnifierX, 0.01f);
-        assertEquals(handle[1] + 12f, view.magnifierY, 0.01f);
+        assertEquals("activation X = raw finger X (no damping from stale)",
+                fx1, view.magnifierX, 0.01f);
+        assertEquals("Y snapped to the CENTER of the row under the finger",
+                rowCenterUnder(view, fx1, fy1), view.magnifierY, 0.01f);
 
-        // MOVE suivant : la position continue de suivre.
-        send(view, MotionEvent.ACTION_MOVE, down, down + 90, handle[0] + 80f, handle[1] + 30f);
-        assertEquals(handle[0] + 80f, view.magnifierX, 0.01f);
+        // MOVE suivant — même RANGÉE : Y STRICTEMENT identique (le jitter
+        // vertical du doigt dans la rangée ne bouge PLUS la bulle — c'est
+        // la garantie anti-« secousse »), X amorti (α = 0,55).
+        float fx2 = handle[0] + 80f;
+        float fy2 = fy1 + 8f; // même rangée : +8px de jitter capteur
+        send(view, MotionEvent.ACTION_MOVE, down, down + 90, fx2, fy2);
+        assertEquals("Y constant while the finger stays in the same row",
+                rowCenterUnder(view, fx1, fy1), view.magnifierY, 0.001f);
+        assertEquals("X damped: x1 + 0.55*(x2 - x1)",
+                fx1 + (fx2 - fx1) * 0.55f, view.magnifierX, 0.01f);
 
         // UP : la bulle s'éteint.
-        send(view, MotionEvent.ACTION_UP, down, down + 120, handle[0] + 80f, handle[1] + 30f);
+        send(view, MotionEvent.ACTION_UP, down, down + 120, fx2, fy2);
         assertFalse("UP must deactivate the magnifier", view.magnifierActive);
         assertEquals(0, view.handleDragMode);
+    }
+
+    /** Centre ÉCRAN de la rangée portant l'offset sous (x, y) — même
+     *  couple offsetAt→caretScreenPos que updateMagnifier (contrat B9). */
+    private static float rowCenterUnder(EditorView view, float x, float y) {
+        int offset = view.offsetAt(x, y);
+        float[] row = view.caretScreenPos(offset);
+        return row[1] + view.metrics.getLineHeight() * 0.5f;
     }
 
     @Test

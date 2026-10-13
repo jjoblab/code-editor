@@ -185,7 +185,18 @@ public class EditorImeBridge {
                 int compEnd = composingEnd >= 0 ? composingEnd : -1;
                 imm.updateSelection(view, selStart, selEnd, compStart, compEnd);
             }
-            view.scrollManager.scrollCaretIntoView();
+            // B9 (retour terrain n°6) : PAS de recentrage pendant un drag
+            // de sélection (poignée ou drag-select au doigt). Chaque
+            // application de sélection du drag passait ICI et déclenchait
+            // scrollCaretIntoView, qui tirait le viewport vers sel.start
+            // pendant que l'auto-scroll du drag le poussait dans la
+            // direction du doigt — les deux luttaient à chaque MOVE et
+            // les lignes « secouaient ». Pendant le drag, le geste et son
+            // auto-scroll dirigent seuls le viewport ; le recentrage
+            // reprend au geste suivant (frappe, tap, clavier).
+            if (!view.isSelectionDragActive()) {
+                view.scrollManager.scrollCaretIntoView();
+            }
             view.refreshSignatureHelp();
             // Rafraîchit les surbrillances de document quand le caret bouge —
             // le symbole sous le caret a changé, donc le serveur LSP doit
