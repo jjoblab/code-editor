@@ -423,10 +423,23 @@ final class EditorLanguageBridge {
                                 // effacé) de type (droit). I2 (J3) : le
                                 // tooltip direct traverse aussi (la
                                 // résolution paresseuse ne concerne que
-                                // les hints sans tooltip).
+                                // les hints sans tooltip). I3 (J6) : les
+                                // parts du libellé traversent aussi —
+                                // l'appui long consulte le tooltip de la
+                                // part sous le doigt.
+                                java.util.List<DiagnosticShift.InlayHintPart> parts = null;
+                                if (hint.parts != null) {
+                                    parts = new java.util.ArrayList<>(
+                                            hint.parts.size());
+                                    for (jo.codeeditor.lang.model.InlayHint.Part part
+                                            : hint.parts) {
+                                        parts.add(new DiagnosticShift.InlayHintPart(
+                                                part.text, part.tooltip));
+                                    }
+                                }
                                 legacy.add(new DiagnosticShift.InlayHint(
                                         hint.offset, hint.text, true, hint.kind,
-                                        hint.tooltip));
+                                        hint.tooltip, parts));
                             }
                         }
                         final java.util.List<DiagnosticShift.InlayHint> computed = legacy;

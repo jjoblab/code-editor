@@ -223,7 +223,11 @@ public final class DiagnosticShift {
      * incrémental le conserve à travers les éditions. I2 (J3) : le champ
      * {@code tooltip} (null par défaut) porte le tooltip direct du serveur
      * — un tooltip null est résolu paresseusement par le provider au
-     * premier appui long.</p>
+     * premier appui long. I3 (J6) : les parts structurées du libellé
+     * ({@code parts}, null par défaut) portent le tooltip PROPRE à
+     * chaque segment — consulté par l'appui long quand le doigt tombe
+     * sur la sous-plage tissée de la part (invariant : concat des
+     * {@link InlayHintPart#text} == {@code text}).</p>
      */
     public static final class InlayHint {
         public int offset;
@@ -233,34 +237,59 @@ public final class DiagnosticShift {
         public final String kind;
         /** Tooltip du hint (null = pas encore résolu — I2, J3). */
         public final String tooltip;
+        /** Parts structurées du libellé (I3, J6) — null pour un hint plat. */
+        public final java.util.List<InlayHintPart> parts;
 
         public InlayHint(int offset, String text, boolean before) {
-            this(offset, text, before, "type", null);
+            this(offset, text, before, "type", null, null);
         }
 
         public InlayHint(int offset, String text, boolean before, String kind) {
-            this(offset, text, before, kind, null);
+            this(offset, text, before, kind, null, null);
         }
 
         public InlayHint(int offset, String text, boolean before, String kind,
                 String tooltip) {
+            this(offset, text, before, kind, tooltip, null);
+        }
+
+        public InlayHint(int offset, String text, boolean before, String kind,
+                String tooltip, java.util.List<InlayHintPart> parts) {
             this.offset = offset;
-            this.text = text;
+            this.text = text != null ? text : "";
             this.before = before;
             this.kind = kind != null ? kind : "type";
+            this.tooltip = tooltip;
+            this.parts = parts != null && !parts.isEmpty()
+                    ? java.util.Collections.unmodifiableList(parts) : null;
+        }
+    }
+
+    /** Une part de libellé d'inlay hint (I3, lot 2 J6) — segment de
+     *  texte avec son PROPRE tooltip (le hit-test de l'appui long
+     *  consulte celui de la part sous le doigt). */
+    public static final class InlayHintPart {
+        /** Le texte de la part (jamais null — peut être un blanc de padding). */
+        public final String text;
+        /** Le tooltip propre à la part (null si aucun). */
+        public final String tooltip;
+
+        public InlayHintPart(String text, String tooltip) {
+            this.text = text != null ? text : "";
             this.tooltip = tooltip;
         }
     }
 
     /**
-     * Décale les inlay hints à travers une édition (genre et tooltip
-     * conservés).
+     * Décale les inlay hints à travers une édition (genre, tooltip et
+     * parts conservés).
      */
     public static List<InlayHint> shiftInlayHints(List<InlayHint> hints, EditSpan span) {
         List<InlayHint> result = new ArrayList<>();
         for (InlayHint h : hints) {
             int newOffset = mapStart(h.offset, span);
-            result.add(new InlayHint(newOffset, h.text, h.before, h.kind, h.tooltip));
+            result.add(new InlayHint(newOffset, h.text, h.before, h.kind,
+                    h.tooltip, h.parts));
         }
         return result;
     }
