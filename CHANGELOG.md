@@ -5,6 +5,57 @@ All notable changes to **code-editor-lib** are documented in this file.
 Le format suit la convention [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.68.0] — 2026-10-13 — Lot B14 : plis par niveau + régions (P1-5)
+
+Cinquième lot de la feuille de route issue de l'analyse des écarts n°6 :
+P1-5 — le pliage sélectif par niveau (« méthodes vs classes », les
+régions de commentaire étant déjà détectées) et « tout
+replier/déplier ». Le toggle par ligne existait (bande + chips) ;
+manquaient la commande de masse par niveau de la hiérarchie (la
+profondeur d'imbrication, déjà portée par les plis) et la tolérance
+des marqueurs de région à la syntaxe C#/IntelliJ. Zéro rupture d'API
+(trois méthodes de session, rien retiré, aucun comportement par
+défaut changé).
+
+### Added
+
+- **B14 — `EditorSession.collapseFoldsAtLevel(n)` / `collapseAllFolds()`
+  / `expandAllFolds()`** : « Replier au niveau N » à la VS Code Fold
+  Level N — replie toute région de profondeur d'imbrication EXACTE
+  (1 = classes, 2 = méthodes, 3 = blocs internes) ; les parents
+  restent OUVERTS et chaque région porte son état (déplier la classe
+  révèle les méthodes ENCORE repliées). « Tout replier » / « tout
+  déplier » tous niveaux confondus. Retour compté, `foldRev`
+  incrémenté → l'index mémoïsé de la vue (`isLineFoldedCached`) se
+  reconstruit sans re-pose de session.
+- **B14 — régions nommées : marqueur sans espace** — `#region …
+  #endregion` (C#) et `//region … //endregion` (IntelliJ) en plus des
+  formes historiques espacées ; le NOM de la région (chip) est extrait
+  des deux formes.
+- Démo : menu « Plis » (replier niveau 1/2/3, tout replier, tout
+  déplier — libellés en ressources `@string`) + région « Opérations »
+  tissée dans l'échantillon Java.
+
+### Fixed
+
+- **Off-by-one PRÉEXISTANT dans le nom des régions** :
+  `extractRegionName` coupait le marqueur à la mauvaise longueur sur
+  les DEUX formes historiques (« // region » → un « n » parasite en
+  tête du nom affiché sur la chip : « n Services » au lieu de
+  « Services » ; « # region » pareil). Découvert par les nouveaux
+  tests ; la chip porte désormais le VRAI nom.
+
+### Tests
+
+- +12 (1 758 verts) : `CollapseFoldLevelsTest` ×9 (cel-core : niveaux
+  1/2/3 exacts — la classe reste ouverte au niveau 2, cohabitation
+  des états par niveau, tout replier/déplier + idempotence, no-op
+  niveau invalide, régions C#/IntelliJ non espacées, régression des
+  formes historiques, régions imbriquées et profondeur) ;
+  `FoldLevelsViewTest` ×3 (Robolectric : l'index de vue suit la
+  révision de plis sans re-pose de session — repli niveau 1, niveau
+  2, tout déplier).
+
 ## [3.67.0] — 2026-10-13 — Lot B13 : drag-déposer de bloc (P1-2)
 
 Quatrième lot de la feuille de route issue de l'analyse des écarts n°6 :

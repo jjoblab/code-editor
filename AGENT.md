@@ -50,7 +50,7 @@ export ANDROID_HOME=<sdk>          # + local.properties : sdk.dir=<sdk>
 ./gradlew publishToMavenLocal      # publication locale (~/.m2)
 ```
 
-Base de référence constatée (3.67.0) : **1 746 tests verts, lint bloquant
+Base de référence constatée (3.68.0) : **1 758 tests verts, lint bloquant
 vert** — toute régression est la vôtre. Le nombre annoncé est contrôlé en
 CI (`scripts/check-doc-figures.sh`, échoue si l'écart dépasse 5 %).
 
