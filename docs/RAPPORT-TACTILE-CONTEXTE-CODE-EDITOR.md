@@ -20,8 +20,16 @@
 > publique (le SPI et la surface `EditorView` consommés par CodeIDE restent
 > compatibles binairement), garde-fous verts (figures de tests, budgets de
 > lignes, baseline lint), un commit conventionné par changement logique.
-> **Statut** : **jalons J1, J2, J3 et J4 LIVRÉS** (3.52.0 /
-> 3.53.0 / 3.54.0 / 3.55.0) — J1 a
+> **Statut** : **jalons J1 à J6 LIVRÉS (lot complet, 3.52.0 → 3.57.0),
+> PLUS le retour terrain post-J6 (3.58.0)** — UX-4 : le CONTENU du
+> popup ancré de diagnostic suit la carte (bug d'appareil : cadre à
+> droite, contenu resté au bord gauche ; la métrique porte désormais
+> `contentLeft`, source unique pour le dessin du détail ET de la
+> mini-liste) ; B5 : la barre de fil d'Ariane porte la zone d'actions
+> d'éditeur en haut à droite (`BreadcrumbBar.addAction` /
+> `addPreviewAction` + `EditorView.setPreviewIconsVisible` —
+> relocalisation des icônes d'aperçu), la démo prouve le motif complet
+> (annuler/rétablir/étendre/A+/A−/œil + hôte Markdown WebView). J1 a
 > implémenté les deux P0 : **D1** (popup ancré au tap sur le
 > squiggle : bords ±1 exclus, parité caret par re-tap, mini-liste
 > multi-diagnostics, quick-fixes résolus à l'ouverture, « See all »

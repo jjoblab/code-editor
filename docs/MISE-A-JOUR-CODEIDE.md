@@ -1,4 +1,4 @@
-# MISE À JOUR DE CodeIDE — brancher la version 3.57.0 de `code-editor`
+# MISE À JOUR DE CodeIDE — brancher la version 3.58.0 de `code-editor`
 
 > **Destinataire** : agent IA chargé de la mise à jour du dépôt `CodeIDE`
 > (jjoblab/CodeIDE, audité @ `04a65ea`, v0.105.0).
@@ -9,7 +9,11 @@
 > SPI d'actions de la pill, sticky interactif, inlays typés, loupe
 > instrument, en-têtes enrichis, i18n) — **le lot est COMPLET en
 > 3.57.0** : labelParts des inlays, hints cliquables, fenêtre
-> viewport, sticky délégué au SPI langue, mouvements de lignes.
+> viewport, sticky délégué au SPI langue, mouvements de lignes — ET du
+> **premier retour d'appareil post-lot (3.58.0)** : le contenu du popup
+> de diagnostic suit enfin sa carte à droite de l'écran (UX-4, bug),
+> et la barre de fil d'Ariane porte les actions d'éditeur en haut à
+> droite (B5).
 > **Ce document est la copie de référence archivée dans le dépôt** : il
 > résume le comportement attendu et les changements côté CodeIDE. Les
 > identifiants de commits sont ceux du dépôt du propriétaire, cités à
@@ -17,12 +21,13 @@
 
 ---
 
-## 0. Résumé express — deux lots, un seul changement requis
+## 0. Résumé express — deux lots + un retour terrain, un seul changement requis
 
 | Lot | Versions | Thème | Ce que CodeIDE y gagne |
 |---|---|---|---|
 | Actions de code | 3.50.0 → 3.51.1 | Le pont client ne vide plus les réponses LSP | Quick-fixes réels au caret, ampoule dès publication, trigger « . », Unnecessary grisé |
 | Tactile & contexte | 3.52.0 → 3.57.0 | Le dernier geste naturel est câblé — lot COMPLET | Tap sur le squiggle → popup ancré, pill extensible (SPI + actions socle, mouvements de lignes), sticky interactif + délégable au SPI langue, inlays typés + tooltips PAR PART + hints CLIQUABLES, loupe réglable, en-tête enrichi (code/source), libellés traduisibles |
+| Retour terrain post-J6 | 3.58.0 | Le popup se lit à droite ; les boutons se rangent | UX-4 : le CONTENU du popup ancré suit le CADRE (bug corrigé automatiquement) ; B5 : `BreadcrumbBar` porte les actions d'éditeur en haut à droite (adoption optionnelle, §4.8) |
 
 **Un seul changement est indispensable** : monter la version dans
 `gradle/libs.versions.toml` (§2). Tout le reste est additif — les
@@ -34,7 +39,7 @@ surcharges ou des constructeurs étendus déléguant à l'existant.
 
 ---
 
-## 1. Le lot tactile 3.52.0 → 3.57.0 — ce qui change pour CodeIDE
+## 1. Les lots 3.52.0 → 3.57.0 (complets) puis le retour terrain 3.58.0
 
 `code-editor` est le CLIENT ; `lsp/java` de CodeIDE est le SERVEUR. Le
 lot tactile travaille presque entièrement côté client (rendu, gestes,
@@ -91,8 +96,6 @@ sans rien faire.
 - **D2, T3 (3.56.0)** — interne (factorisation de géométrie) et
   i18n (§4.6).
 
----
-
 ### 1.3 J6 (3.57.0) — inlays cliquables, labelParts, fenêtre viewport : le CONTRAT SERVEUR s'ouvre
 
 Le sixième jalon complète le lot sans rien exiger, mais il OUVRE des
@@ -127,11 +130,28 @@ voies côté serveur CodeIDE :
   (`addSelectionAction`), CodeIDE décide de les installer ou non
   (le bloc de lignes de la sélection bouge, la sélection suit).
 
+### 1.4 Retour terrain post-J6 (3.58.0) — UX-4 réparé d'office, B5 en option
+
+- **UX-4 (bug, automatique)** — tap sur un squiggle à DROITE de
+  l'écran : le CADRE du popup était bien ancré au mot mais le CONTENU
+  restait dessiné au bord GAUCHE de la vue (padX absolu — à gauche le
+  bug passait inaperçu, la gouttière masquait l'écart). Corrigé : la
+  métrique partagée porte `contentLeft` et la passe de dessin ne
+  calcule plus aucun X seule. **CodeIDE n'a RIEN à faire** : la montée
+  de version répare le rendu des deux modes (détail + mini-liste).
+- **B5 (optionnel, §4.8)** — `BreadcrumbBar` devient la rangée unifiée
+  au-dessus de l'éditeur : segments de portées à gauche, zone
+  d'ACTIONS en haut à droite (`addAction`, `addPreviewAction`) +
+  `EditorView.setPreviewIconsVisible(boolean)` pour relocaliser les
+  icônes d'aperçu du coin de l'éditeur dans la barre. La démo
+  (3.58.0) montre le motif complet — annuler, rétablir, étendre,
+  A+/A−, œil d'aperçu — et un hôte d'aperçu Markdown WebView.
+
 ## 2. Changement REQUIS — montée de version de la dépendance
 
 ```toml
 # gradle/libs.versions.toml (CodeIDE) — ligne ~52
-code-editor = "3.57.0"     # était "3.49.2" (audit) / "3.51.1" (guide 3.51.1)
+code-editor = "3.58.0"     # était "3.49.2" (audit) / "3.51.1" (guide 3.51.1) / "3.57.0" (guide J6)
 ```
 
 Les deux modules consommateurs ne changent pas (ils suivent le
@@ -141,25 +161,28 @@ Les deux modules consommateurs ne changent pas (ils suivent le
 - `feature/editor/build.gradle.kts:14` → `implementation(libs.codeeditor.ui)`
 
 **Compatibilité API : vérifiée additive sur toute la plage
-3.51.1 → 3.57.0** (aucune rupture binaire : nouveaux champs des
+3.51.1 → 3.58.0** (aucune rupture binaire : nouveaux champs des
 modèles diagnostic/inlay via constructeurs étendus, les
-constructeurs historiques délèguent avec défaut vide).
+constructeurs historiques délèguent avec défaut vide ; les ajouts
+3.58.0 sont `BreadcrumbBar.*` et `EditorView.setPreviewIconsVisible`,
+purement additifs).
 
 ### Publication vérifiée (2026-10-13)
 
-- `main` @ `6f67e9f` poussé (merge J6 — lot complet) ; tag **`v3.57.0`**
-  posé sur le commit de version `72dda7a`.
+- `main` @ `0a18364` poussé (merge retour terrain post-J6) ; tag
+  **`v3.58.0`** posé sur le commit de version `02a8116`.
 - CI verte sur les deux workflows (merge + tag) — runs
-  `38331276328` / `38331276248`, conclusion `success`.
-- **JitPack `v3.57.0` : « ok »** — 4 modules (cel-core, cel-lsp-api,
+  `38335575289` (CI) / `38335575271` (Publication GitHub Packages),
+  conclusion `success`.
+- **JitPack `v3.58.0` : « ok »** — 4 modules (cel-core, cel-lsp-api,
   cel-lsp, cel-ui), POM + `.module` vérifiés servis (HTTP 200) :
-  `https://jitpack.io/com/github/jjoblab/code-editor/cel-ui/3.57.0/`
+  `https://jitpack.io/com/github/jjoblab/code-editor/cel-ui/3.58.0/`
 - Règle inchangée : **ne jamais consommer** `3.50.0`/`3.51.0` via
   JitPack (incident 429 historique — servies sur GitHub Packages
   uniquement) ; 3.51.1 et 3.52.0+ sont saines sur JitPack.
 
-Coordonnées : `com.github.jjoblab.code-editor:cel-ui:3.57.0` et
-`com.github.jjoblab.code-editor:cel-lsp:3.57.0`.
+Coordonnées : `com.github.jjoblab.code-editor:cel-ui:3.58.0` et
+`com.github.jjoblab.code-editor:cel-lsp:3.58.0`.
 
 ---
 
@@ -260,6 +283,38 @@ une `labelPart` part telle quelle (command id + arguments), l'éditeur
 l'appelle au tap et journalise l'échec sans crash. Tant que le handler
 n'existe pas, les hints éventuels restent du texte fantôme passif.
 
+### 4.8 Adopter la barre de fil d'Ariane à actions (B5, 3.58.0)
+
+L'ADR 0056 (v0.32.5) avait retiré l'ANCIENNE barre de fil d'Ariane —
+segments seuls, sans design affirmé. La B5 est un OBJET DIFFÉRENT :
+une rangée unifiée qui regroupe les actions d'éditeur en haut à
+droite, à côté des segments de portées. Pour l'adopter dans
+`activity_editor.xml` (au-dessus de `conteneur_editeur`) :
+
+```kotlin
+val bar = findViewById<BreadcrumbBar>(R.id.barre_fil_ariane) // ou binding
+bar.bind(vueEditeur)                       // segments suivent le caret
+bar.addAction("A+", "Agrandir la police", null) { vueEditeur.setFontScale(...) }
+bar.addAction("A−", "Réduire la police", null) { ... }
+bar.addPreviewAction()                     // œil + relocation des icônes canvas
+```
+
+Points de vigilance :
+
+- **État grisé** : passer un fournisseur (`() -> session.undoManager.
+  canUndo()`) pour Annuler/Rétablir — `EditorView.notifyTextChanged`
+  rafraîchit les actions de la barre sœur automatiquement ; appeler
+  `bar.refreshActions()` au changement d'onglet/fichier (l'état
+  d'aperçu y est relu).
+- **Aperçu** : `addPreviewAction()` exige un hôte
+  (`vueEditeur.setPreviewHost(...)`) et un nom de fichier
+  (`setFileName(...)`) — l'œil reste grisé sinon. CodeIDE publiera
+  déjà le chemin courant via `setCurrentFilePath` : le brancher sur
+  `setFileName` suffit pour `.md`/`.html`.
+- **Thème** : les couleurs suivent l'éditeur lié (`bind`) — rien à
+  styler, la barre s'aligne sur la gouttière (mode sombre/clair
+  compris).
+
 ## 5. Protocole de vérification sur appareil (après montée de version)
 
 Reprendre le protocole « LSP branché » (guide 3.51.1, §4, inchangé) et
@@ -297,6 +352,16 @@ ajouter les épreuves du lot tactile :
     (TODO devient INDICE + ligne d'indice). Côté CodeIDE branché, la
     même épreuve prouve `workspace/executeCommand` dès que le serveur
     pose une command sur une labelPart.
+11. **UX-4 (3.58.0)** : placer un `// TODO` (ou une erreur) sur une
+    ligne LONGUE, près du bord DROIT de l'écran → tap au cœur du
+    squiggle : le CADRE s'ancre au mot ET le CONTENU (en-tête, message,
+    rangées) vit DANS la carte — plus de texte resté au bord gauche.
+    Même épreuve sur une erreur de la mini-liste multi-diagnostics.
+12. **Barre à actions (B5, via la démo 3.58.0)** : l'APK démo montre la
+    rangée fil d'Ariane + `↶ ↷ ⇔ A+ A− 👁` en haut à droite ; sur
+    l'échantillon **Markdown**, l'œil ouvre la feuille d'aperçu
+    (WebView), le texte tapé se reflète en ~200 ms. Côté CodeIDE,
+    l'adoption passe par §4.8.
 
 ---
 
