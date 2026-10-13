@@ -387,7 +387,8 @@ public class MainActivity extends AppCompatActivity {
         // relais sur les viewports étroits.
         for (String builtinId : new String[]{"builtin.duplicate", "builtin.comment",
                 "builtin.case.toggle", "builtin.share",
-                "builtin.move.up", "builtin.move.down"}) {
+                "builtin.move.up", "builtin.move.down",
+                "builtin.blockdrag"}) {
             editor.removeSelectionAction(builtinId);
         }
         editor.addSelectionAction(jo.codeeditor.view.BuiltinSelectionActions.duplicate(editor));
@@ -399,6 +400,10 @@ public class MainActivity extends AppCompatActivity {
         // la sélection suit.
         editor.addSelectionAction(jo.codeeditor.view.BuiltinSelectionActions.moveLinesUp(editor));
         editor.addSelectionAction(jo.codeeditor.view.BuiltinSelectionActions.moveLinesDown(editor));
+        // B13 (P1-2) : drag-déposer de bloc — l'item ✥ Move de la pill
+        // ARME le mode ; le geste suivant déplace la sélection (loupe +
+        // caret fantôme + carte flottante), un tap annule.
+        editor.addSelectionAction(jo.codeeditor.view.BuiltinSelectionActions.blockDrag(editor));
 
         // B10 : le listener primaire porte les DEUX rôles — la barre
         // d'état (sélection) ET l'ouverture de la recherche : le

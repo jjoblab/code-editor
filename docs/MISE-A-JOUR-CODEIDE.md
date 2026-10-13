@@ -1,4 +1,4 @@
-# MISE À JOUR DE CodeIDE — brancher la version 3.66.0 de `code-editor`
+# MISE À JOUR DE CodeIDE — brancher la version 3.67.0 de `code-editor`
 
 > **Destinataire** : agent IA chargé de la mise à jour du dépôt `CodeIDE`
 > (jjoblab/CodeIDE, audité @ `04a65ea`, v0.105.0).
@@ -24,7 +24,7 @@
 
 ---
 
-## 0. Résumé express — deux lots + quatre retours terrain + lots B10-B12, un seul changement requis
+## 0. Résumé express — deux lots + quatre retours terrain + lots B10-B13, un seul changement requis
 
 | Lot | Versions | Thème | Ce que CodeIDE y gagne |
 |---|---|---|---|
@@ -39,6 +39,7 @@
 | **Lot B10 (recherche)** | **3.64.0** | Le plus grand écart P0 de l'analyse est refermé | `EditorSearchBar` : recherche/remplacement DANS LE FICHIER (requête vivante, compte « 3/17 », navigation bouclante, remplacement courant avec groupes `$1`, TOUT en une seule annulation) — ouverture menu/`Ctrl+F`, amorçage depuis la sélection (adoption optionnelle, §4.10) ; 4e tap = PARAGRAPHE (cascade caret → mot → ligne → paragraphe, le 5e y reste) ; surlignage purgé au changement de session |
 | **Lot B11 (navigation)** | **3.65.0** | La navigation dans le contenu est au niveau AS | Fast-scroller : le drag de gouttière devient un positionnement ABSOLU (pouce + bulle de ligne, tout le fichier d'un seul geste, parité Android Studio) ; bande d'erreurs au bord droit : marqueurs de diagnostics de TOUT le fichier (même hors écran) + rect du viewport, tap = centrage + fiche, drag = scroll absolu — GRATUIT à la montée (aucune adoption), bascule `setErrorStripeEnabled` si CodeIDE préfère l'éteindre |
 | **Lot B12 (confort)** | **3.66.0** | Le zoom et les numéros se souviennent | P1-3 : zoom PERSISTANT par type de fichier — `setZoomMemoryKey(".java")` à l'ouverture, pincement/A± enregistrés, réouverture = réglage restauré, le zoom ne fuit pas entre types (adoption recommandée, §4.12 — trois lignes) ; P1-4 : numéros de gouttière RELATIFS/HYBRIDES façon AS (`LineNumberStyle`, optionnel) |
+| **Lot B13 (parité riche)** | **3.67.0** | Glisser-déposer une sélection la DÉPLACE | P1-2 : mode « drag de bloc » armé par la pill ✥ Move — le geste suivant déplace le texte (loupe + caret fantôme au point de dépôt + carte flottante + auto-scroll de bord), un tap annule ; dépôt en UNE annulation, sélection ré-épinglée (adoption recommandée, §4.13 — trois lignes) ; `EditorSession.moveRange` public pour les barres d'outils |
 
 **Un seul changement est indispensable** : monter la version dans
 `gradle/libs.versions.toml` (§2). Tout le reste est additif — les
@@ -50,7 +51,7 @@ surcharges ou des constructeurs étendus déléguant à l'existant.
 
 ---
 
-## 1. Les lots 3.52.0 → 3.57.0 (complets) puis les retours terrain 3.58.0/3.59.0/3.60.0/3.61.0/3.62.0/3.63.0 et les lots B10-B12 (3.64.0→3.66.0)
+## 1. Les lots 3.52.0 → 3.57.0 (complets) puis les retours terrain 3.58.0/3.59.0/3.60.0/3.61.0/3.62.0/3.63.0 et les lots B10-B13 (3.64.0→3.67.0)
 
 `code-editor` est le CLIENT ; `lsp/java` de CodeIDE est le SERVEUR. Le
 lot tactile travaille presque entièrement côté client (rendu, gestes,
@@ -499,11 +500,46 @@ pour sauter « 12 lignes plus bas ».
   recommandée (§4.12 — trois lignes à l'ouverture du fichier) ; le
   style de numéros est un confort optionnel (réglage utilisateur).
 
+### 1.13 Lot B13 (3.67.0) — drag-déposer de bloc : glisser une sélection la DÉPLACE
+
+Quatrième lot de la feuille de route de l'analyse des écarts n°6 :
+le P1-2 (parité TextView drag & drop). La convention Android veut
+que glisser une sélection la DÉPLACE ; l'éditeur étendait la
+sélection au drag (appui long) — déplacer exigeait copier-coller
+via la pill. Un geste direct entrerait en conflit avec l'extension
+de sélection : le mode « drag de bloc » est ARMÉ par la pill
+(item ✥ Move), recommandation de l'analyse des écarts.
+
+- **`EditorSession.moveRange(start, end, target)`** — moteur public
+  du déplacement : suppression + réinsertion en UNE étape
+  d'annulation (utilisable aussi depuis une barre d'outils hôte),
+  sélection RÉ-ÉPINGLÉE sur le texte déplacé (aller-retour
+  undo/redo stable). Sémantique CARACTÈRE exacte : `target` est
+  l'offset du caret fantôme AVANT suppression (corrigé de la
+  longueur retirée au-delà de la source) ; le trou de la source
+  garde ses séparateurs. No-op propre en lecture-seule, plage vide
+  ou dépôt dans la source — la pile d'annulation n'est jamais
+  polluée.
+- **`EditorView.armBlockDrag()` + `BuiltinSelectionActions.blockDrag`**
+  — le tap sur l'item ✥ Move de la pill arme le mode ; le GESTE
+  SUIVANT appartient au bloc (englouti — pas de scroll ni de caret
+  derrière) : drag = déplacement, tap = annulation du mode,
+  CANCEL/pincement/changement de session = retombée propre
+  (document intact). Pendant le drag : loupe stabilisée (Y snappé
+  à la rangée du point de dépôt, sémantique B9), caret FANTÔME
+  3 dp au point de dépôt (dessiné aussi dans la loupe — la loupe
+  montre ce qu'on règle), carte flottante du bloc SOUS le doigt
+  (3 lignes, ellipse, bord accent), auto-scroll de bord partagé
+  avec le drag-select et suspension du recentrage du caret
+  (l'anti-secousse B9 s'applique).
+- **Zéro adoption requise** : sans l'item de pill, rien ne change.
+  L'installation est recommandée (§4.13 — trois lignes).
+
 ## 2. Changement REQUIS — montée de version de la dépendance
 
 ```toml
 # gradle/libs.versions.toml (CodeIDE) — ligne ~52
-code-editor = "3.66.0"     # était "3.49.2" (audit) / "3.51.1" (guide 3.51.1) / "3.57.0" (guide J6) / "3.58.0"-"3.60.0" (guides retours terrain) / "3.61.0"-"3.63.0" (guides retours n°4-6) / "3.64.0" (lot B10) / "3.65.0" (lot B11) / "3.66.0" (lot B12)
+code-editor = "3.67.0"     # était "3.49.2" (audit) / "3.51.1" (guide 3.51.1) / "3.57.0" (guide J6) / "3.58.0"-"3.60.0" (guides retours terrain) / "3.61.0"-"3.63.0" (guides retours n°4-6) / "3.64.0" (lot B10) / "3.65.0" (lot B11) / "3.66.0" (lot B12) / "3.67.0" (lot B13)
 ```
 
 Les deux modules consommateurs ne changent pas (ils suivent le
@@ -542,7 +578,31 @@ ajoute UNE classe publique (`EditorZoomMemory`), UN enum public
 (`setZoomMemoryKey`, `setLineNumberStyle`, `getLineNumberStyle`)
 sans rien retirer ni changer aucun comportement par défaut — le
 zoom mémoire et le style de numéros ne s'activent QUE si l'hôte
-pose la clé/le style).
+pose la clé/le style) ; 3.67.0 ajoute UNE méthode de session
+(`EditorSession.moveRange`), QUATRE méthodes de vue
+(`armBlockDrag`/`isBlockDragArmed`/`isBlockDragActive`/
+`cancelBlockDrag`) et UNE action pill (`BuiltinSelectionActions.
+blockDrag`) sans rien retirer ni changer aucun comportement par
+défaut — le mode drag de bloc n'existe QUE si l'hôte installe
+l'item de pill (ou arme explicitement).
+
+### Publication (2026-10-13, lot B13)
+
+- `main` poussé (merge du lot B13, trois commits) ; tag
+  **`v3.67.0`** posé sur le merge ; workflows CI + Publication
+  GitHub Packages déclenchés par le poussage (vérifier l'état sur
+  la page Actions du dépôt).
+- **Consigne du propriétaire (2026-10-13, lot B13)** : PUBLICATION
+  JITPACK DEMANDÉE pour ce lot (le lot B13 est un changement majeur
+  au sens de la politique de version — une NOUVELLE capacité
+  d'édition, pas un correctif) : build déclenché sur le tag
+  `v3.67.0` et vérifié (artefacts `cel-ui` servis) ; les 3.51.1+
+  restent saines, seules `3.50.0`/`3.51.0` demeurent interdites via
+  JitPack (incident 429 historique, servies sur GitHub Packages
+  uniquement).
+- Coordonnées : `com.github.jjoblab.code-editor:cel-ui:3.67.0` et
+  modules frères (même version, dépôt `maven { url =
+  uri("https://jitpack.io") }`).
 
 ### Publication (2026-10-13, lot B12)
 
@@ -841,6 +901,29 @@ CodeIDE peut l'exposer dans ses préférences d'éditeur (une
 `SwitchPreference` ou un sélecteur à trois états) — le défaut
 libre ABSOLUTE ne change rien pour les utilisateurs existants.
 
+### 4.13 Installer l'item ✥ Move de la pill (B13, 3.67.0) — trois lignes, recommandé
+
+L'installation de l'item suit le SPI habituel des actions socle
+(pattern T2 — même appel que Duplicate/Comment, retirable par
+identifiant `builtin.blockdrag`) :
+
+```java
+// Là où CodeIDE configure sa pill (feature/editor)
+editor.addSelectionAction(
+        BuiltinSelectionActions.blockDrag(editor));
+// import jo.codeeditor.view.BuiltinSelectionActions;
+```
+
+À partir de là : l'utilisateur sélectionne, ouvre la pill (appui
+long), tape ✥ Move, puis GLISSE — le bloc suit le doigt (loupe +
+caret fantôme + carte), le relâchement DÉPOSE (une annulation), un
+tap sans mouvement annule. L'item apparaît entre les actions
+injectées existantes ; sur un viewport étroit, il bascule dans le
+débordement ⋯ du menu unifié comme les autres (aucune largeur
+garantie). Sans l'item, `view.armBlockDrag()` reste accessible
+pour un bouton de barre d'outils dédié, et `session.moveRange`
+pour un déplacement programmatique.
+
 ---
 
 ## 5. Protocole de vérification sur appareil (après montée de version)
@@ -1039,6 +1122,27 @@ ajouter les épreuves du lot tactile :
     process, pas une persistance disque — comportement documenté ;
     l'hôte qui veut la survivance la réinjecte depuis ses Settings,
     §4.12).
+
+22. **Lot B13 (3.67.0, via la démo)** — quatre vérifications ciblées :
+    **a)** échantillon Java → double-tap un mot (pill) → item
+    « ✥ Move » → GLISSER le doigt : la loupe s'ouvre AU-DESSUS, la
+    CARTE du bloc suit SOUS le doigt, le caret fantôme (barre
+    accentuée épaisse) marque le point de dépôt — relâcher plus
+    bas : le texte a DÉMÉNAGÉ et la sélection l'épingle
+    (surlignage sur le bloc déplacé) ;
+    **b)** immédiatement après le dépôt : UN SEUL appui sur
+    annuler (fil d'Ariane) → le document revient EXACT (une seule
+    étape d'annulation) ;
+    **c)** armer ✥ Move puis TAPER simplement (sans glisser) → le
+    mode s'annule, le document est intact, la sélection d'origine
+    est toujours là ; armer puis déposer DANS la sélection
+    d'origine → no-op (rien dans l'historique d'annulation) ;
+    **d)** armer ✥ Move, glisser en maintenant le doigt dans le
+    BORD BAS de l'écran → le document défile tout seul
+    (auto-scroll), le caret fantôme suit le contenu défilé ;
+    relâcher → le dépôt atterrit à l'endroit VISÉ (parité
+    drag-select). Bonus : armer puis pincer à deux doigts → le
+    mode retombe proprement (document intact, zoom appliqué).
 
 ---
 

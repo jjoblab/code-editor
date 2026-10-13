@@ -135,11 +135,22 @@ hors écran étaient invisibles.
 Studio (desktop) : `Ctrl+D`-like et drag de texte ; la convention
 Android tactile : glisser une sélection la DÉPLACE (TextView drag &
 drop). code-editor : le drag étend la sélection (armé long-press) —
-déplacer exige copier-coller via la pill. **Recommandation** : un mode
-« drag de bloc » armé par la pill (item ✥ Déplacer) plutôt que par un
-geste direct (conflit avec l'extension de sélection) ; le drop insère
-au caret fantôme sous le doigt avec la loupe pour la précision. Effort :
-moyen.
+déplacer exigeait copier-coller via la pill. **✅ LIVRÉ en B13
+(v3.67.0)** : mode « drag de bloc » armé par la pill (item ✥ Move,
+`BuiltinSelectionActions.blockDrag` + `EditorView.armBlockDrag`) —
+le geste suivant appartient au bloc (englouti : pas de scroll ni de
+caret derrière) : drag = déplacement (loupe stabilisée + caret
+fantôme au point de dépôt, dessiné aussi dans la loupe + carte
+flottante sous le doigt + auto-scroll UX-2 partagé + suspension du
+recentrage B9), tap = annulation, CANCEL/pincement/changement de
+session = retombée propre ; le dépôt s'exécute par
+`EditorSession.moveRange` (UNE étape d'annulation, sélection
+ré-épinglée, sémantique caractère exacte, no-op sans pollution
+d'undo dans la source). Historique de l'écart (v3.66.0) :
+recommandation « un mode armé par la pill plutôt qu'un geste direct
+(conflit avec l'extension de sélection) ; le drop insère au caret
+fantôme sous le doigt avec la loupe pour la précision » — mise en
+œuvre intégrale.
 
 **P1-3 · Zoom de police persistant par fichier/type — ✅ LIVRÉ en
 B12 (v3.66.0)** : `EditorZoomMemory` + `EditorView.setZoomMemoryKey`
@@ -200,7 +211,7 @@ coût. À ne faire que sur demande explicite.
 | B11 | P0-3 fast-scroller de gouttière + P1-1 error stripe — **livré v3.65.0** | P0/P1 | moyenne |
 | B12 | P1-3 persistance du zoom + P1-4 colonnes relatives — **livré v3.66.0** | P1 | petite |
 | B12 | P2-2 API `GutterAction` généralisée (fondée sur B9c) | P2 | moyenne |
-| B13 | P1-2 drag-déposer de bloc (mode pill ✥) | P1 | moyenne |
+| B13 | P1-2 drag-déposer de bloc (mode pill ✥) — **livré v3.67.0** | P1 | moyenne |
 | B14 | P1-5 plis par niveau + régions de commentaire | P1 | moyenne |
 | — | P2-1 multi-caret : génération API suivante (refonte Selection) | P2 | grande |
 

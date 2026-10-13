@@ -5,6 +5,60 @@ All notable changes to **code-editor-lib** are documented in this file.
 Le format suit la convention [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.67.0] — 2026-10-13 — Lot B13 : drag-déposer de bloc (P1-2)
+
+Quatrième lot de la feuille de route issue de l'analyse des écarts n°6 :
+P1-2 — déplacer du texte par glisser-déposer, parité TextView drag &
+drop. La convention Android veut que glisser une sélection la
+DÉPLACE ; l'éditeur étendait la sélection au drag (appui long), le
+déplacement exigeait copier-coller via la pill. Le mode « drag de
+bloc » est armé par la pill (item ✥ Move) — recommandation de
+l'analyse : un geste direct entrerait en conflit avec l'extension de
+sélection. Zéro rupture d'API (une méthode de session + quatre
+méthodes de vue + une action pill, rien retiré, aucun comportement
+par défaut changé).
+
+### Added
+
+- **B13 — `EditorSession.moveRange(start, end, target)`** : moteur du
+  déplacement — suppression + réinsertion en UNE étape d'annulation
+  (lot d'éditions), sélection ré-épinglée sur le texte déplacé
+  (aller-retour undo/redo et re-drag stables). Sémantique CARACTÈRE
+  exacte (parité TextView) : `target` est l'offset du caret fantôme
+  AVANT suppression, corrigé de la longueur retirée au-delà de la
+  source ; le trou de la source garde ses séparateurs. No-op propre
+  (false) en lecture-seule, plage vide (caret), bornes inversées ou
+  dépôt dans la source — la pile d'annulation n'est jamais polluée.
+- **B13 — `EditorBlockDragController` + `EditorView.armBlockDrag()`** :
+  le mode armé par la pill ✥ Move (`BuiltinSelectionActions.blockDrag`,
+  même SPI que les actions d'hôte). Le geste SUIVANT appartient au
+  bloc (englouti comme celui de la pill — pas de scroll ni de caret
+  derrière) : drag = déplacement, tap = annulation du mode (document
+  intact, sélection d'origine conservée),
+  CANCEL/pincement/multi-doigts/changement de session = retombée
+  propre. Pendant le drag : loupe stabilisée (Y snappé à la rangée du
+  point de dépôt, X amorti — sémantique B9), caret FANTÔME 3 dp au
+  point de dépôt (wrap-aware, dessiné aussi dans la fenêtre de la
+  loupe — M1 : la loupe montre ce qu'on règle), carte flottante du
+  bloc SOUS le doigt (3 lignes max, ellipse, ombre + bord accent — la
+  loupe reste au-dessus), auto-scroll de bord UX-2 PARTAGÉ avec le
+  drag-select (mêmes zones, mêmes vitesses, les deux axes) et
+  suspension du recentrage du caret (`isSelectionDragActive` — le
+  B9 anti-secousse s'applique au drag de bloc).
+- Démo : item ✥ Move installé sur la pill (retiré/ré-injecté à chaque
+  changement d'échantillon, pattern T2).
+
+### Tests
+
+- +17 (1 746 verts) : `MoveRangeTest` ×9 (cel-core : sémantique
+  caractère vers le bas/le haut, multi-lignes, dépôt dans la source,
+  lecture-seule, bornes hors document, undo UNE étape) ;
+  `BlockDragTest` ×8 (Robolectric : armement exige une vraie
+  sélection, dépôt au point exact + undo, tap = annulation sans
+  toucher au document, CANCEL, dépôt dans la source sans pollution
+  d'undo, purge au changement de session, perform de la pill, geste
+  englouti — le caret ne suit pas le tap d'annulation).
+
 ## [3.66.0] — 2026-10-13 — Lot B12 : zoom persistant par type + colonnes relatives
 
 Troisième lot de la feuille de route issue de l'analyse des écarts n°6 :
