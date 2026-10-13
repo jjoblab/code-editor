@@ -1399,6 +1399,9 @@ public class EditorView extends View {
         // pendant un fling — préfetcher en plein fling ne fait que le
         // travail de la frame suivante une frame trop tôt, pour rien).
         viewportPrefetcher.schedule();
+        // I5 (lot 2, J6) : re-requête des inlay hints au repos du scroll
+        // (provider à plage viewport uniquement — no-op sinon).
+        languageBridge.scheduleInlayViewportRefresh();
     }
 
     // ── Préfetch du viewport au repos ─────────────────────────────

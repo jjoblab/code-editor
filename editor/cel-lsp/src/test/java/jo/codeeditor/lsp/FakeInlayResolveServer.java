@@ -31,6 +31,14 @@ public class FakeInlayResolveServer implements LanguageServer {
 
     /** Annonce resolveProvider à l'initialisation (négociée une fois). */
     public volatile boolean announceResolve;
+    /** I3 (J6) : hint #2 servi avec un libellé multi-parts (tooltips par part). */
+    public volatile boolean multiPartLabels;
+    /** I4 (J6) : la part 2 du hint multi-parts porte une command LSP. */
+    public volatile boolean commandOnPart;
+    /** Compteur de requêtes workspace/executeCommand reçues. */
+    public volatile int executeCommandRequests;
+    /** Dernière command reçue par workspace/executeCommand. */
+    public volatile String lastExecuteCommand;
     /** Tooltip servi par inlayHint/resolve (null = refus du serveur). */
     public volatile String resolveTooltip = "java.lang.String — le type de la variable";
     /** Compteur de requêtes inlayHint reçues. */
@@ -95,8 +103,32 @@ public class FakeInlayResolveServer implements LanguageServer {
                 direct.setTooltip("Le type inféré de la variable");
                 InlayHint lazy = new InlayHint();
                 lazy.setPosition(new org.eclipse.lsp4j.Position(0, 4));
-                lazy.setLabel("name: ");
                 lazy.setKind(org.eclipse.lsp4j.InlayHintKind.Parameter);
+                if (multiPartLabels) {
+                    // I3 : libellé structuré en parts, chacune avec SON
+                    // tooltip, padding left+right demandé (les blancs de
+                    // padding doivent devenir des parts SANS tooltip).
+                    org.eclipse.lsp4j.InlayHintLabelPart p1 =
+                            new org.eclipse.lsp4j.InlayHintLabelPart();
+                    p1.setValue("name");
+                    p1.setTooltip("Le nom du paramètre");
+                    org.eclipse.lsp4j.InlayHintLabelPart p2 =
+                            new org.eclipse.lsp4j.InlayHintLabelPart();
+                    p2.setValue(": str");
+                    p2.setTooltip("Le type inféré du paramètre");
+                    if (commandOnPart) {
+                        // I4 : la command vit sur la PART (spec 3.17).
+                        org.eclipse.lsp4j.Command cmd = new org.eclipse.lsp4j.Command();
+                        cmd.setCommand("demo.expandHint");
+                        cmd.setTitle("Développer");
+                        p2.setCommand(cmd);
+                    }
+                    lazy.setLabel(java.util.Arrays.asList(p1, p2));
+                    lazy.setPaddingLeft(true);
+                    lazy.setPaddingRight(true);
+                } else {
+                    lazy.setLabel("name: ");
+                }
                 return CompletableFuture.completedFuture(List.of(direct, lazy));
             }
 
@@ -129,6 +161,14 @@ public class FakeInlayResolveServer implements LanguageServer {
             @Override
             public void didChangeWatchedFiles(
                     org.eclipse.lsp4j.DidChangeWatchedFilesParams params) {
+            }
+
+            @Override
+            public java.util.concurrent.CompletableFuture<Object> executeCommand(
+                    org.eclipse.lsp4j.ExecuteCommandParams params) {
+                executeCommandRequests++;
+                lastExecuteCommand = params.getCommand();
+                return java.util.concurrent.CompletableFuture.completedFuture(null);
             }
         };
     }

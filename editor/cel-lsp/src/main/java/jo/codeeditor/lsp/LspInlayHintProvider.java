@@ -24,6 +24,19 @@ import java.util.concurrent.TimeoutException;
  * uniquement si le serveur annonce {@code resolveProvider}. Le cache des
  * hints serveur originaux (clé offset+texte) vit le temps du dernier lot
  * servi ; un hint périmé (édité depuis) est retourné inchangé.</p>
+ *
+ * <p>I3 (lot 2, J6) : les libellés multi-parts
+ * ({@code InlayHint.labelParts}) sont CONSERVÉS — le hint SPI porte la
+ * liste des parts (texte + tooltip propre), l'assemblage du texte restant
+ * inchangé au rendu. Le padding LSP (espaces de respiration) est porté
+ * par des parts de blanc SANS tooltip pour que la concaténation des
+ * parts soit ÉGALE au texte tissé (l'invariant du hit-test I2/I3).</p>
+ *
+ * <p>I4 (lot 2, J6) : la {@code command} LSP du hint devient un
+ * {@link Runnable} SPI exécuté au TAP simple sur la plage tissée
+ * (résolu avant le placement du caret). Le Runnable déclenche
+ * {@code workspace/executeCommand} de façon asynchrone — jamais
+ * bloquant pour le thread UI.</p>
  */
 class LspInlayHintProvider implements InlayHintProvider {
     private final LanguageServerWrapper wrapper;
@@ -80,16 +93,31 @@ class LspInlayHintProvider implements InlayHintProvider {
             for (org.eclipse.lsp4j.InlayHint h : hints) {
                 int offset = editor.positionToOffset(h.getPosition());
                 String label;
+                List<InlayHint.Part> parts = null;
+                org.eclipse.lsp4j.Command lspCommand = null;
                 if (h.getLabel().isLeft()) {
                     label = h.getLabel().getLeft();
                 } else if (h.getLabel().isRight()) {
                     // Assemble les parties du libellé (certains serveurs
                     // utilisent des parts).
+                    // I3 (J6) : les parts sont CONSERVÉES (texte +
+                    // tooltip propre) — l'assemblage reste le texte affiché.
                     StringBuilder sb = new StringBuilder();
+                    List<InlayHint.Part> built = new ArrayList<>();
                     for (org.eclipse.lsp4j.InlayHintLabelPart part : h.getLabel().getRight()) {
-                        sb.append(part.getValue());
+                        String value = part.getValue() != null ? part.getValue() : "";
+                        sb.append(value);
+                        built.add(new InlayHint.Part(value,
+                                tooltipText(part.getTooltip())));
+                        // I4 : la command LSP vit sur la PART (spec 3.17 —
+                        // InlayHintLabelPart.command) : la première
+                        // rencontrée devient la command du hint SPI.
+                        if (lspCommand == null && part.getCommand() != null) {
+                            lspCommand = part.getCommand();
+                        }
                     }
                     label = sb.toString();
+                    if (!built.isEmpty()) parts = built;
                 } else {
                     label = "";
                 }
@@ -102,17 +130,28 @@ class LspInlayHintProvider implements InlayHintProvider {
                 // font partie du TEXTE FANTÔME tissé dans la ligne. Sans
                 // cela, « name: » collerait à l'argument et le type de
                 // chaînage au dernier caractère de l'appel.
+                // I3 : avec des parts, le blanc de padding devient une
+                // part SANS tooltip — l'invariant concat(parts) == text tient.
                 if (Boolean.TRUE.equals(h.getPaddingLeft())) {
                     label = " " + label;
+                    if (parts != null) parts.add(0, new InlayHint.Part(" ", null));
                 }
                 if (Boolean.TRUE.equals(h.getPaddingRight())) {
                     label = label + " ";
+                    if (parts != null) parts.add(new InlayHint.Part(" ", null));
                 }
                 // I2 : le tooltip servi DIRECTEMENT par le serveur est
                 // transporté (la résolution paresseuse ne concerne que
                 // les serveurs à resolveProvider sans tooltip initial).
                 String tooltip = tooltipText(h.getTooltip());
-                InlayHint converted = new InlayHint(offset, label, kind, tooltip);
+                // I4 (J6) : la command LSP (portée par une part) devient
+                // un Runnable — exécuté au TAP sur la plage tissée. La
+                // requête workspace/executeCommand part de façon
+                // ASYNCHRONE : le Runnable tourne sur le thread UI et ne
+                // bloque JAMAIS (retour immédiat, livraison journalisée).
+                Runnable command = lspCommandRunnable(lspCommand);
+                InlayHint converted = new InlayHint(offset, label, kind, tooltip,
+                        parts, command);
                 serverHints.put(key(converted), h);
                 out.add(converted);
             }
@@ -131,6 +170,40 @@ class LspInlayHintProvider implements InlayHintProvider {
             log(msg);
             return Collections.emptyList();
         }
+    }
+
+    /** I4 (J6) : command LSP {@code InlayHint.command} → Runnable
+     *  exécuté au tap. Fire-and-forget asynchrone sur
+     *  {@code workspace/executeCommand} — jamais bloquant pour l'UI. */
+    private Runnable lspCommandRunnable(final org.eclipse.lsp4j.Command lspCommand) {
+        if (lspCommand == null || lspCommand.getCommand() == null) return null;
+        final String commandId = lspCommand.getCommand();
+        final List<Object> args = lspCommand.getArguments();
+        return () -> {
+            LanguageServer server = wrapper.getServer();
+            if (server == null) {
+                log("inlayHint command: serveur parti — ignorée (" + commandId + ")");
+                return;
+            }
+            try {
+                org.eclipse.lsp4j.ExecuteCommandParams params =
+                        new org.eclipse.lsp4j.ExecuteCommandParams();
+                params.setCommand(commandId);
+                params.setArguments(args);
+                server.getWorkspaceService().executeCommand(params)
+                        .whenComplete((r, e) -> {
+                            if (e != null) {
+                                log("inlayHint command ERROR " + commandId
+                                        + ": " + e.getMessage());
+                            } else {
+                                log("inlayHint command OK: " + commandId);
+                            }
+                        });
+            } catch (Exception e) {
+                log("inlayHint command ERROR " + commandId + ": "
+                        + e.getClass().getSimpleName());
+            }
+        };
     }
 
     @Override

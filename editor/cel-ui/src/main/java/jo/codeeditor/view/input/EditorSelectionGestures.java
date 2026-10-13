@@ -521,7 +521,54 @@ public class EditorSelectionGestures {
      * colonnes : repli sur l'appui long classique.</p>
      */
     private boolean handleInlayHintLongPress(float x, float y) {
-        if (view.session == null || view.wordWrap) return false;
+        InlayHit hit = inlayHitAt(x, y);
+        if (hit == null) return false;
+        DiagnosticShift.InlayHint hint = hit.hint;
+        // I3 (J6) : tooltip de la PART sous le doigt en priorité — un
+        // hint structuré peut lier « le nom du paramètre » et « son
+        // type » à deux explications distinctes.
+        String partTip = tooltipForPartUnder(hint, hit.withinHint());
+        if (partTip != null && !partTip.isEmpty()) {
+            view.popupManager.showQuickDocRaw(hint.offset, partTip);
+            return true;
+        }
+        if (hint.tooltip != null && !hint.tooltip.isEmpty()) {
+            // Tooltip direct : quick doc immédiat (zéro requête).
+            view.popupManager.showQuickDocRaw(hint.offset, hint.tooltip);
+            return true;
+        }
+        if (view.inlayTooltipResolver == null) return false;
+        // Résolution paresseuse sur la voie « features » — une seule
+        // requête par appui, livraison latest-wins (génération via
+        // showQuickDocRaw à l'arrivée).
+        final int fOffset = hint.offset;
+        final String fText = hint.text;
+        final String docText = view.session.getText();
+        jo.codeeditor.view.EditorTaskLanes.submitFeature(() -> {
+            String tooltip = null;
+            try {
+                tooltip = view.inlayTooltipResolver.resolveInlayTooltip(
+                        docText, fOffset, fText);
+            } catch (Exception e) {
+                jo.codeeditor.util.EditorLog.warn("EditorInlay",
+                    "résolution du tooltip d'inlay échouée", e);
+            }
+            if (tooltip != null && !tooltip.isEmpty()) {
+                view.popupManager.showQuickDocRaw(fOffset, tooltip);
+            }
+        });
+        return true;
+    }
+
+    /**
+     * Hit-test partagé des inlay hints tissés (I2/I3/I4) : le hint de
+     * session ancré sous le point, avec sa plage visuelle tissée.
+     * Retourne null si aucun hint n'est touché (comportement classique
+     * du geste appelant). En mode wrap le tissage n'est pas cartographié
+     * par colonnes : repli systématique (null).
+     */
+    InlayHit inlayHitAt(float x, float y) {
+        if (view.session == null || view.wordWrap) return null;
         jo.codeeditor.document.EditorDocument doc = view.session.getDocument();
         int line = jo.codeeditor.view.EditorView.clamp(
                 view.docLineForScreenY(y), 0, doc.lineCount() - 1);
@@ -529,7 +576,7 @@ public class EditorSelectionGestures {
                 view.layoutForLine(line, doc.lineText(line));
         if (entry == null || entry.inlays == null || entry.inlays.isEmpty()
                 || entry.rawToVisual == null) {
-            return false;
+            return null;
         }
         // Colonne VISUELLE du doigt (même formule que offsetAt hors wrap).
         float charWidth = view.metrics.getCharWidth();
@@ -542,35 +589,56 @@ public class EditorSelectionGestures {
             if (visCol < hintStart || visCol >= hintStart + p.text.length()) continue;
             // Hint touché — retrouve le hint de session (tooltip + offset).
             DiagnosticShift.InlayHint hint = hintAtCol(line, lineStart, p.col);
-            if (hint == null) return false;
-            if (hint.tooltip != null && !hint.tooltip.isEmpty()) {
-                // Tooltip direct : quick doc immédiat (zéro requête).
-                view.popupManager.showQuickDocRaw(hint.offset, hint.tooltip);
-                return true;
-            }
-            if (view.inlayTooltipResolver == null) return false;
-            // Résolution paresseuse sur la voie « features » — une seule
-            // requête par appui, livraison latest-wins (génération via
-            // showQuickDocRaw à l'arrivée).
-            final int fOffset = hint.offset;
-            final String fText = hint.text;
-            final String docText = view.session.getText();
-            jo.codeeditor.view.EditorTaskLanes.submitFeature(() -> {
-                String tooltip = null;
-                try {
-                    tooltip = view.inlayTooltipResolver.resolveInlayTooltip(
-                            docText, fOffset, fText);
-                } catch (Exception e) {
-                    jo.codeeditor.util.EditorLog.warn("EditorInlay",
-                        "résolution du tooltip d'inlay échouée", e);
-                }
-                if (tooltip != null && !tooltip.isEmpty()) {
-                    view.popupManager.showQuickDocRaw(fOffset, tooltip);
-                }
-            });
-            return true;
+            if (hint == null) return null;
+            return new InlayHit(hint, hintStart, p.text.length(), visCol);
         }
-        return false;
+        return null;
+    }
+
+    /**
+     * Tooltip de la part du libellé sous la position {@code withinHint}
+     * (0-based dans le texte tissé du hint) — I3 : la concat des parts
+     * est ÉGALE au texte du hint (invariant du pont) ; une position hors
+     * de toute part (parts incohérentes) rend null, la consultation
+     * retombe sur le tooltip du hint entier.
+     */
+    private static String tooltipForPartUnder(DiagnosticShift.InlayHint hint,
+            int withinHint) {
+        if (hint.parts == null || withinHint < 0) return null;
+        int cursor = 0;
+        for (DiagnosticShift.InlayHintPart part : hint.parts) {
+            int len = part.text.length();
+            if (withinHint >= cursor && withinHint < cursor + len) {
+                return part.tooltip;
+            }
+            cursor += len;
+        }
+        return null;
+    }
+
+    /** Un hint tissé touché : le hint de session + sa plage visuelle +
+     *  la colonne visuelle du doigt (I3/I4 partagent ce hit-test). */
+    static final class InlayHit {
+        final DiagnosticShift.InlayHint hint;
+        /** Colonne visuelle où le hint tissé COMMENCE. */
+        final int hintStart;
+        /** Longueur du texte tissé du hint (caractères). */
+        final int hintLen;
+        /** Colonne visuelle du doigt. */
+        final int visCol;
+
+        InlayHit(DiagnosticShift.InlayHint hint, int hintStart, int hintLen,
+                int visCol) {
+            this.hint = hint;
+            this.hintStart = hintStart;
+            this.hintLen = hintLen;
+            this.visCol = visCol;
+        }
+
+        /** Position 0-based du doigt DANS le texte tissé du hint. */
+        int withinHint() {
+            return visCol - hintStart;
+        }
     }
 
     /**

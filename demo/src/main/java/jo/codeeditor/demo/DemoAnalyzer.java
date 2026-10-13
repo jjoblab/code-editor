@@ -161,7 +161,9 @@ final class DemoAnalyzer {
         // Indices de type factices pour les langages non typés. J3 (I1 +
         // I2) : les hints de TYPE portent un genre explicite + un tooltip
         // direct (appui long → quick doc), et les PREMIERS arguments des
-        // appels connus reçoivent un hint de PARAMÈTRE (italique).
+        // appels connus reçoivent un hint de PARAMÈTRE (italique). J6
+        // (I4) : les TODO des échantillons portent un « ⋯ » EXPANSIBLE
+        // (command au tap simple).
         if (!"python".equals(language) && !"javascript".equals(language)
                 && !"typescript".equals(language)) {
             return Collections.emptyList();
@@ -173,6 +175,36 @@ final class DemoAnalyzer {
             int lineEnd = text.indexOf('\n', lineStart);
             int stop = lineEnd < 0 ? length : lineEnd;
             String content = text.substring(lineStart, stop);
+
+            // Hint EXPANSIBLE (I4 — démo) : les commentaires TODO des
+            // échantillons reçoivent un « ⋯ » tissé en fin de ligne dont
+            // la command (tap simple) développe l'indice de correction —
+            // la preuve du SPI InlayHint.command sans serveur.
+            if ((content.trim().startsWith("# TODO:")
+                    || content.trim().startsWith("// TODO:"))
+                    && out.size() < MAX_INLAYS) {
+                final int fLineStart = lineStart;
+                final String fContent = content;
+                final boolean py = "python".equals(language);
+                out.add(new DiagnosticShift.InlayHint(
+                        stop, " ⋯ ", false, "type",
+                        "Démo I4 : toucher pour développer l'indice",
+                        null,
+                        () -> {
+                            // Une seule étape : TODO → INDICE + ligne
+                            // d'indice (le marqueur disparaît — le hint
+                            // ne se ré-arme pas à la ré-analyse).
+                            String replace = fContent.replace("TODO:", "INDICE:")
+                                    .stripTrailing() + "\n"
+                                    + (py ? "#   → démo I4 : hint expansible"
+                                          : "//   → démo I4 : hint expansible");
+                            session.replaceRange(fLineStart, fLineStart + fContent.length(),
+                                    replace);
+                        }));
+                if (lineEnd < 0) break;
+                lineStart = lineEnd + 1;
+                continue;
+            }
 
             // Hint de PARAMÈTRE (I1 — genre « parameter », italique) sur
             // le premier argument d'un appel dont la méthode est connue.

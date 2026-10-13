@@ -85,9 +85,26 @@
 > MagnifierNativeDecision, DiagnosticHeaderFields, CanonicalLabels
 > Resources, +2 DiagnosticShift), 1 531 tests verts ; aucun
 > relèvement de plafond en J5 (3 562 l. / 174 champs / 266 méthodes
-> publiques sous 4 100/190/280). Les chantiers restants (I3-I5, S5 et
-> les P2 non livrés) ne sont PAS encore livrés — ce document reste le
-> plan de référence.
+> publiques sous 4 100/190/280). J6 « le lot est complet » (3.57.0) a
+> livré le RESTE des P2 : **I3** (labelParts conservées — tooltip PAR
+> PART à l'appui long, invariant concat == texte tissé, padding en
+> parts de blanc), **I4** (inlays cliquables — `command` au tap AVANT
+> le caret, command LSP de la part → `workspace/executeCommand`
+> asynchrone), **I5** (fenêtre viewport ± 4 lignes + re-requête au
+> scroll idle ~200 ms par drapeau `wantsViewportRange`, défaut
+> document entier — plus le correctif du rafraîchissement initial
+> avant attachement), **S5** (détection sticky déléguée au SPI langue
+> `isBlockHeaderLine`/`stickyHeaderTest`, tables par défaut
+> inchangées) et les **mouvements de lignes** (P2 — `moveSelectedLines`
+> bloc multi-lignes IntelliJ/VS Code, sélection ré-épinglée, la queue
+> vide ne compte pas ; actions pill `moveLinesUp/Down` via le SPI T1 ;
+> implémentations extraites dans `LineOperations` pour tenir le
+> plafond EditorSession SANS relèvement — 1 546 l. / 1600). 36 tests
+> dédiés (StickySpiDelegate, InlayLabelParts, InlayPartTooltip,
+> InlayClickCommand, InlayViewportRange, MoveSelectedLines,
+> MoveLinesAction), 1 567 tests verts ; aucun relèvement de plafond.
+> LE LOT 2 EST COMPLET — tous les chantiers du plan sont livrés, ce
+> document reste la référence du livré.
 > Conformément à la convention établie avec le rapport du lot 1, ce document
 > est archivé dans `docs/` et remis en copie à l'extérieur du dépôt ; la
 > règle d'interdiction des noms externes (`AGENT.md` §93) s'applique au code,
