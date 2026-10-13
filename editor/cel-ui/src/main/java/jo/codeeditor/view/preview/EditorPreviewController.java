@@ -93,6 +93,10 @@ public class EditorPreviewController {
         // Délègue la vérification de prévisualisabilité au hôte.
         view.previewable = (previewHost != null && previewHost.canPreview(this.currentFileName));
         view.invalidate();
+        // B6 : la visibilité de l'action d'aperçu (barre de fil d'Ariane)
+        // dérive de previewable — rafraîchit la barre sœur SANS exiger de
+        // code hôte (miroir de EditorView.notifyTextChanged).
+        jo.codeeditor.view.chrome.BreadcrumbBar.invalidateActionsIn(view.getParent());
     }
 
     /**
@@ -245,6 +249,9 @@ public class EditorPreviewController {
         }
         view.invalidate();
         notifyModeChanged();
+        // B6 : l'action d'aperçu de la barre sœur reflète l'état ouvert
+        // (accent quand previewMode != NONE).
+        jo.codeeditor.view.chrome.BreadcrumbBar.invalidateActionsIn(view.getParent());
     }
 
     /**
@@ -322,6 +329,9 @@ public class EditorPreviewController {
             }
             view.invalidate();
             notifyModeChanged();
+            // B6 : l'action d'aperçu de la barre sœur s'éteint (la feuille
+            // est fermée — plus d'état actif).
+            jo.codeeditor.view.chrome.BreadcrumbBar.invalidateActionsIn(view.getParent());
         }
     }
 

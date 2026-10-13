@@ -169,7 +169,9 @@ public class BreadcrumbBarActionsTest {
 
         bar.measure(W, 200);
         bar.layout(0, 0, W, bar.getMeasuredHeight());
-        assertEquals("hauteur de barre 36 dp (density 1)", 36, bar.getHeight());
+        // B6 : la barre grandit à 40 dp (cible tactile confortable pour
+        // les boutons-icônes ; 36 dp en B5).
+        assertEquals("hauteur de barre 40 dp (density 1)", 40, bar.getHeight());
 
         // Le dessin ne doit pas planter (segments + actions + fond).
         Bitmap bmp = Bitmap.createBitmap(W, 80, Bitmap.Config.ARGB_8888);

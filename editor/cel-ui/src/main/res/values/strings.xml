@@ -44,6 +44,8 @@
     <string name="cel_nav_more">MORE</string>
     <string name="cel_nav_nothing_found">Nothing found in source.</string>
 
-    <!-- B5 : barre de fil d'Ariane (action aperçu) -->
+    <!-- B5/B6 : barre de fil d'Ariane (actions d'éditeur) -->
     <string name="cel_preview">Preview</string>
+    <string name="cel_undo">Undo</string>
+    <string name="cel_redo">Redo</string>
 </resources>
