@@ -5,6 +5,65 @@ All notable changes to **code-editor-lib** are documented in this file.
 Le format suit la convention [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.65.0] — 2026-10-13 — Lot B11 : fast-scroller de gouttière + bande d'erreurs
+
+Deuxième lot de la feuille de route issue de l'analyse des écarts n°6 :
+P0-3 (retour visuel du drag de gouttière) et P1-1 (error stripe façon
+Android Studio). Le drag de gouttière devient un positionnement ABSOLU
+du document — tout le fichier devient atteignable d'un seul geste —
+avec pouce + bulle de ligne en retour visuel ; la bande d'erreurs du
+bord droit rend les diagnostics de TOUT le fichier visibles et
+navigables au tap, y compris hors écran. Zéro rupture d'API (deux
+collaborateurs internes + un setter public, rien retiré).
+
+### Added
+
+- **B11a — `EditorFastScroller` (P0-3)** : le drag dans la zone des
+  numéros (et sur la bande d'erreurs) arme un fast-scroller au-delà du
+  touch-slop — le pouce (pill 4 dp au bord droit, plancher 32 dp)
+  suit la hauteur du doigt et la position du document suit en
+  proportion (`top / (viewH − thumbH) × maxV`, géométrie consciente
+  wrap + plis). Une bulle « numéro de ligne » à gauche du pouce donne
+  la ligne du milieu du viewport (retour visuel des listes Android) ;
+  relâchement en fondu 250 ms, PAS de fling (le positionnement est
+  absolu) ; annulation immédiate au pincement/CANCEL/appui long/
+  changement de session. Un tap reste un tap (le pouce n'apparaît
+  jamais sous le slop : les points de diagnostic et l'icône d'aperçu
+  de gouttière gardent leur résolution).
+- **B11b — `EditorErrorStripe` (P1-1)** : bande de 4 dp au bord
+  droit (zone tactile 10 dp) — un marqueur coloré par ligne
+  diagnostiquée (3 erreur / 2 avertissement / 1 info, couleurs du
+  thème, sévérité max par ligne) posé au ratio `docLineToY /
+  contentH` + le rectangle du viewport façon scrollbar. Tap sur un
+  marqueur : dépliage du pli englobant, centrage de la ligne
+  (`scrollToLineCentered`) et ouverture de la fiche (popup de détail,
+  ou liste groupée si la ligne porte plusieurs diagnostics) — parité
+  avec le point de gouttière et la chip de fin de ligne. Drag sur la
+  bande : défilement absolu (pouce + bulle du fast-scroller). Tap
+  sans marqueur : geste consommé (ni caret ni fiche derrière — la
+  bande est un chrome). Silence complet quand un aperçu est ouvert
+  (SPLIT/FULL/feuille). Alimentée par `EditorDiagnosticsPusher` (LA
+  MÊME source que les points de gouttière, compactée en paires
+  sparse : dessin O(diagnostics) et non O(lignes)).
+- **`EditorView.setErrorStripeEnabled(boolean)` /
+  `isErrorStripeEnabled()`** : bascule publique de la bande (défaut
+  activé, parité Android Studio out of the box).
+
+### Changed
+
+- Le drag de gouttière passe du scroll pixel-relatif (un écran par
+  geste, horizontal inclus) au positionnement ABSOLU vertical
+  d'Android Studio : l'activation au-delà du touch-slop supprime AUSSI
+  le défilement au jitter d'un simple appui dans les numéros.
+
+### Tests
+
+- 1 710 tests verts (+11) : `FastScrollGutterDragTest` ×5 (mapping
+  absolu, slop, tap pur, relâchement sans fling, annulation) et
+  `ErrorStripeTest` ×6 (alimentation du pusher, tap marqueur →
+  centrage + fiche, tap sans marqueur consommé, drag absolu, setter,
+  silence en aperçu).
+
 ## [3.64.0] — 2026-10-13 — Lot B10 : recherche/remplacement dans le fichier + 4e tap paragraphe
 
 Premier lot de la feuille de route issue de l'analyse des écarts n°6 :
