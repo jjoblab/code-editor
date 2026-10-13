@@ -5,6 +5,36 @@ All notable changes to **code-editor-lib** are documented in this file.
 Le format suit la convention [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.59.0] — 2026-10-13 — Retour terrain : plus de boutons invisibles en haut à droite (UX-5)
+
+Deuxième retour d'appareil post-lot tactile : le propriétaire constate
+des « boutons invisibles » — un tap en haut à droite de l'éditeur
+zoomait/dézoomait la police ou basculait les non-imprimables sans
+aucun retour visuel. La cause est un hit-test survivant de l'ancienne
+toolbar canvas, orpheline de tout rendu depuis l'extraction
+d'EditorBarTools. Correctif chirurgical (retrait de code mort), zéro
+rupture d'API ; aucun relèvement de plafond.
+
+### Fixed
+
+- **UX-5 — zones de tap fantômes de l'ancienne toolbar canvas (bug)**
+  — les icônes de toolbar (A+, A−, ¶, ligatures) ne sont plus
+  dessinées sur le canvas depuis l'extraction d'EditorBarTools, mais
+  le hit-test historique `EditorPopupAnchors.hitTestToolbarIcons`
+  restait branché dans `EditorTapResolver` : 4 zones tactiles de
+  22 dp en haut à droite, invisibles, au-dessus de la zone de texte.
+  Un tap y déclenchait `increaseFontSize`/`decreaseFontSize`/bascules
+  ¶/ligatures sans feedback — d'autant plus piégeux que les VRAIS
+  boutons vivent désormais dans la barre de fil d'Ariane (B5, 3.58.0).
+  Le bloc de routage est retiré du résolveur de taps (un tap en haut
+  à droite retombe dans la cascade normale : placement du caret) et
+  la méthode morte `hitTestToolbarIcons` est supprimée (aucun autre
+  appelant, aucun test). Les commentaires du renderer et du
+  contrôleur de zoom qui mentionnaient encore les « icônes Canvas »
+  sont corrigés. Test de régression `EditorGhostToolbarTapTest`
+  (Robolectric, 5 épreuves : les 4 zones recalculées + la cascade
+  normale) — échoue 5/5 avant, passe 5/5 après.
+
 ## [3.58.0] — 2026-10-13 — Retour terrain post-J6 : le contenu suit la carte (UX-4), le fil d'Ariane porte les actions (B5)
 
 Premier retour d'appareil APRÈS le lot tactile complet (3.57.0) : un
