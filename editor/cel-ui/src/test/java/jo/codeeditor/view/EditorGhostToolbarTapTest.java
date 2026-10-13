@@ -19,8 +19,9 @@ import static org.junit.Assert.*;
  * l'ancienne toolbar canvas</b> (A+, A−, ¶, ligatures).
  *
  * <p>Contexte : les icônes de toolbar ne sont plus dessinées sur le
- * canvas depuis l'extraction d'EditorBarTools (les boutons vivent dans
- * les barres d'hôte — BreadcrumbBar.addAction / EditorBarTools), mais le
+ * canvas depuis la décomposition de l'ancienne barre (classe supprimée
+ * en B15 ; les boutons vivent dans les barres d'hôte —
+ * BreadcrumbBar.addAction), mais le
  * hit-test historique {@code EditorPopupAnchors.hitTestToolbarIcons}
  * restait branché dans {@code EditorTapResolver} : un tap en haut à
  * droite de l'éditeur déclenchait zoom/dézoom/bascules <b>sans aucun

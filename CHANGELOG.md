@@ -5,6 +5,72 @@ All notable changes to **code-editor-lib** are documented in this file.
 Le format suit la convention [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.69.0] — 2026-10-14 — Lot B15 : API GutterAction (P2-2) + suppression d'EditorBarTools
+
+Sixième lot de la feuille de route issue de l'analyse des écarts n°6 :
+premier pas dans les P2 « différenciateurs » — P2-2, l'API
+`GutterAction` généralisée fondée sur les fondations B9c. L'hôte
+injecte ses propres icônes de gouttière (points d'arrêt du débogueur
+CodeIDE, « exécuter ce test », flèches de navigation de diff) sans
+toucher au renderer. Ce lot porte AUSSI la première rupture d'API
+assumée de la bibliothèque : la suppression d'EditorBarTools, ancienne
+barre pré-décomposition orpheline depuis B5 — décision explicite du
+propriétaire (l'audit avait proposé une dépréciation ; la suppression
+a été préférée).
+
+### Added
+
+- **B15 — API `GutterAction`** (classe publique, `view`) : `{ id,
+  line, icon, perform, active }` façon `SelectionAction` — `active`
+  est un `BooleanSupplier` RELU AU RENDU (l'hôte arme/désarme puis
+  `invalidate()`, sans ré-enregistrement), `perform` exécuté au tap,
+  `null` = sobre / geste quand même consommé.
+- **B15 — registre `EditorView.gutterActions`** (champ public final,
+  précédent `gutterView`) : `add` (retire la concurrente de même ligne
+  OU de même id — UNE pill par ligne, la dernière inscription gagne),
+  `remove(id)`, `clear()`, `size()`, `actionForLine(line)`. Données
+  d'hôte : survivent à `setSession` (parité avec les actions de pill),
+  l'hôte vide le registre quand il change de fichier.
+- **B15 — rendu + tap déterministes** : la pill de l'action vit dans
+  la zone des numéros de SA ligne (géométrie B9c — `hostActionRect`
+  délègue à `previewActionRect`, source unique), l'action de l'hôte
+  passe AVANT l'œil d'aperçu sur la rangée du caret ; le tap exécute
+  `perform()` sans déplacer le caret et hors cascade multi-tap
+  (précédent B9c / bande de fold). Ligne au-delà du document : ni
+  dessinée ni touchable.
+- **B15 — icône `EditorIcons.Icon.BREAKPOINT`** : disque plein
+  (Material « fiber_manual_record », 4 cubiques — le parseur rejette
+  les arcs).
+- Démo : menu « Point d'arrêt (ligne du caret) » — pose/retire via
+  `gutterActions`, tap sur la pill = armé/désarmé (fournisseur actif
+  relu au rendu), registre vidé au changement d'échantillon (bonne
+  pratique hôte documentée au guide).
+
+### Removed
+
+- **RUPTURE D'API — `EditorBarTools` supprimé** (décision du
+  propriétaire). L'ancienne barre d'outils pré-décomposition
+  (annuler/rétablir/A+/A−/¶/ligatures) était orpheline depuis B5
+  (v3.58.0) : zéro instanciation dans code-editor, la démo ou CodeIDE
+  — les boutons vivent dans `BreadcrumbBar`. Migration :
+  `BreadcrumbBar.addAction(label, contentDescription, active, click)`
+  (voir MISE-A-JOUR-CODEIDE.md §1.15). Nettoyage inclus :
+  commentaires résiduels, javadoc `invalidateActionsIn`, entrée du
+  lint-baseline.
+
+### Tests
+
+- +14 (1 772 verts) : `GutterActionsTest` ×14 (cel-ui) — rect
+  déterministe partagé, registre (une action par ligne, id déplacé,
+  remove/clear), hit-test (dans la pill / hors pill / hors gouttière
+  / rangée hors écran), tap (perform sans caret, double-tap hors
+  cascade, sans perform consommé), rendu (priorité sur l'œil,
+  fournisseur actif relu au dessin, ligne hors document), icône
+  BREAKPOINT (bornes + FILL + peinture préservée). Preuves rouges ×3
+  par sed inverse sur fichiers commités : hit-test du resolver → 3
+  tests de tap ; consultation du rendu → 2 tests de dessin ;
+  remplacement par ligne → 1 test de registre.
+
 ## [3.68.0] — 2026-10-13 — Lot B14 : plis par niveau + régions (P1-5)
 
 Cinquième lot de la feuille de route issue de l'analyse des écarts n°6 :

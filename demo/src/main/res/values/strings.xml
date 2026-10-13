@@ -24,6 +24,13 @@
     <string name="folds_all">Tout replier</string>
     <string name="folds_none">Tout déplier</string>
 
+    <!-- B15 (P2-2) : actions de gouttière de l’hôte (points d’arrêt de démo) -->
+    <string name="menu_breakpoint">Point d’arrêt (ligne du caret)</string>
+    <string name="breakpoint_set">Point d’arrêt posé — ligne %1$d</string>
+    <string name="breakpoint_removed">Point d’arrêt retiré — ligne %1$d</string>
+    <string name="breakpoint_armed">Point d’arrêt armé — ligne %1$d</string>
+    <string name="breakpoint_disarmed">Point d’arrêt désarmé — ligne %1$d</string>
+
     <!-- Plafond de lignes sticky (S4, lot 2) -->
     <string name="sticky_max_1">Max : 1 ligne</string>
     <string name="sticky_max_2">Max : 2 lignes (défaut)</string>
@@ -50,7 +57,7 @@
 
     <!-- À propos -->
     <string name="about_title">À propos de la démo</string>
-    <string name="about_message">Terrain de jeu pour la bibliothèque code-editor v3.68.0 (Java, Canvas, MIT).
+    <string name="about_message">Terrain de jeu pour la bibliothèque code-editor v3.69.0 (Java, Canvas, MIT).
 
 \u2022 28 langages : basculez via le menu Langage.
 \u2022 Analyseur factice : diagnostics, complétion, signatures, quick doc et code actions synthétiques \u2014 sans serveur LSP.
@@ -65,6 +72,7 @@
 \u2022 Étendre la sélection \u2192 curseur \u2192 mot \u2192 syntagme \u2192 lignes (cascade).
 \u2022 Lignes TODO / FIXME \u2192 diagnostics (squiggles + points dans la gouttière).
 \u2022 Ampoule de la gouttière \u2192 code actions.
+\u2022 Point d\u2019arr\u00eat (menu) \u2192 pill de gouttière sur la ligne du caret, tap sur la pill = armé/désarmé (API GutterAction B15).
 \u2022 Pincez pour zoomer, double-tap pour sélectionner un mot, glissez les poignées (loupe de sélection).
 
 Clavier physique : Ctrl+Z/Y annuler/rétablir, Ctrl+F recherche, Ctrl+Shift+O aller au symbole.</string>

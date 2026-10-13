@@ -1,4 +1,4 @@
-# MISE À JOUR DE CodeIDE — brancher la version 3.68.0 de `code-editor`
+# MISE À JOUR DE CodeIDE — brancher la version 3.69.0 de `code-editor`
 
 > **Destinataire** : agent IA chargé de la mise à jour du dépôt `CodeIDE`
 > (jjoblab/CodeIDE, audité @ `04a65ea`, v0.105.0).
@@ -24,7 +24,7 @@
 
 ---
 
-## 0. Résumé express — deux lots + quatre retours terrain + lots B10-B14, un seul changement requis
+## 0. Résumé express — deux lots + quatre retours terrain + lots B10-B15, un seul changement requis
 
 | Lot | Versions | Thème | Ce que CodeIDE y gagne |
 |---|---|---|---|
@@ -41,6 +41,7 @@
 | **Lot B12 (confort)** | **3.66.0** | Le zoom et les numéros se souviennent | P1-3 : zoom PERSISTANT par type de fichier — `setZoomMemoryKey(".java")` à l'ouverture, pincement/A± enregistrés, réouverture = réglage restauré, le zoom ne fuit pas entre types (adoption recommandée, §4.12 — trois lignes) ; P1-4 : numéros de gouttière RELATIFS/HYBRIDES façon AS (`LineNumberStyle`, optionnel) |
 | **Lot B13 (parité riche)** | **3.67.0** | Glisser-déposer une sélection la DÉPLACE | P1-2 : mode « drag de bloc » armé par la pill ✥ Move — le geste suivant déplace le texte (loupe + caret fantôme au point de dépôt + carte flottante + auto-scroll de bord), un tap annule ; dépôt en UNE annulation, sélection ré-épinglée (adoption recommandée, §4.13 — trois lignes) ; `EditorSession.moveRange` public pour les barres d'outils |
 | **Lot B14 (pliage)** | **3.68.0** | Replier au niveau, tout replier/déplier | P1-5 : « Replier au niveau N » (1 = classes, 2 = méthodes — profondeur EXACTE, sémantique VS Code) + « tout replier / tout déplier » (`collapseFoldsAtLevel`/`collapseAllFolds`/`expandAllFolds` — adoption recommandée, §4.14 : trois entrées de menu) ; régions `#region` (C#) et `//region` (IntelliJ) détectées + correctif du nom de région (la chip portait un « n » parasite) |
+| **Lot B15 (différenciateur)** | **3.69.0** | Les icônes de gouttière deviennent injectables | P2-2 : API publique `GutterAction` + registre `EditorView.gutterActions` — CodeIDE pose ses PROPRES icônes de gouttière (points d'arrêt du débogueur, « exécuter ce test », flèches de diff) SANS toucher au renderer : pill ancrée à la ligne (façon Android Studio), `active` relu au rendu (armé/désarmé sans ré-enregistrement), tap = `perform()` sans caret ni cascade (adoption recommandée, §4.15 — trois lignes) ; **RUPTURE documentée** : `EditorBarTools` supprimé (classe orpheline depuis B5 — zéro impact CodeIDE, l'audit l'avait vérifié : aucune référence) |
 
 **Un seul changement est indispensable** : monter la version dans
 `gradle/libs.versions.toml` (§2). Tout le reste est additif — les
@@ -52,7 +53,7 @@ surcharges ou des constructeurs étendus déléguant à l'existant.
 
 ---
 
-## 1. Les lots 3.52.0 → 3.57.0 (complets) puis les retours terrain 3.58.0/3.59.0/3.60.0/3.61.0/3.62.0/3.63.0 et les lots B10-B14 (3.64.0→3.68.0)
+## 1. Les lots 3.52.0 → 3.57.0 (complets) puis les retours terrain 3.58.0/3.59.0/3.60.0/3.61.0/3.62.0/3.63.0 et les lots B10-B15 (3.64.0→3.69.0)
 
 `code-editor` est le CLIENT ; `lsp/java` de CodeIDE est le SERVEUR. Le
 lot tactile travaille presque entièrement côté client (rendu, gestes,
@@ -563,11 +564,51 @@ marqueurs de région à la syntaxe C#/IntelliJ.
 - **Zéro adoption requise** : sans appel, rien ne change. Trois
   entrées de menu sont recommandées (§4.14).
 
+### 1.15 Lot B15 (3.69.0) — API GutterAction : les icônes de gouttière deviennent injectables
+
+Sixième lot de la feuille de route de l'analyse des écarts n°6 —
+premier pas dans les P2 « différenciateurs à plus long terme » :
+le P2-2, celui que l'analyse qualifiait de « plus rentable de la
+liste ». Les fondations B9c (icône ancrée à une ligne, rect
+déterministe, tap résolu) sont généralisées en API publique : l'hôte
+injecte ses propres icônes de gouttière sans toucher au renderer.
+
+- **`GutterAction`** (classe publique, pattern `SelectionAction`) :
+  `{ id, line, icon, perform, active }`. `active` est un
+  `BooleanSupplier` **relu au rendu** — l'hôte arme/désarme un point
+  d'arrêt puis appelle `invalidate()`, sans ré-enregistrer
+  l'action ; `perform` s'exécute au tap sur la pill ; `icon` vient du
+  moteur `EditorIcons` (icône `BREAKPOINT` incluse — disque plein).
+- **`EditorView.gutterActions`** (champ public final, précédent
+  `gutterView`) : registre `add` / `remove(id)` / `clear()` /
+  `actionForLine(line)`. `add` retire la concurrente de même ligne OU
+  de même id — UNE pill par ligne, la dernière inscription gagne.
+- **Rendu + tap déterministes** : la pill vit dans la zone des
+  numéros de SA ligne (géométrie B9c partagée avec l'œil d'aperçu,
+  l'action prioritaire sur la rangée du caret) ; le tap exécute
+  `perform()` sans déplacer le caret ni tomber dans la cascade
+  multi-tap ; une ligne au-delà du document n'est ni dessinée ni
+  touchable.
+- **Données d'hôte** : les actions survivent à `setSession` (parité
+  avec les actions de pill) — c'est à l'hôte de vider le registre
+  quand il change de fichier (la démo le fait au changement
+  d'échantillon, modèle en §4.15).
+- **RUPTURE documentée — `EditorBarTools` supprimé** (décision du
+  propriétaire) : l'ancienne barre pré-décomposition était orpheline
+  depuis B5 (v3.58.0), zéro instanciation dans code-editor, la démo
+  ou CodeIDE (audit v3.58.0 : aucune référence CodeIDE — **zéro
+  impact pour CodeIDE**). Migration pour un éventuel consommateur
+  externe : `BreadcrumbBar.addAction(label, contentDescription,
+  active, click)`.
+- **Zéro adoption requise** : sans appel, la gouttière est
+  inchangée. Trois lignes sont recommandées (§4.15) — le débogueur
+  CodeIDE est le premier consommateur naturel (points d'arrêt).
+
 ## 2. Changement REQUIS — montée de version de la dépendance
 
 ```toml
 # gradle/libs.versions.toml (CodeIDE) — ligne ~52
-code-editor = "3.68.0"     # était "3.49.2" (audit) / "3.51.1" (guide 3.51.1) / "3.57.0" (guide J6) / "3.58.0"-"3.60.0" (guides retours terrain) / "3.61.0"-"3.63.0" (guides retours n°4-6) / "3.64.0" (lot B10) / "3.65.0" (lot B11) / "3.66.0" (lot B12) / "3.67.0" (lot B13) / "3.68.0" (lot B14)
+code-editor = "3.69.0"     # était "3.49.2" (audit) / "3.51.1" (guide 3.51.1) / "3.57.0" (guide J6) / "3.58.0"-"3.60.0" (guides retours terrain) / "3.61.0"-"3.63.0" (guides retours n°4-6) / "3.64.0" (lot B10) / "3.65.0" (lot B11) / "3.66.0" (lot B12) / "3.67.0" (lot B13) / "3.68.0" (lot B14) / "3.69.0" (lot B15)
 ```
 
 Les deux modules consommateurs ne changent pas (ils suivent le
@@ -617,7 +658,37 @@ méthodes de session (`collapseFoldsAtLevel`/`collapseAllFolds`/
 `expandAllFolds`) sans rien retirer ni changer aucun comportement
 par défaut — les commandes de pliage de masse n'existent que si
 l'hôte les expose (le correctif du nom de région est automatique,
-transparent pour l'API).
+transparent pour l'API) ; 3.69.0 ajoute DEUX classes publiques
+(`GutterAction`, `EditorGutterActions`) et UNE constante d'enum
+(`EditorIcons.Icon.BREAKPOINT`) via le champ public final
+`EditorView.gutterActions` — SANS consommer de méthode publique
+d'EditorView (279/280 au budget) ni rien retirer côté CodeIDE.
+**3.69.0 porte par ailleurs la première rupture assumée de la
+plage** : `EditorBarTools` (classe publique orpheline depuis B5,
+zéro référence dans CodeIDE — audit v3.58.0) est SUPPRIMÉE ; tout
+consommateur externe de cette classe migre vers
+`BreadcrumbBar.addAction` (§1.15) — **CodeIDE n'est pas concerné**
+(ses surfaces — `LspProject`, `createEditor`, `setEditorView`… —
+sont intactes).
+
+### Publication (2026-10-14, lot B15)
+
+- `main` poussé (merge du lot B15, quatre commits) ; tag
+  **`v3.69.0`** posé sur le merge ; workflows CI + Publication
+  GitHub Packages déclenchés par le poussage (vérifier l'état sur
+  la page Actions du dépôt).
+- **Changement MAJEUR au sens de la politique de version**
+  (première rupture d'API publique de la bibliothèque) : publication
+  JitPack DÉCLENCHÉE et VÉRIFIÉE pour `v3.69.0` — les QUATRE
+  modules servent POM + AAR + sources
+  (`com.github.jjoblab.code-editor:cel-ui:v3.69.0` et frères).
+  Les 3.51.1+ restent saines, seules `3.50.0`/`3.51.0` demeurent
+  interdites via JitPack (incident 429 historique, servies sur
+  GitHub Packages uniquement) ; `v3.67.0` reste en échec 429
+  transitoire documenté (reconstruisable à la demande).
+- Coordonnées : `com.github.jjoblab.code-editor:cel-ui:v3.69.0` et
+  modules frères (même version, dépôt `maven { url =
+  uri("https://jitpack.io") }`).
 
 ### Publication (2026-10-13, lot B14)
 
@@ -1001,6 +1072,32 @@ Les régions `// region` / `#region` sont déjà détectées — aucun
 réglage à faire pour elles ; le menu « Plis » de la démo
 (niveaux 1-3 + tout replier + tout déplier) est le modèle exact.
 
+### 4.15 Poser des icônes dans la gouttière — points d'arrêt, « exécuter » (B15, 3.69.0) — trois lignes, recommandé
+
+Le débogueur CodeIDE est le premier consommateur naturel : un point
+d'arrêt est une `GutterAction` ancrée à SA ligne, l'armé/désarmé se
+fait via le fournisseur `active` (relu au rendu, le tap n'a PAS
+besoin de ré-enregistrer) :
+
+```kotlin
+// feature/editor — pose d'un point d'arrêt (ligne 0-based)
+editor.gutterActions.add(GutterAction(
+    "bp-$line", line, EditorIcons.Icon.BREAKPOINT,
+    perform = { debugViewModel.toggleBreakpoint(line) },
+    active  = { debugViewModel.isArmed(line) }))
+editor.gutterActions.remove("bp-$line")  // retrait ciblé
+```
+
+Contrats à connaître : UNE action par ligne (`add` remplace la
+concurrente — jamais d'empilement) ; le tap exécute `perform` sans
+toucher au caret ni tomber dans la cascade multi-tap ; les actions
+survivent à `setSession` — **vider le registre au changement de
+fichier** (`editor.gutterActions.clear()`, comme le fait la démo au
+changement d'échantillon) ; une ligne au-delà du document n'est ni
+dessinée ni touchable. Les icônes disponibles vivent dans
+`EditorIcons.Icon` (BREAKPOINT inclus ; toute icône manquante est
+ajoutable au moteur — paths cubiques, viewport 24×24).
+
 ---
 
 ## 5. Protocole de vérification sur appareil (après montée de version)
@@ -1238,6 +1335,28 @@ ajouter les épreuves du lot tactile :
     (C#) et `//region` (IntelliJ) se replient aussi si présent —
     parité de marqueurs (vérifiable sur tout échantillon les
     contenant).
+
+24. **Lot B15 (3.69.0, via la démo)** — quatre vérifications ciblées :
+    **a)** échantillon Java → poser le caret sur une ligne → menu
+    « Point d'arrêt (ligne du caret) » : une PILL apparaît dans la
+    gouttière à la place du numéro (disque plein, façon Android
+    Studio) + toast « Point d'arrêt posé — ligne N » ; re-sélectionner
+    la même ligne → menu → le point d'arrêt est RETIRÉ (toast, pill
+    disparue, numéro de retour) ;
+    **b)** TAP sur la pill → toast « armé » + l'icône s'allume à
+    l'ACCENT (fournisseur actif relu au rendu — sans
+    ré-enregistrement) ; re-tap → toast « désarmé » + retour sobre ;
+    le caret n'a PAS bougé ; un DOUBLE-tap rapide sur la pill → deux
+    bascules (le tap de gouttière ne tombe JAMAIS dans la cascade
+    mot/ligne) ;
+    **c)** Markdown (œil d'aperçu visible) → poser le caret ligne X,
+    un point d'arrêt sur la MÊME ligne X : UNE seule pill (l'action
+    d'hôte est prioritaire sur l'œil) ; point d'arrêt sur une AUTRE
+    ligne → DEUX icônes (l'œil au caret + le point d'arrêt) ;
+    **d)** changer d'échantillon (Java → Markdown) → les points
+    d'arrêt disparaissent (la démo vide son registre — la bonne
+    pratique hôte de §4.15) ; compiler le code de §4.15 côté
+    CodeIDE sur une branche de test pour valider l'adoption.
 
 ---
 

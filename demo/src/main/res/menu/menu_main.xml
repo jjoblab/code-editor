@@ -148,6 +148,11 @@
     </item>
 
     <item
+        android:id="@+id/action_breakpoint"
+        android:title="@string/menu_breakpoint"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/action_find"
         android:title="@string/menu_find"
         app:showAsAction="never" />

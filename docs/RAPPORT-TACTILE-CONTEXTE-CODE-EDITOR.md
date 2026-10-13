@@ -83,7 +83,22 @@
 > de région tolèrent l'espace OU son absence (`#region` C#,
 > `//region` IntelliJ) et l'off-by-one du nom de région est corrigé.
 > 1 758 tests verts (+12) — la feuille de route P0/P1 de l'analyse
-> des écarts n°6 est ÉPUISÉE.
+> des écarts n°6 est ÉPUISÉE. **Lot B15 (3.69.0)** : P2-2 — le
+> différenciateur stratégique, l'API `GutterAction` généralise les
+> fondations B9c : le registre public `EditorView.gutterActions`
+> (add/remove/clear/actionForLine, UNE action par ligne) laisse
+> l'hôte injecter ses propres icônes de gouttière (points d'arrêt,
+> « exécuter ce test », flèches de diff) sans toucher au renderer ;
+> pill B9c sur SA ligne (priorité sur l'œil d'aperçu au caret),
+> `active` relu au rendu (armé/désarmé sans ré-enregistrement), tap
+> = `perform()` sans caret ni cascade multi-tap (précédent B9c),
+> lignes hors document ni dessinées ni touchables, données d'hôte
+> survivant à `setSession` (l'hôte vide à son changement de fichier).
+> Icône `EditorIcons.Icon.BREAKPOINT` ; démo : menu « Point d'arrêt »
+> (pose/retire sur la ligne du caret, tap = armé/désarmé). Même lot :
+> **`EditorBarTools` supprimé** (option B, décision du propriétaire —
+> classe orpheline depuis B5, zéro impact CodeIDE). 1 772 tests
+> verts (+14).
 > **Retour terrain n°6 (3.63.0)** : quatre irritants réglés à la
 > racine — B9a la « secousse » des lignes pendant le drag de sélection
 > (le recentrage du caret déclenché par CHAQUE application de

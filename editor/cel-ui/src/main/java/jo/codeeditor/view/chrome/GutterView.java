@@ -12,6 +12,9 @@ import java.util.function.IntPredicate;
 
 import jo.codeeditor.view.icons.EditorIcons;
 
+import jo.codeeditor.view.EditorGutterActions;
+import jo.codeeditor.view.GutterAction;
+
 /**
  * Dessine les numéros de ligne et les points de diagnostic dans la zone du
  * gutter.
@@ -105,6 +108,11 @@ public class GutterView {
     /** Rectangle de la pill (réutilisé — pas d'allocation par frame). */
     private final RectF previewPillRect = new RectF();
 
+    // ── B15 (P2-2) : actions de gouttière de l'HÔTE ──
+    /** Registre des actions d'hôte (posé une fois par EditorView — la
+     * liste se consulte à CHAQUE rendu : add → invalidate → redraw). */
+    private EditorGutterActions hostActions;
+
     /**
      * B9c — définit l'état de l'action d'aperçu de la gouttière.
      *
@@ -154,6 +162,29 @@ public class GutterView {
         RectF r = new RectF();
         previewActionRect(metrics, density, rowTop, lineHeight, r);
         return r.contains(x, y);
+    }
+
+    /**
+     * B15 (P2-2) — pose le registre des actions de gouttière de
+     * l'HÔTE (une seule fois, à la construction de l'EditorView). La
+     * liste se consulte à CHAQUE rendu : {@code add/remove/clear}
+     * invalident la vue, le draw relit — aucun re-pose nécessaire.
+     * {@code null} désactive (tests standalone de GutterView).
+     */
+    public void setHostActions(EditorGutterActions hostActions) {
+        this.hostActions = hostActions;
+    }
+
+    /**
+     * B15 (P2-2) — rectangle de la cible tactile d'une action de
+     * gouttière de l'HÔTE sur la rangée donnée. MÊME géométrie que
+     * {@link #previewActionRect} (la pill B9c est la source unique :
+     * le dessin des actions d'hôte, l'œil d'aperçu et le hit-test
+     * partagent la formule déterministe).
+     */
+    public static void hostActionRect(EditorMetrics metrics, float density,
+            float rowTop, float lineHeight, RectF out) {
+        previewActionRect(metrics, density, rowTop, lineHeight, out);
     }
 
     public GutterView(EditorMetrics metrics, EditorTheme theme) {
@@ -424,26 +455,50 @@ public class GutterView {
         // Android Studio. Dessinée en DERNIER : elle REMPLACE le numéro de
         // la rangée annotée (comme le run ▶ d'Android Studio remplace le
         // numéro de la ligne qu'il concerne).
-        if (previewActionVisible && lineIdx == currentLine) {
-            drawPreviewAction(canvas, y, lineHeight);
+        // ★ B15 (P2-2) : les actions de l'HÔTE passent AVANT l'œil — une
+        // action posée sur la rangée du caret possède SA pill (l'œil,
+        // fugace, suit le caret sur les autres lignes : la priorité va à
+        // la donnée fixe de l'hôte).
+        if (previewActionVisible && lineIdx == currentLine
+                && (hostActions == null || hostActions.actionForLine(lineIdx) == null)) {
+            drawActionPill(canvas, y, lineHeight, EditorIcons.Icon.EYE,
+                    previewActionActive);
+        }
+
+        // ★ B15 (P2-2) : action de gouttière de l'HÔTE (point d'arrêt,
+        // « exécuter ce test », flèche de diff…) — pill B9c + glyphe de
+        // l'action, l'état actif étant relu au rendu (fournisseur vivant
+        // de GutterAction). UNE action par ligne (actionForLine rend la
+        // première posée — add retire la concurrente de la même ligne).
+        if (hostActions != null) {
+            GutterAction hostAction = hostActions.actionForLine(lineIdx);
+            if (hostAction != null) {
+                drawActionPill(canvas, y, lineHeight, hostAction.icon,
+                        hostAction.isActive());
+            }
         }
     }
 
     /**
      * B9c — dessine la pill + l'œil d'aperçu sur la rangée du caret.
+     * ★ B15 : la MÊME pill sert les actions de gouttière de l'HÔTE
+     * (drawActionPill) — géométrie et états partagés, seul le glyphe
+     * change.
      *
      * <p>État INACTIF : pill de fond verre opaque (masque le numéro gras
-     * dessous) + œil sobre (gutterText 0,9) ; état ACTIF (feuille
-     * ouverte) : pill voilée d'accent + œil à l'accent (theme.keyword —
-     * même accent que l'œil du fil d'Ariane B6).</p>
+     * dessous) + glyphe sobre (gutterText 0,9) ; état ACTIF (feuille
+     * ouverte / action armée) : pill voilée d'accent + glyphe à
+     * l'accent (theme.keyword — même accent que l'œil du fil d'Ariane
+     * B6).</p>
      */
-    private void drawPreviewAction(Canvas canvas, float rowTop, float lineHeight) {
+    private void drawActionPill(Canvas canvas, float rowTop, float lineHeight,
+            EditorIcons.Icon icon, boolean active) {
         previewActionRect(metrics, density, rowTop, lineHeight, previewPillRect);
         float cx = previewPillRect.centerX();
         float cy = previewPillRect.centerY();
         float r = previewPillRect.height() * 0.5f;
 
-        if (previewActionActive) {
+        if (active) {
             bgPaint.setColor(theme.keyword);
             bgPaint.setAlpha(40); // voile discret de l'accent
         } else {
@@ -453,10 +508,10 @@ public class GutterView {
         canvas.drawRoundRect(previewPillRect, r, r, bgPaint);
         bgPaint.setAlpha(255);
 
-        previewIconPaint.setColor(previewActionActive
+        previewIconPaint.setColor(active
                 ? theme.keyword
                 : jo.codeeditor.view.EditorView.applyAlphaToColor(theme.gutterText, 0.9f));
-        EditorIcons.draw(canvas, EditorIcons.Icon.EYE, cx, cy,
+        EditorIcons.draw(canvas, icon, cx, cy,
                 Math.min(20f * density, previewPillRect.height() * 0.8f),
                 previewIconPaint);
     }

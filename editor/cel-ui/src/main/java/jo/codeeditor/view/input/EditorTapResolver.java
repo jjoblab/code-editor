@@ -1,6 +1,7 @@
 package jo.codeeditor.view.input;
 
 import jo.codeeditor.view.EditorView;
+import jo.codeeditor.view.GutterAction;
 import jo.codeeditor.view.popup.EditorPopupHitTester;
 
 import androidx.annotation.RestrictTo;
@@ -134,10 +135,30 @@ public class EditorTapResolver {
             }
             return;
         }
+
+        // ── ★ B15 (P2-2) : action de gouttière de l'HÔTE (point d'arrêt,
+        // « exécuter ce test », flèche de diff…) — le tap exécute
+        // perform() : le geste N'APPARTIENT PAS au texte (caret non
+        // déplacé) et PAS PLUS à la cascade multi-tap (précédent B9c /
+        // bande de fold ci-dessus : les taps de gouttière n'y tombent
+        // jamais — un double-tap sur un point d'arrêt le bascule deux
+        // fois). Le hit-test est déterministe (GutterView.hostActionRect
+        // = pill B9c) et résout la ligne par docLineForScreenY (wrap +
+        // plis) ; une rangée hors écran ne touche rien. Une action sans
+        // perform consomme quand même le geste : la pill est un chrome.
+        GutterAction hostAction = view.gutterActions.hitTest(x, y);
+        if (hostAction != null) {
+            if (hostAction.perform != null) {
+                hostAction.perform.run();
+            }
+            return;
+        }
+
         // UX-5 : les zones de tap de l'ancienne toolbar canvas (A+, A−,
         // ¶, ligatures) sont retirées — les icônes ne sont plus dessinées
-        // depuis l'extraction d'EditorBarTools et les boutons vivent dans
-        // les barres d'hôte (BreadcrumbBar.addAction / EditorBarTools).
+        // depuis la décomposition de la barre historique (classe supprimée
+        // en B15) et les boutons vivent dans les barres d'hôte
+        // (BreadcrumbBar.addAction).
         // Un tap en haut à droite ne doit plus déclencher d'action
         // invisible : il retombe dans la cascade normale (caret).
 
