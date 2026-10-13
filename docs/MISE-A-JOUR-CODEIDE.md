@@ -1,4 +1,4 @@
-# MISE À JOUR DE CodeIDE — brancher la version 3.58.0 de `code-editor`
+# MISE À JOUR DE CodeIDE — brancher la version 3.59.0 de `code-editor`
 
 > **Destinataire** : agent IA chargé de la mise à jour du dépôt `CodeIDE`
 > (jjoblab/CodeIDE, audité @ `04a65ea`, v0.105.0).
@@ -13,7 +13,10 @@
 > **premier retour d'appareil post-lot (3.58.0)** : le contenu du popup
 > de diagnostic suit enfin sa carte à droite de l'écran (UX-4, bug),
 > et la barre de fil d'Ariane porte les actions d'éditeur en haut à
-> droite (B5).
+> droite (B5) — ET du **deuxième retour d'appareil (3.59.0)** : les
+> zones de tap fantômes de l'ancienne toolbar canvas disparaissent
+> (UX-5, bug — un tap en haut à droite ne zoomait plus/dezoomait plus
+> l'éditeur sans aucun bouton visible).
 > **Ce document est la copie de référence archivée dans le dépôt** : il
 > résume le comportement attendu et les changements côté CodeIDE. Les
 > identifiants de commits sont ceux du dépôt du propriétaire, cités à
@@ -21,13 +24,14 @@
 
 ---
 
-## 0. Résumé express — deux lots + un retour terrain, un seul changement requis
+## 0. Résumé express — deux lots + deux retours terrain, un seul changement requis
 
 | Lot | Versions | Thème | Ce que CodeIDE y gagne |
 |---|---|---|---|
 | Actions de code | 3.50.0 → 3.51.1 | Le pont client ne vide plus les réponses LSP | Quick-fixes réels au caret, ampoule dès publication, trigger « . », Unnecessary grisé |
 | Tactile & contexte | 3.52.0 → 3.57.0 | Le dernier geste naturel est câblé — lot COMPLET | Tap sur le squiggle → popup ancré, pill extensible (SPI + actions socle, mouvements de lignes), sticky interactif + délégable au SPI langue, inlays typés + tooltips PAR PART + hints CLIQUABLES, loupe réglable, en-tête enrichi (code/source), libellés traduisibles |
 | Retour terrain post-J6 | 3.58.0 | Le popup se lit à droite ; les boutons se rangent | UX-4 : le CONTENU du popup ancré suit le CADRE (bug corrigé automatiquement) ; B5 : `BreadcrumbBar` porte les actions d'éditeur en haut à droite (adoption optionnelle, §4.8) |
+| Retour terrain n°2 | 3.59.0 | Plus de boutons invisibles en haut à droite | UX-5 : retrait des zones de tap fantômes de l'ancienne toolbar canvas (bug corrigé automatiquement) — un tap en haut à droite redevient un placement de caret |
 
 **Un seul changement est indispensable** : monter la version dans
 `gradle/libs.versions.toml` (§2). Tout le reste est additif — les
@@ -39,7 +43,7 @@ surcharges ou des constructeurs étendus déléguant à l'existant.
 
 ---
 
-## 1. Les lots 3.52.0 → 3.57.0 (complets) puis le retour terrain 3.58.0
+## 1. Les lots 3.52.0 → 3.57.0 (complets) puis les retours terrain 3.58.0/3.59.0
 
 `code-editor` est le CLIENT ; `lsp/java` de CodeIDE est le SERVEUR. Le
 lot tactile travaille presque entièrement côté client (rendu, gestes,
@@ -147,11 +151,25 @@ voies côté serveur CodeIDE :
   (3.58.0) montre le motif complet — annuler, rétablir, étendre,
   A+/A−, œil d'aperçu — et un hôte d'aperçu Markdown WebView.
 
+### 1.5 Retour terrain n°2 (3.59.0) — UX-5 réparé d'office
+
+- **UX-5 (bug, automatique)** — un tap en haut à droite de l'éditeur
+  déclenchait zoom/dézoom ou bascule ¶/ligatures SANS aucun bouton
+  visible : le hit-test de l'ancienne toolbar canvas (A+, A−, ¶, lig)
+  survivait dans le résolveur de taps alors que ses icônes ne sont
+  plus dessinées depuis l'extraction d'EditorBarTools — 4 zones
+  tactiles fantômes de 22 dp au-dessus de la zone de texte. Corrigé :
+  le routage est retiré (un tap y retombe dans la cascade normale,
+  placement du caret) et la méthode morte supprimée. **CodeIDE n'a
+  RIEN à faire** : la montée de version suffit. Les boutons RÉELS
+  restent `BreadcrumbBar.addAction` (§4.8) / `EditorBarTools` /
+  l'API publique (`increaseFontSize`, `setShowNonPrintable`…).
+
 ## 2. Changement REQUIS — montée de version de la dépendance
 
 ```toml
 # gradle/libs.versions.toml (CodeIDE) — ligne ~52
-code-editor = "3.58.0"     # était "3.49.2" (audit) / "3.51.1" (guide 3.51.1) / "3.57.0" (guide J6)
+code-editor = "3.59.0"     # était "3.49.2" (audit) / "3.51.1" (guide 3.51.1) / "3.57.0" (guide J6) / "3.58.0" (guide retour terrain n°1)
 ```
 
 Les deux modules consommateurs ne changent pas (ils suivent le
@@ -161,28 +179,29 @@ Les deux modules consommateurs ne changent pas (ils suivent le
 - `feature/editor/build.gradle.kts:14` → `implementation(libs.codeeditor.ui)`
 
 **Compatibilité API : vérifiée additive sur toute la plage
-3.51.1 → 3.58.0** (aucune rupture binaire : nouveaux champs des
+3.51.1 → 3.59.0** (aucune rupture binaire : nouveaux champs des
 modèles diagnostic/inlay via constructeurs étendus, les
 constructeurs historiques délèguent avec défaut vide ; les ajouts
 3.58.0 sont `BreadcrumbBar.*` et `EditorView.setPreviewIconsVisible`,
-purement additifs).
+purement additifs ; 3.59.0 ne fait que RETIRER un hit-test interne
+`@RestrictTo(LIBRARY_GROUP)` — aucune surface publique touchée).
 
 ### Publication vérifiée (2026-10-13)
 
-- `main` @ `0a18364` poussé (merge retour terrain post-J6) ; tag
-  **`v3.58.0`** posé sur le commit de version `02a8116`.
+- `main` @ `4eb8d22` poussé (merge retour terrain n°2) ; tag
+  **`v3.59.0`** posé sur le commit de version `65719f0`.
 - CI verte sur les deux workflows (merge + tag) — runs
-  `38335575289` (CI) / `38335575271` (Publication GitHub Packages),
+  `38339732999` (CI) / `38339733175` (Publication GitHub Packages),
   conclusion `success`.
-- **JitPack `v3.58.0` : « ok »** — 4 modules (cel-core, cel-lsp-api,
+- **JitPack `3.59.0` : « ok »** — 4 modules (cel-core, cel-lsp-api,
   cel-lsp, cel-ui), POM + `.module` vérifiés servis (HTTP 200) :
-  `https://jitpack.io/com/github/jjoblab/code-editor/cel-ui/3.58.0/`
+  `https://jitpack.io/com/github/jjoblab/code-editor/cel-ui/3.59.0/`
 - Règle inchangée : **ne jamais consommer** `3.50.0`/`3.51.0` via
   JitPack (incident 429 historique — servies sur GitHub Packages
   uniquement) ; 3.51.1 et 3.52.0+ sont saines sur JitPack.
 
-Coordonnées : `com.github.jjoblab.code-editor:cel-ui:3.58.0` et
-`com.github.jjoblab.code-editor:cel-lsp:3.58.0`.
+Coordonnées : `com.github.jjoblab.code-editor:cel-ui:3.59.0` et
+`com.github.jjoblab.code-editor:cel-lsp:3.59.0`.
 
 ---
 
@@ -362,6 +381,11 @@ ajouter les épreuves du lot tactile :
     l'échantillon **Markdown**, l'œil ouvre la feuille d'aperçu
     (WebView), le texte tapé se reflète en ~200 ms. Côté CodeIDE,
     l'adoption passe par §4.8.
+13. **UX-5 (3.59.0)** : taper (toucher) en haut à droite de l'éditeur,
+    aux emplacements des anciennes icônes de toolbar — RIEN ne doit se
+    passer : ni zoom, ni dézoom, ni bascule ¶/ligatures ; le caret se
+    pose normalement. La taille de police ne change que via les
+    boutons VISIBLES (barre de fil d'Ariane, §4.8) ou l'API.
 
 ---
 
