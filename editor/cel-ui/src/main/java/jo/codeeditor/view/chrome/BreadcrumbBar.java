@@ -375,8 +375,8 @@ public class BreadcrumbBar extends LinearLayout {
 
     /**
      * Invalide les boutons de chaque {@link BreadcrumbBar} trouvée parmi les
-     * enfants du parent donné — miroir de
-     * {@code EditorBarTools.invalidateButtonsIn} : appelé par
+     * enfants du parent donné — héritier du miroir historique de l'ancienne
+     * barre pré-décomposition (supprimée en B15) : appelé par
      * {@code EditorView.notifyTextChanged} après chaque édition (et par le
      * contrôleur d'aperçu au changement de nom de fichier / de mode) pour
      * rafraîchir les états activé/visible/actif.

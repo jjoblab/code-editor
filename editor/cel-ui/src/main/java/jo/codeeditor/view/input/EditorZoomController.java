@@ -215,8 +215,8 @@ public final class EditorZoomController {
 
     // Méthodes de commodité pour la taille de police +/- — appelées par
     // les barres d'hôte (BreadcrumbBar A+ / A−) et l'API publique ; les
-    // icônes canvas historiques ont été retirées avec l'extraction
-    // d'EditorBarTools (plus aucune zone de tap fantôme, UX-5).
+    // icônes canvas historiques ont été retirées avec l'ancienne
+    // barre pré-décomposition (plus aucune zone de tap fantôme, UX-5).
     public void increaseFontSize() {
         setFontScale(clampFontScale(fontScale * 1.15f));
     }

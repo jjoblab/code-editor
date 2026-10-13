@@ -36,7 +36,8 @@ import static org.junit.Assert.assertTrue;
  *       entrée d'interaction) ; réactivables via
  *       setPreviewIconsVisible(true) ;</li>
  *   <li><b>notifyTextChanged</b> — l'éditeur rafraîchit les actions de
- *       la barre sœur après chaque édition (miroir d'EditorBarTools).</li>
+ *       la barre sœur après chaque édition (héritage du miroir de
+ *       l'ancienne barre pré-décomposition, supprimée en B15).</li>
  * </ul>
  *
  * @author jo@Dev
@@ -152,7 +153,7 @@ public class BreadcrumbBarActionsTest {
         assertFalse("départ : grisé (rien à annuler)", undo.isEnabled());
         editor.getSession().replaceRange(0, 0, "y");
         // notifyTextChanged (chemin public de l'hôte) → refresh via le
-        // miroir d'EditorBarTools.
+        // miroir de barre sœur.
         editor.notifyTextChanged();
         assertTrue("l'édition rafraîchit la barre sœur", undo.isEnabled());
     }

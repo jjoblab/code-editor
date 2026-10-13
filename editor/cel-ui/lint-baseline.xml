@@ -58,17 +58,6 @@
 
     <issue
         id="ClickableViewAccessibility"
-        message="Custom view `BarButton` overrides `onTouchEvent` but not `performClick`"
-        errorLine1="        public boolean onTouchEvent(MotionEvent event) {"
-        errorLine2="                       ~~~~~~~~~~~~">
-        <location
-            file="src/main/java/jo/codeeditor/view/EditorBarTools.java"
-            line="197"
-            column="24"/>
-    </issue>
-
-    <issue
-        id="ClickableViewAccessibility"
         message="`EditorView#onTouchEvent` should call `EditorView#performClick` when a click is detected"
         errorLine1="    public boolean onTouchEvent(MotionEvent event) {"
         errorLine2="                   ~~~~~~~~~~~~">

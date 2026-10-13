@@ -136,8 +136,9 @@ public class EditorTapResolver {
         }
         // UX-5 : les zones de tap de l'ancienne toolbar canvas (A+, A−,
         // ¶, ligatures) sont retirées — les icônes ne sont plus dessinées
-        // depuis l'extraction d'EditorBarTools et les boutons vivent dans
-        // les barres d'hôte (BreadcrumbBar.addAction / EditorBarTools).
+        // depuis la décomposition de la barre historique (classe supprimée
+        // en B15) et les boutons vivent dans les barres d'hôte
+        // (BreadcrumbBar.addAction).
         // Un tap en haut à droite ne doit plus déclencher d'action
         // invisible : il retombe dans la cascade normale (caret).
 
