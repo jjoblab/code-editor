@@ -406,7 +406,9 @@ public class EditorRenderer {
         if (view.isXmlPreviewActive()) {
             chrome.drawXmlPreview(canvas);
         }
-        // Les icônes de toolbar (A+, A-, ¶, ==) vivent dans la vue EditorBarTools.
+        // Les boutons de toolbar (A+, A−, ¶, ligatures) vivent dans les
+        // barres d'hôte (BreadcrumbBar.addAction / EditorBarTools) — plus
+        // AUCUNE icône ni zone de tap sur le canvas (UX-5).
         // Dessiner la loupe de sélection (active pendant le drag d'une
         // poignée — voir EditorSelectionGestures.dragHandle).
         chrome.drawMagnifier(canvas);

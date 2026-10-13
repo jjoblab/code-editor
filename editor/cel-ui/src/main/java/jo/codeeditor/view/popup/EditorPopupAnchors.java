@@ -2,7 +2,6 @@ package jo.codeeditor.view.popup;
 
 import jo.codeeditor.view.EditorView;
 import jo.codeeditor.view.SelectionAction;
-import jo.codeeditor.view.preview.EditorPreviewController;
 
 import androidx.annotation.RestrictTo;
 
@@ -29,8 +28,6 @@ import java.util.List;
  *   <li>{@link #selectionToolbarMetrics(EditorView)} — la toolbar flottante
  *       de sélection ;</li>
  *   <li>{@link #navMenuMetrics(EditorView)} — le menu contextuel unifié ;</li>
- *   <li>{@link #hitTestToolbarIcons(EditorView, float, float)} — le hit-test
- *       des icônes de toolbar (A+, A−, ¶, lig) ;</li>
  *   <li>{@link #countWrappedLines(EditorView, String, float)} — compteur
  *       partagé de retour à la ligne.</li>
  * </ul>
@@ -972,34 +969,5 @@ public final class EditorPopupAnchors {
                 EditorView.NAV_MENU_MARGIN_DP * density,
                 false, EditorView.NAV_MENU_MARGIN_DP * density);
         return new float[]{pos[0], pos[1], w, h};
-    }
-
-    // ════════════════════════════════════════════════════════════════
-    // Icônes de toolbar (A+, A−, ¶, lig)
-    // ════════════════════════════════════════════════════════════════
-
-    /**
-     * Test de toucher des icônes de toolbar (A+, A-, ¶, lig) en haut à
-     * droite. Retourne : 0=aucun toucher, 1=A+, 2=A-, 3=¶ (non
-     * imprimables), 4=lig (ligatures).
-     */
-    public static int hitTestToolbarIcons(EditorView view, float x, float y) {
-        float density = view.getResources().getDisplayMetrics().density;
-        float iconSize = EditorPreviewController.PREVIEW_ICON_SIZE_DP * density;
-        float margin = EditorPreviewController.PREVIEW_ICON_MARGIN_DP * density;
-        float iconY = margin;
-        // Disposition de droite à gauche : [lig] [¶] [A-] [A+]
-        float startX = view.getWidth() - margin;
-        float ligX = startX - iconSize;
-        float npX = ligX - iconSize - margin * 0.5f;
-        float aMinusX = npX - iconSize - margin * 0.5f;
-        float aPlusX = aMinusX - iconSize - margin * 0.5f;
-        if (y >= iconY && y <= iconY + iconSize) {
-            if (x >= aPlusX && x <= aPlusX + iconSize) return 1;
-            if (x >= aMinusX && x <= aMinusX + iconSize) return 2;
-            if (x >= npX && x <= npX + iconSize) return 3;
-            if (x >= ligX && x <= ligX + iconSize) return 4;
-        }
-        return 0;
     }
 }
