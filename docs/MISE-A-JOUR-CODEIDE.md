@@ -381,20 +381,26 @@ touchée).
 
 ### Publication vérifiée (2026-10-13)
 
-- `main` @ `e3a4b45` poussé (merge retour terrain n°5) ; tag
-  **`v3.62.0`** posé sur le commit de version `1bd79ed`.
+- `main` @ `8bf590a` poussé (merge retour terrain n°6 + merge du
+  correctif de course CI) ; tag **`v3.63.0`** posé sur le merge du
+  correctif (le premier poussage du tag a échoué en CI — course sur
+  un test de l'icône de gouttière sur runner rapide, corrigée par le
+  merge `9924150` : les taps de gouttière ignorent la cascade
+  multi-tap ; le tag a été REPOSÉ et republié).
 - CI verte sur les deux workflows (merge + tag) — runs
-  `38361164781` (CI) / `38361167042` (Publication GitHub Packages),
-  conclusion `success`.
-- **JitPack `3.62.0` : « ok »** — 4 modules (cel-core, cel-lsp-api,
-  cel-lsp, cel-ui), POM + `.module` vérifiés servis (HTTP 200) :
-  `https://jitpack.io/com/github/jjoblab/code-editor/cel-ui/3.62.0/`
+  `38371245339` (CI) / `38371248397` (Publication GitHub Packages),
+  conclusion `success` ; le run défaillant d'origine
+  `38370670092` est documenté dans le CHANGELOG du commit de
+  correctif.
+- **JitPack `3.63.0` : « ok »** — 4 modules (cel-core, cel-lsp-api,
+  cel-lsp, cel-ui), POM + `.module` vérifiés servis (8/8 HTTP 200) :
+  `https://jitpack.io/com/github/jjoblab/code-editor/cel-ui/3.63.0/`
 - Règle inchangée : **ne jamais consommer** `3.50.0`/`3.51.0` via
   JitPack (incident 429 historique — servies sur GitHub Packages
   uniquement) ; 3.51.1 et 3.52.0+ sont saines sur JitPack.
 
-Coordonnées : `com.github.jjoblab.code-editor:cel-ui:3.62.0` et
-`com.github.jjoblab.code-editor:cel-lsp:3.62.0`.
+Coordonnées : `com.github.jjoblab.code-editor:cel-ui:3.63.0` et
+`com.github.jjoblab.code-editor:cel-lsp:3.63.0`.
 
 ---
 
