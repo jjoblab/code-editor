@@ -591,6 +591,14 @@ public final class EditorPopupAnchors {
         m.x = pos[0];
         m.y = pos[1];
 
+        // UX-4 (retour terrain post-J6) : bord GAUCHE du contenu. La
+        // carte est ancrée au mot (X variable, clampé) mais le contenu
+        // était dessiné au bord GAUCHE de la vue — à droite de l'écran,
+        // le cadre était à sa place et le contenu resté à gauche. La
+        // passe de dessin ne calcule plus ses X seule : elle lit
+        // contentLeft (source unique, comme le hit-test lit hit()).
+        m.contentLeft = m.x + SQUIGGLE_POPUP_PAD_X_DP * density;
+
         m.rowTop = m.y + contentTop;
         m.seeAllY = m.rowTop + m.rows * rowH;
         view.textPaint.setTypeface(view.metrics.getTypeface());
@@ -619,6 +627,8 @@ public final class EditorPopupAnchors {
         /** Les rangées de la mini-liste (vide en mode détail). */
         public List<DiagnosticShift.Diagnostic> choices;
         public float x, y, w, h;
+        /** Bord GAUCHE du contenu (UX-4) — x + padX, suivi par le dessin. */
+        public float contentLeft;
         public float rowH;
         /** Y du HAUT de la première rangée actionnable. */
         public float rowTop;

@@ -546,8 +546,11 @@ public class EditorDiagnosticsPainter {
         if (m == null) return;
         float density = m.density;
         float radius = 8 * density;
-        float padX = jo.codeeditor.view.popup.EditorPopupAnchors.SQUIGGLE_POPUP_PAD_X_DP
-                * density;
+        // UX-4 : les X du CONTENU viennent de la métrique (contentLeft =
+        // m.x + padX) — le cadre ET son contenu suivent l'ancrage du mot.
+        // Les largeurs disponibles restent calculées depuis le padding.
+        float textX = m.contentLeft + 12 * density;
+        float dotX = m.contentLeft + 3.2f * density;
 
         // 1. Carte glass (sans scrim — non modal).
         RectF rect = new RectF(m.x, m.y, m.x + m.w, m.y + m.h);
@@ -560,60 +563,67 @@ public class EditorDiagnosticsPainter {
         canvas.drawRoundRect(rect, radius, radius, view.caretPaint);
         view.caretPaint.setStyle(Paint.Style.FILL);
 
-        // 2. Contenu par mode.
+        // 2. Contenu par mode (UX-4 : X dérivés de contentLeft).
         if (m.isListMode()) {
-            drawSquiggleMiniList(canvas, m, density, padX);
+            drawSquiggleMiniList(canvas, m, density, textX, dotX);
         } else {
-            drawSquiggleDetail(canvas, m, density, padX);
+            drawSquiggleDetail(canvas, m, density, textX, dotX);
         }
         view.textPaint.setTypeface(view.metrics.getTypeface());
         view.textPaint.setTextSize(view.metrics.getTextSize());
         view.caretPaint.setStrokeWidth(1f);
     }
 
-    /** Mini-liste : une rangée par diagnostic (sévérité + 1re ligne). */
+    /** Mini-liste : une rangée par diagnostic (sévérité + 1re ligne).
+     *  UX-4 : textX/dotX dérivés de {@code m.contentLeft} — le contenu
+     *  suit la carte ancrée où qu'elle soit (gauche/droite). */
     private void drawSquiggleMiniList(Canvas canvas,
             jo.codeeditor.view.popup.EditorPopupAnchors.SquigglePopupMetrics m,
-            float density, float padX) {
+            float density, float textX, float dotX) {
         view.textPaint.setTypeface(view.metrics.getTypeface());
         view.textPaint.setTextSize(view.metrics.getTextSize() * 0.9f);
         for (int i = 0; i < m.rows && i < m.choices.size(); i++) {
             DiagnosticShift.Diagnostic d = m.choices.get(i);
             float rowY = m.rowTop + i * m.rowH;
             view.selPaint.setColor(getSquiggleColor(d.severity));
-            canvas.drawCircle(padX + 3.2f * density, rowY + m.rowH * 0.5f,
+            canvas.drawCircle(dotX, rowY + m.rowH * 0.5f,
                     3.2f * density, view.selPaint);
             view.textPaint.setColor(view.theme.textColor);
             String msg = firstLine(d.message);
-            float avail = m.w - padX * 2 - 12 * density;
+            float avail = m.w - 2 * jo.codeeditor.view.popup.EditorPopupAnchors
+                    .SQUIGGLE_POPUP_PAD_X_DP * density - 12 * density;
             while (msg.length() > 1 && view.textPaint.measureText(msg) > avail) {
                 msg = msg.substring(0, msg.length() - 2) + "…";
             }
-            canvas.drawText(msg, padX + 12 * density,
+            canvas.drawText(msg, textX,
                     rowY + m.rowH * 0.5f + view.metrics.getTextSize() * 0.32f,
                     view.textPaint);
         }
     }
 
-    /** Détail : en-tête sévérité + message replié + quick-fixes + See all. */
+    /** Détail : en-tête sévérité + message replié + quick-fixes + See all.
+     *  UX-4 : textX/dotX dérivés de {@code m.contentLeft} — le contenu
+     *  suit la carte ancrée où qu'elle soit (gauche/droite). */
     private void drawSquiggleDetail(Canvas canvas,
             jo.codeeditor.view.popup.EditorPopupAnchors.SquigglePopupMetrics m,
-            float density, float padX) {
+            float density, float textX, float dotX) {
         DiagnosticShift.Diagnostic d = m.item;
         int color = getSquiggleColor(d.severity);
+        float padX = jo.codeeditor.view.popup.EditorPopupAnchors.SQUIGGLE_POPUP_PAD_X_DP
+                * density;
 
         // En-tête : point de sévérité + libellé enrichi (D4 — sévérité ·
         // code · source · ligne:col · badge ×N), coloré (semibold).
         float headCy = m.y + m.headerH * 0.5f;
         view.selPaint.setColor(color);
-        canvas.drawCircle(padX + 3.2f * density, headCy, 3.2f * density, view.selPaint);
+        canvas.drawCircle(dotX, headCy, 3.2f * density, view.selPaint);
         view.textPaint.setTypeface(view.metrics.getTypeface());
         view.textPaint.setTextSize(view.metrics.getTextSize() * 0.85f);
         view.textPaint.setFakeBoldText(true);
         view.textPaint.setColor(color);
         String header = jo.codeeditor.view.popup.EditorPopupAnchors
                 .diagnosticHeaderLabel(view, d);
-        canvas.drawText(header, padX + 12 * density,
+        canvas.drawText(header, textX,
                 headCy + view.metrics.getTextSize() * 0.30f, view.textPaint);
         view.textPaint.setFakeBoldText(false);
 
@@ -630,7 +640,7 @@ public class EditorDiagnosticsPainter {
         for (String word : msg.split("\\s+")) {
             String test = line.length() == 0 ? word : line + " " + word;
             if (view.textPaint.measureText(test) > maxMsgW && line.length() > 0) {
-                canvas.drawText(line.toString(), padX, msgY, view.textPaint);
+                canvas.drawText(line.toString(), m.contentLeft, msgY, view.textPaint);
                 msgY += jo.codeeditor.view.popup.EditorPopupAnchors.SQUIGGLE_POPUP_MSG_LINE_DP
                         * density;
                 if (++drawn > m.msgLines) break;
@@ -649,7 +659,7 @@ public class EditorDiagnosticsPainter {
                 }
                 rest += "…";
             }
-            canvas.drawText(rest, padX, msgY, view.textPaint);
+            canvas.drawText(rest, m.contentLeft, msgY, view.textPaint);
         }
 
         // Quick-fixes (résolus à l'ouverture — rendus dès publication).
@@ -660,7 +670,8 @@ public class EditorDiagnosticsPainter {
             view.textPaint.setTextSize(view.metrics.getTextSize() * 0.7f);
             view.textPaint.setFakeBoldText(true);
             canvas.drawText(view.getResources().getString(
-                    jo.codeeditor.ui.R.string.cel_diag_quick_fixes), padX, m.rowTop - 3 * density, view.textPaint);
+                    jo.codeeditor.ui.R.string.cel_diag_quick_fixes), m.contentLeft,
+                    m.rowTop - 3 * density, view.textPaint);
             view.textPaint.setFakeBoldText(false);
             view.textPaint.setTextSize(view.metrics.getTextSize() * 0.9f);
             for (int i = 0; i < m.rows && i < actions.size(); i++) {
@@ -668,7 +679,7 @@ public class EditorDiagnosticsPainter {
                 float rowY = m.rowTop + i * m.rowH;
                 view.selPaint.setColor(a.kind != null && a.kind.equals("quickfix")
                         ? view.theme.keyword : view.theme.gutterText);
-                canvas.drawCircle(padX + 3.2f * density, rowY + m.rowH * 0.5f,
+                canvas.drawCircle(dotX, rowY + m.rowH * 0.5f,
                         3.2f * density, view.selPaint);
                 view.textPaint.setColor(view.theme.textColor);
                 String title = a.title != null ? a.title : "";
@@ -676,7 +687,7 @@ public class EditorDiagnosticsPainter {
                 while (title.length() > 1 && view.textPaint.measureText(title) > avail) {
                     title = title.substring(0, title.length() - 2) + "…";
                 }
-                canvas.drawText(title, padX + 12 * density,
+                canvas.drawText(title, textX,
                         rowY + m.rowH * 0.5f + view.metrics.getTextSize() * 0.32f,
                         view.textPaint);
             }
@@ -688,7 +699,7 @@ public class EditorDiagnosticsPainter {
         view.textPaint.setFakeBoldText(true);
         float seeAllCy = m.seeAllY + m.rowH * 0.5f;
         canvas.drawText(view.getResources().getString(
-                jo.codeeditor.ui.R.string.cel_diag_see_all), padX + 12 * density,
+                jo.codeeditor.ui.R.string.cel_diag_see_all), textX,
                 seeAllCy + view.metrics.getTextSize() * 0.32f, view.textPaint);
         view.textPaint.setFakeBoldText(false);
         view.caretPaint.setStrokeWidth(1.6f * density);
