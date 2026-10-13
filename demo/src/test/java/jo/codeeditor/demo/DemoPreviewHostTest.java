@@ -155,4 +155,74 @@ public class DemoPreviewHostTest {
         assertTrue("liste ordonnée rendue", html.contains("<ol>"));
         assertTrue("fence rendu", html.contains("<pre><code>"));
     }
+
+    // ════════════════════════════════════════════════════════════════
+    // B7 (retour terrain n°4) — routage HTML brut vs Markdown + le
+    // nouvel échantillon HTML de la démo.
+    // ════════════════════════════════════════════════════════════════
+
+    @Test
+    public void payloadFor_fichierHtml_passeBrutSansConversion() {
+        String page = "<!DOCTYPE html><html><head><style>body{}</style></head>"
+                + "<body><h1>Salut</h1></body></html>";
+        // Avant B7, le HTML passait dans markdownToHtml qui l'ÉCHAPPAIT —
+        // les balises devenaient du texte visible.
+        assertEquals("le HTML brut passe TEL QUEL",
+                page, DemoPreviewHost.payloadFor("page.html", page));
+        assertEquals("idem pour .htm",
+                page, DemoPreviewHost.payloadFor("page.htm", page));
+    }
+
+    @Test
+    public void payloadFor_fichierMd_passeDansLaConversion() {
+        String payload = DemoPreviewHost.payloadFor("exemple.md", "# Titre\n");
+        assertTrue("l'enveloppe sombre de la démo est posée",
+                payload.contains("<!DOCTYPE html>"));
+        assertTrue("le Markdown est interprété (pas échappé)",
+                payload.contains("<h1>Titre</h1>"));
+        // Nom absent → défaut sûr : conversion Markdown.
+        String defaut = DemoPreviewHost.payloadFor(null, "# Titre\n");
+        assertTrue("sans nom de fichier : conversion Markdown",
+                defaut.contains("<h1>Titre</h1>"));
+    }
+
+    @Test
+    public void lEchantillonHtmlDeLaDemoPasseBrutEtEstComplet() {
+        String sample = DemoSamples.sampleFor("html");
+        assertTrue("l'échantillon HTML existe",
+                sample.contains("<!DOCTYPE html>"));
+        // Rendu BRUT : strictement identique (aucune conversion, aucun
+        // échappement — la page porte ses propres styles).
+        assertEquals("la page HTML passe brute dans la feuille",
+                sample, DemoPreviewHost.payloadFor("page.html", sample));
+        assertTrue("page autoportante (styles intégrés)",
+                sample.contains("<style>"));
+        assertTrue("viewport pour l'ajustement mobile",
+                sample.contains("width=device-width"));
+        // L'échantillon XML n'est PLUS mappé à un faux nom .html.
+        String xml = DemoSamples.sampleFor("xml");
+        assertFalse("l'échantillon XML reste du XML",
+                xml.startsWith("<!DOCTYPE html>"));
+    }
+
+    @Test
+    public void webviewCree_avecZoomTexteVerrouilleEtApercuAjuste() {
+        org.robolectric.RuntimeEnvironment.getApplication();
+        DemoPreviewHost host = new DemoPreviewHost();
+        android.content.Context ctx =
+                org.robolectric.RuntimeEnvironment.getApplication();
+        jo.codeeditor.view.EditorView editor =
+                new jo.codeeditor.view.EditorView(ctx);
+        android.view.View body = host.onCreatePreviewView(
+                ctx, editor, jo.codeeditor.view.EditorView.PreviewMode.SHEET_SPLIT);
+        assertTrue("le corps est un WebView", body instanceof android.webkit.WebView);
+        android.webkit.WebSettings settings = ((android.webkit.WebView) body).getSettings();
+        assertEquals("zoom de texte verrouillé à 100 (échelle système ignorée)",
+                100, settings.getTextZoom());
+        assertTrue("mode aperçu : page ajustée à la feuille",
+                settings.getLoadWithOverviewMode());
+        assertTrue("viewport large actif", settings.getUseWideViewPort());
+        assertFalse("pas de JavaScript dans l'aperçu",
+                settings.getJavaScriptEnabled());
+    }
 }

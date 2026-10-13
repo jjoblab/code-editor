@@ -14,10 +14,10 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Hôte d'aperçu de la démo (B5 → <b>v2 B6</b>) : rend les échantillons
- * <b>Markdown/HTML</b> dans la feuille d'aperçu de l'éditeur (WebView,
- * conversion HTML maison). C'est la preuve APK que l'action « œil » de la
- * barre de fil d'Ariane ouvre un aperçu vivant — la feuille flotte sur
+ * Hôte d'aperçu de la démo (B5 → <b>v2 B6</b> → <b>v3 B7</b>) : rend les
+ * échantillons <b>Markdown/HTML</b> dans la feuille d'aperçu de l'éditeur
+ * (WebView, conversion HTML maison). C'est la preuve APK que l'action « œil »
+ * de la barre de fil d'Ariane ouvre un aperçu vivant — la feuille flotte sur
  * l'éditeur (carte modernisée B6), et le contenu se re-rend en frappant
  * (débounce ~200 ms côté bibliothèque).
  *
@@ -28,16 +28,36 @@ import java.util.regex.Pattern;
  * niveau 6 — toujours sans dépendance externe (assez pour juger le flux,
  * pas assez pour prétendre à CommonMark). Le style passe au registre
  * « GitHub Dark » moderne : police lisible pour la prose, code en carte
- * bordée, citations à barre d'accent, tableaux à en-têtes contrastés.
- * Les fichiers {@code .html} bruts passent tels quels.</p>
+ * bordée, citations à barre d'accent, tableaux à en-têtes contrastés.</p>
+ *
+ * <p><b>Moteur v3 (B7, retour terrain n°4)</b> — le rendu « fit » enfin
+ * honnête :</p>
+ * <ul>
+ *   <li><b>HTML brut</b> : les fichiers {@code .html}/{@code .htm} passent
+ *       TELS QUELS au WebView (plus de conversion Markdown qui échappait
+ *       les balises — l'échantillon XML du même nom rendait n'importe quoi) ;
+ *       la conversion maison ne s'applique qu'aux {@code .md} ;</li>
+ *   <li><b>Zoom de texte verrouillé à 100 %</b> : le WebView suit par défaut
+ *       l'échelle de police SYSTÈME — un appareil réglé « grand » gonflait
+ *       la prose, débordait la carte et cassait l'ajustement ;</li>
+ *   <li><b>Mode aperçu</b> ({@code loadWithOverviewMode} + viewport large)
+ *       : la page s'ouvre ajustée à la feuille, pas à une largeur fantôme ;</li>
+ *   <li><b>Scroll préservé</b> : le rechargement débouncé pendant la frappe
+ *       ne remonte plus la feuille en haut à chaque 200 ms.</li>
+ * </ul>
  */
 public class DemoPreviewHost implements EditorPreviewHost {
 
     private WebView webView;
+    /** Dernier nom vu via {@link #canPreview} / {@link #onCreatePreviewView} —
+     *  pilote le choix HTML brut vs conversion Markdown. */
+    private String currentFileName = "";
 
     @Override
     public boolean canPreview(String fileName) {
         if (fileName == null) return false;
+        // Mémo du type courant — le rendu s'en sert (HTML brut vs Markdown).
+        currentFileName = fileName;
         String lower = fileName.toLowerCase(java.util.Locale.ROOT);
         return lower.endsWith(".md") || lower.endsWith(".markdown")
                 || lower.endsWith(".html") || lower.endsWith(".htm");
@@ -53,8 +73,7 @@ public class DemoPreviewHost implements EditorPreviewHost {
     @Override
     public void onPreviewContentChanged(CharSequence text) {
         if (webView != null) {
-            webView.loadDataWithBaseURL(null, wrapHtml(text),
-                    "text/html", "utf-8", null);
+            loadInto(webView, text);
         }
     }
 
@@ -80,18 +99,60 @@ public class DemoPreviewHost implements EditorPreviewHost {
         if (webView == null) {
             webView = new WebView(ctx.getApplicationContext());
             webView.getSettings().setJavaScriptEnabled(false);
+            // B7 « fit » : verrouille le zoom de texte — le WebView suit
+            // sinon l'échelle de police SYSTÈME et un appareil réglé
+            // « grand » gonflait la prose hors de la feuille.
+            webView.getSettings().setTextZoom(100);
+            // B7 « fit » : la page s'ouvre ajustée à la largeur réelle de
+            // la feuille (pas à une largeur fantôme puis dézoomée).
+            webView.getSettings().setLoadWithOverviewMode(true);
+            webView.getSettings().setUseWideViewPort(true);
             webView.setBackgroundColor(0xFF0D1117);
         }
+        // Mémo du nom depuis l'éditeur (canPreview peut ne pas avoir été
+        // rappelé pour CE fichier après un changement d'échantillon).
+        String name = editor.getFileName();
+        if (name != null) currentFileName = name;
         if (editor.getSession() != null) {
-            webView.loadDataWithBaseURL(null, wrapHtml(editor.getSession().getText()),
-                    "text/html", "utf-8", null);
+            loadInto(webView, editor.getSession().getText());
         }
         return webView;
     }
 
-    /** Enveloppe le HTML rendu dans la feuille sombre de la démo (le nom
+    /**
+     * Charge le texte dans le WebView cible selon le type de fichier
+     * courant, en préservant la position de lecture : le rechargement
+     * débouncé (frappe en scindé) ne doit PAS remettre la feuille en
+     * haut toutes les 200 ms.
+     */
+    private void loadInto(WebView target, CharSequence text) {
+        final int saveX = target.getScrollX();
+        final int saveY = target.getScrollY();
+        target.loadDataWithBaseURL(null, payloadFor(currentFileName, text),
+                "text/html", "utf-8", null);
+        if (saveX != 0 || saveY != 0) {
+            target.post(() -> target.scrollTo(saveX, saveY));
+        }
+    }
+
+    /**
+     * B7 — le corps envoyé au WebView selon le type de fichier : les
+     * {@code .html}/{@code .htm} passent BRUTS (leurs propres styles),
+     * tout le reste file dans l'enveloppe Markdown de la démo.
+     * Statique et pure — le routage est testable sans WebView.
+     */
+    static String payloadFor(String fileName, CharSequence text) {
+        String lower = fileName == null
+                ? "" : fileName.toLowerCase(java.util.Locale.ROOT);
+        if (lower.endsWith(".html") || lower.endsWith(".htm")) {
+            return text.toString();
+        }
+        return wrapHtml(text);
+    }
+
+    /** Enveloppe le Markdown rendu dans la feuille sombre de la démo (le nom
      *  de fichier est déjà porté par l'en-tête de la feuille). */
-    private String wrapHtml(CharSequence text) {
+    private static String wrapHtml(CharSequence text) {
         String body = markdownToHtml(text);
         return "<!DOCTYPE html><html><head><meta charset=\"utf-8\">"
                 + "<meta name=\"viewport\" content=\"width=device-width,"
@@ -109,7 +170,8 @@ public class DemoPreviewHost implements EditorPreviewHost {
             ":root{color-scheme:dark}"
             + "body{background:#0d1117;color:#e6edf3;margin:0;"
             + "padding:16px 18px 26px;font:15px/1.65 -apple-system,"
-            + "'Segoe UI',Roboto,'Helvetica Neue',sans-serif}"
+            + "'Segoe UI',Roboto,'Helvetica Neue',sans-serif;"
+            + "overflow-wrap:break-word;-webkit-text-size-adjust:100%}"
             + "h1,h2,h3,h4,h5,h6{color:#f0f6fc;line-height:1.25;"
             + "margin:1.05em 0 .4em}"
             + "h1{font-size:1.55em;border-bottom:1px solid #21262d;"

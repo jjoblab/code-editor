@@ -257,6 +257,11 @@ public class EditorPreviewSheet {
         // Carte flottante : ombre réelle au-dessus de l'éditeur (le contour
         // du GradientDrawable fournit l'outline de l'élévation).
         container.setElevation(editor.dp(12));
+        // B7 « fit » : le corps hôte (WebView & co.) est CLIPPÉ aux coins
+        // arrondis de la carte — sans quoi ses coins carrés dépassaient
+        // visuellement la carte flottante (l'outline du fond sert de
+        // masque, forme ET ombre partagent les mêmes rayons).
+        container.setClipToOutline(true);
     }
 
     private View buildHeader(Context ctx) {

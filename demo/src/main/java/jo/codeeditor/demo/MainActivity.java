@@ -328,11 +328,13 @@ public class MainActivity extends AppCompatActivity {
         analyzer = new DemoAnalyzer(editor, session, editorLanguageId);
         analyzer.attach();
         // B6 : nom de fichier fictif — déclenche canPreview du hôte
-        // d'aperçu (l'œil N'APPARAÎT que pour Markdown / XML-HTML,
-        // disparaît pour les autres échantillons — le changement
-        // rafraîchit la barre sœur SANS code ici : miroir setFileName).
+        // d'aperçu (l'œil N'APPARAÎT que pour Markdown / HTML, disparaît
+        // pour les autres échantillons — le changement rafraîchit la barre
+        // sœur SANS code ici : miroir setFileName). B7 : l'échantillon
+        // HTML a SA page (rendu BRUT par la feuille) et XML ne porte
+        // plus un faux nom .html (l'aperçu markdown-échappait le layout).
         editor.setFileName("markdown".equals(id) ? "exemple.md"
-                : "xml".equals(id) ? "index.html" : null);
+                : "html".equals(id) ? "page.html" : null);
         breadcrumb.refreshActions();
         // T2 (lot 2, J4) : preuve des actions socle sur la pill — les
         // INTÉGRÉES (Duplicate / Comment / Toggle case / Share /
