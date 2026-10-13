@@ -133,6 +133,15 @@ public class EditorSelectionGestures {
     }
 
     void handleLongPress(float x, float y) {
+        // B7 (retour terrain n°4) : un popup qui possède le point (région
+        // propre ou scrim modal) garde son appui long — l'appui long
+        // « sélection pour drag » ne démarre PAS derrière un popup
+        // affiché. Le garde doit venir AVANT tout effet (marquage,
+        // sélection du mot, clavier) : au relâchement, le tap du popup
+        // suit son chemin habituel (choix de rangée, dismiss…).
+        if (input.popupOwnsTouch(x, y)) {
+            return;
+        }
         // État du dispatcher (longPressTriggered, fin de drag/scroll) via
         // l'orchestrateur — corps historique déplacé à l'identique.
         input.markLongPressTriggered();

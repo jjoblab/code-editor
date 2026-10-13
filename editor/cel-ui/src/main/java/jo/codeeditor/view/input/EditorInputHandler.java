@@ -653,6 +653,73 @@ public class EditorInputHandler {
         isScrolling = false;
     }
 
+    /**
+     * B7 (retour terrain n°4) — vrai si un popup visible <b>possède</b> le
+     * point tactile : l'appui long doit alors s'abstenir de sélectionner
+     * le mot derrière lui.
+     *
+     * <p>Pourquoi ce garde : le {@code GestureDetector} est alimenté AVANT
+     * la cascade de hit-test des popups (il faut le flux complet pour la
+     * vélocité du fling) — son minuteur d'appui long se déclenche donc
+     * MÊME quand le geste appartient à un popup qui l'engloutit. Sans ce
+     * garde, un appui long maintenu DANS une complétion (ou sous le scrim
+     * modal d'une fiche de diagnostic) démarrait une sélection pour
+     * drag, ouvrait le clavier et volait le focus pendant que le popup
+     * croyait posséder le geste.</p>
+     *
+     * <p>Possession :</p>
+     * <ul>
+     *   <li>popups <b>modaux</b> (fiche de diagnostic, sheet de liste) :
+     *       le scrim couvre l'écran — tout point leur appartient ;</li>
+     *   <li>popups à région (complétion, quick doc, menu contextuel,
+     *       toolbar de sélection, popup d'actions de code, popup de
+     *       squiggle, aller-au-symbole) : le point DANS leurs bornes ;</li>
+     *   <li>un point HORS des popups reste à l'éditeur — l'appui long y
+     *       garde son comportement normal (sélection du mot, refermeture
+     *       du popup au relâchement par le chemin du tap).</li>
+     * </ul>
+     */
+    boolean popupOwnsTouch(float x, float y) {
+        // Modaux : le scrim couvre tout l'éditeur.
+        if (view.diagnosticPopupVisible || view.diagnosticListSheetLine >= 0) {
+            return true;
+        }
+        if (view.completionVisible && hitTester.hitTestCompletionPopup(x, y) >= 0) {
+            return true;
+        }
+        if (view.quickDocVisible) {
+            float[] qd = view.quickDocMetrics();
+            if (qd != null && x >= qd[0] && x <= qd[0] + qd[2]
+                    && y >= qd[1] && y <= qd[1] + qd[3]) {
+                return true;
+            }
+        }
+        if (view.navMenuVisible) {
+            float[] nm = view.navMenuMetrics();
+            if (nm != null && x >= nm[0] && x <= nm[0] + nm[2]
+                    && y >= nm[1] && y <= nm[1] + nm[3]) {
+                return true;
+            }
+        }
+        if (view.selectionToolbarVisible) {
+            EditorPopupAnchors.SelectionToolbarMetrics m = view.selectionToolbarMetrics();
+            if (m != null && m.contains(x, y)) {
+                return true;
+            }
+        }
+        if (view.squigglePopupVisible && hitTester.hitSquigglePopup(x, y) >= 0) {
+            return true;
+        }
+        if (view.codeActionsPopupVisible
+                && hitTester.hitTestCodeActionsPopup(x, y) >= 0) {
+            return true;
+        }
+        if (view.goToSymbolVisible && hitTester.hitTestGoToSymbolPopup(x, y) >= 0) {
+            return true;
+        }
+        return false;
+    }
+
     /** Position tactile courante du dispatcher (lue au vol par EditorTouchHoverController). */
     float currentTouchX() {
         return lastTouchX;
