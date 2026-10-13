@@ -63,6 +63,17 @@
 > les numéros de gouttière apprennent le RELATIF (`LineNumberStyle`
 > ABSOLUTE/RELATIVE/HYBRID : 0 au caret / numéro réel au caret +
 > distances, défaut ABSOLUTE inchangé). 1 729 tests verts (+19).
+> **Lot B13 (3.67.0)** : P1-2 de la feuille de route — le
+> drag-déposer de bloc à la TextView : mode ARMÉ par la pill ✥ Move
+> (`EditorView.armBlockDrag` + `BuiltinSelectionActions.blockDrag`)
+> car le drag au doigt étend déjà la sélection ; le geste suivant
+> appartient au bloc (englouti) — drag = déplacement (loupe
+> stabilisée + caret fantôme dans la loupe + carte flottante sous
+> le doigt + auto-scroll UX-2 partagé + suspension du recentrage
+> B9), tap = annulation, CANCEL/pincement/session = retombée
+> propre ; dépôt en UNE annulation (`EditorSession.moveRange`,
+> sélection ré-épinglée, sémantique caractère). 1 746 tests verts
+> (+17).
 > **Retour terrain n°6 (3.63.0)** : quatre irritants réglés à la
 > racine — B9a la « secousse » des lignes pendant le drag de sélection
 > (le recentrage du caret déclenché par CHAQUE application de
