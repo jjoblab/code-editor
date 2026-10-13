@@ -416,6 +416,9 @@ public class EditorSelectionGestures {
     }
 
     void dismissSelectionToolbar() {
+        // B7 : photographie la pill AVANT de nettoyer son état — le
+        // fantôme s'efface en 110 ms (fondus d'apparition/disparition).
+        view.popupFade.snuff(jo.codeeditor.view.popup.EditorPopupFade.Kind.SELECTION_TOOLBAR);
         view.selectionToolbarVisible = false;
         view.selectionToolbarPressedIdx = -1;
         view.invalidate();

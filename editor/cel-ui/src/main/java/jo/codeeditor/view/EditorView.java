@@ -1028,6 +1028,14 @@ public class EditorView extends View {
     // etc. — seules les méthodes de dessin ont bougé. Le renderer accède
     // aux champs package-private d'EditorView via la référence `view`.
     private final EditorRenderer renderer;
+    /**
+     * B7 — fondus d'apparition/disparition des popups Canvas (entrées par
+     * front montant dans le pipeline de rendu, sorties par photographie au
+     * dismiss). Public restreint : les popups du même groupe y appellent
+     * {@code snuff} juste avant de nettoyer leur état.
+     */
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public final jo.codeeditor.view.popup.EditorPopupFade popupFade;
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
     public final EditorInputHandler inputHandler;
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
@@ -1153,6 +1161,10 @@ public class EditorView extends View {
         this.session = new EditorSession();
         this.session.setImeListener(imeBridge.listener);
         this.session.setOnLinesShiftedListener(cacheShiftListener);
+        // B7 : contrôleur des fondus d'apparition/disparition des popups
+        // Canvas — créé AVANT le renderer, qui y enregistre ses peintres à
+        // sa construction.
+        this.popupFade = new jo.codeeditor.view.popup.EditorPopupFade(this);
         // Instancie le renderer qui possède toutes les méthodes draw*.
         this.renderer = new EditorRenderer(this);
         this.inputHandler = new EditorInputHandler(this);
@@ -2564,6 +2576,7 @@ public class EditorView extends View {
         // Referme la toolbar de sélection à l'édition — la sélection a pu
         // bouger ; annule aussi le tap-dismiss différé (un caret tapé
         // AVANT l'insert serait périmé après).
+        popupFade.snuff(jo.codeeditor.view.popup.EditorPopupFade.Kind.SELECTION_TOOLBAR);
         selectionToolbarVisible = false;
         selectionToolbarPressedIdx = -1;
         handlesVisible = false;

@@ -108,6 +108,8 @@ public class EditorRenamePopup {
             renamePopup = null;
         });
         renamePopup.showAtLocation(view, Gravity.TOP | Gravity.CENTER_HORIZONTAL, 0, view.dp(48));
+        // B7 : la carte descend du haut et se pose (140 ms).
+        EditorPopupMotion.cardIn(card.container, -view.dp(8));
         field.requestFocus();
         // Pré-validation du serveur (textDocument/prepareRename) : HORS
         // thread UI — la réponse remonte au champ : placeholder proposé,
@@ -273,7 +275,9 @@ public class EditorRenamePopup {
         renameStartOffset = -1;
         renameEndOffset = -1;
         if (renamePopup != null) {
-            renamePopup.dismiss();
+            // B7 : la vitre s'efface vers le haut (110 ms) — la référence
+            // meurt maintenant, la fenêtre à la fin de l'animation.
+            EditorPopupMotion.cardOut(renamePopup, -view.dp(8));
             renamePopup = null;
         }
         view.invalidate();

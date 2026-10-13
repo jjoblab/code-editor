@@ -2,6 +2,7 @@ package jo.codeeditor.view.preview;
 
 import jo.codeeditor.view.EditorView;
 import jo.codeeditor.view.icons.EditorIcons;
+import jo.codeeditor.view.popup.EditorPopupMotion;
 
 import androidx.annotation.RestrictTo;
 
@@ -157,6 +158,9 @@ public class EditorPreviewSheet {
         // Le bouton Retour ferme la feuille (le OnKeyListener par défaut du
         // PopupWindow honore KEYCODE_BACK quand focusable=true).
         popup.showAtLocation(editor, Gravity.NO_GRAVITY, x, y);
+        // B7 : la carte monte du bas et se pose (140 ms) — même mécanisme
+        // que les cartes glass (go-to-line, rename).
+        EditorPopupMotion.cardIn(sheetContainer, editor.dp(10));
 
         // Pousse le contenu initial dans le corps.
         refreshBody();
@@ -164,8 +168,13 @@ public class EditorPreviewSheet {
 
     void dismiss() {
         if (popup != null) {
-            popup.dismiss();
-            // onDismissed sera invoqué par le listener.
+            // B7 : la carte s'efface vers le bas (110 ms) — la fenêtre
+            // meurt à la fin de l'animation ; Retour système / double
+            // dismiss : garde interne (dismiss immédiat), onDismissed
+            // reste le point de sortie unique de l'état éditeur.
+            EditorPopupMotion.cardOut(popup, editor.dp(10));
+            // onDismissed sera invoqué par le listener à la mort réelle
+            // de la fenêtre (fin d'animation ou Retour).
         }
     }
 

@@ -213,6 +213,9 @@ public class EditorNavMenuPopup {
     /** Referme le menu contextuel unifié. */
     void dismissNavMenu() {
         navMenuGeneration++;
+        // B7 : photographie le menu AVANT de nettoyer son état — le
+        // fantôme s'efface en 110 ms (fondus d'apparition/disparition).
+        view.popupFade.snuff(jo.codeeditor.view.popup.EditorPopupFade.Kind.NAV_MENU);
         view.navMenuVisible = false;
         view.navMenuPressedIdx = -1;
         view.invalidate();

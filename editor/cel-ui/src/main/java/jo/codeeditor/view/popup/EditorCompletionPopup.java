@@ -51,6 +51,9 @@ public class EditorCompletionPopup {
         completionGeneration.incrementAndGet();
         cancelPendingFetch();
         if (view.completionVisible) {
+            // B7 : photographie le popup AVANT de nettoyer son état — le
+            // fantôme s'efface en 110 ms par-dessus le contenu.
+            view.popupFade.snuff(jo.codeeditor.view.popup.EditorPopupFade.Kind.COMPLETION);
             view.completionVisible = false;
             view.completionItems.clear();
             view.completionBaseItems.clear();
