@@ -24,6 +24,13 @@
     <string name="folds_all">Tout replier</string>
     <string name="folds_none">Tout déplier</string>
 
+    <!-- B15 (P2-2) : actions de gouttière de l’hôte (points d’arrêt de démo) -->
+    <string name="menu_breakpoint">Point d’arrêt (ligne du caret)</string>
+    <string name="breakpoint_set">Point d’arrêt posé — ligne %1$d</string>
+    <string name="breakpoint_removed">Point d’arrêt retiré — ligne %1$d</string>
+    <string name="breakpoint_armed">Point d’arrêt armé — ligne %1$d</string>
+    <string name="breakpoint_disarmed">Point d’arrêt désarmé — ligne %1$d</string>
+
     <!-- Plafond de lignes sticky (S4, lot 2) -->
     <string name="sticky_max_1">Max : 1 ligne</string>
     <string name="sticky_max_2">Max : 2 lignes (défaut)</string>

@@ -6,6 +6,7 @@ import android.view.MenuItem;
 import android.view.ViewGroup;
 import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
+import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -15,16 +16,20 @@ import com.google.android.material.button.MaterialButtonToggleGroup;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import jo.codeeditor.document.EditorDocument;
 import jo.codeeditor.session.EditorSession;
 import jo.codeeditor.view.EditorView;
+import jo.codeeditor.view.GutterAction;
 import jo.codeeditor.view.chrome.BreadcrumbBar;
 import jo.codeeditor.view.chrome.EditorSearchBar;
 import jo.codeeditor.view.chrome.EditorTheme;
 import jo.codeeditor.view.chrome.LineNumberStyle;
+import jo.codeeditor.view.icons.EditorIcons;
 
 /**
  * Terrain de jeu de la bibliothèque code-editor : éditeur plein écran,
@@ -45,6 +50,9 @@ public class MainActivity extends AppCompatActivity {
     private boolean editorLight = false;
     private boolean schemeOn = false;
     private MenuItem languageItem;
+    // B15 (P2-2) : état des points d'arrêt de démo — le fournisseur
+    // actif des GutterAction le relit à chaque rendu (armé = accent).
+    private final Set<Integer> armedBreakpoints = new HashSet<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -190,6 +198,48 @@ public class MainActivity extends AppCompatActivity {
         editor.invalidate();
     }
 
+    /**
+     * B15 (P2-2) : pose/retire un point d'arrêt de démo sur la ligne du
+     * caret — l'usage canonique de {@link EditorView#gutterActions} :
+     * la pill remplace le numéro (façon Android Studio), le tap exécute
+     * perform() (armé/désarmé) et le fournisseur actif est relu au
+     * rendu (le toggle n'a PAS besoin de ré-enregistrer l'action).
+     */
+    private void toggleBreakpoint() {
+        if (session == null || session.getDocument() == null) return;
+        int caretOffset = session.getSelection().start;
+        int line = session.getDocument().lineForOffset(caretOffset);
+        GutterAction existing = editor.gutterActions.actionForLine(line);
+        if (existing != null) {
+            editor.gutterActions.remove(existing.id);
+            armedBreakpoints.remove(line);
+            Toast.makeText(this, getString(R.string.breakpoint_removed, line + 1),
+                    Toast.LENGTH_SHORT).show();
+            return;
+        }
+        armedBreakpoints.add(line);
+        editor.gutterActions.add(new GutterAction("demo-bp-" + line, line,
+                EditorIcons.Icon.BREAKPOINT,
+                () -> {
+                    // Tap sur la pill : arme/désarme — le fournisseur
+                    // actif ci-dessous relit l'état au prochain rendu.
+                    if (armedBreakpoints.remove(line)) {
+                        Toast.makeText(this,
+                                getString(R.string.breakpoint_disarmed, line + 1),
+                                Toast.LENGTH_SHORT).show();
+                    } else {
+                        armedBreakpoints.add(line);
+                        Toast.makeText(this,
+                                getString(R.string.breakpoint_armed, line + 1),
+                                Toast.LENGTH_SHORT).show();
+                    }
+                    editor.invalidate();
+                },
+                () -> armedBreakpoints.contains(line)));
+        Toast.makeText(this, getString(R.string.breakpoint_set, line + 1),
+                Toast.LENGTH_SHORT).show();
+    }
+
     /** Bascule thème jour/nuit — la base du scheme suit (lot 4 #25). */
     void applyEditorTheme(boolean light) {
         editorLight = light;
@@ -253,6 +303,13 @@ public class MainActivity extends AppCompatActivity {
         }
         if (id == R.id.action_find) {
             searchBar.open();
+            return true;
+        }
+        // B15 (P2-2) : démo de l'API GutterAction — pose/retire un point
+        // d'arrêt sur la ligne du caret ; le tap sur la pill l'arme/le
+        // désarme (fournisseur actif relu au rendu).
+        if (id == R.id.action_breakpoint) {
+            toggleBreakpoint();
             return true;
         }
         if (id == R.id.indent_guides_scope) {
@@ -403,6 +460,13 @@ public class MainActivity extends AppCompatActivity {
         // RESTAURE 1,8 (et une vue recréée — rotation mise à part, B17
         // la couvre précisément — repart du réglage mémorisé).
         editor.setZoomMemoryKey(editorLanguageId);
+        // B15 (P2-2) : les points d'arrêt de démo appartiennent à
+        // l'ÉCHANTILLON précédent — l'hôte vide son registre au
+        // changement de fichier (les actions de gouttière sont des
+        // données d'hôte : elles survivent à setSession par conception,
+        // c'est à l'hôte de décider de leur pertinence).
+        editor.gutterActions.clear();
+        armedBreakpoints.clear();
         breadcrumb.refreshActions();
         // B10 : la recherche suit le changement d'échantillon — le
         // contrôleur ré-accroche la session et recalcule (purge du

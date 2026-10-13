@@ -118,6 +118,15 @@ public class EditorView extends View {
     public final EditorFastScroller fastScroller;
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
     public final EditorErrorStripe errorStripe;
+    // ── B15 (P2-2) — actions de gouttière de l'HÔTE : l'API publique
+    // GutterAction généralisée (fondations B9c). Le registre expose
+    // add/remove/clear/actionForLine ; la gouttière dessine la pill de
+    // chaque action sur SA ligne (même géométrie déterministe que
+    // l'œil d'aperçu) et le tap exécute perform() sans toucher au
+    // caret. Données d'HÔTE : elles survivent aux setSession (parité
+    // actions de pill) — l'hôte vide le registre quand il change de
+    // fichier.
+    public final EditorGutterActions gutterActions;
     // ── B13 (P1-2) : contrôleur du drag-déposer de bloc (mode armé
     // par la pill ✥, moteur EditorSession.moveRange) — l'état du
     // geste vit ici, le rendu (carte flottante, caret fantôme, loupe)
@@ -1157,6 +1166,11 @@ public class EditorView extends View {
         this.metrics = new EditorMetrics();
         this.theme = EditorTheme.dark();
         this.gutterView = new GutterView(metrics, theme);
+        // ★ B15 (P2-2) : le registre d'actions de gouttière de l'hôte —
+        // posé UNE fois, la gouttière consulte la liste à chaque rendu
+        // (add/remove/clear → invalidate → redraw, aucun re-pose).
+        this.gutterActions = new EditorGutterActions(this);
+        this.gutterView.setHostActions(this.gutterActions);
         // Passe la densité d'écran pour que le point de diagnostic soit
         // dimensionné en dp.
         this.gutterView.setDensity(getResources().getDisplayMetrics().density);

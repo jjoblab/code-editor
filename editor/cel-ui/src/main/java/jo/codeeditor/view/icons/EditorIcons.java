@@ -127,7 +127,17 @@ public final class EditorIcons {
          */
         SWAP_VERT(true,
                 "M6.99 11L3 15l3.99 4v-3H14v-2H6.99v-3z "
-                + "M21 9l-3.99-4v3H10v2h7.01v3L21 9z");
+                + "M21 9l-3.99-4v3H10v2h7.01v3L21 9z"),
+
+        /**
+         * Point d'arrêt — disque plein (Material « fiber_manual_record »
+         * approché par QUATRE cubiques : le parseur du moteur rejette
+         * les arcs elliptiques, parité SEARCH). Famille FILL, B15 :
+         * l'icône canonique des {@code GutterAction} d'hôte.
+         */
+        BREAKPOINT(true,
+                "M12 4 C16.42 4 20 7.58 20 12 C20 16.42 16.42 20 12 20 "
+                + "C7.58 20 4 16.42 4 12 C4 7.58 7.58 4 12 4 Z");
 
         /** true = famille FILL (formes pleines), false = STROKE (traits). */
         final boolean fill;
