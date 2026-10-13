@@ -362,6 +362,33 @@ public class EditorTapResolver {
             }
         }
 
+        // ── I4 (lot 2, J6) : tap sur un hint CLIQUABLE → command ──
+        // Résolu AVANT le placement du caret (précédent complétion) et
+        // AVANT le squiggle D1 : un hint portant une command est un
+        // élément interactif tissé dans la ligne (ex. « … »
+        // d'expansion) — le tap l'exécute. Un hint SANS command reste
+        // du texte fantôme : la cascade continue (caret, squiggle…).
+        // Le long-press reste la voie du tooltip (I2) — le tap est la
+        // voie de l'action.
+        if (tapCount == 1 && x >= view.metrics.getGutterWidth()) {
+            EditorSelectionGestures.InlayHit hit =
+                    selectionGestures.inlayHitAt(x, y);
+            if (hit != null && hit.hint.command != null) {
+                try {
+                    hit.hint.command.run();
+                } catch (Exception e) {
+                    jo.codeeditor.util.EditorLog.warn("EditorInlay",
+                            "commande d'inlay échouée", e);
+                }
+                // Contrat des actions d'édition : rafraîchissement
+                // complet après exécution (diagnostics, hints,
+                // popups différés — point d'entrée unique).
+                view.onTextChanged();
+                view.invalidate();
+                return;
+            }
+        }
+
         // ── D1 : tap au CŒUR d'une plage squigglée → popup ancré ──
         // Le squiggle EST tappable (niveau 1 de lecture) : bords ±1
         // caractère exclus (le caret reste plaçable avant/après la

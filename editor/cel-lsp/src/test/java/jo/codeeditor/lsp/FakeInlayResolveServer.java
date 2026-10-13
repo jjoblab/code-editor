@@ -33,6 +33,12 @@ public class FakeInlayResolveServer implements LanguageServer {
     public volatile boolean announceResolve;
     /** I3 (J6) : hint #2 servi avec un libellé multi-parts (tooltips par part). */
     public volatile boolean multiPartLabels;
+    /** I4 (J6) : la part 2 du hint multi-parts porte une command LSP. */
+    public volatile boolean commandOnPart;
+    /** Compteur de requêtes workspace/executeCommand reçues. */
+    public volatile int executeCommandRequests;
+    /** Dernière command reçue par workspace/executeCommand. */
+    public volatile String lastExecuteCommand;
     /** Tooltip servi par inlayHint/resolve (null = refus du serveur). */
     public volatile String resolveTooltip = "java.lang.String — le type de la variable";
     /** Compteur de requêtes inlayHint reçues. */
@@ -110,6 +116,13 @@ public class FakeInlayResolveServer implements LanguageServer {
                             new org.eclipse.lsp4j.InlayHintLabelPart();
                     p2.setValue(": str");
                     p2.setTooltip("Le type inféré du paramètre");
+                    if (commandOnPart) {
+                        // I4 : la command vit sur la PART (spec 3.17).
+                        org.eclipse.lsp4j.Command cmd = new org.eclipse.lsp4j.Command();
+                        cmd.setCommand("demo.expandHint");
+                        cmd.setTitle("Développer");
+                        p2.setCommand(cmd);
+                    }
                     lazy.setLabel(java.util.Arrays.asList(p1, p2));
                     lazy.setPaddingLeft(true);
                     lazy.setPaddingRight(true);
@@ -148,6 +161,14 @@ public class FakeInlayResolveServer implements LanguageServer {
             @Override
             public void didChangeWatchedFiles(
                     org.eclipse.lsp4j.DidChangeWatchedFilesParams params) {
+            }
+
+            @Override
+            public java.util.concurrent.CompletableFuture<Object> executeCommand(
+                    org.eclipse.lsp4j.ExecuteCommandParams params) {
+                executeCommandRequests++;
+                lastExecuteCommand = params.getCommand();
+                return java.util.concurrent.CompletableFuture.completedFuture(null);
             }
         };
     }

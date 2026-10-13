@@ -10,10 +10,13 @@ import java.util.List;
  * paramètres).
  *
  * <p>Contrat : {@link #inlayHints} est appelée sur un thread de travail,
- * avec un debounce après chaque édition ; l'éditeur demande actuellement la
- * plage du document ENTIER (première à dernière ligne). Les exceptions sont
- * interceptées ; une réponse vide ou {@code null} efface les hints
- * existants.</p>
+ * avec un debounce après chaque édition ; par défaut l'éditeur demande la
+ * plage du document ENTIER (première à dernière ligne — le démon interne
+ * calcule le fichier complet, la pleine plage ne le coûte pas plus). Un
+ * provider EXIGEANT (serveur externe) peut opter pour la plage VISIBLE
+ * ± 4 lignes avec re-requête au scroll idle (~200 ms) via
+ * {@link #wantsViewportRange()}. Les exceptions sont interceptées ; une
+ * réponse vide ou {@code null} efface les hints existants.</p>
  */
 public interface InlayHintProvider {
 
@@ -45,5 +48,23 @@ public interface InlayHintProvider {
      */
     default InlayHint resolveHint(CharSequence text, InlayHint hint) {
         return hint;
+    }
+
+    /**
+     * I5 (lot 2, J6) — vrai si ce provider préfère être interrogé sur la
+     * plage VISIBLE (viewport ± 4 lignes) avec re-requête quand le
+     * scroll s'arrête (~200 ms de calme), au lieu du document entier.
+     *
+     * <p>Défaut : {@code false} — le document entier est demandé (le
+     * démon interne calcule le fichier complet de toute façon, et la
+     * pleine plage garantit des hints sur chaque ligne où l'utilisateur
+     * scrolle sans re-requête). À passer à {@code true} pour les
+     * serveurs externes exigeants : la requête devient une fenêtre, et
+     * l'éditeur re-demande quand le viewport se stabilise. La livraison
+     * reste latest-wins par génération — une requête périmée est
+     * simplement jetée.</p>
+     */
+    default boolean wantsViewportRange() {
+        return false;
     }
 }

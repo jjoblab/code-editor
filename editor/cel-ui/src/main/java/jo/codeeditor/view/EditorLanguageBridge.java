@@ -384,20 +384,33 @@ final class EditorLanguageBridge {
                 inlayHintTask = () -> {
                     if (view.session == null || inlayHintProviderSpi == null) return;
                     EditorDocument doc = view.session.getDocument();
-                    // Demande le document ENTIER : le démon du moteur
-                    // demande {@code hintsAt(path, text, 0, text.length)}
-                    // pour le buffer complet, pour que des hints soient
-                    // disponibles sur chaque ligne où l'utilisateur scrolle.
-                    // Une requête limitée au viewport (lignes visibles ±4,
-                    // calculée depuis vOffset/getHeight()) serait cassée
-                    // deux fois : au démarrage getHeight()==0 donc ~5 lignes
-                    // seulement auraient des hints, et rien ne re-requête au
-                    // scroll — les hints n'apparaîtraient jamais sous le
-                    // premier écran. Le serveur interne calcule les hints du
-                    // fichier entier quelle que soit la plage demandée, donc
-                    // la requête pleine plage coûte pareil.
+                    // Défaut : document ENTIER (le démon du moteur demande
+                    // {@code hintsAt(path, text, 0, text.length)} pour le
+                    // buffer complet — la pleine plage ne lui coûte pas
+                    // plus, et les hints restent disponibles sur chaque
+                    // ligne où l'utilisateur scrolle sans re-requête).
+                    // I5 (J6) : un provider exigeant
+                    // ({@code wantsViewportRange()}) reçoit la fenêtre
+                    // VISIBLE ± 4 lignes, recalculée à chaque requête, avec
+                    // re-requête au scroll idle (scheduleInlayViewportRefresh).
+                    // getHeight()==0 (avant le premier layout) retombe sur
+                    // la pleine plage : la fenêtre serait fausse et
+                    // jamais corrigée sans scroll.
                     int first = 0;
                     int last = Math.max(0, doc.lineCount() - 1);
+                    if (inlayHintProviderSpi.wantsViewportRange()
+                            && view.getHeight() > 0
+                            && view.metrics != null
+                            && view.metrics.getLineHeight() > 0) {
+                        float lineH = view.metrics.getLineHeight();
+                        int visibleFirst = (int) Math.floor(
+                                view.vOffset / lineH);
+                        int visibleLast = (int) Math.floor(
+                                (view.vOffset + view.getHeight()) / lineH);
+                        first = Math.max(0, visibleFirst - INLAY_VIEWPORT_MARGIN);
+                        last = Math.min(doc.lineCount() - 1,
+                                visibleLast + INLAY_VIEWPORT_MARGIN);
+                    }
                     // La requête inlayHint LSP (5 s) quitte le
                     // thread UI ; livraison latest-wins par génération.
                     final int gen = ++inlayGeneration;
@@ -439,7 +452,7 @@ final class EditorLanguageBridge {
                                 }
                                 legacy.add(new DiagnosticShift.InlayHint(
                                         hint.offset, hint.text, true, hint.kind,
-                                        hint.tooltip, parts));
+                                        hint.tooltip, parts, hint.command));
                             }
                         }
                         final java.util.List<DiagnosticShift.InlayHint> computed = legacy;
@@ -492,17 +505,61 @@ final class EditorLanguageBridge {
     private Runnable inlayHintTask;
     private static final int INLAY_HINT_DEBOUNCE_MS = 800;
 
+    /** Handler de repli (main looper) — la vue peut être configurée AVANT
+     *  son attachement ({@code getHandler() == null}) : le rafraîchissement
+     *  initial des inlay hints partirait alors jamais. Pattern du tapHandler
+     *  d'EditorInputHandler. */
+    private android.os.Handler mainHandler;
+
+    private android.os.Handler handler() {
+        if (view.getHandler() != null) return view.getHandler();
+        if (mainHandler == null) {
+            mainHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+        }
+        return mainHandler;
+    }
+
     /** Planifie un rafraîchissement débouncé des inlay hints. */
     void scheduleInlayHints() {
         if (inlayHintProviderSpi == null || inlayHintTask == null) return;
-        if (view.getHandler() != null) {
-            view.getHandler().removeCallbacks(inlayHintTask);
-            view.getHandler().postDelayed(inlayHintTask, INLAY_HINT_DEBOUNCE_MS);
-        }
+        android.os.Handler h = handler();
+        h.removeCallbacks(inlayHintTask);
+        h.postDelayed(inlayHintTask, INLAY_HINT_DEBOUNCE_MS);
     }
 
     /** Génération des inlay hints (annulation). */
     private volatile int inlayGeneration = 0;
+
+    // ── I5 (lot 2, J6) : re-requête au scroll idle ─────────────────
+    // Marge de lignes au-dessus/en-dessous du viewport demandée au
+    // provider exigeant (fenêtre de requête).
+    private static final int INLAY_VIEWPORT_MARGIN = 4;
+    /** Calme de scroll avant la re-requête (ms). */
+    private static final int INLAY_SCROLL_IDLE_MS = 200;
+    /** Tâche de re-requête au repos du scroll (ré-armée à chaque scroll). */
+    private Runnable inlayScrollIdleTask;
+
+    /**
+     * I5 — (ré-)arme la re-requête des inlay hints au repos du scroll :
+     * appelé à CHAQUE notification de scroll (pattern du préfetch du
+     * viewport — un removeCallbacks + postDelayed, bon marché en plein
+     * fling). Ne s'arme que pour un provider à plage viewport ; au feu,
+     * la tâche relance {@code inlayHintTask} qui recalcule la fenêtre
+     * COURANTE (latest-wins par génération).
+     */
+    void scheduleInlayViewportRefresh() {
+        if (inlayHintProviderSpi == null || inlayHintTask == null) return;
+        if (!inlayHintProviderSpi.wantsViewportRange()) return;
+        if (inlayScrollIdleTask == null) {
+            inlayScrollIdleTask = () -> {
+                if (inlayHintProviderSpi == null || inlayHintTask == null) return;
+                inlayHintTask.run();
+            };
+        }
+        android.os.Handler h = handler();
+        h.removeCallbacks(inlayScrollIdleTask);
+        h.postDelayed(inlayScrollIdleTask, INLAY_SCROLL_IDLE_MS);
+    }
 
     // ── Document highlights (débouncés) ─────────────────────────────
 
@@ -569,6 +626,17 @@ final class EditorLanguageBridge {
      * garde de fraîcheur à l'application.
      */
     void cancelPending() {
+        // I5 : la re-requête scroll-idle en attente meurt au détachement
+        // (pattern du préfetch viewport). Les deux handlers sont nettoyés :
+        // le repli main-looper peut porter la tâche d'une vue détachée.
+        if (inlayScrollIdleTask != null) {
+            if (view.getHandler() != null) {
+                view.getHandler().removeCallbacks(inlayScrollIdleTask);
+            }
+            if (mainHandler != null) {
+                mainHandler.removeCallbacks(inlayScrollIdleTask);
+            }
+        }
     }
 
     /**

@@ -115,6 +115,41 @@ class InlayLabelPartsTest {
     }
 
     @Test
+    void commandDePart_devientRunnableExécutéAuTap() throws Exception {
+        server.commandOnPart = true;
+        List<InlayHint> hints = new LspInlayHintProvider(wrapper, editor, null)
+                .inlayHints(DOC, 0, 2);
+        InlayHint multi = hints.get(1);
+        assertNotNull(multi.command, "la command de la part traverse le SPI");
+
+        // AUCUNE requête à la conversion (le Runnable est paresseux).
+        assertEquals(0, server.executeCommandRequests,
+                "aucune requête à la conversion (le Runnable est paresseux)");
+
+        // Le tap exécute le Runnable → workspace/executeCommand (ASYNCHRONE).
+        multi.command.run();
+        long fin = System.currentTimeMillis() + 5000;
+        while (server.executeCommandRequests < 1
+                && System.currentTimeMillis() < fin) {
+            Thread.sleep(20);
+        }
+        assertEquals(1, server.executeCommandRequests,
+                "exactement UNE requête executeCommand au tap");
+        assertEquals("demo.expandHint", server.lastExecuteCommand,
+                "la command LSP est transportée telle quelle");
+    }
+
+    @Test
+    void sansCommandDePart_hintSansCommand() {
+        server.commandOnPart = false;
+        List<InlayHint> hints = new LspInlayHintProvider(wrapper, editor, null)
+                .inlayHints(DOC, 0, 2);
+        assertNull(hints.get(1).command,
+                "pas de command sur les parts → hint passif");
+        assertNull(hints.get(0).command, "hint plat : jamais de command");
+    }
+
+    @Test
     void libelléPlat_hintSansParts() {
         server.multiPartLabels = false;
         List<InlayHint> hints = new LspInlayHintProvider(wrapper, editor, null)

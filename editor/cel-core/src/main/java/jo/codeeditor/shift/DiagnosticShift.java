@@ -239,22 +239,33 @@ public final class DiagnosticShift {
         public final String tooltip;
         /** Parts structurées du libellé (I3, J6) — null pour un hint plat. */
         public final java.util.List<InlayHintPart> parts;
+        /**
+         * Commande du hint (I4, J6) — exécutée au tap simple sur la
+         * plage tissée, AVANT le placement du caret. Null : hint passif.
+         */
+        public final Runnable command;
 
         public InlayHint(int offset, String text, boolean before) {
-            this(offset, text, before, "type", null, null);
+            this(offset, text, before, "type", null, null, null);
         }
 
         public InlayHint(int offset, String text, boolean before, String kind) {
-            this(offset, text, before, kind, null, null);
+            this(offset, text, before, kind, null, null, null);
         }
 
         public InlayHint(int offset, String text, boolean before, String kind,
                 String tooltip) {
-            this(offset, text, before, kind, tooltip, null);
+            this(offset, text, before, kind, tooltip, null, null);
         }
 
         public InlayHint(int offset, String text, boolean before, String kind,
                 String tooltip, java.util.List<InlayHintPart> parts) {
+            this(offset, text, before, kind, tooltip, parts, null);
+        }
+
+        public InlayHint(int offset, String text, boolean before, String kind,
+                String tooltip, java.util.List<InlayHintPart> parts,
+                Runnable command) {
             this.offset = offset;
             this.text = text != null ? text : "";
             this.before = before;
@@ -262,6 +273,7 @@ public final class DiagnosticShift {
             this.tooltip = tooltip;
             this.parts = parts != null && !parts.isEmpty()
                     ? java.util.Collections.unmodifiableList(parts) : null;
+            this.command = command;
         }
     }
 
@@ -289,7 +301,7 @@ public final class DiagnosticShift {
         for (InlayHint h : hints) {
             int newOffset = mapStart(h.offset, span);
             result.add(new InlayHint(newOffset, h.text, h.before, h.kind,
-                    h.tooltip, h.parts));
+                    h.tooltip, h.parts, h.command));
         }
         return result;
     }
