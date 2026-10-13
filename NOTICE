@@ -19,3 +19,16 @@ Le module `cel-lsp` déclare explicitement
 `com.google.code.gson:gson` en version 2.10.1 (déjà transitif de LSP4J),
 sous licence **Apache License 2.0**. Gson sert à la désérialisation des
 réponses des requêtes LSP personnalisées envoyées via RemoteEndpoint.
+
+## Material Symbols (chemins d'icônes dérivés, module `cel-ui`)
+
+Les paths d'icônes du moteur `jo.codeeditor.view.icons.EditorIcons`
+(annuler, rétablir, œil de visibilité — famille FILL) dérivent du jeu
+**Material Symbols** publié par Google sous licence **Apache License
+2.0**. Il ne s'agit pas d'une dépendance embarquée : les coordonnées
+de paths sont re-écrites en dur dans le source, ajustées pour les
+besoins de la bibliothèque (miroir du rétablir, scinder/étendre/
+fermer dessinés maison en famille STROKE). Conformément à l'Apache
+2.0, cette notice tient lieu d'attribution ; la licence complète est
+disponible à
+https://www.apache.org/licenses/LICENSE-2.0.html
