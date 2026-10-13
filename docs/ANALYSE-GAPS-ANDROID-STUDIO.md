@@ -109,25 +109,27 @@ possède déjà `selectWordAt`/`selectLineAt` : ajouter `selectParagraphAt`
 (étendre jusqu'aux lignes vides encadrantes) et un `case 4` dans la
 cascade. Effort : petit.
 
-**P0-3 · Défilement par la gouttière (drag de numéros).** Android Studio
-permet de faire défiler le document en glissant dans la gouttière à
-numéros. code-editor : un drag dans la gouttière défile déjà
-(`isScrolling = true` au DOWN dans la zone numéros) — le comportement
-est présent mais **sans retour visuel du pouce** (pas d'indicateur de
-position pendant le glissement). **Recommandation** : une mini-barre de
-position flottante pendant le drag de gouttière (le « fast scroller »
-des listes Android), qui disparaît au relâchement. Effort : petit.
+**P0-3 · Défilement par la gouttière (drag de numéros) — ✅ LIVRÉ
+en B11 (v3.65.0)** : le drag de gouttière est devenu un
+positionnement ABSOLU (`EditorFastScroller`) — pouce 4 dp au bord
+droit + bulle de numéro de ligne, armé au-delà du touch-slop (un tap
+reste un tap), relâchement en fondu 250 ms sans fling, annulation au
+pincement/CANCEL/session. Historique de l'écart (v3.64.0) : le drag
+dans la gouttière défilait déjà en pixel-relatif mais SANS retour
+visuel du pouce (et n'offrait qu'un écran par geste).
 
 ### P1 — parité riche
 
-**P1-1 · Bande d'erreurs à droite (error stripe).** Android Studio : la
-barre de défilement verticale porte les marqueurs d'erreur/warning/TODO
-cliquables + le rectangle de la viewport. code-editor : les diagnostics
-n'existent que dans la gouttière (points) et le texte (squiggles) —
-sur un fichier long, les erreurs hors écran sont invisibles. Avec la
-liste déjà triée par ligne (`OpenTabDiagnosticsSweep`), dessiner une
-stripe de 4dp au bord droit (marqueurs colorés, tap = scroll + fiche
-de diagnostic) est direct. Effort : moyen-petit.
+**P1-1 · Bande d'erreurs à droite (error stripe) — ✅ LIVRÉ en B11
+(v3.65.0)** : `EditorErrorStripe` — marqueurs colorés par ligne
+diagnostiquée (même source que les points de gouttière via le pusher,
+compactée en paires sparse), rectangle du viewport, tap marqueur =
+dépliage + centrage + fiche, drag = défilement absolu (pouce + bulle
+partagés avec le fast-scroller), silence en aperçu, bascule publique
+`setErrorStripeEnabled` (défaut actif). Historique de l'écart
+(v3.64.0) : les diagnostics n'existaient que dans la gouttière
+(points) et le texte (squiggles) — sur un fichier long, les erreurs
+hors écran étaient invisibles.
 
 **P1-2 · Déplacer du texte par glisser-déposer de sélection.** Android
 Studio (desktop) : `Ctrl+D`-like et drag de texte ; la convention
@@ -187,7 +189,7 @@ coût. À ne faire que sur demande explicite.
 |---|---|---|---|
 | B10 | P0-1 recherche/remplacement (`EditorSearchBar` + surlignage + raccourci) — **livré v3.64.0** | P0 | moyenne |
 | B10 | P0-2 `selectParagraphAt` + 4e tap — **livré v3.64.0** | P0 | petite |
-| B11 | P0-3 fast-scroller de gouttière + P1-1 error stripe | P0/P1 | moyenne |
+| B11 | P0-3 fast-scroller de gouttière + P1-1 error stripe — **livré v3.65.0** | P0/P1 | moyenne |
 | B12 | P1-3 persistance du zoom + P1-4 colonnes relatives | P1 | petite |
 | B12 | P2-2 API `GutterAction` généralisée (fondée sur B9c) | P2 | moyenne |
 | B13 | P1-2 drag-déposer de bloc (mode pill ✥) | P1 | moyenne |
@@ -205,10 +207,12 @@ fichiers longs ; tout le reste est augmentatif.
 La trajectoire des retours terrain n°1→n°6 (popups, wrap, aperçu,
 secousse, pincement, gouttière) a refermé les irritants de base de
 l'édition tactile : le composant éditeur est désormais au niveau des
-conventions plateforme sur son cœur. Le prochain palier de valeur est
-la **navigation dans le contenu** (recherche, stripe d'erreurs,
-fast-scroll) — les trois écarts P0/P1-1 partagent d'ailleurs la même
-infrastructure de surlignage et de fenêtrage, ce qui les rend
-naturellement regroupables. L'API `GutterAction` (P2-2) est le pari
-stratégique : B9c vient d'en poser les fondations, et CodeIDE en est
-le premier consommateur naturel.
+conventions plateforme sur son cœur. B10 (recherche) puis B11 (stripe
+d'erreurs, fast-scroll) referment le palier suivant — la **navigation
+dans le contenu** : les trois écarts P0/P1-1 partageaient la même
+infrastructure de surlignage et de fenêtrage, désormais livrée. Le
+prochain palier est la parité riche (P1-3 zoom persistant,
+P1-4 colonnes relatives, P1-2 drag de bloc, P1-5 plis par niveau) —
+B12 (petit) est le candidat naturel. L'API `GutterAction` (P2-2)
+reste le pari stratégique : B9c en a posé les fondations, et CodeIDE
+en est le premier consommateur naturel.
