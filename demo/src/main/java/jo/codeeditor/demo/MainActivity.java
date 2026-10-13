@@ -232,6 +232,32 @@ public class MainActivity extends AppCompatActivity {
             editor.setStickyMaxLines(5);
             return true;
         }
+        if (id == R.id.magnifier_zoom_15) {
+            editor.setMagnifierZoom(1.5f);
+            return true;
+        }
+        if (id == R.id.magnifier_zoom_20) {
+            editor.setMagnifierZoom(2f);
+            return true;
+        }
+        if (id == R.id.magnifier_zoom_25) {
+            editor.setMagnifierZoom(2.5f);
+            return true;
+        }
+        if (id == R.id.magnifier_zoom_30) {
+            editor.setMagnifierZoom(3f);
+            return true;
+        }
+        if (id == R.id.magnifier_native_on) {
+            // M3 : widget plateforme (rendu de la VRAIE frame, style
+            // système) — silencieusement ignoré sous API 28 (repli custom).
+            editor.setNativeMagnifierEnabled(true);
+            return true;
+        }
+        if (id == R.id.magnifier_native_off) {
+            editor.setNativeMagnifierEnabled(false);
+            return true;
+        }
         if (id == R.id.swatch_on) {
             editor.setColorSwatchesEnabled(true);
             return true;

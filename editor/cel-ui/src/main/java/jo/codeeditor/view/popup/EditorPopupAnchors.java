@@ -8,6 +8,7 @@ import androidx.annotation.RestrictTo;
 
 import jo.codeeditor.document.EditorDocument;
 import jo.codeeditor.shift.DiagnosticShift;
+import jo.codeeditor.ui.R;
 
 import java.util.List;
 
@@ -44,6 +45,152 @@ import java.util.List;
 public final class EditorPopupAnchors {
 
     private EditorPopupAnchors() {}
+
+    // ════════════════════════════════════════════════════════════════
+    // D2 — pattern « popup ancré » factorisé
+    // ════════════════════════════════════════════════════════════════
+
+    /**
+     * D2 (P1) — la géométrie partagée du pattern « popup ancré » :
+     * positionner un rectangle de taille {@code (w, h)} ancré à la
+     * bande verticale {@code [anchorTopY, anchorBottomY]} d'une ligne
+     * du document (le flip vertical ne recouvre JAMAIS la ligne
+     * d'ancre), avec clamp horizontal dans la vue.
+     *
+     * <p>Avant D2, ce calcul (ancre + flip + clamp) était dupliqué
+     * méthode par méthode ; les trois consommateurs historiques le
+     * partagent désormais — chaque paramétrage reproduit EXACTEMENT le
+     * comportement précédent (aucun déplacement de popup, tests
+     * existants inchangés) :</p>
+     * <ul>
+     *   <li><b>popup de complétion</b> ({@code EditorCompletionPopup})
+     *       — {@code preferAbove=false}, gap 4 px, yMargin 0, seuil X 0,
+     *       inset X 4 px, ancre = X du caret aligné à gauche, borne
+     *       gauche = gouttière ;</li>
+     *   <li><b>NavMenu</b> ({@code navMenuMetrics}) —
+     *       {@code preferAbove=false}, gap et marges NAV_MENU, ancre
+     *       pré-décalée de la marge, alignée à gauche, borne gauche =
+     *       marge ;</li>
+     *   <li><b>popup de diagnostic ancré</b> ({@code squigglePopupMetrics})
+     *       — {@code preferAbove=true} (au-dessus de la ligne, flip
+     *       dessous), gap et marge 4 dp, ancre centrée sur le mot
+     *       diagnostiqué, borne gauche = gouttière + 4 dp.</li>
+     * </ul>
+     *
+     * <p>Placement vertical : {@code preferAbove} place le BAS du popup
+     * à {@code anchorTopY - gap} ; s'il ne tient pas (marge haute), il
+     * passe SOUS la ligne ({@code anchorBottomY + gap}) ; en dernier
+     * recours il est clampé en bas de vue. {@code preferBelow} place le
+     * HAUT du popup à {@code anchorBottomY + gap} ; s'il déborde, il
+     * passe AU-DESSUS de la ligne ; clampé en haut de vue en dernier
+     * recours. Placement horizontal : centré sur l'ancre
+     * ({@code centerOnAnchor}) ou aligné à gauche dessus ; déborde à
+     * droite au-delà de {@code viewW - xThresholdInset} → ramené à
+     * {@code viewW - xInset - w} ; jamais à gauche de
+     * {@code leftBound}.</p>
+     *
+     * @param view la vue hôte (largeur/hauteur du viewport)
+     * @param anchorX l'ancre horizontale (colonne du caret, centre du
+     *                mot diagnostiqué, ou position pré-décalée)
+     * @param anchorTopY le HAUT de la ligne d'ancre (bande fold/wrap
+     *                   aware côté appelant)
+     * @param anchorBottomY le BAS de la ligne d'ancre
+     * @param w largeur du popup
+     * @param h hauteur du popup
+     * @param preferAbove vrai = AU-DESSUS de la ligne en priorité,
+     *                    faux = EN DESSOUS en priorité
+     * @param gap l'écart visuel entre le popup et la ligne d'ancre
+     * @param yMargin la marge verticale minimale aux bords de la vue
+     * @param xThresholdInset l'inset du SEUIL de débordement droit
+     * @param xInset l'inset de la valeur clampée à droite
+     * @param centerOnAnchor vrai = popup centré sur l'ancre X
+     * @param leftBound la borne gauche (gouttière + inset, ou marge)
+     * @return {@code {x, y}} — le coin haut-gauche du popup
+     */
+    public static float[] anchorAboveBelow(EditorView view, float anchorX,
+            float anchorTopY, float anchorBottomY, float w, float h,
+            boolean preferAbove, float gap, float yMargin,
+            float xThresholdInset, float xInset, boolean centerOnAnchor,
+            float leftBound) {
+        float viewW = view.getWidth();
+        float viewH = view.getHeight();
+        float y;
+        if (preferAbove) {
+            y = anchorTopY - gap - h;
+            if (y < yMargin) {
+                // Pas de place au-dessus — bascule SOUS la ligne.
+                y = anchorBottomY + gap;
+            }
+            if (y + h > viewH - yMargin) {
+                y = Math.max(yMargin, viewH - yMargin - h);
+            }
+            if (y < 0) y = 0;
+        } else {
+            y = anchorBottomY + gap;
+            if (y + h > viewH - yMargin) {
+                // Pas de place en dessous — bascule AU-DESSUS de la ligne.
+                y = anchorTopY - gap - h;
+            }
+            if (y < yMargin) y = yMargin;
+        }
+        float x = centerOnAnchor ? anchorX - w * 0.5f : anchorX;
+        if (x + w > viewW - xThresholdInset) {
+            x = viewW - xInset - w;
+        }
+        if (x < leftBound) x = leftBound;
+        return new float[]{x, y};
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    // D4 — en-tête enrichi des diagnostics
+    // ════════════════════════════════════════════════════════════════
+
+    /**
+     * D4 (P2) — libellé d'en-tête enrichi d'un diagnostic, partagé par
+     * le popup ancré ({@code EditorDiagnosticsPainter.drawSquiggleDetail})
+     * et la fiche basse ({@code drawDiagnosticPopup}) : sévérité, puis
+     * code et source le cas échéant, puis ligne/colonne 1-based
+     * (convention IDE), puis badge « ×N » si d'autres diagnostics
+     * partagent EXACTEMENT la même plage.
+     *
+     * <p>Exemple : {@code Error · ecj:67 · java · 3:9 · ×2}. Les champs
+     * vides (code/source absents du serveur) sont omis — un diagnostic
+     * nu garde son en-tête historique ({@code Error · 3:9}).</p>
+     *
+     * @param view la vue hôte (document + diagnostics de la session)
+     * @param d le diagnostic affiché
+     * @return le libellé d'en-tête (jamais null)
+     */
+    public static String diagnosticHeaderLabel(EditorView view,
+            DiagnosticShift.Diagnostic d) {
+        // T3 : sévérités en ressources (défauts anglais identiques).
+        String sevLabel = d.severity == 3
+                ? view.getResources().getString(R.string.cel_diag_error)
+                : d.severity == 2
+                ? view.getResources().getString(R.string.cel_diag_warning)
+                : view.getResources().getString(R.string.cel_diag_info);
+        StringBuilder b = new StringBuilder(sevLabel);
+        String code = d.code != null ? d.code : "";
+        String source = d.source != null ? d.source : "";
+        if (!code.isEmpty()) b.append(" · ").append(code);
+        if (!source.isEmpty()) b.append(" · ").append(source);
+        if (view.session != null) {
+            EditorDocument doc = view.session.getDocument();
+            if (doc != null) {
+                int line = doc.lineForOffset(d.start);
+                int col = d.start - doc.lineStart(line);
+                b.append(" · ").append(line + 1).append(':').append(col + 1);
+            }
+        }
+        if (view.session != null) {
+            int same = 0;
+            for (DiagnosticShift.Diagnostic o : view.session.getDiagnostics()) {
+                if (o.start == d.start && o.end == d.end) same++;
+            }
+            if (same > 1) b.append(" · ×").append(same);
+        }
+        return b.toString();
+    }
 
     // ════════════════════════════════════════════════════════════════
     // Compteur de retour à la ligne partagé
@@ -361,12 +508,12 @@ public final class EditorPopupAnchors {
             int msgLines = Math.min(countWrappedLines(view, msg,
                     m.w - 2 * SQUIGGLE_POPUP_PAD_X_DP * density),
                     SQUIGGLE_POPUP_MAX_MSG_LINES);
-            // En-tête : point de sévérité + libellé (« Error », « Warning »).
-            String sevLabel = item.severity == 3 ? "Error"
-                    : item.severity == 2 ? "Warning" : "Info";
+            // En-tête : point de sévérité + libellé enrichi (D4 —
+            // sévérité · code · source · ligne:col · badge ×N).
+            String header = diagnosticHeaderLabel(view, item);
             needed = Math.max(needed,
                     SQUIGGLE_POPUP_INDENT_DP * density
-                            + view.textPaint.measureText(sevLabel));
+                            + view.textPaint.measureText(header));
             // Le message n'est candidat que s'il tient SANS repli à la
             // largeur max — sinon il a besoin de la PLEINE largeur pour
             // se replier (msgLines a été calculé pour elle).
@@ -378,7 +525,8 @@ public final class EditorPopupAnchors {
             }
             if (nActions > 0) {
                 view.textPaint.setTextSize(view.metrics.getTextSize() * 0.7f);
-                needed = Math.max(needed, view.textPaint.measureText("QUICK FIXES"));
+                needed = Math.max(needed, view.textPaint.measureText(
+                        view.getResources().getString(R.string.cel_diag_quick_fixes)));
                 view.textPaint.setTextSize(view.metrics.getTextSize() * 0.9f);
                 float rowAvail = m.w - 2 * SQUIGGLE_POPUP_PAD_X_DP * density
                         - SQUIGGLE_POPUP_INDENT_DP * density;
@@ -400,7 +548,8 @@ public final class EditorPopupAnchors {
             // Rangée « See all » + chevron.
             view.textPaint.setTextSize(view.metrics.getTextSize() * 0.9f);
             needed = Math.max(needed, SQUIGGLE_POPUP_INDENT_DP * density
-                    + view.textPaint.measureText("See all")
+                    + view.textPaint.measureText(
+                            view.getResources().getString(R.string.cel_diag_see_all))
                     + SQUIGGLE_POPUP_CHEVRON_DP * density);
         }
         // ── UX-3 : resserrement de la carte sur son contenu ────────
@@ -415,16 +564,8 @@ public final class EditorPopupAnchors {
         DiagnosticShift.Diagnostic anchor = listMode ? m.choices.get(0) : item;
         int anchorLine = doc.lineForOffset(anchor.start);
         float lineTop = view.docLineToY(anchorLine) - view.vOffset;
+        float lineBottom = lineTop + view.metrics.getLineHeight();
         float gap = SQUIGGLE_POPUP_GAP_DP * density;
-        m.y = lineTop - gap - m.h;
-        if (m.y < 4 * density) {
-            // Pas de place au-dessus — bascule SOUS la ligne (motif complétion).
-            m.y = lineTop + view.metrics.getLineHeight() + gap;
-        }
-        if (m.y + m.h > view.getHeight() - 4 * density) {
-            m.y = Math.max(4 * density, view.getHeight() - m.h - 4 * density);
-        }
-        if (m.y < 0) m.y = 0;
 
         // X ancré au centre du mot diagnostiqué (clamp zone de texte).
         int lineStart = doc.lineStart(anchorLine);
@@ -439,11 +580,16 @@ public final class EditorPopupAnchors {
         float midX = textAreaLeft
                 + view.visualColFor(anchorLine, (startCol + endCol) / 2) * charWidth
                 - view.hOffset;
-        m.x = midX - m.w * 0.5f;
-        float minX = view.metrics.getGutterWidth() + 4 * density;
-        float maxX = view.getWidth() - m.w - 4 * density;
-        if (m.x < minX) m.x = minX;
-        if (m.x > maxX) m.x = Math.max(minX, maxX);
+        // D2 : pattern « popup ancré » factorisé — préfère AU-DESSUS de la
+        // ligne (flip dessous), marge 4 dp, ancre centrée sur le mot,
+        // borne gauche = gouttière + 4 dp. Paramétrage identique au
+        // calcul historique (motif complétion).
+        float[] pos = anchorAboveBelow(view, midX, lineTop, lineBottom,
+                m.w, m.h, true, gap, 4 * density,
+                4 * density, 4 * density, true,
+                view.metrics.getGutterWidth() + 4 * density);
+        m.x = pos[0];
+        m.y = pos[1];
 
         m.rowTop = m.y + contentTop;
         m.seeAllY = m.rowTop + m.rows * rowH;
@@ -537,9 +683,16 @@ public final class EditorPopupAnchors {
         jo.codeeditor.document.Selection sel = view.session.getSelection();
         float density = view.getResources().getDisplayMetrics().density;
 
-        // Ancre = extrémité ACTIVE de la sélection (le bout qui suit le
-        // doigt — la pill suit la borne active de la sélection).
-        float[] anchor = view.caretScreenPos(sel.end);
+        // T4 (lot 2, J5) — ancre = borne EN DÉPLACEMENT pendant le drag
+        // (poignée ou drag-select au doigt : la pill suit le geste),
+        // extrémité finale au repos. La sélection étant NORMALISÉE
+        // (start ≤ end), l'ancrage brut sur sel.end collait la pill à
+        // la borne DROITE même pendant le drag de la poignée GAUCHE ;
+        // l'état du geste (borne mobile = celle qui n'est pas l'ancre
+        // figée) vit dans EditorSelectionGestures, via le relais
+        // view.selectionToolbarAnchorOffset().
+        int anchorOffset = view.selectionToolbarAnchorOffset();
+        float[] anchor = view.caretScreenPos(anchorOffset >= 0 ? anchorOffset : sel.end);
 
         boolean hasSelection = !sel.isCursor();
 
@@ -555,12 +708,18 @@ public final class EditorPopupAnchors {
         float iconW = 32 * density; // icône 16dp + padding 2×8dp
 
         if (hasSelection) {
-            m.addText(EditorView.SEL_ACT_COPY, "Copy", view.textPaint.measureText("Copy"));
-            m.addText(EditorView.SEL_ACT_CUT, "Cut", view.textPaint.measureText("Cut"));
+            // T3 : libellés canoniques en ressources (défauts anglais
+            // identiques — surcharge/traduction par l'hôte).
+            String copy = view.getResources().getString(R.string.cel_sel_copy);
+            String cut = view.getResources().getString(R.string.cel_sel_cut);
+            m.addText(EditorView.SEL_ACT_COPY, copy, view.textPaint.measureText(copy));
+            m.addText(EditorView.SEL_ACT_CUT, cut, view.textPaint.measureText(cut));
         }
-        m.addText(EditorView.SEL_ACT_PASTE, "Paste", view.textPaint.measureText("Paste"));
-        m.addText(EditorView.SEL_ACT_SELECT_ALL, "Select all",
-                view.textPaint.measureText("Select all"));
+        String paste = view.getResources().getString(R.string.cel_sel_paste);
+        m.addText(EditorView.SEL_ACT_PASTE, paste, view.textPaint.measureText(paste));
+        String selectAll = view.getResources().getString(R.string.cel_sel_select_all);
+        m.addText(EditorView.SEL_ACT_SELECT_ALL, selectAll,
+                view.textPaint.measureText(selectAll));
 
         // ── T1 : actions injectées par l'hôte (fit par la largeur) ──
         java.util.List<jo.codeeditor.view.SelectionAction> hostActions =
@@ -788,21 +947,21 @@ public final class EditorPopupAnchors {
         float anchorX = Math.max(
                 view.metrics.getGutterWidth() + EditorView.NAV_MENU_MARGIN_DP * density,
                 caret[0]);
-        float anchorY = view.docLineToY(view.navMenuLine) - view.vOffset
-                + view.metrics.getLineHeight() + EditorView.NAV_MENU_GAP_DP * density;
-        float x = anchorX - EditorView.NAV_MENU_MARGIN_DP * density;
-        if (x + w > view.getWidth() - EditorView.NAV_MENU_MARGIN_DP * density) {
-            x = view.getWidth() - EditorView.NAV_MENU_MARGIN_DP * density - w;
-        }
-        if (x < EditorView.NAV_MENU_MARGIN_DP * density) x = EditorView.NAV_MENU_MARGIN_DP * density;
-        float y = anchorY;
-        if (y + h > view.getHeight() - EditorView.NAV_MENU_MARGIN_DP * density) {
-            // Pas de place en dessous — bascule AU-DESSUS de la ligne.
-            y = view.docLineToY(view.navMenuLine) - view.vOffset - h
-                    - EditorView.NAV_MENU_GAP_DP * density;
-        }
-        if (y < EditorView.NAV_MENU_MARGIN_DP * density) y = EditorView.NAV_MENU_MARGIN_DP * density;
-        return new float[]{x, y, w, h};
+        float lineTop = view.docLineToY(view.navMenuLine) - view.vOffset;
+        float lineBottom = lineTop + view.metrics.getLineHeight();
+        // D2 : pattern « popup ancré » factorisé — préfère SOUS la ligne,
+        // bascule AU-DESSUS (jamais sur la ligne d'ancre), marges
+        // NAV_MENU partout, ancre pré-décalée de la marge (alignée à
+        // gauche). Paramétrage identique au calcul historique.
+        float[] pos = anchorAboveBelow(view,
+                anchorX - EditorView.NAV_MENU_MARGIN_DP * density,
+                lineTop, lineBottom, w, h,
+                false, EditorView.NAV_MENU_GAP_DP * density,
+                EditorView.NAV_MENU_MARGIN_DP * density,
+                EditorView.NAV_MENU_MARGIN_DP * density,
+                EditorView.NAV_MENU_MARGIN_DP * density,
+                false, EditorView.NAV_MENU_MARGIN_DP * density);
+        return new float[]{pos[0], pos[1], w, h};
     }
 
     // ════════════════════════════════════════════════════════════════

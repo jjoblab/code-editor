@@ -63,8 +63,11 @@ class LspDiagnosticsManager {
                 boolean unnecessary = lspDiag.getTags() != null
                         && lspDiag.getTags().contains(
                                 org.eclipse.lsp4j.DiagnosticTag.Unnecessary);
+                // D4 (lot 2, J5) : code ET source transportés jusqu'au
+                // client (en-tête enrichi des popups de diagnostic).
                 diags.add(new Diagnostic(start, end, ourSeverity,
                     lspDiag.getMessage(), lspDiag.getCode() != null ? lspDiag.getCode().getLeft() : "",
+                    lspDiag.getSource() != null ? lspDiag.getSource() : "",
                     unnecessary));
             }
         }
@@ -123,8 +126,9 @@ class LspDiagnosticsManager {
     private List<jo.codeeditor.shift.DiagnosticShift.Diagnostic> convertToLegacyDiagnostics(List<Diagnostic> diags) {
         List<jo.codeeditor.shift.DiagnosticShift.Diagnostic> out = new ArrayList<>();
         for (Diagnostic d : diags) {
+            // D4 : code et source voyagent avec le décalage incrémental.
             out.add(new jo.codeeditor.shift.DiagnosticShift.Diagnostic(
-                d.start, d.end, d.severity, d.message, d.unnecessary));
+                d.start, d.end, d.severity, d.message, d.unnecessary, d.code, d.source));
         }
         return out;
     }

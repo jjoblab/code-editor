@@ -806,17 +806,28 @@ public class EditorView extends View {
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
     public boolean caretVisible = true;
 
-    // État de la loupe — actif pour le DRAG DE POIGNÉE uniquement
-    // (dragHandle alimente X/Y ; UP/CANCEL désactivent). La bulle
-    // elle-même est dessinée par EditorRenderer.drawMagnifier (60dp,
-    // zoom 2x, ±3 lignes, consciente des inlays). Jamais active pendant
-    // le scroll / drag-select — pour ne pas interférer avec la sélection.
+    // État de la loupe — active pour le drag DE POIGNÉE et le
+    // DRAG-SELECT AU DOIGT (dragHandle ET applyDragSelect alimentent X/Y ;
+    // UP/CANCEL/changement de session/détachement/perte de focus
+    // désactivent). La bulle custom est dessinée par
+    // EditorChromePainter.drawMagnifier (60dp, zoom réglable M2, ±3
+    // lignes, consciente des inlays) ; la bulle NATIVE (M3, opt-in
+    // API 28+) est portée par le widget plateforme.
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
     public boolean magnifierActive = false;
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
     public float magnifierX = 0;
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
     public float magnifierY = 0;
+    // M2 (lot 2, J5) : facteur de zoom de la bulle custom (×1.5–×3,
+    // défaut ×2) — piloté par setMagnifierZoom(float).
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public float magnifierZoom = 2f;
+    // M3 (lot 2, J5) : drapeau de la loupe native (opt-in API 28+,
+    // défaut faux = bulle custom) — piloté par
+    // setNativeMagnifierEnabled(boolean).
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public boolean nativeMagnifierEnabled = false;
 
     // Bascule des ligatures de police. Quand activée, l'éditeur dessine
     // chaque ligne en un seul appel drawText (au lieu de par span) pour
@@ -1165,8 +1176,9 @@ public class EditorView extends View {
     public void setSession(EditorSession session) {
         // Changement de fichier/onglet : la loupe et le drag de poignée en
         // cours n'ont plus de sens — les faire retomber pour ne pas
-        // laisser une bulle figée sur le nouveau document.
-        magnifierActive = false;
+        // laisser une bulle figée sur le nouveau document (M3 : la bulle
+        // native est un fenêtrage système, refermée explicitement).
+        dismissMagnifier();
         handleDragMode = 0;
         // Détache de la session précédente.
         if (this.session != null) {
@@ -1452,8 +1464,9 @@ public class EditorView extends View {
     @Override
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
-        // La loupe ne doit pas survivre au détachement de la vue.
-        magnifierActive = false;
+        // La loupe ne doit pas survivre au détachement de la vue (M3 :
+        // la bulle native aussi — fenêtrage système).
+        dismissMagnifier();
         // Ferme toute feuille d'aperçu ouverte pour ne pas fuiter un popup
         // pointant vers un éditeur détaché (ce qui planterait au toucher).
         preview.onDetachedFromWindow();
@@ -1649,6 +1662,85 @@ public class EditorView extends View {
 
     /** @return le style courant des guides d'indentation. */
     public IndentGuideStyle getIndentGuideStyle() { return indentGuideStyle; }
+
+    // ════════════════════════════════════════════════════════════
+    // Loupe (M2/M3, lot 2 J5)
+    // ════════════════════════════════════════════════════════════
+
+    /**
+     * M2 (lot 2, J5) — facteur de zoom de la loupe de sélection
+     * (la bulle affichée pendant le drag d'une poignée ou le
+     * drag-select au doigt).
+     *
+     * <p>Plage ×1.5 – ×3 : en dessous de ×1.5 la bulle n'apporte plus
+     * assez de grossissement pour régler la borne au caractère près ;
+     * au-dessus de ×3, la fenêtre de ±3 lignes ne montre plus assez de
+     * contexte. Les valeurs hors plage sont ramenées à la borne la
+     * plus proche (clamp silencieux documenté). Le défaut reste ×2
+     * (inchangé depuis l'origine) ; utile pour la lecture des grands
+     * caractères.</p>
+     *
+     * @param zoom le facteur voulu (ramené dans [1.5, 3])
+     * @since 3.56.0
+     */
+    public void setMagnifierZoom(float zoom) {
+        float z = Math.max(1.5f, Math.min(3f, zoom));
+        if (this.magnifierZoom == z) return;
+        this.magnifierZoom = z;
+        invalidate();
+    }
+
+    /**
+     * M2 — @return le facteur de zoom courant de la loupe (dans
+     * [1.5, 3], défaut 2).
+     * @since 3.56.0
+     */
+    public float getMagnifierZoom() { return magnifierZoom; }
+
+    /**
+     * M3 (lot 2, J5) — active la <b>loupe native</b> de la plateforme
+     * (android.widget.Magnifier, API 28+) en remplacement de la bulle
+     * custom dessinée sur le canvas.
+     *
+     * <p>Compromis documenté : le widget plateforme rend la VRAIE frame
+     * de la vue (overlays système compris, fidélité maximale) mais son
+     * style n'est pas maîtrisé — la bulle suit les règles système
+     * (taille, forme, position du fermoir). La bulle custom (défaut,
+     * {@code false}) offre l'inverse : rendu reconstruit (±3 lignes,
+     * bande de sélection + squiggle + caret — M1) et style maîtrisé.
+     * Sous API 28, le drapeau est sans effet (repli custom).
+     * {@link #setMagnifierZoom(float)} ne s'applique qu'à la bulle
+     * custom.</p>
+     *
+     * @param enabled {@code true} pour la loupe native (défaut :
+     *                {@code false} = custom)
+     * @since 3.56.0
+     */
+    public void setNativeMagnifierEnabled(boolean enabled) {
+        if (this.nativeMagnifierEnabled == enabled) return;
+        this.nativeMagnifierEnabled = enabled;
+        invalidate();
+    }
+
+    /**
+     * M3 — @return vrai si la loupe native est activée (opt-in API
+     * 28+ ; sous API 28, la bulle custom reste utilisée).
+     * @since 3.56.0
+     */
+    public boolean isNativeMagnifierEnabled() { return nativeMagnifierEnabled; }
+
+    /**
+     * M3 — éteint la loupe (custom et native) : relâchement du geste,
+     * changement de session, détachement de la vue, perte de focus.
+     * La bulle custom cesse d'être dessinée (flag) ; la bulle native
+     * est refermée explicitement (fenêtrage système qui survit au
+     * canvas).
+     */
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public void dismissMagnifier() {
+        magnifierActive = false;
+        renderer.dismissNativeMagnifier();
+    }
 
     // ════════════════════════════════════════════════════════════════
     // Sticky lines (en-têtes collés en haut pendant le scroll)
@@ -2202,6 +2294,19 @@ public class EditorView extends View {
         return EditorPopupAnchors.selectionToolbarMetrics(this);
     }
 
+    /**
+     * T4 (lot 2, J5) — offset d'ancrage de la pill de sélection : la
+     * borne MOBILE pendant un drag (poignée ou drag-select au doigt —
+     * la pill suit le geste), {@code sel.end} au repos. Relais vers
+     * l'état du geste ({@code EditorSelectionGestures.pillAnchorOffset}).
+     *
+     * @return l'offset d'ancrage, ou -1 (repli sur {@code sel.end})
+     */
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public int selectionToolbarAnchorOffset() {
+        return inputHandler.pillAnchorOffset();
+    }
+
     
 
     // ════════════════════════════════════════════════════════════════
@@ -2365,8 +2470,9 @@ public class EditorView extends View {
             wantsKeyboard = false;
             hideSoftKeyboard();
             // La perte de focus éteint aussi la loupe (un drag interrompu
-            // par un vol de focus ne doit pas laisser la bulle affichée).
-            magnifierActive = false;
+            // par un vol de focus ne doit pas laisser la bulle affichée —
+            // M3 : la native aussi, fenêtrage système).
+            dismissMagnifier();
             // La perte de focus referme le hover/quick doc.
             if (quickDocVisible) dismissQuickDoc();
         } else if (wantsKeyboard) {

@@ -66,9 +66,28 @@
 > ShareAction, StickyTapNavigates, StickyMaxLines,
 > SquiggleLongPressCopy), 1 508 tests verts ; aucun relèvement de
 > plafond en J4 (la marge J3 a suffi : 3 456 l. / 172 champs / 260
-> méthodes publiques sous 4 100/190/280). Les chantiers restants
-> (I3-I5, S5, T3-T4, M2-M3 et les autres P2) ne sont PAS encore
-> livrés — ce document reste le plan de référence.
+> méthodes publiques sous 4 100/190/280). J5 « la loupe est un
+> instrument, l'en-tête parle » (3.56.0) a livré **T4** (la pill suit
+> la borne EN DÉPLACEMENT pendant le drag — poignée ou drag-select au
+> doigt — `sel.end` au repos), **M2** (`setMagnifierZoom` ×1.5–×3,
+> clamp documenté, défaut ×2), **M3** (loupe native opt-in API 28+
+> (`setNativeMagnifierEnabled`), repli custom en dessous, bulle
+> refermée aux cinq sites d'extinction), **D2** (géométrie ancre +
+> flip + clamp factorisée dans `EditorPopupAnchors.
+> anchorAboveBelow`, consommée par complétion/NavMenu/popup squiggle —
+> reproduction exacte), **D4** (en-tête enrichi : code et source LSP
+> transportés jusqu'au rendu et préservés par le décalage, ligne:col
+> 1-based, badge ×N sur plage exacte) et **T3** (premier
+> `res/values` de cel-ui — 20 libellés canoniques en ressources,
+> défauts anglais identiques, l'hôte traduit en redéclarant les mêmes
+> noms). 102 tests dédiés sur les cinq jalons (+ ToolbarFollows
+> DraggedEdge, MagnifierZoomBounds, MagnifierNativeToggle,
+> MagnifierNativeDecision, DiagnosticHeaderFields, CanonicalLabels
+> Resources, +2 DiagnosticShift), 1 531 tests verts ; aucun
+> relèvement de plafond en J5 (3 562 l. / 174 champs / 266 méthodes
+> publiques sous 4 100/190/280). Les chantiers restants (I3-I5, S5 et
+> les P2 non livrés) ne sont PAS encore livrés — ce document reste le
+> plan de référence.
 > Conformément à la convention établie avec le rapport du lot 1, ce document
 > est archivé dans `docs/` et remis en copie à l'extérieur du dépôt ; la
 > règle d'interdiction des noms externes (`AGENT.md` §93) s'applique au code,

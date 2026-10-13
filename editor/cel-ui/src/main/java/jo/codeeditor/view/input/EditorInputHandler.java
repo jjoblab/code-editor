@@ -424,8 +424,9 @@ public class EditorInputHandler {
                 }
                 return true;
             case MotionEvent.ACTION_UP:
-                // Désactive la loupe au relâchement tactile.
-                view.magnifierActive = false;
+                // Désactive la loupe au relâchement tactile (M3 : la
+                // native est refermée explicitement — fenêtrage).
+                view.dismissMagnifier();
                 // Annule tout timer de hover tap-and-hold en attente.
                 // S'il a déjà déclenché (tapHoldHoverTriggered = true), le
                 // quick doc est déjà ouvert — on laisse l'utilisateur le
@@ -569,8 +570,8 @@ public class EditorInputHandler {
                 quickDocGesture = false;
                 cancelPendingTapDismiss();
                 touchHover.cancel();
-                // Désactive la loupe.
-                view.magnifierActive = false;
+                // Désactive la loupe (M3 : native refermée explicitement).
+                view.dismissMagnifier();
                 view.invalidate();
                 scrollerCtl.abortAnimation();
                 scrollerCtl.recycleTracker();
@@ -626,6 +627,20 @@ public class EditorInputHandler {
     }
 
     // ── Accès d'état du dispatcher pour les collaborateurs ──
+
+    /**
+     * T4 (lot 2, J5) — offset d'ancrage de la pill de sélection : la
+     * borne MOBILE pendant un drag (poignée ou drag-select au doigt),
+     * {@code sel.end} au repos. Délègue à l'état du geste
+     * ({@code EditorSelectionGestures.pillAnchorOffset}) — consommé par
+     * {@code EditorPopupAnchors.selectionToolbarMetrics}.
+     *
+     * @return l'offset d'ancrage, ou -1 (repli sur {@code sel.end})
+     */
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public int pillAnchorOffset() {
+        return selectionGestures.pillAnchorOffset();
+    }
 
     /**
      * Marque l'appui long comme déclenché et arrête tout drag/scroll en

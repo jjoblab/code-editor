@@ -291,8 +291,11 @@ public class EditorDiagnosticsPainter {
         view.textPaint.setTextSize(view.metrics.getTextSize() * 0.85f);
         view.textPaint.setFakeBoldText(true);
         view.textPaint.setColor(color);
-        String sevLabel = d.severity == 3 ? "Error" : d.severity == 2 ? "Warning" : "Info";
-        canvas.drawText(sevLabel, padX + 14 * density, closeCy + view.metrics.getTextSize() * 0.30f, view.textPaint);
+        // D4 : en-tête enrichi — sévérité · code · source · ligne:col ·
+        // badge ×N (champs vides omis, diagnostic nu = en-tête sobre).
+        String header = jo.codeeditor.view.popup.EditorPopupAnchors
+                .diagnosticHeaderLabel(view, d);
+        canvas.drawText(header, padX + 14 * density, closeCy + view.metrics.getTextSize() * 0.30f, view.textPaint);
         view.textPaint.setFakeBoldText(false);
         // Fermeture (×) : cercle en contour + glyphe.
         view.caretPaint.setStrokeWidth(1.2f * density);
@@ -338,7 +341,8 @@ public class EditorDiagnosticsPainter {
             view.textPaint.setColor(view.theme.gutterText);
             view.textPaint.setTextSize(view.metrics.getTextSize() * 0.7f);
             view.textPaint.setFakeBoldText(true);
-            canvas.drawText("QUICK FIXES", padX,
+            canvas.drawText(view.getResources().getString(
+                    jo.codeeditor.ui.R.string.cel_diag_quick_fixes), padX,
                 actionStartY - EditorView.DIAG_SHEET_ACTIONS_BLOCK_DP * density * 0.28f, view.textPaint);
             view.textPaint.setFakeBoldText(false);
             view.textPaint.setTextSize(view.metrics.getTextSize() * 0.9f);
@@ -598,7 +602,8 @@ public class EditorDiagnosticsPainter {
         DiagnosticShift.Diagnostic d = m.item;
         int color = getSquiggleColor(d.severity);
 
-        // En-tête : point de sévérité + libellé coloré (semibold).
+        // En-tête : point de sévérité + libellé enrichi (D4 — sévérité ·
+        // code · source · ligne:col · badge ×N), coloré (semibold).
         float headCy = m.y + m.headerH * 0.5f;
         view.selPaint.setColor(color);
         canvas.drawCircle(padX + 3.2f * density, headCy, 3.2f * density, view.selPaint);
@@ -606,8 +611,9 @@ public class EditorDiagnosticsPainter {
         view.textPaint.setTextSize(view.metrics.getTextSize() * 0.85f);
         view.textPaint.setFakeBoldText(true);
         view.textPaint.setColor(color);
-        String sevLabel = d.severity == 3 ? "Error" : d.severity == 2 ? "Warning" : "Info";
-        canvas.drawText(sevLabel, padX + 12 * density,
+        String header = jo.codeeditor.view.popup.EditorPopupAnchors
+                .diagnosticHeaderLabel(view, d);
+        canvas.drawText(header, padX + 12 * density,
                 headCy + view.metrics.getTextSize() * 0.30f, view.textPaint);
         view.textPaint.setFakeBoldText(false);
 
@@ -653,7 +659,8 @@ public class EditorDiagnosticsPainter {
             view.textPaint.setColor(view.theme.gutterText);
             view.textPaint.setTextSize(view.metrics.getTextSize() * 0.7f);
             view.textPaint.setFakeBoldText(true);
-            canvas.drawText("QUICK FIXES", padX, m.rowTop - 3 * density, view.textPaint);
+            canvas.drawText(view.getResources().getString(
+                    jo.codeeditor.ui.R.string.cel_diag_quick_fixes), padX, m.rowTop - 3 * density, view.textPaint);
             view.textPaint.setFakeBoldText(false);
             view.textPaint.setTextSize(view.metrics.getTextSize() * 0.9f);
             for (int i = 0; i < m.rows && i < actions.size(); i++) {
@@ -680,7 +687,8 @@ public class EditorDiagnosticsPainter {
         view.textPaint.setTextSize(view.metrics.getTextSize() * 0.9f);
         view.textPaint.setFakeBoldText(true);
         float seeAllCy = m.seeAllY + m.rowH * 0.5f;
-        canvas.drawText("See all", padX + 12 * density,
+        canvas.drawText(view.getResources().getString(
+                jo.codeeditor.ui.R.string.cel_diag_see_all), padX + 12 * density,
                 seeAllCy + view.metrics.getTextSize() * 0.32f, view.textPaint);
         view.textPaint.setFakeBoldText(false);
         view.caretPaint.setStrokeWidth(1.6f * density);

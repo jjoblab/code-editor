@@ -782,4 +782,14 @@ public class EditorRenderer {
 
     /** Délègue à {@link EditorAssistPopupPainter} (smoke test du badge de complétion). */
     void drawCompletionPopup(Canvas canvas) { assist.drawCompletionPopup(canvas); }
+
+    /**
+     * M3 (lot 2, J5) — referme la loupe native le cas échéant (no-op en
+     * voie custom). Délègue à {@link EditorChromePainter} ; appelé par
+     * {@code EditorView.dismissMagnifier()} au relâchement du geste —
+     * la bulle plateforme est un fenêtrage système qui ne suit PAS le
+     * cycle de dessin de la vue.
+     */
+    @androidx.annotation.RestrictTo(androidx.annotation.RestrictTo.Scope.LIBRARY_GROUP)
+    public void dismissNativeMagnifier() { chrome.dismissNativeMagnifier(); }
 }

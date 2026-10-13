@@ -119,6 +119,34 @@ class DiagnosticShiftTest {
     }
 
     @Test
+    void shiftDiagnostics_codeEtSource_préservés() {
+        // D4 (lot 2, J5) : le code et la source du diagnostic voyagent
+        // avec le décalage incrémental — l'en-tête enrichi du popup
+        // reste juste après l'édition.
+        var diags = List.of(
+            new DiagnosticShift.Diagnostic(10, 15, 3, "err", false, "ecj:67", "java"),
+            new DiagnosticShift.Diagnostic(20, 25, 2, "warn") // nu : défaut vide
+        );
+        EditSpan edit = new EditSpan(5, 0, 3);
+        var shifted = DiagnosticShift.shiftDiagnostics(diags, edit);
+
+        assertEquals("ecj:67", shifted.get(0).code, "le code survit au décalage");
+        assertEquals("java", shifted.get(0).source, "la source survit au décalage");
+        assertEquals(13, shifted.get(0).start, "offsets décalés à l'identique");
+        assertEquals("", shifted.get(1).code, "constructeur historique : code vide");
+        assertEquals("", shifted.get(1).source, "constructeur historique : source vide");
+    }
+
+    @Test
+    void diagnostic_constructeurs_nullsDéfensifs() {
+        // D4 : null est normalisé en chaîne vide (jamais de NPE au
+        // rendu de l'en-tête).
+        var d = new DiagnosticShift.Diagnostic(0, 1, 1, "m", false, null, null);
+        assertEquals("", d.code);
+        assertEquals("", d.source);
+    }
+
+    @Test
     void shiftDiagnostics_deleteConsumesDiagnostic() {
         var diags = List.of(
             new DiagnosticShift.Diagnostic(2, 4, 1, "error")

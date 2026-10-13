@@ -516,24 +516,23 @@ public class EditorCompletionPopup {
         // Ancrage tenant compte des inlays — le popup suit le X du caret tissé.
         float anchorX = view.metrics.getGutterWidth() + view.metrics.getPadLeft()
             + view.visualColFor(line, col) * view.metrics.getCharWidth() - view.hOffset;
-        // Bas de la ligne fold+wrap-aware (l'ancienne formule brute
+        // Bas/haut de la ligne fold+wrap-aware (l'ancienne formule brute
         // padTop + (line+1)*lineHeight plaçait l'ancre au-dessus de la
         // rangée visuelle réelle dès qu'une ligne précédente était wrappée
         // ou pliée → le popup recouvrait la ligne de frappe).
         float[] band = completionCaretBand();
         float caretBottomY = band[1];
         float caretTopY = band[0];
-        float anchorY = caretBottomY + COMPLETION_ANCHOR_GAP_PX;
-        float viewW = view.getWidth();
-        if (anchorX + width > viewW) anchorX = Math.max(view.metrics.getGutterWidth(), viewW - width - 4);
-        // Le popup ne recouvre JAMAIS la ligne du caret — s'il ne
-        // tient pas en dessous il passe AU-DESSUS (bas du popup = haut de
-        // la ligne − gap). Un simple clamp Math.max(0, …) laissait le popup
-        // démarrer à Y=0 et couvrir la frappe.
-        if (anchorY + popupH > view.getHeight()) {
-            anchorY = Math.max(0, caretTopY - COMPLETION_ANCHOR_GAP_PX - popupH);
-        }
-        return new float[]{anchorX, anchorY, width, popupH, rowH};
+        // D2 : pattern « popup ancré » factorisé (préfère EN DESSOUS de la
+        // ligne de frappe, bascule AU-DESSUS s'il ne tient pas — le popup
+        // ne recouvre JAMAIS la ligne du caret), clamp horizontal à la
+        // gouttière. Paramétrage identique au calcul historique :
+        // gap 4 px, yMargin 0, seuil X 0, inset X 4 px, ancre gauche.
+        float[] pos = EditorPopupAnchors.anchorAboveBelow(view,
+                anchorX, caretTopY, caretBottomY, width, popupH,
+                false, COMPLETION_ANCHOR_GAP_PX, 0f,
+                0f, 4f, false, view.metrics.getGutterWidth());
+        return new float[]{pos[0], pos[1], width, popupH, rowH};
     }
 
     private List<jo.codeeditor.completion.CompletionSession.Item> filterCompletionItems(

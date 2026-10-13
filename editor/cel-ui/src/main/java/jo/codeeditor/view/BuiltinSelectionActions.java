@@ -72,7 +72,8 @@ public final class BuiltinSelectionActions {
      * moteur {@code EditorSession.duplicateSelection()}.
      */
     public static SelectionAction duplicate(EditorView view) {
-        return new SelectionAction("builtin.duplicate", "Duplicate",
+        return new SelectionAction("builtin.duplicate",
+                view.getContext().getString(jo.codeeditor.ui.R.string.cel_builtin_duplicate),
                 () -> {
                     if (view.session == null) return;
                     view.session.duplicateSelection();
@@ -89,7 +90,8 @@ public final class BuiltinSelectionActions {
      * estompé et son tap rejeté sans refermer la pill.
      */
     public static SelectionAction toggleComment(EditorView view) {
-        return new SelectionAction("builtin.comment", "Comment",
+        return new SelectionAction("builtin.comment",
+                view.getContext().getString(jo.codeeditor.ui.R.string.cel_builtin_comment),
                 () -> {
                     if (view.session == null) return;
                     view.session.toggleLineComment();
@@ -107,10 +109,24 @@ public final class BuiltinSelectionActions {
     public static SelectionAction convertCase(EditorView view, CaseMode mode) {
         String id;
         String label;
+        // T3 : libellés canoniques en ressources (défauts anglais
+        // identiques — la casse affichée fait partie du libellé).
         switch (mode) {
-            case UPPER:  id = "builtin.case.upper";  label = "UPPER"; break;
-            case LOWER:  id = "builtin.case.lower";  label = "lower"; break;
-            default:     id = "builtin.case.toggle"; label = "Toggle case"; break;
+            case UPPER:
+                id = "builtin.case.upper";
+                label = view.getContext().getString(
+                        jo.codeeditor.ui.R.string.cel_case_upper);
+                break;
+            case LOWER:
+                id = "builtin.case.lower";
+                label = view.getContext().getString(
+                        jo.codeeditor.ui.R.string.cel_case_lower);
+                break;
+            default:
+                id = "builtin.case.toggle";
+                label = view.getContext().getString(
+                        jo.codeeditor.ui.R.string.cel_case_toggle);
+                break;
         }
         return new SelectionAction(id, label,
                 () -> {
@@ -138,7 +154,8 @@ public final class BuiltinSelectionActions {
      * journalisé sans crash.
      */
     public static SelectionAction share(EditorView view) {
-        return new SelectionAction("builtin.share", "Share",
+        return new SelectionAction("builtin.share",
+                view.getContext().getString(jo.codeeditor.ui.R.string.cel_builtin_share),
                 () -> {
                     if (view.session == null) return;
                     String text = view.session.selectedText();
@@ -147,7 +164,9 @@ public final class BuiltinSelectionActions {
                         Intent send = new Intent(Intent.ACTION_SEND);
                         send.setType("text/plain");
                         send.putExtra(Intent.EXTRA_TEXT, text);
-                        Intent chooser = Intent.createChooser(send, "Share");
+                        Intent chooser = Intent.createChooser(send,
+                                view.getContext().getString(
+                                        jo.codeeditor.ui.R.string.cel_builtin_share));
                         // Le contexte d'une vue peut ne pas être une
                         // Activity (SurfaceView, preview, hôte applicatif)
                         // : NEW_TASK est exigé par Android sur l'intent
