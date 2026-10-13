@@ -200,13 +200,17 @@ Ajouter un caret ». Le modèle `Selection` actuel est unicaret — c'est
 une refonte de session (génération API suivante), à ne pas engager à la
 légère.
 
-**P2-2 · Annotations de ligne riches dans la gouttière.** B9c a posé
-l'infrastructure (icône ancrée à une ligne, rect déterministe, tap
-résolu) — la généraliser en API `GutterAction { line, icon, active,
-perform }` ouvrirait : points d'arrêt (CodeIDE débogueur), actions
-« exécuter ce test », flèches de navigation de diff. C'est le
-différenciateur le plus rentable de la liste : l'hôte CodeIDE peut
-injecter ses propres icônes de gouttière sans toucher au renderer.
+**P2-2 · Annotations de ligne riches dans la gouttière — ✅ LIVRÉ en
+B15 (v3.69.0).** B9c avait posé l'infrastructure (icône ancrée à une
+ligne, rect déterministe, tap résolu) — l'API `GutterAction { id,
+line, icon, active, perform }` est publique avec son registre
+`EditorView.gutterActions` (add/remove/clear/actionForLine, UNE action
+par ligne, `active` relu au rendu, tap sans caret ni cascade,
+lignes hors document muettes, données d'hôte survivant à setSession).
+Icône `EditorIcons.Icon.BREAKPOINT` incluse. Ouvert : points d'arrêt
+(CodeIDE débogueur — premier consommateur naturel, guide §4.15),
+actions « exécuter ce test », flèches de navigation de diff — l'hôte
+injecte sans toucher au renderer.
 
 **P2-3 · Bande minimap.** Absente d'Android Studio (VS Code). Écart
 volontaire : sur mobile, la largeur est rare et le rendu double le
@@ -222,10 +226,12 @@ coût. À ne faire que sur demande explicite.
 | B10 | P0-2 `selectParagraphAt` + 4e tap — **livré v3.64.0** | P0 | petite |
 | B11 | P0-3 fast-scroller de gouttière + P1-1 error stripe — **livré v3.65.0** | P0/P1 | moyenne |
 | B12 | P1-3 persistance du zoom + P1-4 colonnes relatives — **livré v3.66.0** | P1 | petite |
-| B12 | P2-2 API `GutterAction` généralisée (fondée sur B9c) | P2 | moyenne |
+| B12 | P2-2 API `GutterAction` généralisée (fondée sur B9c) — **livré v3.69.0 (B15)** | P2 | moyenne |
 | B13 | P1-2 drag-déposer de bloc (mode pill ✥) — **livré v3.67.0** | P1 | moyenne |
 | B14 | P1-5 plis par niveau + régions de commentaire — **livré v3.68.0** | P1 | moyenne |
 | — | P2-1 multi-caret : génération API suivante (refonte Selection) | P2 | grande |
+| — | P2-3 minimap : volontairement écartée sur mobile (largeur rare,
+rendu doublé) — sur demande explicite uniquement | P2 | grande |
 
 Ordre recommandé : **B10 d'abord** — la recherche est le seul écart de
 la liste que le propriétaire touchera à CHAQUE session de test sur des
@@ -248,9 +254,12 @@ réouvertures et la gouttière parle « distance au caret » à la
 demande. B13 (P1-2 drag-déposer de bloc, pill ✥) et B14 (P1-5 plis
 par niveau + régions, tout replier/déplier) referment la **parité
 riche d'édition** : la FEUILLE DE ROUTE P0/P1 EST ÉPUISÉE — tous les
-écarts P0 et P1 de l'analyse n°6 sont livrés (v3.68.0). Restent les
-différenciateurs P2 : `GutterAction` (P2-2, le pari stratégique —
-B9c en a posé les fondations et CodeIDE en est le premier
-consommateur naturel), la minimap (P2-3, volontairement écartée sur
-mobile) et le multi-caret (P2-1, génération API suivante — refonte
-du modèle unicaret de Selection).
+écarts P0 et P1 de l'analyse n°6 sont livrés (v3.68.0). **B15
+(v3.69.0) ouvre les différenciateurs P2 en livrant le pari
+stratégique** : `GutterAction` (P2-2) est PUBLIC — l'hôte CodeIDE
+injecte ses propres icônes de gouttière (points d'arrêt du débogueur
+en tête) sans toucher au renderer. Restent la minimap (P2-3,
+volontairement écartée sur mobile — sur demande explicite) et le
+multi-caret (P2-1, génération API suivante — refonte du modèle
+unicaret de Selection) : l'analyse n°6 a livré TOUT ce qu'elle
+pouvait livrer sans refonte de génération.
