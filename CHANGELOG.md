@@ -5,6 +5,63 @@ All notable changes to **code-editor-lib** are documented in this file.
 Le format suit la convention [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.57.0] — 2026-10-13 — Lot 2 tactile, jalon J6 : le lot est complet
+
+Sixième et DERNIER jalon du plan du rapport « édition tactile et
+contexte visuel » (`docs/RAPPORT-TACTILE-CONTEXTE-CODE-EDITOR.md`) : le
+reste des P2 — les inlays parlent (labelParts, command au tap, fenêtre
+viewport), le sticky s'ouvre aux langues de l'hôte, les lignes bougent.
+Tout est additif, zéro rupture d'API ; aucun relèvement de plafond
+(l'addition a tenu dans les marges, et les opérations de lignes ont
+quitté `EditorSession` pour `LineOperations`).
+
+### Added
+
+- **Sticky délégué au SPI langue (S5)** — `LanguageProfile.
+  isBlockHeaderLine(CharSequence)` : la question « cette ligne
+  ouvre-t-elle un bloc ? » appartient à la langue, pas au détecteur.
+  Test de l'hôte prioritaire (`Builder.stickyHeaderTest` — la voie
+  honnête pour les langues inconnues), sinon tables par défaut de la
+  famille (C_LIKE : accolade + mot-clé ; Python : deux-points +
+  mot-clé ; autres : aucun) ; garde de périmètre `hasStickyHeaders()`
+  (une langue sans en-têtes déclarés ne paie pas le scan).
+- **labelParts conservées (I3)** — les libellés multi-parts des
+  serveurs LSP traversent le pont SPI : `InlayHint.Part {text,
+  tooltip}` (invariant : concat des parts == texte tissé, padding
+  compris — le blanc de padding est une part sans tooltip). L'appui
+  long consulte le tooltip de la PART sous le doigt en priorité.
+- **Inlays cliquables (I4)** — `InlayHint.command` (Runnable) : le
+  tap simple sur la plage tissée l'exécute AVANT le placement du caret
+  (précédent complétion, avant le squiggle D1). La command LSP vit sur
+  la part (spec 3.17) et devient un Runnable asynchrone
+  `workspace/executeCommand` — jamais bloquant. Usage type : hints
+  « … » d'expansion (la démo en pose sur les TODO).
+- **Fenêtre viewport pour les inlays (I5)** — `InlayHintProvider.
+  wantsViewportRange()` (défaut faux : document entier, le démon
+  interne calcule le fichier complet) : à vrai, la requête porte le
+  viewport ± 4 lignes et se RE-DEMANDE au repos du scroll (~200 ms,
+  ré-armé à chaque notification — pattern du préfetch viewport). Au
+  passage : le rafraîchissement initial partait silencieusement jamais
+  quand la vue était configurée avant attachement — repli main-looper.
+- **Mouvements de lignes (P2)** — `EditorSession.moveSelectedLines
+  (boolean)` : le BLOC ENTIER de lignes de la sélection bouge
+  (IntelliJ/VS Code — la décision multi-lignes, documentée), la
+  sélection est ré-épinglée sur le bloc, no-op aux bords (la queue
+  vide après le dernier `\n` ne compte pas), une étape d'undo.
+  Actions intégrées `moveLinesUp`/`moveLinesDown` via le SPI T1
+  (estompées dans la direction impossible), libellés `cel_`. Les
+  opérations de lignes vivent dans `LineOperations` (EditorSession
+  1 546 l. sous son plafond 1 600, sans relèvement).
+- **Preuves démo** — la pill atteint sa capacité (8 : + Move up/down)
+  et les TODO des échantillons portent un « ⋯ » expansible (tooltip
+  au long-press, insertion de l'indice au tap).
+
+### Changed
+
+- StickyLineDetector ne décide plus rien linguistiquement (tables
+  déplacées dans LanguageProfile) — comportement par défaut inchangé,
+  verrouillé par tests.
+
 ## [3.56.0] — 2026-10-13 — Lot 2 tactile, jalon J5 : la loupe est un instrument, l'en-tête parle
 
 Cinquième jalon du plan du rapport « édition tactile et contexte visuel »
