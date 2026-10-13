@@ -628,13 +628,18 @@ transparent pour l'API).
 - **Consigne du propriétaire (2026-10-13, lots B13/B14)** :
   PUBLICATION JITPACK DEMANDÉE pour cette session (deux lots
   majeurs au sens de la politique de version — une nouvelle
-  capacité d'édition B13 et la fermeture du palier de pliage B14) :
-  builds déclenchés sur les tags `v3.67.0` ET `v3.68.0` et
-  vérifiés (artefacts `cel-ui` servis) ; les 3.51.1+ restent
-  saines, seules `3.50.0`/`3.51.0` demeurent interdites via
-  JitPack (incident 429 historique, servies sur GitHub Packages
-  uniquement).
-- Coordonnées : `com.github.jjoblab.code-editor:cel-ui:3.68.0` et
+  capacité d'édition B13 et la fermeture du palier de pliage B14).
+  **Livrée sur la clé canonique `v3.68.0`** (la version CIBLE de
+  la session, B13 + B14 cumulés) : build déclenché et VÉRIFIÉ —
+  les QUATRE modules servent POM + AAR + sources
+  (`com.github.jjoblab.code-editor:cel-ui:v3.68.0` et frères).
+  La clé `v3.67.0` a buté sur un 429 TRANSITOIRE de Maven Central
+  côté JitPack (incident externe connu) — elle se reconstruira à
+  la demande ; monter DIRECTEMENT en `v3.68.0` (recommandé).
+  Les 3.51.1+ restent saines, seules `3.50.0`/`3.51.0` demeurent
+  interdites via JitPack (incident 429 historique, servies sur
+  GitHub Packages uniquement).
+- Coordonnées : `com.github.jjoblab.code-editor:cel-ui:v3.68.0` et
   modules frères (même version, dépôt `maven { url =
   uri("https://jitpack.io") }`).
 
@@ -644,16 +649,18 @@ transparent pour l'API).
   **`v3.67.0`** posé sur le merge ; workflows CI + Publication
   GitHub Packages déclenchés par le poussage (vérifier l'état sur
   la page Actions du dépôt).
-- **Consigne du propriétaire (2026-10-13, lot B13)** : PUBLICATION
-  JITPACK DEMANDÉE pour ce lot (le lot B13 est un changement majeur
-  au sens de la politique de version — une NOUVELLE capacité
-  d'édition, pas un correctif) : build déclenché sur le tag
-  `v3.67.0` et vérifié (artefacts `cel-ui` servis) ; les 3.51.1+
-  restent saines, seules `3.50.0`/`3.51.0` demeurent interdites via
-  JitPack (incident 429 historique, servies sur GitHub Packages
-  uniquement).
-- Coordonnées : `com.github.jjoblab.code-editor:cel-ui:3.67.0` et
-  modules frères (même version, dépôt `maven { url =
+- **Consigne du propriétaire (2026-10-13, session B13/B14)** :
+  PUBLICATION JITPACK DEMANDÉE. Le build de `v3.67.0` a buté sur un
+  **429 TRANSITOIRE de Maven Central côté JitPack** (résolution des
+  dépendances buildscript — incident externe, pas un problème de
+  code : le MÊME arbre construit et passé sous la clé `v3.68.0`,
+  qui vérifie B13 + B14 cumulés) ; la clé se reconstruira à la
+  demande. **Monter directement en `v3.68.0`** (recommandé — §2).
+  Les 3.51.1+ restent saines, seules `3.50.0`/`3.51.0` demeurent
+  interdites via JitPack (incident 429 historique, servies sur
+  GitHub Packages uniquement).
+- Coordonnées : `com.github.jjoblab.code-editor:cel-ui:v3.67.0`
+  (à la reconstruction) et modules frères (dépôt `maven { url =
   uri("https://jitpack.io") }`).
 
 ### Publication (2026-10-13, lot B12)
