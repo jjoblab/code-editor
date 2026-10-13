@@ -31,8 +31,6 @@ import jo.codeeditor.view.chrome.EditorTheme;
  */
 public class MainActivity extends AppCompatActivity {
 
-    private static final float ZOOM_STEP = 0.15f;
-
     private MaterialToolbar toolbar;
     EditorView editor; // package-private : accès par le test de fumée
     EditorSession session; // package-private : accès par le test de fumée
@@ -81,28 +79,20 @@ public class MainActivity extends AppCompatActivity {
 
         // B5 (retour terrain post-J6) : barre de fil d'Ariane AU-DESSUS de
         // l'éditeur — segments à gauche, ACTIONS d'éditeur en haut à
-        // droite. Les boutons d'action (annuler, rétablir, étendre,
-        // A+ / A−, aperçu) vivaient dans la bande du bas : ils montent
-        // ICI, la bande du bas ne garde que les bascules.
+        // droite.
+        //
+        // B6 (refonte moderne) : SEULEMENT les trois actions d'IDE —
+        // annuler, rétablir, aperçu — via UN appel. Les boutons sont des
+        // icônes vectorielles (moteur EditorIcons), undo/redo sont CÂBLÉS
+        // sur la session (grisés sans historique, rafraîchis à chaque
+        // édition), et l'aperçu n'EXISTE que pour un fichier
+        // prévisualisable (caché sinon) — il bascule ouvrir/fermer et
+        // s'allume quand la feuille est ouverte. Le zoom reste au
+        // pincement sur l'éditeur ; « étendre la sélection » est retiré
+        // (retour terrain B6 : une barre, trois actions, rien de plus).
         breadcrumb = new BreadcrumbBar(this);
         breadcrumb.bind(editor);
-        breadcrumb.addAction("↶", getString(R.string.action_undo),
-                this::canUndo, v -> {
-                    if (session != null) session.undo();
-                });
-        breadcrumb.addAction("↷", getString(R.string.action_redo),
-                this::canRedo, v -> {
-                    if (session != null) session.redo();
-                });
-        breadcrumb.addAction("⇔", getString(R.string.action_expand),
-                null, v -> editor.expandSelection());
-        breadcrumb.addAction("A−", getString(R.string.action_zoom_out),
-                null, v -> zoom(-ZOOM_STEP));
-        breadcrumb.addAction("A+", getString(R.string.action_zoom_in),
-                null, v -> zoom(+ZOOM_STEP));
-        // L'œil ouvre l'aperçu (feuille scindée — son en-tête bascule
-        // plein écran) et RELOCALISE les icônes du coin de l'éditeur.
-        breadcrumb.addPreviewAction();
+        breadcrumb.addEditorActions();
         root.addView(breadcrumb, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT));
@@ -166,6 +156,10 @@ public class MainActivity extends AppCompatActivity {
         setContentView(root);
     }
 
+    // B6 : les helpers action() (B5) et zoom/canUndo/canRedo sont retirés —
+    // les trois actions d'éditeur sont câblées par
+    // BreadcrumbBar.addEditorActions() sur la session liée.
+
     private MaterialButton toggle(int textRes, boolean checked) {
         MaterialButton button = new MaterialButton(
                 this, null, com.google.android.material.R.attr.materialButtonOutlinedStyle);
@@ -173,23 +167,6 @@ public class MainActivity extends AppCompatActivity {
         button.setId(textRes);
         button.setChecked(checked);
         return button;
-    }
-
-    // B5 : l'ancien helper action() (boutons texte de la bande du bas) est
-    // retiré — les actions montent dans la barre de fil d'Ariane via
-    // BreadcrumbBar.addAction.
-
-    private void zoom(float delta) {
-        float next = Math.max(0.6f, Math.min(2.6f, editor.getFontScale() + delta));
-        editor.setFontScale(next);
-    }
-
-    private boolean canUndo() {
-        return session != null && session.getUndoManager().canUndo();
-    }
-
-    private boolean canRedo() {
-        return session != null && session.getUndoManager().canRedo();
     }
 
     /** Bascule thème jour/nuit — la base du scheme suit (lot 4 #25). */
@@ -350,9 +327,12 @@ public class MainActivity extends AppCompatActivity {
         session.setLanguage(editorLanguageId);
         analyzer = new DemoAnalyzer(editor, session, editorLanguageId);
         analyzer.attach();
-        // B5 : nom de fichier fictif — déclenche canPreview du hôte d'aperçu
-        // (l'œil de la barre s'active sur Markdown, se grise sinon).
-        editor.setFileName("markdown".equals(id) ? "exemple.md" : null);
+        // B6 : nom de fichier fictif — déclenche canPreview du hôte
+        // d'aperçu (l'œil N'APPARAÎT que pour Markdown / XML-HTML,
+        // disparaît pour les autres échantillons — le changement
+        // rafraîchit la barre sœur SANS code ici : miroir setFileName).
+        editor.setFileName("markdown".equals(id) ? "exemple.md"
+                : "xml".equals(id) ? "index.html" : null);
         breadcrumb.refreshActions();
         // T2 (lot 2, J4) : preuve des actions socle sur la pill — les
         // INTÉGRÉES (Duplicate / Comment / Toggle case / Share /

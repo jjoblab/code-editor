@@ -746,7 +746,7 @@ final class DemoSamples {
     private static final String MARKDOWN = """
             # Démo code-editor
 
-            Un **terrain de jeu** pour la bibliothèque code-editor v3.38.0.
+            Un **terrain de jeu** pour la bibliothèque code-editor v3.60.0.
 
             ## Fonctionnalités
 
@@ -754,6 +754,16 @@ final class DemoSamples {
             - Loupe de sélection et poignées
             - Annuler / rétablir avec coalescence
             - Pliage et retour à la ligne
+
+            ## Avancement
+
+            - [x] Barre de fil d'Ariane moderne (B6)
+            - [x] Icônes vectorielles undo / redo / aperçu
+            - [ ] Multi-curseurs
+
+            1. Ouvrir l'aperçu (œil en haut à droite)
+            2. Éditer le texte
+            3. Voir la feuille se mettre à jour
 
             ## Exemple de code
 
@@ -764,12 +774,14 @@ final class DemoSamples {
 
             > TODO: ajouter une section multi-curseurs (à venir)
 
-            | Module    | Rôle         |
-            |-----------|--------------|
-            | cel-core  | moteur       |
-            | cel-ui    | vue Canvas   |
+            | Module    | Rôle         | État     |
+            |-----------|--------------|----------|
+            | cel-core  | moteur       | stable   |
+            | cel-ui    | vue Canvas   | active   |
+            | cel-lsp   | pont lsp4j   | expérimental |
 
-            Voir la [documentation](https://github.com/jjoblab/code-editor).
+            Voir la [documentation](https://github.com/jjoblab/code-editor) —
+            les ~~promesses~~ fonctionnalités ci-dessus sont ~~presque~~ toutes livrées.
             """;
 
     private static final String SQL = """
