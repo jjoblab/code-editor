@@ -18,6 +18,8 @@
 
     <!-- Actions socle intégrées (T2, lot 2) -->
     <string name="cel_builtin_duplicate">Duplicate</string>
+    <string name="cel_builtin_move_up">Move up</string>
+    <string name="cel_builtin_move_down">Move down</string>
     <string name="cel_builtin_comment">Comment</string>
     <string name="cel_builtin_share">Share</string>
     <string name="cel_case_upper">UPPER</string>

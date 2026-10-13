@@ -83,6 +83,40 @@ public final class BuiltinSelectionActions {
     }
 
     /**
+     * Action « Move up » — déplace le BLOC de lignes de la sélection
+     * d'une ligne vers le haut (P2 « mouvements de lignes », lot 2
+     * J6), moteur {@link EditorSession#moveSelectedLines(boolean)} :
+     * sélection multi-lignes → bloc entier, caret → sa ligne,
+     * sélection ré-épinglée sur le bloc (aller-retour stable),
+     * estompée en première ligne du document (no-op visuelle).
+     */
+    public static SelectionAction moveLinesUp(EditorView view) {
+        return new SelectionAction("builtin.move.up",
+                view.getContext().getString(jo.codeeditor.ui.R.string.cel_builtin_move_up),
+                () -> {
+                    if (view.session == null) return;
+                    view.session.moveSelectedLines(false);
+                    view.onTextChanged();
+                },
+                canMoveLines(view, false));
+    }
+
+    /**
+     * Action « Move down » — même moteur, une ligne vers le bas ;
+     * estompée en dernière ligne du document.
+     */
+    public static SelectionAction moveLinesDown(EditorView view) {
+        return new SelectionAction("builtin.move.down",
+                view.getContext().getString(jo.codeeditor.ui.R.string.cel_builtin_move_down),
+                () -> {
+                    if (view.session == null) return;
+                    view.session.moveSelectedLines(true);
+                    view.onTextChanged();
+                },
+                canMoveLines(view, true));
+    }
+
+    /**
      * Action « Comment » — bascule les commentaires de ligne de la
      * sélection, avec la syntaxe du langage courant (préfixe de ligne,
      * encadrement de bloc en repli XML/HTML/Markdown). Désactivée pour
@@ -222,6 +256,21 @@ public final class BuiltinSelectionActions {
     private static BooleanSupplier selectionAlive(EditorView view) {
         return () -> view.session != null
                 && !view.session.getSelection().isCursor();
+    }
+
+    /** Activée quand le bloc de lignes de la sélection PEUT bouger
+     *  dans cette direction (estompée aux bords du document). */
+    private static BooleanSupplier canMoveLines(EditorView view, boolean down) {
+        return () -> {
+            if (view.session == null) return false;
+            jo.codeeditor.document.Selection sel =
+                    view.session.getSelection();
+            jo.codeeditor.document.EditorDocument doc =
+                    view.session.getDocument();
+            int startLine = doc.lineForOffset(sel.start);
+            int endLine = doc.lineForOffset(sel.end);
+            return down ? endLine < doc.lineCount() - 1 : startLine > 0;
+        };
     }
 
     /** Activée quand le langage courant a une syntaxe de commentaire. */

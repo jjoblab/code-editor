@@ -1243,78 +1243,36 @@ public class EditorSession {
     }
 
     // ── Opérations sur les lignes ───────────────────────────────
+    // Plan 01/02 : implémentations dans LineOperations (collaborateur
+    // statique package-privé) — la session garde de fins relais
+    // publics (zéro rupture d'API), son plafond de lignes tient.
 
-    public void duplicateSelection() {
-        if (selection.isCursor()) {
-            duplicateLine();
-            return;
-        }
-        String selected = doc.subText(selection.start, selection.end); // ★ B19
-        replaceRange(selection.end, selection.end, selected);
+    public void duplicateSelection() { LineOperations.duplicateSelection(this); }
+
+    public void duplicateLine() { LineOperations.duplicateLine(this); }
+
+    public void moveLines(boolean down) { LineOperations.moveLines(this, down); }
+
+    public void deleteLines() { LineOperations.deleteLines(this); }
+
+    /**
+     * Déplace le BLOC de lignes couvert par la sélection d'une ligne
+     * (P2, lot 2 J6) — implémentation dans {@code LineOperations}
+     * (sémantique IntelliJ/VS Code : bloc entier, sélection
+     * ré-épinglée, no-op aux bords, une étape d'undo).
+     *
+     * @param down true → vers le bas, false → vers le haut
+     * @return true si le document a changé
+     */
+    public boolean moveSelectedLines(boolean down) {
+        return LineOperations.moveSelectedLines(this, down);
     }
 
-    public void duplicateLine() {
-        int startLine = doc.lineForOffset(selection.start);
-        int endLine = doc.lineForOffset(selection.end);
-        int insertPos = doc.lineEnd(endLine);
-        StringBuilder sb = new StringBuilder();
-        sb.append('\n');
-        for (int i = startLine; i <= endLine; i++) {
-            if (i > startLine) sb.append('\n');
-            sb.append(doc.lineText(i));
-        }
-        replaceRange(insertPos, insertPos, sb.toString());
-    }
+    public void moveLineUp() { LineOperations.moveLineUp(this); }
 
-    public void moveLines(boolean down) {
-        if (down) {
-            moveLineDown();
-        } else {
-            moveLineUp();
-        }
-    }
+    public void moveLineDown() { LineOperations.moveLineDown(this); }
 
-    public void deleteLines() {
-        int startLine = doc.lineForOffset(selection.start);
-        int endLine = doc.lineForOffset(selection.end);
-        int rangeStart = doc.lineStart(startLine);
-        int rangeEnd = doc.lineEnd(endLine);
-        if (rangeEnd < doc.length()) {
-            rangeEnd++;
-        } else if (rangeStart > 0) {
-            rangeStart--;
-        }
-        replaceRange(rangeStart, rangeEnd, "");
-    }
-
-    public void moveLineUp() {
-        int line = doc.lineForOffset(selection.start);
-        if (line <= 0) return;
-        String currentLine = doc.lineText(line);
-        String prevLine = doc.lineText(line - 1);
-        int prevStart = doc.lineStart(line - 1);
-        int currEnd = doc.lineEnd(line);
-        replaceRange(prevStart, currEnd, currentLine + "\n" + prevLine);
-    }
-
-    public void moveLineDown() {
-        int line = doc.lineForOffset(selection.start);
-        if (line >= doc.lineCount() - 1) return;
-        String currentLine = doc.lineText(line);
-        String nextLine = doc.lineText(line + 1);
-        int currStart = doc.lineStart(line);
-        int nextEnd = doc.lineEnd(line + 1);
-        replaceRange(currStart, nextEnd, nextLine + "\n" + currentLine);
-    }
-
-    public void joinLines() {
-        int line = doc.lineForOffset(selection.start);
-        if (line >= doc.lineCount() - 1) return;
-        int lineEnd = doc.lineEnd(line);
-        int nextEnd = doc.lineEnd(line + 1);
-        String nextLine = doc.lineText(line + 1);
-        replaceRange(lineEnd, Math.min(nextEnd, doc.length()), " " + nextLine.trim());
-    }
+    public void joinLines() { LineOperations.joinLines(this); }
 
     // ── Opérations de presse-papiers ────────────────────────────
 
