@@ -2,6 +2,8 @@ package jo.codeeditor.view.popup;
 
 import androidx.annotation.RestrictTo;
 
+import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
 import android.view.View;
 import android.view.animation.AccelerateInterpolator;
 import android.view.animation.DecelerateInterpolator;
@@ -65,5 +67,29 @@ public final class EditorPopupMotion {
                 .setInterpolator(new AccelerateInterpolator())
                 .withEndAction(popup::dismiss)
                 .start();
+    }
+
+    /**
+     * B8 (retour terrain n°5) — « le touché en dehors du cadre dismiss le
+     * popup » : rend une PopupWindow non-modale au toucher et notifiée des
+     * touchers extérieurs ({@code ACTION_OUTSIDE}), ce que le
+     * {@code PopupDecorView} d'Android traduit par un
+     * {@code dismiss()} automatique. Le tap traverse vers la vue SOUS la
+     * fenêtre (l'éditeur place son caret) ET referme la carte.
+     *
+     * <p>La recette exige les DEUX moitiés : {@code setOutsideTouchable(true)}
+     * pose {@code FLAG_WATCH_OUTSIDE_TOUCH}, et un fond NON NULL (ici
+     * transparent — l'apparence de la carte reste celle de son propre
+     * GradientDrawable de contenu) rend la fenêtre non-modale au toucher.
+     * Une seule moitié ne referme rien.</p>
+     *
+     * <p>Les entrées clavier restent captées (focusable inchangé) : la
+     * saisie dans un champ de carte fonctionne toujours ; seul le tap
+     * extérieur gagne le pouvoir de fermer.</p>
+     */
+    public static void outsideTapDismisses(PopupWindow popup) {
+        if (popup == null) return;
+        popup.setOutsideTouchable(true);
+        popup.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
     }
 }
