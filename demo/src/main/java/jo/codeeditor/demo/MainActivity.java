@@ -24,6 +24,7 @@ import jo.codeeditor.view.EditorView;
 import jo.codeeditor.view.chrome.BreadcrumbBar;
 import jo.codeeditor.view.chrome.EditorSearchBar;
 import jo.codeeditor.view.chrome.EditorTheme;
+import jo.codeeditor.view.chrome.LineNumberStyle;
 
 /**
  * Terrain de jeu de la bibliothèque code-editor : éditeur plein écran,
@@ -207,6 +208,18 @@ public class MainActivity extends AppCompatActivity {
             showLanguagePicker();
             return true;
         }
+        if (id == R.id.line_numbers_absolute) {
+            editor.setLineNumberStyle(LineNumberStyle.ABSOLUTE);
+            return true;
+        }
+        if (id == R.id.line_numbers_relative) {
+            editor.setLineNumberStyle(LineNumberStyle.RELATIVE);
+            return true;
+        }
+        if (id == R.id.line_numbers_hybrid) {
+            editor.setLineNumberStyle(LineNumberStyle.HYBRID);
+            return true;
+        }
         if (id == R.id.action_find) {
             searchBar.open();
             return true;
@@ -353,6 +366,12 @@ public class MainActivity extends AppCompatActivity {
         // plus un faux nom .html (l'aperçu markdown-échappait le layout).
         editor.setFileName("markdown".equals(id) ? "exemple.md"
                 : "html".equals(id) ? "page.html" : null);
+        // B12 (P1-3) : mémoire de zoom par type — l'échantillon courant
+        // devient la clé : pincer Java à 1,8 puis passer au Markdown
+        // applique le zoom Markdown (1 par défaut), revenir à Java
+        // RESTAURE 1,8 (et une vue recréée — rotation mise à part, B17
+        // la couvre précisément — repart du réglage mémorisé).
+        editor.setZoomMemoryKey(editorLanguageId);
         breadcrumb.refreshActions();
         // B10 : la recherche suit le changement d'échantillon — le
         // contrôleur ré-accroche la session et recalcule (purge du

@@ -108,6 +108,23 @@
     </item>
 
     <item
+        android:id="@+id/action_line_numbers"
+        android:title="Numéros de ligne"
+        app:showAsAction="never">
+        <menu>
+            <item
+                android:id="@+id/line_numbers_absolute"
+                android:title="Absolus (1, 2, 3…)" />
+            <item
+                android:id="@+id/line_numbers_relative"
+                android:title="Relatifs au caret (0, 1, 2…)" />
+            <item
+                android:id="@+id/line_numbers_hybrid"
+                android:title="Hybrides (numéro au caret)" />
+        </menu>
+    </item>
+
+    <item
         android:id="@+id/action_find"
         android:title="@string/menu_find"
         app:showAsAction="never" />

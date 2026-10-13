@@ -133,6 +133,13 @@ public class EditorView extends View {
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
     public static final float BASE_TEXT_SIZE_SP = 14f;
 
+    // ── B12 (P1-3) : clé de mémoire de zoom par type de fichier ──
+    // Posée par l'HÔTE (extension, id de langage…) ; chaque mutation
+    // d'échelle l'enregistre dans EditorZoomMemory, la repose
+    // l'applique. Nulle (défaut) : aucun changement de comportement.
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public String zoomMemoryKey;
+
     // ── Surlignages de recherche (décoration visuelle) ────────────
     // Renseignés par l'hôte (ex. barre Rechercher/Remplacer) — chaque
     // occurrence dans le viewport est teintée theme.findMatch, la
@@ -2960,12 +2967,61 @@ public class EditorView extends View {
         zoom.decreaseFontSize();
     }
 
+    /**
+     * B12 (P1-3) — pose la clé de mémoire de zoom par type de fichier.
+     *
+     * <p>Sémantique « un zoom par type » : l'échelle courante est
+     * d'abord enregistrée sous l'ANCIENNE clé, puis si la nouvelle clé
+     * est non nulle, l'échelle mémorisée pour ELLE est appliquée (1 par
+     * défaut — un type jamais zoomé repart à l'échelle de base, il
+     * n'hérite PAS du zoom du type précédent). Clé nulle : mémoire
+     * désactivée, l'échelle courante est conservée telle quelle.</p>
+     *
+     * <p>Appelée par l'hôte à chaque changement de fichier/onglet — la
+     * granularité de la clé lui appartient (extension, langage, projet).
+     * La rotation reste portée par l'état d'instance B17, plus précis :
+     * {@code onRestoreInstanceState} s'exécute APRÈS le câblage de
+     * l'hôte, l'échelle exacte de CETTE vue l'emporte donc sur la
+     * mémoire du type.</p>
+     *
+     * @param key clé du type de fichier, ou null pour désactiver
+     */
+    public void setZoomMemoryKey(String key) {
+        String old = zoomMemoryKey;
+        if (java.util.Objects.equals(old, key)) return;
+        if (old != null) EditorZoomMemory.remember(old, zoom.fontScale);
+        zoomMemoryKey = key;
+        if (key != null) zoom.setFontScale(EditorZoomMemory.recall(key));
+    }
+
     // Bascule d'affichage des caractères non imprimables.
     public void setShowNonPrintable(boolean show) {
         this.showNonPrintable = show;
         invalidate();
     }
     public boolean isShowNonPrintable() { return showNonPrintable; }
+
+    /**
+     * B12 (P1-4) — mode d'affichage des numéros de ligne de la
+     * gouttière (ABSOLUTE par défaut, RELATIVE = distance au caret,
+     * HYBRID = numéro réel au caret + distances autour).
+     *
+     * <p>Relais public vers la gouttière : l'hôte n'a pas à connaître
+     * les collaborateurs internes de rendu. {@code null} retombe sur
+     * ABSOLUTE.</p>
+     *
+     * @param style le mode voulu
+     */
+    public void setLineNumberStyle(
+            jo.codeeditor.view.chrome.LineNumberStyle style) {
+        gutterView.setLineNumberStyle(style);
+        invalidate();
+    }
+
+    /** Mode courant des numéros de gouttière (jamais null). */
+    public jo.codeeditor.view.chrome.LineNumberStyle getLineNumberStyle() {
+        return gutterView.getLineNumberStyle();
+    }
 
     // ★ Bascule de visibilité du caret. Défaut : true (visible).
     // Cache ou affiche le caret clignotant indépendamment de EditorSession.readOnly.

@@ -1,6 +1,7 @@
 package jo.codeeditor.view.input;
 
 import jo.codeeditor.view.EditorView;
+import jo.codeeditor.view.EditorZoomMemory;
 
 import androidx.annotation.RestrictTo;
 
@@ -46,6 +47,12 @@ public final class EditorZoomController {
     public void setFontScale(float scale) {
         fontScale = clampFontScale(scale);
         view.metrics.setTextSize(view.spToPx(EditorView.BASE_TEXT_SIZE_SP) * fontScale);
+        // B12 (P1-3) : enregistre l'échelle sous la clé de type de fichier
+        // posée par l'hôte — la prochaine vue qui repose cette clé
+        // récupérera CE réglage (mémoire process, cf. EditorZoomMemory).
+        if (view.zoomMemoryKey != null) {
+            EditorZoomMemory.remember(view.zoomMemoryKey, fontScale);
+        }
         // La largeur de colonne a changé : reconstruire le modèle de wrap,
         // sinon les rangées restent calculées pour l'ancienne taille
         // (lignes débordant à droite, Y des lignes suivants faux).
@@ -155,6 +162,12 @@ public final class EditorZoomController {
         // prochain invalidate).
         fontScale = newScale;
         view.metrics.setTextSize(view.spToPx(EditorView.BASE_TEXT_SIZE_SP) * fontScale);
+        // B12 (P1-3) : le pincement EST le geste qui règle le zoom —
+        // chaque cran s'enregistre sous la clé courante (la vue
+        // recréée retrouvera le réglage).
+        if (view.zoomMemoryKey != null) {
+            EditorZoomMemory.remember(view.zoomMemoryKey, fontScale);
+        }
         // Largeur de colonne changée : reconstruire le modèle de wrap pour
         // que les rangées reflètent la nouvelle taille (comme setFontScale).
         if (view.wordWrap) view.rebuildWrapModel();
