@@ -1,7 +1,6 @@
 package jo.codeeditor.view.input;
 
 import jo.codeeditor.view.EditorView;
-import jo.codeeditor.view.popup.EditorPopupAnchors;
 import jo.codeeditor.view.popup.EditorPopupHitTester;
 
 import androidx.annotation.RestrictTo;
@@ -16,7 +15,7 @@ import java.util.List;
 /**
  * Cascade de résolution des taps d'EditorView, extraite d'EditorInputHandler :
  * comptage mono/double/triple tap, placement du caret, extension de la
- * sélection, routage vers les popups (icônes d'aperçu/toolbar, complétion,
+ * sélection, routage vers les popups (icônes d'aperçu, complétion,
  * fiches de diagnostic, chips de fold, NavMenu, actions de code,
  * aller-au-symbole) et armement du tap-dismiss différé dans la fenêtre
  * multi-tap.
@@ -114,14 +113,12 @@ public class EditorTapResolver {
                 return;
             }
         }
-        // Tap sur les icônes de toolbar (A+, A-, ¶, lig).
-        if (tapCount == 1) {
-            int tbHit = EditorPopupAnchors.hitTestToolbarIcons(view, x, y);
-            if (tbHit == 1) { view.increaseFontSize(); return; }
-            if (tbHit == 2) { view.decreaseFontSize(); return; }
-            if (tbHit == 3) { view.setShowNonPrintable(!view.showNonPrintable); return; }
-            if (tbHit == 4) { view.setFontLigatures(!view.fontLigatures); return; }
-        }
+        // UX-5 : les zones de tap de l'ancienne toolbar canvas (A+, A−,
+        // ¶, ligatures) sont retirées — les icônes ne sont plus dessinées
+        // depuis l'extraction d'EditorBarTools et les boutons vivent dans
+        // les barres d'hôte (BreadcrumbBar.addAction / EditorBarTools).
+        // Un tap en haut à droite ne doit plus déclencher d'action
+        // invisible : il retombe dans la cascade normale (caret).
 
         // Test de touche du popup de complétion.
         if (view.completionVisible) {
