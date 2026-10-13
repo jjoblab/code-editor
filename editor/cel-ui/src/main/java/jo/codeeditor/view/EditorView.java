@@ -47,6 +47,7 @@ import jo.codeeditor.shift.DiagnosticShift;
 
 import java.util.ArrayList;
 import java.util.List;
+import jo.codeeditor.view.chrome.BreadcrumbBar;
 import jo.codeeditor.view.chrome.EditorTheme;
 import jo.codeeditor.view.chrome.GutterView;
 
@@ -1960,6 +1961,13 @@ public class EditorView extends View {
     // Taper une icône bascule le mode aperçu.
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
     public boolean previewable = false;
+    // B5 (retour terrain post-J6) : les icônes d'aperçu du coin haut-
+    // droit peuvent se RELOCALISER dans la barre de fil d'Ariane
+    // ({@code BreadcrumbBar.addPreviewAction}) — la barre dessine l'œil
+    // parmi ses actions et coupe celles du canvas (une seule entrée
+    // d'interaction, au même endroit que les autres boutons).
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public boolean previewIconsVisible = true;
     // Tout le reste de l'état d'aperçu (hôte, feuille popup, nom de
     // fichier, listener de mode) vit dans EditorPreviewController ; la
     // vue ne conserve que des relais publics.
@@ -1983,6 +1991,17 @@ public class EditorView extends View {
 
     public EditorPreviewHost getPreviewHost() {
         return preview.getHost();
+    }
+
+    /**
+     * B5 (retour terrain post-J6) — montre ou cache les icônes d'aperçu du
+     * coin haut-droit de l'éditeur. La barre de fil d'Ariane
+     * ({@code BreadcrumbBar.addPreviewAction()}) les relocalise : elle
+     * dessine l'icône dans sa zone d'actions et coupe celles du canvas —
+     * le geste d'aperçu vit avec les autres boutons, en haut à droite.
+     */
+    public void setPreviewIconsVisible(boolean visible) {
+        preview.setPreviewIconsVisible(visible);
     }
 
     /**
@@ -2497,6 +2516,9 @@ public class EditorView extends View {
         // activé/désactivé des boutons undo/redo se mettent à jour après
         // chaque édition.
         EditorBarTools.invalidateButtonsIn(getParent());
+        // B5 : même rafraîchissement pour les actions de la barre de fil
+        // d'Ariane (annuler/rétablir/aperçu grisés ou non).
+        BreadcrumbBar.invalidateActionsIn(getParent());
     }
 
     /** Appelé par l'InputConnection après chaque édition pour rafraîchir

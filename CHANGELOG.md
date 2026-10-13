@@ -5,6 +5,59 @@ All notable changes to **code-editor-lib** are documented in this file.
 Le format suit la convention [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.58.0] — 2026-10-13 — Retour terrain post-J6 : le contenu suit la carte (UX-4), le fil d'Ariane porte les actions (B5)
+
+Premier retour d'appareil APRÈS le lot tactile complet (3.57.0) : un
+bug visuel du popup de diagnostic ancré à droite de l'écran, et une
+demande de rangement — les boutons d'éditeur dispersés se regroupent
+dans la barre de fil d'Ariane, en haut à droite. Tout est additif,
+zéro rupture d'API ; aucun relèvement de plafond.
+
+### Fixed
+
+- **UX-4 — le contenu du popup ancré suit la carte (bug)** — tap sur
+  un squiggle situé à DROITE de l'écran : le CADRE était correctement
+  ancré au mot (clamp X, D1/D2) mais le CONTENU partait au `padX`
+  ABSOLU — cadre à droite, message resté au bord gauche. La métrique
+  partagée (`SquigglePopupMetrics`) expose désormais `contentLeft`
+  (`x + padX`) : la passe de dessin ne calcule plus AUCUN X seule
+  (source unique de vérité, comme le hit-test lit `hit()`). Corrigé
+  pour le mode détail ET la mini-liste multi-diagnostics. Test de
+  régression au canvas : chaque `drawText` enregistré par le shadow
+  Robolectric démarre DANS la carte `[x, x+w]`.
+
+### Added
+
+- **B5 — la barre de fil d'Ariane porte les actions d'éditeur** —
+  `BreadcrumbBar` devient la rangée unifiée au-dessus de l'éditeur :
+  segments de portées à GAUCHE, zone d'ACTIONS en haut à droite.
+  `addAction(label, contentDescription, enabledSupplier, click)`
+  ajoute un bouton compact (glyphe, semibold, appui accentué, état
+  grisé par fournisseur), `removeAction`/`clearActions`/`refreshActions`
+  gèrent le cycle. Le clic passe par le chemin standard
+  `setOnClickListener`/`performClick` (accessibilité, tests) ; l'état
+  est rafraîchi après chaque édition via
+  `EditorView.notifyTextChanged` (miroir exact d'`EditorBarTools.
+  invalidateButtonsIn`). Les couleurs suivent le thème de l'éditeur
+  lié (gouttière/texte/accent), jeu sombre historique sans liaison.
+- **Relocalisation des icônes d'aperçu (B5)** —
+  `BreadcrumbBar.addPreviewAction()` : l'œil s'ajoute parmi les
+  actions, câblé sur `EditorView.openPreview(false)` (feuille
+  scindée, l'en-tête bascule plein écran), grisé quand le fichier
+  n'est pas prévisualisable — ET `EditorView.setPreviewIconsVisible
+  (false)` retire les icônes du coin haut-droit du canvas : une seule
+  entrée d'interaction, déménagée avec les autres boutons. Le dessin
+  (`EditorChromePainter.drawPreviewIcons`) et le hit-test
+  (`EditorPreviewController.hitTestIcons`) honorent tous deux le
+  drapeau ; réversible (`setPreviewIconsVisible(true)`).
+- **Preuves démo** — la démo montre la barre complète : segments du
+  caret + `↶ ↷ ⇔ A+ A− 👁` en haut à droite (annuler, rétablir,
+  étendre, taille de police, aperçu), la bande du bas ne garde que
+  les bascules. L'échantillon **Markdown** porte un hôte d'aperçu
+  WebView (`DemoPreviewHost`, conversion Markdown→HTML minimaliste :
+  titres, gras, italique, code, listes, citations) : l'œil ouvre la
+  feuille d'aperçu vivante, re-rendue en frappant.
+
 ## [3.57.0] — 2026-10-13 — Lot 2 tactile, jalon J6 : le lot est complet
 
 Sixième et DERNIER jalon du plan du rapport « édition tactile et

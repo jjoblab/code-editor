@@ -254,7 +254,7 @@ et les barres d'habillage dans `view/chrome/`.
 | Scroll/fling/pinch-zoom | ✅ | `view/input/EditorScrollManager.java`, `view/input/EditorZoomController.java` | Suivi de vitesse, clamp de police |
 | Minimap | ✅ | `view/render/EditorChromePainter.java` | Bande latérale, bascule publique |
 | Aperçu XML | ✅ | `view/preview/EditorPreviewController.java`, `view/preview/EditorPreviewHost.java` | Split/full via hôte |
-| Breadcrumb | ✅ | `view/chrome/BreadcrumbBar.java` | Barre de fil d'Ariane |
+| Breadcrumb + actions (B5, post-J6) | ✅ | `view/chrome/BreadcrumbBar.java` | Barre de fil d'Ariane + zone d'actions d'éditeur en haut à droite (`addAction`, `addPreviewAction` — icônes d'aperçu relocalisables via `setPreviewIconsVisible`) |
 | Barre de symboles | ✅ | `view/chrome/SymbolBarView.java` | Symboles du document |
 | Retour à la ligne / ligatures / non-imprimables | ✅ | `view/EditorView.java` | Bascules publiques |
 | Thèmes | ✅ | `view/chrome/EditorTheme.java` | dark()/light() + 30+ couleurs custom |

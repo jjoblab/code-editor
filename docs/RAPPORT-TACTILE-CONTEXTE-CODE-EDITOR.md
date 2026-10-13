@@ -102,7 +102,7 @@
 > plafond EditorSession SANS relèvement — 1 546 l. / 1600). 36 tests
 > dédiés (StickySpiDelegate, InlayLabelParts, InlayPartTooltip,
 > InlayClickCommand, InlayViewportRange, MoveSelectedLines,
-> MoveLinesAction), 1 567 tests verts ; aucun relèvement de plafond.
+> MoveLinesAction), 1 578 tests verts ; aucun relèvement de plafond.
 > LE LOT 2 EST COMPLET — tous les chantiers du plan sont livrés, ce
 > document reste la référence du livré.
 > Conformément à la convention établie avec le rapport du lot 1, ce document

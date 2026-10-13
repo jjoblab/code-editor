@@ -72,6 +72,17 @@ public class EditorPreviewController {
     }
 
     /**
+     * B5 (retour terrain post-J6) — montre ou cache les icônes d'aperçu du
+     * coin haut-droit du canvas. La barre de fil d'Ariane les relocalise
+     * dans sa zone d'actions ({@code BreadcrumbBar.addPreviewAction}) :
+     * l'icône y dessine, le canvas s'en prive (une seule entrée).
+     */
+    public void setPreviewIconsVisible(boolean visible) {
+        view.previewIconsVisible = visible;
+        view.invalidate();
+    }
+
+    /**
      * Définit le nom de fichier courant pour que l'éditeur puisse détecter
      * si l'aperçu est disponible (.md, .markdown, .html, .htm, layout .xml).
      * Quand prévisualisable, l'éditeur dessine les icônes d'aperçu dans le
@@ -120,7 +131,8 @@ public class EditorPreviewController {
      * basculer entre SHEET_SPLIT et SHEET_FULL via son toggle d'en-tête.
      */
     public int hitTestIcons(float x, float y) {
-        if (!view.previewable || view.previewMode != EditorView.PreviewMode.NONE) return 0;
+        if (!view.previewable || !view.previewIconsVisible
+                || view.previewMode != EditorView.PreviewMode.NONE) return 0;
         float density = view.getResources().getDisplayMetrics().density;
         float iconSize = PREVIEW_ICON_SIZE_DP * density;
         float margin = PREVIEW_ICON_MARGIN_DP * density;
