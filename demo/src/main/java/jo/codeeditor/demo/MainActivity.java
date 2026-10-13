@@ -327,13 +327,16 @@ public class MainActivity extends AppCompatActivity {
         analyzer = new DemoAnalyzer(editor, session, editorLanguageId);
         analyzer.attach();
         // T2 (lot 2, J4) : preuve des actions socle sur la pill — les
-        // INTÉGRÉES (Duplicate / Comment / Toggle case / Share) sont
-        // injectées via le MÊME SPI que les actions d'hôte (l'hôte
-        // peut les retirer par identifiant). Retirées à chaque
-        // changement d'échantillon puis ré-injectées (la liste vit
-        // sur la session de la vue).
+        // INTÉGRÉES (Duplicate / Comment / Toggle case / Share /
+        // Move up / Move down) sont injectées via le MÊME SPI que les
+        // actions d'hôte (l'hôte peut les retirer par identifiant).
+        // Retirées à chaque changement d'échantillon puis ré-injectées
+        // (la liste vit sur la session de la vue). La pill démo atteint
+        // ainsi SA CAPACITÉ (8) — l'overflow ⋯ du menu unifié prend le
+        // relais sur les viewports étroits.
         for (String builtinId : new String[]{"builtin.duplicate", "builtin.comment",
-                "builtin.case.toggle", "builtin.share"}) {
+                "builtin.case.toggle", "builtin.share",
+                "builtin.move.up", "builtin.move.down"}) {
             editor.removeSelectionAction(builtinId);
         }
         editor.addSelectionAction(jo.codeeditor.view.BuiltinSelectionActions.duplicate(editor));
@@ -341,6 +344,10 @@ public class MainActivity extends AppCompatActivity {
         editor.addSelectionAction(jo.codeeditor.view.BuiltinSelectionActions.convertCase(
                 editor, jo.codeeditor.view.BuiltinSelectionActions.CaseMode.TOGGLE));
         editor.addSelectionAction(jo.codeeditor.view.BuiltinSelectionActions.share(editor));
+        // P2 (J6) : mouvements de lignes — le bloc de la sélection bouge,
+        // la sélection suit.
+        editor.addSelectionAction(jo.codeeditor.view.BuiltinSelectionActions.moveLinesUp(editor));
+        editor.addSelectionAction(jo.codeeditor.view.BuiltinSelectionActions.moveLinesDown(editor));
 
         editor.setOnSelectionChangedListener((line, col, isCursor) ->
                 toolbar.setSubtitle(String.format(java.util.Locale.FRANCE,
