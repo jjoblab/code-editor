@@ -32,11 +32,6 @@
     <string name="toggle_non_printable">Non-imprimables</string>
     <string name="toggle_theme">Thème clair</string>
     <string name="toggle_scheme">Scheme</string>
-    <string name="action_undo">Annuler</string>
-    <string name="action_redo">Rétablir</string>
-    <string name="action_expand">Étendre la sélection</string>
-    <string name="action_zoom_out">Réduire la police</string>
-    <string name="action_zoom_in">Agrandir la police</string>
 
     <!-- À propos -->
     <string name="about_title">À propos de la démo</string>

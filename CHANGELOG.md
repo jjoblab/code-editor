@@ -5,6 +5,93 @@ All notable changes to **code-editor-lib** are documented in this file.
 Le format suit la convention [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.60.0] — 2026-10-13 — Refonte B6 : fil d'Ariane intelligent, moteur d'icônes, aperçu repensé
+
+Troisième retour d'appareil post-lot tactile, direction « plus
+intelligent, plus moderne » : la barre de fil d'Ariane ne porte plus
+que les trois actions d'un IDE — annuler, rétablir, aperçu — toutes
+trois câblées sans une ligne de code hôte ; les glyphes texte/emoji
+laissent la place à un moteur d'icônes vectorielles maison ; la
+feuille d'aperçu devient une carte flottante à segmented control ; le
+moteur Markdown de la démo s'enrichit (liens, tables, tâches, barré).
+Tout est additif, zéro rupture d'API ; aucun relèvement de plafond
+(EditorView et EditorSession inchangés ligne à ligne).
+
+### Added
+
+- **B6a — moteur d'icônes vectorielles `EditorIcons`** — les barres
+  et la feuille troquent leurs glyphes texte/emoji (« ↶ », « 👁 » —
+  rendu incohérent selon les polices de l'appareil, l'œil pouvant
+  sortir en emoji couleur) contre des paths dessinés au Canvas :
+  familles FILL (annuler, rétablir, œil) et STROKE (scinder,
+  étendre, fermer), viewport 24×24 dérivé de Material Symbols
+  (Apache 2.0, attribution dans NOTICE). Parser SVG compact embarqué
+  (M/L/H/V/C/S/Q/T/Z, absolu et relatif, reflets de contrôle S/T),
+  cache par icône, peinture prêtée puis restaurée, trait calibré
+  2/24 de la taille. Correctifs prouvés par les tests : le `z`
+  consommait le caractère SUIVANT (chaînage de sous-paths cassé) et
+  des nombres après closepath sont rejetés explicitement.
+- **B6b — `BreadcrumbBar.addEditorActions()`** — le raccourci « barre
+  d'IDE » : EXACTEMENT trois actions câblées sur l'éditeur lié.
+  Annuler/rétablir suivent la session courante (grisés sans
+  historique, réactivés à chaque édition, clic qui dépile
+  réellement — la session est relue à chaque évaluation, le
+  changement d'échantillon est couvert). L'action d'aperçu, elle,
+  applique la demande du retour terrain : elle n'EXISTE que pour un
+  fichier prévisualisable — `GONE` sinon, plus de bouton grisé qui
+  squatte la rangée.
+- **B6c — miroirs d'aperçu dans le contrôleur** — `setFileName`,
+  `setPreviewMode` et `closePreviewSheet` rafraîchissent la barre
+  sœur automatiquement (le même miroir que `notifyTextChanged`) :
+  l'œil apparaît/disparaît au changement de fichier SANS code hôte,
+  et s'allume de l'accent tant que la feuille est ouverte.
+- **B6d — feuille d'aperçu « carte flottante »** — élévation réelle
+  12 dp (ombre au-dessus de l'éditeur), coins arrondis du côté
+  flottant (gauche en scindé), en-tête à petite icône ŒIL + nom de
+  fichier, segmented control scindé/plein (pilule à deux
+  compartiments, actif voilé d'accent), bouton fermer — icônes du
+  moteur, nettes à toute densité. La bascule de mode re-dessine la
+  carte (rayons adaptés) sans reconstruire le popup.
+- **B6e — moteur Markdown v2 de la démo** — liens, images, listes
+  ordonnées, listes de tâches `[ ]/[x]` (cases stylées), tables GFM,
+  barré `~~…~~`, titres jusqu'au niveau 6 ; le scanner inline ignore
+  l'intérieur des balises déjà posées (les URLs à tiret bas ne
+  deviennent jamais de l'italique) ; style « GitHub Dark » moderne.
+
+### Changed
+
+- **Barre 40 dp, registre pill** — cible tactile confortable pour
+  les boutons-icônes (36 dp en B5) ; fond arrondi à l'appui ET en
+  état actif (l'aperçu ouvert s'affiche allumé), glyphe
+  accent/disponible/atténué teinté du thème de l'éditeur lié.
+- **L'action d'aperçu BASCULE** — un tap ouvre la feuille scindée,
+  un second tap la referme (plus besoin de viser le ✕ de la
+  feuille, ni de changer de geste pour fermer).
+- **Icônes d'aperçu du canvas alignées** — `EditorChromePainter.
+  drawPreviewIcons` dessine via le moteur (scinder + œil) aux
+  constantes du contrôleur : dessin et hit-test partagent enfin les
+  mêmes bornes (le dessin traînait à 24 dp sur un hit-test de 22 dp).
+- **Démo épurée** — SEULEMENT les trois actions d'IDE dans la barre
+  (« seulement ces 3 options dans le breadcrumbbar ») ; le zoom
+  reste au pincement, « étendre la sélection » est retiré ; noms de
+  fichiers par échantillon (exemple.md, index.html) ; échantillon
+  Markdown enrichi pour la vitrine v2.
+
+### Tests
+
+- **1 618 verts** (1 583 + 35) : `EditorIconsTest` ×14 (parser,
+  géométrie par bornes, contrat drawPath du shadow canvas — le
+  raster de Path étant un no-op sous Robolectric), 
+  `BreadcrumbBarModernTest` ×7 (trois boutons exactement, undo câblé
+  qui annule réellement, visibilité pilotée par le SEUL
+  `setFileName`, bascule ouvrir/fermer avec feuille vivante, cible
+  ≥ 40 dp + TalkBack, retrait ciblé), `DemoPreviewHostTest` ×13
+  (blocs, tâches, table, inline, échappement AVANT interprétation,
+  marqueurs non appariés, échantillon réel).
+- Garde-fous verts : budgets EditorView 3 587 l./175/267 (INCHANGÉS
+  — la refonte n'ajoute RIEN à la vue), figures 1 618 = 1 618
+  écart 0, refs externes conformes, lint sans nouveau problème.
+
 ## [3.59.0] — 2026-10-13 — Retour terrain : plus de boutons invisibles en haut à droite (UX-5)
 
 Deuxième retour d'appareil post-lot tactile : le propriétaire constate

@@ -8,19 +8,28 @@ import android.webkit.WebView;
 import jo.codeeditor.view.EditorView;
 import jo.codeeditor.view.preview.EditorPreviewHost;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 /**
- * Hôte d'aperçu de la démo (B5 — retour terrain post-J6) : rend les
- * échantillons <b>Markdown</b> dans la feuille d'aperçu de l'éditeur
- * (WebView, conversion HTML minimaliste). C'est la preuve APK que
- * l'action « œil » de la barre de fil d'Ariane ouvre bel et bien un
- * aperçu vivant — la feuille scindée flotte sur l'éditeur, son en-tête
- * bascule plein écran, et le contenu se re-rend en frappant (débounce
- * ~200 ms côté bibliothèque).
+ * Hôte d'aperçu de la démo (B5 → <b>v2 B6</b>) : rend les échantillons
+ * <b>Markdown/HTML</b> dans la feuille d'aperçu de l'éditeur (WebView,
+ * conversion HTML maison). C'est la preuve APK que l'action « œil » de la
+ * barre de fil d'Ariane ouvre un aperçu vivant — la feuille flotte sur
+ * l'éditeur (carte modernisée B6), et le contenu se re-rend en frappant
+ * (débounce ~200 ms côté bibliothèque).
  *
- * <p>Le HTML est généré par {@link #markdownToHtml(CharSequence)} :
- * titres, gras, italique, code en ligne et blocs, listes, citations et
- * règles horizontales — assez pour juger le flux, pas assez pour prétendre
- * à CommonMark. Les fichiers {@code .html} bruts passent tels quels.</p>
+ * <p><b>Moteur v2 (B6)</b> — {@link #markdownToHtml(CharSequence)} gagne
+ * : liens {@code [texte](url)}, images {@code ![alt](url)}, listes
+ * <b>ordonnées</b>, <b>listes de tâches</b> ({@code - [ ] / - [x]}),
+ * <b>tables</b> GFM, <b>barré</b> ({@code ~~…~~}), titres jusqu'au
+ * niveau 6 — toujours sans dépendance externe (assez pour juger le flux,
+ * pas assez pour prétendre à CommonMark). Le style passe au registre
+ * « GitHub Dark » moderne : police lisible pour la prose, code en carte
+ * bordée, citations à barre d'accent, tableaux à en-têtes contrastés.
+ * Les fichiers {@code .html} bruts passent tels quels.</p>
  */
 public class DemoPreviewHost implements EditorPreviewHost {
 
@@ -71,7 +80,7 @@ public class DemoPreviewHost implements EditorPreviewHost {
         if (webView == null) {
             webView = new WebView(ctx.getApplicationContext());
             webView.getSettings().setJavaScriptEnabled(false);
-            webView.setBackgroundColor(0xFF111318);
+            webView.setBackgroundColor(0xFF0D1117);
         }
         if (editor.getSession() != null) {
             webView.loadDataWithBaseURL(null, wrapHtml(editor.getSession().getText()),
@@ -87,127 +96,326 @@ public class DemoPreviewHost implements EditorPreviewHost {
         return "<!DOCTYPE html><html><head><meta charset=\"utf-8\">"
                 + "<meta name=\"viewport\" content=\"width=device-width,"
                 + "initial-scale=1\">"
-                + "<style>body{background:#111318;color:#d4d4d4;"
-                + "font-family:monospace;padding:12px;line-height:1.45}"
-                + "h1,h2,h3{color:#e4e4e7}code{color:#f0c674;"
-                + "background:#1e2027;padding:1px 4px;border-radius:3px}"
-                + "pre{background:#1e2027;padding:8px;border-radius:6px;"
-                + "overflow-x:auto}pre code{background:transparent;padding:0}"
-                + "blockquote{border-left:3px solid #3a3d46;margin:0;"
-                + "padding-left:10px;color:#858585}a{color:#78a9ff}"
-                + "hr{border:0;border-top:1px solid #2a2d35}"
-                + "li{margin:2px 0}</style></head><body>"
+                + "<style>" + CSS + "</style></head><body>"
                 + body + "</body></html>";
     }
 
     /**
-     * Conversion Markdown → HTML minimaliste : échappe d'abord le HTML,
-     * puis titres (#/##/###), blocs de code (``` … ```), code en ligne
-     * (`…`), gras (**…**), italique (*…* / _…_), listes (- / *),
-     * citations (&gt;) et règles horizontales (---).
+     * Feuille de style « GitHub Dark » moderne (B6) — prose en police
+     * système lisible, code en cartes bordées, citations à barre d'accent,
+     * tâches à cases cochées, tableaux contrastés.
+     */
+    private static final String CSS =
+            ":root{color-scheme:dark}"
+            + "body{background:#0d1117;color:#e6edf3;margin:0;"
+            + "padding:16px 18px 26px;font:15px/1.65 -apple-system,"
+            + "'Segoe UI',Roboto,'Helvetica Neue',sans-serif}"
+            + "h1,h2,h3,h4,h5,h6{color:#f0f6fc;line-height:1.25;"
+            + "margin:1.05em 0 .4em}"
+            + "h1{font-size:1.55em;border-bottom:1px solid #21262d;"
+            + "padding-bottom:.3em}"
+            + "h2{font-size:1.3em;border-bottom:1px solid #21262d;"
+            + "padding-bottom:.25em}"
+            + "h3{font-size:1.12em}h4{font-size:1em;color:#c9d1d9}"
+            + "p{margin:.5em 0}"
+            + "a{color:#58a6ff;text-decoration:none}a:active{color:#79c0ff}"
+            + "strong{color:#f0f6fc}del{color:#8b949e}"
+            + "code{font:12.5px/1.5 Menlo,Consolas,'JetBrains Mono',"
+            + "monospace;background:#1c2128;color:#f0c674;"
+            + "padding:2px 5px;border-radius:5px;border:1px solid #2d333b}"
+            + "pre{background:#161b22;border:1px solid #21262d;"
+            + "border-radius:9px;padding:11px 13px;overflow-x:auto;"
+            + "margin:.7em 0}"
+            + "pre code{background:none;border:0;padding:0;color:#e6edf3}"
+            + "blockquote{border-left:3px solid #388bfd80;margin:.6em 0;"
+            + "padding:2px 0 2px 12px;color:#a9b1ba}"
+            + "ul,ol{padding-left:1.35em;margin:.5em 0}li{margin:.26em 0}"
+            + ".task{display:inline-block;width:13px;height:13px;"
+            + "border:1.5px solid #6e7681;border-radius:3px;"
+            + "margin-right:7px;vertical-align:-2px}"
+            + ".task.done{background:#2ea04340;border-color:#2ea043}"
+            + "hr{border:0;border-top:1px solid #21262d;margin:1.15em 0}"
+            + "table{border-collapse:collapse;margin:.7em 0;max-width:100%}"
+            + "th,td{border:1px solid #21262d;padding:6px 10px;"
+            + "text-align:left}"
+            + "th{background:#161b22;color:#f0f6fc}"
+            + "img{max-width:100%;border-radius:8px}";
+
+    // ════════════════════════════════════════════════════════════════
+    // Conversion Markdown → HTML (v2 B6)
+    // ════════════════════════════════════════════════════════════════
+
+    /** Lien [texte](url) — texte non vide, url sans espace. */
+    private static final Pattern LINK =
+            Pattern.compile("\\[([^\\]\\n]+)\\]\\(([^)\\s]+)[^)]*\\)");
+    /** Image ![alt](url). */
+    private static final Pattern IMAGE =
+            Pattern.compile("!\\[([^\\]]*)\\]\\(([^)\\s]+)[^)]*\\)");
+    /** Ligne de tâche : « - [x] reste » / « * [ ] à faire ». */
+    private static final Pattern TASK =
+            Pattern.compile("^([-*+]) \\[([ xX])\\] (.*)$");
+    /** Marqueur de liste non ordonnée : « - », « * », « + ». */
+    private static final Pattern UL =
+            Pattern.compile("^([-*+]) (.*)$");
+    /** Marqueur de liste ordonnée : « 1. » / « 3) ». */
+    private static final Pattern OL =
+            Pattern.compile("^(\\d+)[.)] (.*)$");
+
+    /**
+     * Conversion Markdown → HTML maison (v2) : échappe d'abord le HTML,
+     * puis blocs de code (``` … ```), titres (# … ######), règles
+     * horizontales, citations (&gt;), listes non ordonnées / ordonnées /
+     * de tâches, tables GFM, paragraphes ; en ligne : code (`…`), gras
+     * (**…**), italique (*…* / _…_), barré (~~…~~), liens et images.
      */
     static String markdownToHtml(CharSequence src) {
         if (src == null) return "";
-        String[] lines = src.toString().split("\n", -1);
+        List<String> lines = new ArrayList<>();
+        for (String l : src.toString().split("\n", -1)) lines.add(l);
         StringBuilder out = new StringBuilder();
+        Blocks blocks = new Blocks();
         boolean inCode = false;
-        boolean inList = false;
-        boolean inQuote = false;
-        for (String raw : lines) {
-            String line = raw;
+        int i = 0;
+        while (i < lines.size()) {
+            String line = lines.get(i);
+            String trimmed = line.trim();
 
             // Bloc de code fence.
-            if (line.trim().startsWith("```")) {
-                closeBlocks(out, inList, inQuote);
-                inList = false;
-                inQuote = false;
+            if (trimmed.startsWith("```")) {
+                blocks.close(out);
                 if (inCode) {
                     out.append("</code></pre>");
                 } else {
                     out.append("<pre><code>");
                 }
                 inCode = !inCode;
+                i++;
                 continue;
             }
             if (inCode) {
                 out.append(escapeHtml(line)).append('\n');
+                i++;
                 continue;
             }
 
             // Règle horizontale.
-            if (line.trim().matches("(-{3,}|\\*{3,}|_{3,})")) {
-                closeBlocks(out, inList, inQuote);
-                inList = false;
-                inQuote = false;
+            if (trimmed.matches("(-{3,}|\\*{3,}|_{3,})")) {
+                blocks.close(out);
                 out.append("<hr>");
+                i++;
+                continue;
+            }
+
+            // Table GFM — en-tête + séparateur |---|---| + lignes.
+            if (trimmed.startsWith("|") && i + 1 < lines.size()
+                    && isTableSeparator(lines.get(i + 1))) {
+                blocks.close(out);
+                renderTable(out, lines, i);
+                // Saute l'en-tête + le séparateur + les lignes de corps.
+                i += 2;
+                while (i < lines.size() && lines.get(i).trim().startsWith("|")) i++;
+                continue;
+            }
+
+            // Titres (niveaux 1 à 6).
+            int level = headingLevel(trimmed);
+            if (level > 0) {
+                blocks.close(out);
+                out.append("<h").append(level).append(">")
+                        .append(inline(trimmed.substring(level + 1)))
+                        .append("</h").append(level).append(">");
+                i++;
                 continue;
             }
 
             // Citation.
-            boolean quote = line.trim().startsWith(">");
-            if (quote) {
-                if (!inQuote) {
-                    closeBlocks(out, inList, false);
-                    inList = false;
-                    out.append("<blockquote>");
+            if (trimmed.startsWith(">")) {
+                if (!blocks.quote) {
+                    blocks.openQuote(out);
                 }
-                inQuote = true;
-                out.append(inline(line.trim().substring(1).trim()))
+                out.append(inline(trimmed.substring(1).trim()))
                         .append("<br>");
+                i++;
                 continue;
             }
-            if (inQuote) {
+            if (blocks.quote) {
                 out.append("</blockquote>");
-                inQuote = false;
+                blocks.quote = false;
             }
 
-            // Liste.
-            boolean item = line.trim().startsWith("- ") || line.trim().startsWith("* ");
-            if (item) {
-                if (!inList) {
-                    out.append("<ul>");
-                    inList = true;
-                }
-                out.append("<li>").append(inline(line.trim().substring(2)))
-                        .append("</li>");
+            // Listes de tâches / non ordonnées / ordonnées.
+            Matcher task = TASK.matcher(trimmed);
+            if (task.matches()) {
+                blocks.openUl(out);
+                boolean done = !task.group(2).trim().isEmpty();
+                out.append("<li>").append(done ? TASK_DONE : TASK_TODO)
+                        .append(inline(task.group(3))).append("</li>");
+                i++;
                 continue;
             }
-            if (inList) {
-                out.append("</ul>");
-                inList = false;
+            Matcher ul = UL.matcher(trimmed);
+            if (ul.matches()) {
+                blocks.openUl(out);
+                out.append("<li>").append(inline(ul.group(2))).append("</li>");
+                i++;
+                continue;
             }
+            Matcher ol = OL.matcher(trimmed);
+            if (ol.matches()) {
+                blocks.openOl(out);
+                out.append("<li>").append(inline(ol.group(2))).append("</li>");
+                i++;
+                continue;
+            }
+            blocks.close(out);
 
-            // Titres.
-            String trimmed = line.trim();
-            if (trimmed.startsWith("### ")) {
-                out.append("<h3>").append(inline(trimmed.substring(4))).append("</h3>");
-            } else if (trimmed.startsWith("## ")) {
-                out.append("<h2>").append(inline(trimmed.substring(3))).append("</h2>");
-            } else if (trimmed.startsWith("# ")) {
-                out.append("<h1>").append(inline(trimmed.substring(2))).append("</h1>");
-            } else if (trimmed.isEmpty()) {
+            if (trimmed.isEmpty()) {
                 // Ligne vide : respiration, pas de <br> en cascade.
-            } else {
-                out.append("<p>").append(inline(line)).append("</p>");
+                i++;
+                continue;
             }
+            out.append("<p>").append(inline(line)).append("</p>");
+            i++;
         }
-        closeBlocks(out, inList, inQuote);
+        blocks.close(out);
         if (inCode) out.append("</code></pre>");
         return out.toString();
     }
 
-    private static void closeBlocks(StringBuilder out, boolean inList, boolean inQuote) {
-        if (inList) out.append("</ul>");
-        if (inQuote) out.append("</blockquote>");
+    private static final String TASK_TODO = "<span class=\"task\"></span>";
+    private static final String TASK_DONE = "<span class=\"task done\"></span>";
+
+    /** État des blocs ouverts pendant UNE conversion (local — pas d'état
+     *  partagé entre appels, conversions indépendantes et testables). */
+    private static final class Blocks {
+        boolean ul, ol, quote;
+
+        void close(StringBuilder out) {
+            if (ul) {
+                out.append("</ul>");
+                ul = false;
+            }
+            if (ol) {
+                out.append("</ol>");
+                ol = false;
+            }
+            if (quote) {
+                out.append("</blockquote>");
+                quote = false;
+            }
+        }
+
+        void openUl(StringBuilder out) {
+            if (ol) {
+                out.append("</ol>");
+                ol = false;
+            }
+            if (!ul) {
+                out.append("<ul>");
+                ul = true;
+            }
+        }
+
+        void openOl(StringBuilder out) {
+            if (ul) {
+                out.append("</ul>");
+                ul = false;
+            }
+            if (!ol) {
+                out.append("<ol>");
+                ol = true;
+            }
+        }
+
+        void openQuote(StringBuilder out) {
+            if (ul) {
+                out.append("</ul>");
+                ul = false;
+            }
+            if (ol) {
+                out.append("</ol>");
+                ol = false;
+            }
+            if (!quote) {
+                out.append("<blockquote>");
+                quote = true;
+            }
+        }
     }
 
-    /** Échappement HTML puis marques en ligne (code, gras, italique). */
+    /** Niveau du titre (1 à 6), 0 si la ligne n'est pas un titre. */
+    private static int headingLevel(String trimmed) {
+        for (int level = 1; level <= 6; level++) {
+            if (trimmed.startsWith("#".repeat(level) + " ")) {
+                return level;
+            }
+        }
+        return 0;
+    }
+
+    /** Ligne séparateur de table GFM : |, |-, |:-:|, | --- | :--- |. */
+    private static boolean isTableSeparator(String line) {
+        String t = line.trim();
+        if (t.isEmpty() || !t.contains("-")) return false;
+        return t.matches("\\|?[\\s:|-]+\\|?");
+    }
+
+    /** Rend une table GFM depuis la ligne d'en-tête (index i). */
+    private static void renderTable(StringBuilder out, List<String> lines, int i) {
+        out.append("<table><thead><tr>");
+        for (String cell : splitRow(lines.get(i))) {
+            out.append("<th>").append(inline(cell)).append("</th>");
+        }
+        out.append("</tr></thead><tbody>");
+        for (int r = i + 2; r < lines.size() && lines.get(r).trim().startsWith("|"); r++) {
+            out.append("<tr>");
+            for (String cell : splitRow(lines.get(r))) {
+                out.append("<td>").append(inline(cell)).append("</td>");
+            }
+            out.append("</tr>");
+        }
+        out.append("</tbody></table>");
+    }
+
+    /** Découpe « | a | b | » en cellules (bordures optionnelles retirées). */
+    private static List<String> splitRow(String line) {
+        String t = line.trim();
+        if (t.startsWith("|")) t = t.substring(1);
+        if (t.endsWith("|")) t = t.substring(0, t.length() - 1);
+        List<String> cells = new ArrayList<>();
+        for (String cell : t.split("\\|", -1)) {
+            cells.add(cell.trim());
+        }
+        return cells;
+    }
+
+    /**
+     * Échappement HTML, puis marques en ligne : images et liens (regex,
+     * AVANT le scanner), code, gras, italique, barré — le scanner ignore
+     * l'intérieur des balises HTML déjà posées (les URLs à tiret bas n'y
+     * sont jamais prises pour de l'italique).
+     */
     private static String inline(String s) {
         String e = escapeHtml(s.trim());
+        // Images d'abord (sinon le lien capture le ! alt ]( …).
+        e = IMAGE.matcher(e).replaceAll("<img src=\"$2\" alt=\"$1\">");
+        e = LINK.matcher(e).replaceAll("<a href=\"$2\">$1</a>");
+
         StringBuilder out = new StringBuilder();
         char[] c = e.toCharArray();
         int i = 0;
         while (i < c.length) {
+            // Balise HTML déjà posée (a/img/span) : copiée telle quelle —
+            // son href/alt n'est pas du markdown à interpréter.
+            if (c[i] == '<') {
+                int end = e.indexOf('>', i);
+                if (end > i) {
+                    out.append(c, i, end - i + 1);
+                    i = end + 1;
+                    continue;
+                }
+            }
+            // Code en ligne.
             if (c[i] == '`') {
                 int end = e.indexOf('`', i + 1);
                 if (end > i) {
@@ -216,6 +424,7 @@ public class DemoPreviewHost implements EditorPreviewHost {
                     continue;
                 }
             }
+            // Gras.
             if (i + 1 < c.length && c[i] == '*' && c[i + 1] == '*') {
                 int end = e.indexOf("**", i + 2);
                 if (end > i + 1) {
@@ -224,6 +433,16 @@ public class DemoPreviewHost implements EditorPreviewHost {
                     continue;
                 }
             }
+            // Barré.
+            if (i + 1 < c.length && c[i] == '~' && c[i + 1] == '~') {
+                int end = e.indexOf("~~", i + 2);
+                if (end > i + 1) {
+                    out.append("<del>").append(e, i + 2, end).append("</del>");
+                    i = end + 2;
+                    continue;
+                }
+            }
+            // Italique.
             if (c[i] == '*' || c[i] == '_') {
                 char mark = c[i];
                 int end = e.indexOf(mark, i + 1);
