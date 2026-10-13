@@ -22,6 +22,9 @@
     <string name="cel_builtin_move_down">Move down</string>
     <string name="cel_builtin_comment">Comment</string>
     <string name="cel_builtin_share">Share</string>
+    <!-- B13 (P1-2) : drag-déposer de bloc — l'item de la pill qui ARME
+         le mode (drag = déplacement, tap = annulation). -->
+    <string name="cel_builtin_block_drag">✥ Move</string>
     <string name="cel_case_upper">UPPER</string>
     <string name="cel_case_lower">lower</string>
     <string name="cel_case_toggle">Toggle case</string>

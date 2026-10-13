@@ -56,6 +56,16 @@ public class EditorChromePainter {
     // suivante.
     private final android.text.TextPaint magnifierPaint = new android.text.TextPaint();
 
+    // ── B13 (P1-2) : carte flottante du drag-déposer de bloc ──────
+    // Peints DÉDIÉS (même discipline que la loupe : jamais de mutation
+    // des paints partagés du pipeline principal).
+    private final Paint blockCardPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint blockCardTextPaint = new android.text.TextPaint(Paint.ANTI_ALIAS_FLAG);
+    /** Lignes affichées dans la carte (au-delà : « … » en pied). */
+    private static final int BLOCK_CARD_MAX_LINES = 3;
+    /** Caractères affichés par ligne de carte (ellipse « … »). */
+    private static final int BLOCK_CARD_MAX_CHARS = 32;
+
     // ── Géométrie de la minimap (déplacée d'EditorView) ───────────
     static final float MINIMAP_WIDTH_DP = 60f;
     static final float MINIMAP_LINE_HEIGHT_PX = 2.5f;  // px par ligne doc
@@ -412,6 +422,28 @@ public class EditorChromePainter {
                             caretPos[0], lineTop + lineHeight, view.caretPaint);
                 }
             }
+
+            // ★ B13 (P1-2) — caret FANTÔME du drag-déposer de bloc :
+            // le POINT DE DÉPÔT dans la fenêtre de la loupe (accent
+            // plus épais que le caret réel — l'utilisateur règle le
+            // dépôt, la loupe montre ce qu'il règle, M1).
+            if (view.blockDragCtl.isActive()
+                    && view.blockDragCtl.getDropOffset() >= 0) {
+                int dropOff = view.blockDragCtl.getDropOffset();
+                int dropDocLine = jo.codeeditor.view.EditorView.clamp(
+                        doc.lineForOffset(dropOff), 0, doc.lineCount() - 1);
+                if (dropDocLine >= firstLine && dropDocLine <= lastLine
+                        && !view.isLineFoldedCached(dropDocLine)) {
+                    float[] dropPos = view.caretScreenPos(dropOff);
+                    float dropTop = view.docLineToY(dropDocLine) - view.vOffset;
+                    view.caretPaint.setColor(view.theme.caret);
+                    view.caretPaint.setStyle(Paint.Style.STROKE);
+                    view.caretPaint.setStrokeWidth(3f * density);
+                    canvas.drawLine(dropPos[0], dropTop,
+                            dropPos[0], dropTop + lineHeight, view.caretPaint);
+                    view.caretPaint.setStrokeWidth(2f);
+                }
+            }
         }
         canvas.restore();
 
@@ -456,6 +488,119 @@ public class EditorChromePainter {
         float below = fingerY + radius * 1.8f;
         if (below <= viewHeight - radius) return below;
         return Math.min(viewHeight - radius, Math.max(radius, fingerY));
+    }
+
+    // ── B13 (P1-2) : carte flottante du drag-déposer de bloc ──────
+
+    /**
+     * B13 — la carte flottante du bloc DÉPLACÉ : un extrait du texte
+     * photographié à l'armement (3 lignes max, ellipse par ligne, pied
+     * « … » si le bloc est plus long), porté SOUS le doigt pendant le
+     * déplacement (la loupe est AU-DESSUS — les deux instruments ne se
+     * chevauchent jamais), bord accent + ombre portée discrète façon
+     * TextView drag shadow.
+     *
+     * <p>Résolution de la position : sous le doigt à 20 dp (marge de
+     * lisibilité du point de dépôt) ; si la carte ne tient pas en bas
+     * (doigt près du bord inférieur), elle passe au-dessus du doigt —
+     * la loupe, elle, bascule déjà de l'autre côté. Clampe
+     * horizontale aux bords de la vue. Peints dédiés + chemin de
+     * travail réutilisé ; l'extrait est borné (3×32 caractères —
+     * allocations minimes, geste transitoire).</p>
+     */
+    void drawBlockDragCard(Canvas canvas) {
+        if (!view.blockDragCtl.isActive()) return;
+        String block = view.blockDragCtl.getBlockText();
+        if (block == null || block.isEmpty()) return;
+        float density = view.getResources().getDisplayMetrics().density;
+        float viewW = view.getWidth();
+        float viewH = view.getHeight();
+        if (viewW <= 0 || viewH <= 0) return;
+
+        // ── Extrait : 3 lignes max, ellipse à 32 caractères ──
+        // (lignes via indexOf — pas de split qui alloue un tableau).
+        String[] shown = new String[BLOCK_CARD_MAX_LINES + 1];
+        int lineCount = 0;
+        int rest = 0;
+        int from = 0;
+        while (from <= block.length() && lineCount <= BLOCK_CARD_MAX_LINES) {
+            int nl = block.indexOf('\n', from);
+            String raw = nl < 0 ? block.substring(from) : block.substring(from, nl);
+            if (lineCount == BLOCK_CARD_MAX_LINES) {
+                // 4e ligne rencontrée → pied « … » et on s'arrête.
+                shown[lineCount] = "…";
+                lineCount++;
+                break;
+            }
+            if (raw.length() > BLOCK_CARD_MAX_CHARS) {
+                raw = raw.substring(0, BLOCK_CARD_MAX_CHARS - 1) + "…";
+            }
+            shown[lineCount++] = raw.isEmpty() ? " " : raw;
+            if (nl < 0) break;
+            from = nl + 1;
+        }
+        rest = lineCount;
+
+        // ── Géométrie de la carte ──
+        blockCardTextPaint.set(view.textPaint);
+        blockCardTextPaint.setTypeface(view.metrics.getTypeface());
+        blockCardTextPaint.setTextSize(view.metrics.getTextSize());
+        blockCardTextPaint.setColor(view.theme.textColor);
+        float textH = view.metrics.getLineHeight();
+        float pad = 6f * density;
+        float cardH = rest * textH + 2 * pad;
+        float cardW = 0;
+        for (int i = 0; i < rest; i++) {
+            cardW = Math.max(cardW, blockCardTextPaint.measureText(shown[i]));
+        }
+        cardW += 2 * pad;
+        float maxW = 240f * density;
+        if (cardW > maxW) cardW = maxW;
+
+        // Sous le doigt (la loupe est au-dessus) ; au-dessus si la
+        // carte ne tient pas en bas ; marge 20 dp du doigt.
+        float fingerX = view.blockDragCtl.getFingerX();
+        float fingerY = view.blockDragCtl.getFingerY();
+        float gap = 20f * density;
+        float cardLeft = fingerX - cardW / 2f;
+        if (cardLeft < 2f * density) cardLeft = 2f * density;
+        if (cardLeft + cardW > viewW - 2f * density) {
+            cardLeft = viewW - 2f * density - cardW;
+        }
+        float cardTop = fingerY + gap;
+        if (cardTop + cardH > viewH - 2f * density) {
+            cardTop = fingerY - gap - cardH;
+        }
+        if (cardTop < 2f * density) cardTop = 2f * density;
+
+        // ── Ombre portée discrète (deux strokes concentriques), carte
+        //    pleine, bord accent, texte ──
+        float r = 8f * density;
+        scratchPath.reset();
+        scratchPath.addRoundRect(cardLeft, cardTop, cardLeft + cardW, cardTop + cardH, r, r,
+                Path.Direction.CW);
+        blockCardPaint.setStyle(Paint.Style.STROKE);
+        blockCardPaint.setStrokeWidth(3f * density);
+        blockCardPaint.setColor(view.applyAlphaToColor(view.theme.gutterText, 0.18f));
+        canvas.drawPath(scratchPath, blockCardPaint);
+        blockCardPaint.setStrokeWidth(1.5f * density);
+        blockCardPaint.setColor(view.applyAlphaToColor(view.theme.gutterText, 0.25f));
+        canvas.drawPath(scratchPath, blockCardPaint);
+        blockCardPaint.setStyle(Paint.Style.FILL);
+        blockCardPaint.setColor(view.applyAlphaToColor(view.theme.editorBg, 0.96f));
+        canvas.drawPath(scratchPath, blockCardPaint);
+        blockCardPaint.setStyle(Paint.Style.STROKE);
+        blockCardPaint.setStrokeWidth(1.5f * density);
+        blockCardPaint.setColor(view.theme.caret);
+        canvas.drawPath(scratchPath, blockCardPaint);
+        // Restaure le paint DÉDIÉ en FILL (discipline des paints).
+        blockCardPaint.setStyle(Paint.Style.FILL);
+        blockCardPaint.setStrokeWidth(0f);
+
+        for (int i = 0; i < rest; i++) {
+            canvas.drawText(shown[i], cardLeft + pad,
+                    cardTop + pad + textH * (i + 0.78f), blockCardTextPaint);
+        }
     }
 
     // ── M3 (lot 2, J5) : voie native (android.widget.Magnifier) ──

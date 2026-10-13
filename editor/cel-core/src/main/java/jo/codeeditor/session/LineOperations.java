@@ -172,6 +172,57 @@ final class LineOperations {
         return true;
     }
 
+    /**
+     * Déplace la plage de caractères [start, end) à l'offset
+     * {@code target} — B13 (P1-2 « drag-déposer de bloc ») : la
+     * suppression + la réinsertion forment UNE seule étape
+     * d'annulation (lot d'éditions), et la sélection est
+     * RÉ-ÉPINGLÉE sur le texte déplacé (l'aller-retour undo/redo et
+     * le re-drag restent stables).
+     *
+     * <p>Sémantique des bornes (parité TextView drag &amp; drop) :</p>
+     * <ul>
+     *   <li>{@code target} est l'offset d'insertion AVANT suppression
+     *       — un dépôt au-delà de la source ({@code target >= end})
+     *       est corrigé de la longueur retirée ;</li>
+     *   <li>un dépôt DANS la source ({@code start <= target <= end})
+     *       est un no-op : le document serait identique — rien n'est
+     *       enregistré sur la pile d'annulation (retourne false) ;</li>
+     *   <li>lecture-seule / plage vide (caret) : no-op (false) ;</li>
+     *   <li>les plis repliés chevauchant la zone éditée se déplient
+     *       (comportement du point de mutation — le point de dépôt
+     *       devient visible).</li>
+     * </ul>
+     *
+     * @param s      la session porteuse
+     * @param start  début de la plage déplacée (offset document)
+     * @param end    fin de la plage déplacée (exclue)
+     * @param target offset d'insertion AVANT suppression (offset document)
+     * @return true si le document a changé
+     */
+    static boolean moveRange(EditorSession s, int start, int end, int target) {
+        if (s.isReadOnly()) return false;
+        int len = s.doc.length();
+        if (start < 0) start = 0;
+        if (end > len) end = len;
+        if (target < 0) target = 0;
+        if (target > len) target = len;
+        if (start >= end) return false; // caret ou plage inversée : rien
+        if (target >= start && target <= end) return false; // dépôt dans la source
+        String text = s.doc.subText(start, end);
+        s.beginBatch();
+        try {
+            s.replaceRange(start, end, "");
+            int insertAt = target > end ? target - (end - start) : target;
+            s.replaceRange(insertAt, insertAt, text);
+            s.setSelection(Selection.range(insertAt,
+                    Math.min(insertAt + text.length(), s.doc.length())));
+        } finally {
+            s.endBatch();
+        }
+        return true;
+    }
+
     /** Contenu du bloc de lignes [start, end] joint par '\n' — SANS
      *  séparateur final (le remplacement le resynthétise). */
     private static String blockText(EditorSession s, int startLine, int endLine) {

@@ -3,6 +3,7 @@ package jo.codeeditor.view;
 import jo.codeeditor.view.chrome.EditorFastScroller;
 import jo.codeeditor.view.chrome.EditorTheme;
 import jo.codeeditor.view.chrome.GutterView;
+import jo.codeeditor.view.input.EditorBlockDragController;
 import jo.codeeditor.view.input.EditorInputHandler;
 import jo.codeeditor.view.input.EditorKeyHandler;
 import jo.codeeditor.view.input.EditorKeymap;
@@ -117,6 +118,12 @@ public class EditorView extends View {
     public final EditorFastScroller fastScroller;
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
     public final EditorErrorStripe errorStripe;
+    // ── B13 (P1-2) : contrôleur du drag-déposer de bloc (mode armé
+    // par la pill ✥, moteur EditorSession.moveRange) — l'état du
+    // geste vit ici, le rendu (carte flottante, caret fantôme, loupe)
+    // le lit.
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public final EditorBlockDragController blockDragCtl;
 
     // ── État de défilement ────────────────────────────────────────
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
@@ -1184,6 +1191,10 @@ public class EditorView extends View {
         // les dessine à la fin du pipeline.
         this.fastScroller = new EditorFastScroller(this);
         this.errorStripe = new EditorErrorStripe(this);
+        // ★ B13 (P1-2) : contrôleur du drag-déposer de bloc — armé par
+        // la pill (✥ Move), possédé par la vue (rendu + hôte), piloté
+        // par EditorInputHandler.
+        this.blockDragCtl = new EditorBlockDragController(this);
         // B7 : contrôleur des fondus d'apparition/disparition des popups
         // Canvas — créé AVANT le renderer, qui y enregistre ses peintres à
         // sa construction.
@@ -1216,6 +1227,9 @@ public class EditorView extends View {
         // native est un fenêtrage système, refermée explicitement).
         dismissMagnifier();
         handleDragMode = 0;
+        // ★ B13 (P1-2) : un drag de bloc armé sur l'ANCIEN document
+        // n'a plus de sens — le mode retombe (document intact).
+        blockDragCtl.cancel();
         // Détache de la session précédente.
         if (this.session != null) {
             this.session.setImeListener(null);
@@ -2992,6 +3006,41 @@ public class EditorView extends View {
         if (old != null) EditorZoomMemory.remember(old, zoom.fontScale);
         zoomMemoryKey = key;
         if (key != null) zoom.setFontScale(EditorZoomMemory.recall(key));
+    }
+
+    // ── B13 (P1-2) : drag-déposer de bloc ──────────────────────
+
+    /**
+     * B13 (P1-2) — arme le mode « déplacer par glisser-déposer » pour
+     * la sélection courante : le GESTE suivant appartient au bloc
+     * (drag = déplacement avec loupe + caret fantôme, tap =
+     * annulation). Le dépôt s'exécute en une étape d'annulation et
+     * ré-épingle la sélection sur le texte déplacé.
+     *
+     * <p>C'est le perform de la pill
+     * {@code BuiltinSelectionActions.blockDrag(view)} — l'hôte peut
+     * aussi l'appeler directement (barre d'outils, raccourci).</p>
+     *
+     * @return true si armé (sélection non réduite au caret, session
+     *         vivante et éditable) ; false sinon (rien ne change)
+     */
+    public boolean armBlockDrag() {
+        return inputHandler.armBlockDrag();
+    }
+
+    /** B13 — vrai tant que le mode drag-déposer est armé (avant le geste). */
+    public boolean isBlockDragArmed() {
+        return inputHandler.isBlockDragArmed();
+    }
+
+    /** B13 — vrai pendant un déplacement engagé (doigt au-delà du slop). */
+    public boolean isBlockDragActive() {
+        return inputHandler.isBlockDragActive();
+    }
+
+    /** B13 — annule le mode drag-déposer (document intact, sélection d'origine conservée). */
+    public void cancelBlockDrag() {
+        inputHandler.cancelBlockDrag();
     }
 
     // Bascule d'affichage des caractères non imprimables.

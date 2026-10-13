@@ -146,6 +146,10 @@ public class EditorSelectionGestures {
             // nouvelle position sous le doigt).
             if (view.handleDragMode > 0) {
                 dragHandle(lastDragX, lastDragY);
+            } else if (view.blockDragCtl.isActive()) {
+                // ★ B13 : le drag de bloc possède le geste — le point de
+                // dépôt suit le contenu défilé (caret fantôme + loupe).
+                view.blockDragCtl.dragTo(lastDragX, lastDragY);
             } else {
                 applyDragSelect(lastDragX, lastDragY);
             }
@@ -167,6 +171,14 @@ public class EditorSelectionGestures {
     }
 
     void handleLongPress(float x, float y) {
+        // ★ B13 (P1-2) : le drag-déposer de bloc est ARMÉ — le geste
+        // appartient au bloc (son doigt peut rester immobile 500 ms
+        // avant de glisser) : ni sélection de mot, ni pill, ni
+        // clavier. L'appui long redevient vivant dès que le mode
+        // retombe (dépôt, tap d'annulation, cancel).
+        if (view.blockDragCtl.isArmed()) {
+            return;
+        }
         // B7 (retour terrain n°4) : un popup qui possède le point (région
         // propre ou scrim modal) garde son appui long — l'appui long
         // « sélection pour drag » ne démarre PAS derrière un popup
@@ -555,13 +567,13 @@ public class EditorSelectionGestures {
 
     /**
      * B9 (retour terrain n°6) — vrai pendant qu'un drag de sélection
-     * (poignée traînée ou drag-select au doigt) possède le viewport.
-     * Consulté par l'IME bridge pour SUSPENDRE le recentrage du caret
-     * pendant le geste : chaque application de sélection déclenchait
-     * {@code scrollCaretIntoView}, qui combattait l'auto-scroll UX-2 du
-     * drag — l'un déflait, l'autre recentrait, au rythme des MOVE —
-     * c'était la cause racine des lignes qui « secouaient » pendant le
-     * drag de sélection.
+     * (poignée traînée, drag-select au doigt OU drag de bloc B13)
+     * possède le viewport. Consulté par l'IME bridge pour SUSPENDRE le
+     * recentrage du caret pendant le geste : chaque application de
+     * sélection déclenchait {@code scrollCaretIntoView}, qui combattait
+     * l'auto-scroll UX-2 du drag — l'un déflait, l'autre recentrait, au
+     * rythme des MOVE — c'était la cause racine des lignes qui
+     * « secouaient » pendant le drag de sélection.
      *
      * <p>Le drag et SON auto-scroll dirigent seuls le viewport ; le
      * recentrage reprend au geste suivant (frappe, déplacement clavier,
@@ -570,7 +582,22 @@ public class EditorSelectionGestures {
     boolean isAutoScrollDragActive() {
         return view.session != null
                 && (view.handleDragMode > 0
+                    || view.blockDragCtl.isActive()
                     || (dragSelectEngaged && isDragSelectArmed()));
+    }
+
+    /**
+     * B13 (P1-2) — MOVE du drag de bloc : mémorise la position du doigt,
+     * démarre l'auto-scroll de bord (mécanique UX-2 PARTAGÉE avec le
+     * drag-select : mêmes zones de bord, mêmes vitesses, les deux axes)
+     * puis pousse la position au contrôleur (caret fantôme + loupe
+     * stabilisée).
+     */
+    void noteBlockDrag(float x, float y) {
+        lastDragX = x;
+        lastDragY = y;
+        ensureAutoScrollTick();
+        view.blockDragCtl.dragTo(x, y);
     }
 
     /** Poste le tick d'auto-scroll (une seule instance en vol) sur le

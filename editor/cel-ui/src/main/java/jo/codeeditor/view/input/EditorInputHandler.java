@@ -128,6 +128,14 @@ public class EditorInputHandler {
     // même mécanique que le drag de gouttière B11/P0-3).
     private boolean stripeGesture = false;
 
+    // ── B13 (P1-2) : geste du drag-déposer de bloc ─────────
+    // Le mode est ARMÉ par la pill (item ✥ Move) — le geste SUIVANT
+    // appartient au bloc : drag = déplacement (loupe + caret fantôme
+    // + carte flottante + auto-scroll de bord), tap = annulation. Le
+    // geste est englouti comme celui de la pill/du menu (pas de
+    // scroll ni de caret derrière).
+    private boolean blockDragGesture = false;
+
     // ── Handler partagé des décisions de tap différées ──────────────
     // Possédé par l'orchestrateur ; utilisé par EditorTapResolver
     // (tap-dismiss multi-tap) et EditorTouchHoverController (hover
@@ -189,6 +197,11 @@ public class EditorInputHandler {
                 selectionGestures.disarmDragSelect();
                 view.handleDragMode = 0;
                 view.dismissMagnifier();
+                // ★ B13 (P1-2) : pincement pendant le drag de bloc — le
+                // zoom prend possession du viewport, le bloc retombe
+                // PROPREMENT (document intact, sélection d'origine).
+                view.blockDragCtl.cancel();
+                blockDragGesture = false;
             }
             wasPinching = true;
             isDragging = false;
@@ -207,6 +220,8 @@ public class EditorInputHandler {
                 selectionGestures.disarmDragSelect();
                 view.handleDragMode = 0;
                 view.dismissMagnifier();
+                view.blockDragCtl.cancel();
+                blockDragGesture = false;
             }
             wasPinching = true;
             isDragging = false;
@@ -316,6 +331,18 @@ public class EditorInputHandler {
                 // (finishDragSelect) — l'état d'un geste précédent ne
                 // peut jamais fuiter dans celui-ci.
                 selectionGestures.disarmDragSelect();
+                // ★ B13 (P1-2) : drag-déposer de bloc ARMÉ — le geste
+                // appartient au bloc (englouti comme celui de la pill :
+                // pas de scroll, pas de caret, pas de gouttière). Drag →
+                // déplacement, tap → annulation du mode. Le hover
+                // tap-and-hold est annulé (le doigt va porter le bloc).
+                if (view.blockDragCtl.isArmed()) {
+                    blockDragGesture = true;
+                    view.blockDragCtl.beginGesture(x, y);
+                    touchHover.cancel();
+                    scrollerCtl.abortAnimation();
+                    return true;
+                }
                 if (x < view.metrics.getGutterWidth()
                     && x < view.metrics.getGutterWidth() - view.metrics.getFoldStripWidth()) {
                     isScrolling = true;
@@ -421,6 +448,20 @@ public class EditorInputHandler {
                             view.invalidate();
                         }
                         lastTouchY = y;
+                    }
+                    return true;
+                }
+                // ★ B13 (P1-2) : MOVE du drag de bloc — au-delà du
+                // touch-slop le déplacement s'engage (loupe + caret
+                // fantôme + carte) et l'auto-scroll de bord démarre
+                // (mécanique UX-2 partagée avec le drag-select). Le
+                // geste reste englouti par le bloc.
+                if (blockDragGesture) {
+                    float bdx = x - touchStartX;
+                    float bdy = y - touchStartY;
+                    if (view.blockDragCtl.isActive()
+                            || bdx * bdx + bdy * bdy > TAP_SLOP_SQ) {
+                        selectionGestures.noteBlockDrag(x, y);
                     }
                     return true;
                 }
@@ -605,6 +646,17 @@ public class EditorInputHandler {
                 // par la cascade handleTap ; drag → fin du pouce en
                 // fondu (pas de fling : positionnement absolu). Le geste
                 // est englouti par la bande, comme par la pill/le menu.
+                // ★ B13 (P1-2) : UP du drag de bloc — dépose (une
+                // étape d'undo, sélection ré-épinglée) si le drag était
+                // engagé ; un TAP annule le mode (le document ne bouge
+                // pas). Le geste est englouti : pas de tap/caret derrière.
+                if (blockDragGesture) {
+                    blockDragGesture = false;
+                    view.blockDragCtl.drop();
+                    scrollerCtl.recycleTracker();
+                    view.performClick();
+                    return true;
+                }
                 if (stripeGesture) {
                     stripeGesture = false;
                     boolean wasStripeTap = (x == touchStartX && y == touchStartY)
@@ -682,6 +734,10 @@ public class EditorInputHandler {
                 handleMoving = false;
                 downInLineNumberArea = false;
                 stripeGesture = false;
+                // ★ B13 (P1-2) : le système annule le geste — le bloc
+                // retombe proprement (document intact).
+                view.blockDragCtl.cancel();
+                blockDragGesture = false;
                 // ★ B11 : annulation — le pouce du fast-scroller disparaît
                 // immédiatement, sans fondu.
                 view.fastScroller.cancel();
@@ -877,6 +933,28 @@ public class EditorInputHandler {
     /** Bascule l'appui long du détecteur de gestes (exclusivité hover/sélection). */
     void setLongPressEnabled(boolean enabled) {
         gestureDetector.setIsLongpressEnabled(enabled);
+    }
+
+    // ── B13 (P1-2) : relais du drag-déposer de bloc ──────────
+
+    /** Arme le mode drag-déposer pour la sélection courante (le perform de la pill ✥). */
+    public boolean armBlockDrag() {
+        return view.blockDragCtl.arm();
+    }
+
+    /** Vrai si le mode drag-déposer est armé (le prochain geste appartient au bloc). */
+    public boolean isBlockDragArmed() {
+        return view.blockDragCtl.isArmed();
+    }
+
+    /** Vrai si un déplacement de bloc est ENGAGÉ (doigt au-delà du slop). */
+    public boolean isBlockDragActive() {
+        return view.blockDragCtl.isActive();
+    }
+
+    /** Annule le mode (hôte, détachement, changement de session). */
+    public void cancelBlockDrag() {
+        view.blockDragCtl.cancel();
     }
 
     // ── pendingTapDismiss ──

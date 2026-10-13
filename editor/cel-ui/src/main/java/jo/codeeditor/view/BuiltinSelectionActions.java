@@ -117,6 +117,29 @@ public final class BuiltinSelectionActions {
     }
 
     /**
+     * Action « ✥ Move » — B13 (P1-2 drag-déposer de bloc) : ARME le
+     * mode « déplacer par glisser-déposer » pour la sélection courante
+     * ({@link EditorView#armBlockDrag()}). Le geste SUIVANT appartient
+     * au bloc : glisser le doigt déplace le texte (loupe stabilisée +
+     * caret fantôme + carte flottante + auto-scroll de bord), un tap
+     * annule le mode. Le dépôt s'exécute en UNE étape d'annulation
+     * ({@code EditorSession.moveRange}) et ré-épingle la sélection sur
+     * le texte déplacé.
+     *
+     * <p>Pourquoi un mode armé par la pill plutôt qu'un geste direct :
+     * le drag au doigt étend déjà la sélection (appui long) — les deux
+     * ne peuvent pas cohabiter sur le même toucher ; l'item de la pill
+     * est l'invitation explicite au déplacement (recommandation de
+     * l'analyse des écarts P1-2, parité TextView drag &amp; drop).</p>
+     */
+    public static SelectionAction blockDrag(EditorView view) {
+        return new SelectionAction("builtin.blockdrag",
+                view.getContext().getString(jo.codeeditor.ui.R.string.cel_builtin_block_drag),
+                () -> view.armBlockDrag(),
+                selectionAlive(view));
+    }
+
+    /**
      * Action « Comment » — bascule les commentaires de ligne de la
      * sélection, avec la syntaxe du langage courant (préfixe de ligne,
      * encadrement de bloc en repli XML/HTML/Markdown). Désactivée pour

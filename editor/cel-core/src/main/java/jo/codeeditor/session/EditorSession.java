@@ -1292,6 +1292,17 @@ public class EditorSession {
         return LineOperations.moveSelectedLines(this, down);
     }
 
+    /**
+     * Déplace la plage de caractères [start, end) à l'offset
+     * {@code target} — B13 (P1-2 drag-déposer de bloc) : une seule
+     * étape d'annulation, sélection ré-épinglée sur le texte déplacé,
+     * no-op (false) en lecture-seule, plage vide ou dépôt dans la
+     * source. Moteur {@link LineOperations#moveRange}.
+     */
+    public boolean moveRange(int start, int end, int target) {
+        return LineOperations.moveRange(this, start, end, target);
+    }
+
     public void moveLineUp() { LineOperations.moveLineUp(this); }
 
     public void moveLineDown() { LineOperations.moveLineDown(this); }

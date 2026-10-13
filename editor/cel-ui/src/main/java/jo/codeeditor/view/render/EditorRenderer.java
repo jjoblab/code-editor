@@ -443,6 +443,27 @@ public class EditorRenderer {
         // 9. Curseur
         highlights.drawCaret(canvas, doc, sel, textAreaLeft, lineHeight, paddingTop);
 
+        // ★ B13 (P1-2) : caret FANTÔME du drag-déposer de bloc — marque
+        // le POINT DE DÉPÔT sous le doigt (accent plus épais que le
+        // caret réel, pleine rangée, wrap-aware par caretScreenPos —
+        // même source unique ; zéro allocation par frame). Dessiné
+        // après le caret, avant les poignées : au-dessus du texte, sous
+        // le chrome du geste.
+        if (view.blockDragCtl.isActive()
+                && view.blockDragCtl.getDropOffset() >= 0) {
+            int dropOff = view.blockDragCtl.getDropOffset();
+            float[] dropPos = view.caretScreenPos(dropOff);
+            if (dropPos[1] + lineHeight >= 0 && dropPos[1] <= height) {
+                float density = view.getResources().getDisplayMetrics().density;
+                view.caretPaint.setColor(view.theme.caret);
+                view.caretPaint.setStyle(android.graphics.Paint.Style.STROKE);
+                view.caretPaint.setStrokeWidth(3f * density);
+                canvas.drawLine(dropPos[0], dropPos[1],
+                        dropPos[0], dropPos[1] + lineHeight, view.caretPaint);
+                view.caretPaint.setStrokeWidth(2f);
+            }
+        }
+
         // 10. Poignées de sélection (mobile) — dessinées après le curseur
         //     pour être au-dessus du texte et faciles à saisir.
         highlights.drawSelectionHandles(canvas);
@@ -505,6 +526,11 @@ public class EditorRenderer {
         // Dessiner la loupe de sélection (active pendant le drag d'une
         // poignée — voir EditorSelectionGestures.dragHandle).
         chrome.drawMagnifier(canvas);
+
+        // ★ B13 (P1-2) : carte flottante du bloc déplacé (drag-déposer
+        // armé par la pill ✥) — SOUS le doigt, la loupe restant
+        // au-dessus. Après la loupe : même famille de chrome de geste.
+        chrome.drawBlockDragCard(canvas);
 
         // Dessiner la minimap sur le bord droit.
         if (view.minimapEnabled) {
