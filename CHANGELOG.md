@@ -5,6 +5,68 @@ All notable changes to **code-editor-lib** are documented in this file.
 Le format suit la convention [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.64.0] — 2026-10-13 — Lot B10 : recherche/remplacement dans le fichier + 4e tap paragraphe
+
+Premier lot de la feuille de route issue de l'analyse des écarts n°6 :
+les deux écarts P0. La recherche/remplacement dans le fichier — le seul
+écart que le propriétaire touchera à CHAQUE session sur des fichiers
+longs — s'appuie sur le moteur existant (`FindReplace` en cel-core :
+insensible à la casse, mot entier, regex) et le surlignage existant
+(`setFindHighlights`, teintes `findMatch`/`findCurrent`), jusqu'ici
+jamais reliés à une UI. Zéro rupture d'API (une classe publique, un
+ contrôleur, une purge interne).
+
+### Added
+
+- **B10a — `EditorSearchBar` + `EditorSearchController`** : la barre
+  (registre visuel du fil d'Ariane : pill, accent des bascules
+  actives, thème lié) porte trois rangées — requête + compte
+  « 3/17 » + précédent/suivant + fermer ; bascules « Aa » casse /
+  « ab » mot entier / « .* » regex + mode remplacer ; champ de
+  remplacement + « Remplacer » / « Tout ». Le contrôleur tient l'état
+  et les actions : recherche vivante (recalcul différé à la frappe ET
+  à chaque édition du document, listener ré-accroché au changement de
+  session), navigation bouclante (le caret suit le début de
+  l'occurrence courante, SANS sélection — pill et poignées
+  n'interfèrent pas), remplacement de l'occurrence courante (splice
+  ciblé ; regex : expansion des groupes `$1` par matcher borné à la
+  région ; remplacement mal formé = repli littéral, jamais de crash)
+  et remplacement de TOUT en UNE passe (une seule entrée
+  d'annulation, caret restauré). Entrées d'ouverture : menu de l'hôte
+  et le raccourci `Ctrl+F` existant (`OnFindRequestedListener` du
+  listener primaire de sélection). L'ouverture amorce la requête
+  depuis la sélection si elle tient sur une ligne ; la fermeture garde
+  la requête (réouverture sans re-frapper).
+- **B10b — `selectParagraphAt` + 4e tap** : la cascade de taps gagne
+  son quatrième cran — caret → mot → ligne → PARAGRAPHE (bloc de
+  lignes contiguës non vides, borné par les lignes vides ou blanches,
+  fin sans le saut — parité `selectLineAt`). Le 5e tap reste au
+  paragraphe. Deux icônes (loupe en cubiques — le parseur du moteur
+  d'icônes rejette les arcs — chevrons, double-flèche) et 14 libellés
+  canoniques `cel_find_*` complètent le jeu.
+
+### Fixed
+
+- **Purge du surlignage au changement de session** — les offsets de
+  recherche décrivent l'ANCIEN document : `setSession` vide
+  désormais `findHighlights`/`findCurrentIndex` (preuve rouge : le
+  test de ré-accrochage échoue sans la purge). Sans elle, des bandes
+  restaient dessinées aux offsets hasardeux du fichier précédent.
+
+### Tests
+
+- 1 699 tests verts (+35) : `SelectParagraphAtTest` ×8 (bornes
+  paragraphe, ligne vide dégénérée, lignes blanches, cascade
+  ligne≠paragraphe, clamps), `FourthTapParagraphTest` ×2 (cascade
+  complète en taps réels, 5e tap au paragraphe — preuve rouge sans
+  le cran), `EditorSearchControllerTest` ×17 (occurrences, options,
+  navigation bouclante + caret, remplacements plain/regex/groupes/
+  repli, un-seul-undo, édition vivante, session échangée),
+  `EditorSearchBarTest` ×9 (cycle, amorçage, frappe vivante,
+  réouverture, bascules, rangée remplacer, remplacements, refresh
+  session), `EditorIconsTest` inchangé vert sur les 4 nouvelles
+  icônes (bounds du viewport, cache partagé).
+
 ## [3.63.0] — 2026-10-13 — Retour n°6 : fin de la secousse du drag, caret fixe au pincement, œil d'aperçu dans la gouttière
 
 Sixième retour d'appareil, quatre irritants réglés : pendant un drag de
