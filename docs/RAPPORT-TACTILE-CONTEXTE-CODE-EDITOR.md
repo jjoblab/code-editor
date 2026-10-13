@@ -21,7 +21,7 @@
 > compatibles binairement), garde-fous verts (figures de tests, budgets de
 > lignes, baseline lint), un commit conventionné par changement logique.
 > **Statut** : **jalons J1 à J6 LIVRÉS (lot complet, 3.52.0 → 3.57.0),
-> PLUS les retours terrain post-J6 (3.58.0, 3.59.0, 3.61.0) ET la
+> PLUS les retours terrain post-J6 (3.58.0, 3.59.0, 3.61.0, 3.62.0) ET la
 > refonte B6 (3.60.0)** — B6 (3.60.0) : la barre de fil d'Ariane ne porte plus
 > QUE les trois actions d'IDE via `addEditorActions()` (annuler/
 > rétablir câblés sur la session, aperçu qui n'EXISTE que pour un
@@ -33,6 +33,23 @@
 > automatiques (setFileName/setPreviewMode rafraîchissent la barre
 > sœur), moteur Markdown v2 dans la démo (liens, tables, tâches,
 > barré) ; 1 618 tests verts, EditorView/EditorSession inchangés.
+> **Retour terrain n°5 (3.62.0)** : trois irritants réglés à la racine —
+> B8a le modèle de wrap suit le document après `setSession()` (avant :
+> le modèle de l'ANCIEN fichier rendait le nouveau et son clamp de
+> queue empilait toutes les lignes au-delà de l'ancien compte au MÊME
+> Y — « les lignes en bas semblent empilées » en changeant de fichier
+> avec le retour à la ligne actif) ; B8b l'aperçu plein se ré-ajuste
+> au changement de taille et se zoome au PINCEMENT (contrôles de zoom
+> intégrés activés sans boutons, rechargement du payload à chaque
+> changement de taille, WebView créée du contexte réel de l'éditeur)
+> ; B8c un tap HORS du cadre referme le popup — audit complet : la
+> feuille d'aperçu et les cartes glass recevaient un verrou « ✕
+> uniquement », elles portent la recette Android complète
+> (`EditorPopupMotion.outsideTapDismisses` : outside touchable + fond
+> non nul → ACTION_OUTSIDE → dismiss automatique, le tap traverse vers
+> l'éditeur) ; les popups Canvas d'actions de code et l'aller-au-symbole
+> se referment hors bornes (cascade continue) ; l'aide de signature se
+> referme sur tout tap ; 1 652 tests verts (+12).
 > **Retour terrain n°4 (3.61.0)** : six irritants réglés à la racine —
 > B7a les boutons annuler/rétablir de la barre réagissent enfin à la
 > FRAPPE (le rafraîchissement vivait sur le hook hôte, pas sur le
