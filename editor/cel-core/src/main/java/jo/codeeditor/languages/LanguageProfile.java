@@ -7,6 +7,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
+import java.util.function.Predicate;
 
 /**
  * Description immuable d'un langage (portage du
@@ -18,9 +19,10 @@ import java.util.Set;
  * fichiers couvertes, son ensemble de mots-clés, sa {@link SyntaxFamily}
  * lexicale (qui sélectionne le tokenizer intégré), sa
  * {@link CommentSyntax} (qui pilote {@code toggleLineComment}/
- * {@code toggleBlockComment}) et — depuis le Lot 2 — ses
- * <b>traits d'édition</b> : caractères à auto-fermer (quotes,
- * crochets), stratégie de pliage.</p>
+ * {@code toggleBlockComment}), ses <b>traits d'édition</b> (Lot 2) —
+ * caractères à auto-fermer, stratégie de pliage — et, depuis S5 (lot
+ * 2, J6), sa <b>détection de lignes sticky</b> : chaque langue décide
+ * seule de ses en-têtes de bloc via {@link #isBlockHeaderLine}.</p>
  *
  * <p>Les profils sont enregistrés dans le {@link LanguageRegistry}. Les
  * hôtes peuvent enregistrer leurs propres langages — y compris des
@@ -80,12 +82,22 @@ public final class LanguageProfile {
      * {@link Builder#foldStrategy}).
      */
     public final FoldStrategy foldStrategy;
+    /**
+     * Test d'en-tête de bloc fourni par l'hôte (S5, lot 2 J6) — décide
+     * quelles lignes deviennent sticky quand elles sortent du viewport.
+     * Null → tables par défaut de la famille (C_LIKE : accolade +
+     * mot-clé de définition ; Python : deux-points + mot-clé ; autres :
+     * aucun). Le prédicat reçoit la ligne BRUTE (avec indent) ; il est
+     * appelé une fois par ligne et par scan — il peut coûter autant
+     * qu'un test de préfixe mais pas plus qu'un scan de document.
+     */
+    public final Predicate<CharSequence> stickyHeaderTest;
 
     private LanguageProfile(String name, SyntaxFamily family,
             Set<String> aliases, Set<String> extensions,
             Set<String> keywords, CommentSyntax commentSyntax,
             Set<Character> autoCloseQuotes, Set<Character> autoCloseBrackets,
-            FoldStrategy foldStrategy) {
+            FoldStrategy foldStrategy, Predicate<CharSequence> stickyHeaderTest) {
         this.name = name;
         this.family = family;
         this.aliases = aliases;
@@ -95,11 +107,51 @@ public final class LanguageProfile {
         this.autoCloseQuotes = autoCloseQuotes;
         this.autoCloseBrackets = autoCloseBrackets;
         this.foldStrategy = foldStrategy;
+        this.stickyHeaderTest = stickyHeaderTest;
     }
 
     /** Builder fluent — voir la javadoc de la classe pour un exemple d'utilisation. */
     public static Builder builder(String name) {
         return new Builder(name);
+    }
+
+    /**
+     * S5 (lot 2, J6) — vrai si ce langage peut avoir des lignes sticky
+     * (test SPI fourni, ou famille à tables par défaut). Le détecteur
+     * l'utilise comme garde PÉRIMÉTRIQUE : une langue sans en-têtes
+     * déclarés ne paie même pas le scan.
+     */
+    public boolean hasStickyHeaders() {
+        return stickyHeaderTest != null
+                || family == SyntaxFamily.C_LIKE
+                || family == SyntaxFamily.PYTHON;
+    }
+
+    /**
+     * S5 (lot 2, J6) — vrai si {@code line} ouvre un bloc de code
+     * (candidat sticky). Le test de l'hôte ({@code stickyHeaderTest}) a
+     * priorité ; sinon les tables par défaut de la famille :
+     * C_LIKE → ligne portant {@code {} ET commençant par un mot-clé de
+     * définition (class/fun/void…) ; Python → ligne finissant par
+     * {@code :} ET commençant par un mot-clé (def/class/if…) ; autres
+     * familles → faux. La ligne est BRUTE (indent incluse) — les tables
+     * par défaut trimment en interne.
+     */
+    public boolean isBlockHeaderLine(CharSequence line) {
+        if (line == null) return false;
+        if (stickyHeaderTest != null) {
+            Boolean r = stickyHeaderTest.test(line);
+            return r != null && r;
+        }
+        String trimmed = line.toString().trim();
+        if (trimmed.isEmpty()) return false;
+        if (family == SyntaxFamily.C_LIKE) {
+            return line.toString().contains("{") && isBlockHeaderCLike(trimmed);
+        }
+        if (family == SyntaxFamily.PYTHON) {
+            return trimmed.endsWith(":") && isBlockHeaderPython(trimmed);
+        }
+        return false;
     }
 
     /** true quand {@code id} est le nom canonique ou un des alias. */
@@ -143,6 +195,8 @@ public final class LanguageProfile {
         private Set<Character> autoCloseQuotes = null;
         private Set<Character> autoCloseBrackets = null;
         private FoldStrategy foldStrategy = null;
+        // S5 (lot 2, J6) : détection sticky déléguée au SPI langue.
+        private Predicate<CharSequence> stickyHeaderTest;
 
         private Builder(String name) {
             if (name == null) throw new IllegalArgumentException("name is null");
@@ -230,6 +284,22 @@ public final class LanguageProfile {
             return this;
         }
 
+        /**
+         * S5 (lot 2, J6) : détection des lignes sticky déléguée à la
+         * langue. Le prédicat reçoit la ligne BRUTE et décide seule si
+         * elle ouvre un bloc ; {@code null} (défaut) retombe sur les
+         * tables internes de la famille (C_LIKE/Python — les autres
+         * familles n'ont pas d'en-têtes). C'est la voie "honnête" pour
+         * les langues inconnues de l'éditeur : enregistrer un profil
+         * avec son test d'en-têtes suffit, sans toucher au détecteur.
+         * Passer {@code l -> false} pour désactiver explicitement le
+         * sticky d'une langue C_LIKE/Python.
+         */
+        public Builder stickyHeaderTest(Predicate<CharSequence> test) {
+            this.stickyHeaderTest = test;
+            return this;
+        }
+
         public LanguageProfile build() {
             // Lot 2 : valeurs par défaut par famille (quand le builder
             // n'a pas été appelé explicitement pour ces traits).
@@ -246,7 +316,8 @@ public final class LanguageProfile {
                     commentSyntax,
                     Collections.unmodifiableSet(new HashSet<>(finalQuotes)),
                     Collections.unmodifiableSet(new HashSet<>(finalBrackets)),
-                    finalFold);
+                    finalFold,
+                    stickyHeaderTest);
         }
 
         /** Valeurs par défaut pour autoCloseQuotes selon la famille. */
@@ -354,5 +425,39 @@ public final class LanguageProfile {
             }
             return out;
         }
+    }
+
+    // ── S5 : tables d'en-têtes par défaut (déplacées du détecteur) ──
+
+    /** En-têtes de classe/méthode en C_LIKE (déplacé de
+     *  StickyLineDetector — comportement inchangé). */
+    private static boolean isBlockHeaderCLike(String trimmed) {
+        String[] keywords = {
+            "class ", "interface ", "enum ", "public ", "private ",
+            "protected ", "static ", "fun ", "void ", "int ", "long ",
+            "double ", "float ", "boolean ", "char ", "byte ", "short ",
+            "def ", "func ", "fn ", "function ", "var ", "val ",
+            "async ", "suspend ", "override ", "open ", "abstract ",
+            "final ", "internal ", "const ", "let ", "export ",
+            "@interface "
+        };
+        for (String kw : keywords) {
+            if (trimmed.startsWith(kw)) return true;
+        }
+        return false;
+    }
+
+    /** En-têtes def/class/if/for/while/with/try/except/else/finally
+     *  (déplacé de StickyLineDetector — comportement inchangé). */
+    private static boolean isBlockHeaderPython(String trimmed) {
+        String[] keywords = {
+            "def ", "class ", "if ", "elif ", "for ", "while ",
+            "with ", "try:", "except ", "else:", "finally:",
+            "async def "
+        };
+        for (String kw : keywords) {
+            if (trimmed.startsWith(kw)) return true;
+        }
+        return false;
     }
 }

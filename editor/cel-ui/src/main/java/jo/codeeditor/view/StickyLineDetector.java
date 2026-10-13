@@ -2,8 +2,6 @@ package jo.codeeditor.view;
 
 import jo.codeeditor.document.EditorDocument;
 import jo.codeeditor.languages.LanguageProfile;
-import jo.codeeditor.languages.LanguageRegistry;
-import jo.codeeditor.languages.SyntaxFamily;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -17,20 +15,22 @@ import java.util.List;
  * fonction). Quand cette ligne est scrollée hors du viewport, elle
  * est redessinée en haut (pinned) pour garder le contexte.</p>
  *
- * <p><b>Détection</b> : les lignes sticky sont les lignes qui
- * contiennent une accolade ouvrante {@code {} (C_LIKE) ou un
- * deux-points {@code :} (Python) ET qui commencent par un mot-clé
- * de définition de bloc :</p>
+ * <p><b>Détection (S5, lot 2 J6)</b> : la question « cette ligne
+ * ouvre-t-elle un bloc ? » est déléguée au profil de langue
+ * ({@code LanguageProfile.isBlockHeaderLine}) — les tables par défaut
+ * C_LIKE/Python y vivent désormais, et un hôte peut déclarer les
+ * en-têtes de sa propre langue via
+ * {@code LanguageProfile.Builder.stickyHeaderTest}. Le détecteur ne
+ * fait plus aucune décision linguistique : il orchestre le scan, la
+ * garde de périmètre ({@code hasStickyHeaders}) et le cache S1.</p>
+ *
+ * <p>Comportement par défaut (inchangé) :</p>
  * <ul>
- *   <li><b>C_LIKE</b> : {@code class}, {@code interface},
- *       {@code enum}, {@code public}, {@code private},
- *       {@code protected}, {@code static}, {@code fun},
- *       {@code void}, {@code int}, {@code def} (Groovy),
- *       {@code func} (Swift/Go), {@code fn} (Rust/Dart),
- *       {@code function} (JS/TS), {@code def} (Python si C_LIKE)</li>
- *   <li><b>Python</b> : {@code def}, {@code class},
- *       {@code if}, {@code for}, {@code while}, {@code with},
- *       {@code try}, {@code except}, {@code else}, {@code finally}</li>
+ *   <li><b>C_LIKE</b> : ligne avec accolade ouvrante {@code {}
+ *       commençant par un mot-clé de définition ;</li>
+ *   <li><b>Python</b> : ligne finissant par {@code :} commençant par
+ *       un mot-clé de définition ;</li>
+ *   <li>autres familles sans SPI : aucune ligne sticky.</li>
  * </ul>
  *
  * <p><b>Limitation mobile</b> : au plus 2 lignes sticky simultanées
@@ -122,7 +122,9 @@ final class StickyLineDetector {
 
     /**
      * Scan complet du document — le chemin coûteux, exécuté une fois
-     * par [document × langue], jamais par frame.
+     * par [document × langue], jamais par frame. La décision
+     * « en-tête de bloc » appartient au profil (S5) ; ce scan ne
+     * garde que les gardes génériques (longueur, vide).
      *
      * @param doc le document
      * @param profile le profil de langue (peut être null)
@@ -131,9 +133,9 @@ final class StickyLineDetector {
     private List<int[]> scan(EditorDocument doc, LanguageProfile profile) {
         List<int[]> stickyLines = new ArrayList<>();
         if (profile == null) return stickyLines;
-        boolean isPython = profile.family == SyntaxFamily.PYTHON;
-        boolean isCLike = profile.family == SyntaxFamily.C_LIKE;
-        if (!isPython && !isCLike) return stickyLines;
+        // Garde de périmètre (S5) : une langue sans en-têtes déclarés
+        // (ni SPI ni famille à tables par défaut) ne paie pas le scan.
+        if (!profile.hasStickyHeaders()) return stickyLines;
 
         CharSequence chars = doc.charSequence();
         int lineCount = doc.lineCount();
@@ -143,60 +145,14 @@ final class StickyLineDetector {
             int lineEnd = doc.lineEnd(li);
             if (lineEnd - lineStart > 200) continue; // ligne trop longue, skip
 
-            String lineText = chars.subSequence(lineStart, lineEnd).toString();
-            String trimmed = lineText.trim();
-            if (trimmed.isEmpty()) continue;
-
-            boolean isSticky = false;
-            if (isCLike) {
-                // C_LIKE : ligne avec { qui commence par un mot-clé
-                // de définition de bloc.
-                if (lineText.contains("{") && isBlockHeaderCLike(trimmed)) {
-                    isSticky = true;
-                }
-            } else if (isPython) {
-                // Python : ligne avec : qui commence par un
-                // mot-clé de définition de bloc.
-                if (trimmed.endsWith(":") && isBlockHeaderPython(trimmed)) {
-                    isSticky = true;
-                }
-            }
-
-            if (isSticky) {
+            CharSequence lineText = chars.subSequence(lineStart, lineEnd);
+            // La ligne est un en-tête de bloc SI LA LANGUE le dit —
+            // tables par défaut de la famille ou test de l'hôte.
+            if (profile.isBlockHeaderLine(lineText)) {
                 float y = view.docLineToY(li);
                 stickyLines.add(new int[]{li, (int) y});
             }
         }
         return stickyLines;
-    }
-
-    private static boolean isBlockHeaderCLike(String trimmed) {
-        // En-têtes de classe/méthode en C_LIKE.
-        String[] keywords = {
-            "class ", "interface ", "enum ", "public ", "private ",
-            "protected ", "static ", "fun ", "void ", "int ", "long ",
-            "double ", "float ", "boolean ", "char ", "byte ", "short ",
-            "def ", "func ", "fn ", "function ", "var ", "val ",
-            "async ", "suspend ", "override ", "open ", "abstract ",
-            "final ", "internal ", "const ", "let ", "export ",
-            "@interface "
-        };
-        for (String kw : keywords) {
-            if (trimmed.startsWith(kw)) return true;
-        }
-        return false;
-    }
-
-    private static boolean isBlockHeaderPython(String trimmed) {
-        // En-têtes de def/class/if/for/while/with/try/except/else/finally.
-        String[] keywords = {
-            "def ", "class ", "if ", "elif ", "for ", "while ",
-            "with ", "try:", "except ", "else:", "finally:",
-            "async def "
-        };
-        for (String kw : keywords) {
-            if (trimmed.startsWith(kw)) return true;
-        }
-        return false;
     }
 }
