@@ -531,6 +531,11 @@ public class EditorChromePainter {
      */
     @androidx.annotation.RestrictTo(androidx.annotation.RestrictTo.Scope.LIBRARY_GROUP)
     public void dismissNativeMagnifier() {
+        // Garde lint/API : le widget n'existe que sous Pie — sous API 28,
+        // le champ est de toute façon null (création paresseuse gardée).
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.P) {
+            return;
+        }
         if (nativeMagnifier != null && nativeMagnifierShown) {
             nativeMagnifier.dismiss();
         }
@@ -665,7 +670,8 @@ public class EditorChromePainter {
                 view.textPaint.setTypeface(android.graphics.Typeface.DEFAULT);
                 view.textPaint.setTextSize(13 * density);
                 view.textPaint.setColor(view.theme.gutterText);
-                canvas.drawText("Nothing found in source.",
+                canvas.drawText(view.getResources().getString(
+                                jo.codeeditor.ui.R.string.cel_nav_nothing_found),
                         x + 14 * density, rowTop + rowH * 0.68f, view.textPaint);
                 view.textPaint.setTypeface(view.metrics.getTypeface());
                 view.textPaint.setTextSize(view.metrics.getTextSize());

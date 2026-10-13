@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  T3 (lot 2, J5) — libellés canoniques de cel-ui en RESSOURCES.
+
+  Une bibliothèque Android a légitimement des ressources : les valeurs
+  PAR DÉFAUT ci-dessous reproduisent EXACTEMENT les littéraux
+  historiques (anglais) — aucun test visuel ne bouge. L'hôte traduit ou
+  surcharge en redéclarant les mêmes noms (préfixe cel_) dans ses
+  propres ressources : la résolution Android donne la priorité à la
+  ressource de l'application.
+-->
+<resources>
+    <!-- Pill de sélection (actions canoniques) -->
+    <string name="cel_sel_copy">Copy</string>
+    <string name="cel_sel_cut">Cut</string>
+    <string name="cel_sel_paste">Paste</string>
+    <string name="cel_sel_select_all">Select all</string>
+
+    <!-- Actions socle intégrées (T2, lot 2) -->
+    <string name="cel_builtin_duplicate">Duplicate</string>
+    <string name="cel_builtin_comment">Comment</string>
+    <string name="cel_builtin_share">Share</string>
+    <string name="cel_case_upper">UPPER</string>
+    <string name="cel_case_lower">lower</string>
+    <string name="cel_case_toggle">Toggle case</string>
+
+    <!-- Menu contextuel (clic secondaire) -->
+    <string name="cel_menu_undo">Undo</string>
+    <string name="cel_menu_redo">Redo</string>
+    <string name="cel_menu_organize_imports">Organize imports</string>
+
+    <!-- Diagnostics : sévérité + sections du popup ancré et de la fiche -->
+    <string name="cel_diag_error">Error</string>
+    <string name="cel_diag_warning">Warning</string>
+    <string name="cel_diag_info">Info</string>
+    <string name="cel_diag_quick_fixes">QUICK FIXES</string>
+    <string name="cel_diag_see_all">See all</string>
+
+    <!-- NavMenu (menu contextuel unifié) -->
+    <string name="cel_nav_goto">GO TO</string>
+    <string name="cel_nav_intentions">INTENTIONS</string>
+    <string name="cel_nav_more">MORE</string>
+    <string name="cel_nav_nothing_found">Nothing found in source.</string>
+</resources>

@@ -8,6 +8,7 @@ import androidx.annotation.RestrictTo;
 
 import jo.codeeditor.document.EditorDocument;
 import jo.codeeditor.shift.DiagnosticShift;
+import jo.codeeditor.ui.R;
 
 import java.util.List;
 
@@ -162,8 +163,12 @@ public final class EditorPopupAnchors {
      */
     public static String diagnosticHeaderLabel(EditorView view,
             DiagnosticShift.Diagnostic d) {
-        String sevLabel = d.severity == 3 ? "Error"
-                : d.severity == 2 ? "Warning" : "Info";
+        // T3 : sévérités en ressources (défauts anglais identiques).
+        String sevLabel = d.severity == 3
+                ? view.getResources().getString(R.string.cel_diag_error)
+                : d.severity == 2
+                ? view.getResources().getString(R.string.cel_diag_warning)
+                : view.getResources().getString(R.string.cel_diag_info);
         StringBuilder b = new StringBuilder(sevLabel);
         String code = d.code != null ? d.code : "";
         String source = d.source != null ? d.source : "";
@@ -520,7 +525,8 @@ public final class EditorPopupAnchors {
             }
             if (nActions > 0) {
                 view.textPaint.setTextSize(view.metrics.getTextSize() * 0.7f);
-                needed = Math.max(needed, view.textPaint.measureText("QUICK FIXES"));
+                needed = Math.max(needed, view.textPaint.measureText(
+                        view.getResources().getString(R.string.cel_diag_quick_fixes)));
                 view.textPaint.setTextSize(view.metrics.getTextSize() * 0.9f);
                 float rowAvail = m.w - 2 * SQUIGGLE_POPUP_PAD_X_DP * density
                         - SQUIGGLE_POPUP_INDENT_DP * density;
@@ -542,7 +548,8 @@ public final class EditorPopupAnchors {
             // Rangée « See all » + chevron.
             view.textPaint.setTextSize(view.metrics.getTextSize() * 0.9f);
             needed = Math.max(needed, SQUIGGLE_POPUP_INDENT_DP * density
-                    + view.textPaint.measureText("See all")
+                    + view.textPaint.measureText(
+                            view.getResources().getString(R.string.cel_diag_see_all))
                     + SQUIGGLE_POPUP_CHEVRON_DP * density);
         }
         // ── UX-3 : resserrement de la carte sur son contenu ────────
@@ -701,12 +708,18 @@ public final class EditorPopupAnchors {
         float iconW = 32 * density; // icône 16dp + padding 2×8dp
 
         if (hasSelection) {
-            m.addText(EditorView.SEL_ACT_COPY, "Copy", view.textPaint.measureText("Copy"));
-            m.addText(EditorView.SEL_ACT_CUT, "Cut", view.textPaint.measureText("Cut"));
+            // T3 : libellés canoniques en ressources (défauts anglais
+            // identiques — surcharge/traduction par l'hôte).
+            String copy = view.getResources().getString(R.string.cel_sel_copy);
+            String cut = view.getResources().getString(R.string.cel_sel_cut);
+            m.addText(EditorView.SEL_ACT_COPY, copy, view.textPaint.measureText(copy));
+            m.addText(EditorView.SEL_ACT_CUT, cut, view.textPaint.measureText(cut));
         }
-        m.addText(EditorView.SEL_ACT_PASTE, "Paste", view.textPaint.measureText("Paste"));
-        m.addText(EditorView.SEL_ACT_SELECT_ALL, "Select all",
-                view.textPaint.measureText("Select all"));
+        String paste = view.getResources().getString(R.string.cel_sel_paste);
+        m.addText(EditorView.SEL_ACT_PASTE, paste, view.textPaint.measureText(paste));
+        String selectAll = view.getResources().getString(R.string.cel_sel_select_all);
+        m.addText(EditorView.SEL_ACT_SELECT_ALL, selectAll,
+                view.textPaint.measureText(selectAll));
 
         // ── T1 : actions injectées par l'hôte (fit par la largeur) ──
         java.util.List<jo.codeeditor.view.SelectionAction> hostActions =

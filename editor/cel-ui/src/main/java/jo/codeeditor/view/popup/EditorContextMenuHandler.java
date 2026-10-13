@@ -45,14 +45,22 @@ public class EditorContextMenuHandler {
             if (id == android.R.id.selectAll) { view.session.selectAll(); view.invalidate(); return true; }
             return false;
         });
-        popup.getMenu().add(0, android.R.id.copy, 0, "Copy");
-        popup.getMenu().add(0, android.R.id.cut, 0, "Cut");
-        popup.getMenu().add(0, android.R.id.paste, 0, "Paste");
-        popup.getMenu().add(0, android.R.id.selectAll, 0, "Select all");
-        popup.getMenu().add(0, 1001, 0, "Undo").setOnMenuItemClickListener(i -> {
+        popup.getMenu().add(0, android.R.id.copy, 0,
+                view.getResources().getString(jo.codeeditor.ui.R.string.cel_sel_copy));
+        popup.getMenu().add(0, android.R.id.cut, 0,
+                view.getResources().getString(jo.codeeditor.ui.R.string.cel_sel_cut));
+        popup.getMenu().add(0, android.R.id.paste, 0,
+                view.getResources().getString(jo.codeeditor.ui.R.string.cel_sel_paste));
+        popup.getMenu().add(0, android.R.id.selectAll, 0,
+                view.getResources().getString(jo.codeeditor.ui.R.string.cel_sel_select_all));
+        popup.getMenu().add(0, 1001, 0,
+                view.getResources().getString(jo.codeeditor.ui.R.string.cel_menu_undo))
+                .setOnMenuItemClickListener(i -> {
             view.session.undo(); view.notifyTextChanged(); return true;
         });
-        popup.getMenu().add(0, 1002, 0, "Redo").setOnMenuItemClickListener(i -> {
+        popup.getMenu().add(0, 1002, 0,
+                view.getResources().getString(jo.codeeditor.ui.R.string.cel_menu_redo))
+                .setOnMenuItemClickListener(i -> {
             view.session.redo(); view.notifyTextChanged(); return true;
         });
         // P2-10 : entrée d'action source « Organiser les imports » — UNE
@@ -63,7 +71,8 @@ public class EditorContextMenuHandler {
         // proposent pas — l'hôte dispose de performFixAll() pour la
         // brancher quand ils l'ajouteront.
         if (hasCodeActionsProvider()) {
-            popup.getMenu().add(0, 1003, 0, "Organize imports")
+            popup.getMenu().add(0, 1003, 0,
+                    view.getResources().getString(jo.codeeditor.ui.R.string.cel_menu_organize_imports))
                     .setOnMenuItemClickListener(i -> {
                         view.performOrganizeImports(null);
                         return true;

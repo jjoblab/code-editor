@@ -341,7 +341,8 @@ public class EditorDiagnosticsPainter {
             view.textPaint.setColor(view.theme.gutterText);
             view.textPaint.setTextSize(view.metrics.getTextSize() * 0.7f);
             view.textPaint.setFakeBoldText(true);
-            canvas.drawText("QUICK FIXES", padX,
+            canvas.drawText(view.getResources().getString(
+                    jo.codeeditor.ui.R.string.cel_diag_quick_fixes), padX,
                 actionStartY - EditorView.DIAG_SHEET_ACTIONS_BLOCK_DP * density * 0.28f, view.textPaint);
             view.textPaint.setFakeBoldText(false);
             view.textPaint.setTextSize(view.metrics.getTextSize() * 0.9f);
@@ -658,7 +659,8 @@ public class EditorDiagnosticsPainter {
             view.textPaint.setColor(view.theme.gutterText);
             view.textPaint.setTextSize(view.metrics.getTextSize() * 0.7f);
             view.textPaint.setFakeBoldText(true);
-            canvas.drawText("QUICK FIXES", padX, m.rowTop - 3 * density, view.textPaint);
+            canvas.drawText(view.getResources().getString(
+                    jo.codeeditor.ui.R.string.cel_diag_quick_fixes), padX, m.rowTop - 3 * density, view.textPaint);
             view.textPaint.setFakeBoldText(false);
             view.textPaint.setTextSize(view.metrics.getTextSize() * 0.9f);
             for (int i = 0; i < m.rows && i < actions.size(); i++) {
@@ -685,7 +687,8 @@ public class EditorDiagnosticsPainter {
         view.textPaint.setTextSize(view.metrics.getTextSize() * 0.9f);
         view.textPaint.setFakeBoldText(true);
         float seeAllCy = m.seeAllY + m.rowH * 0.5f;
-        canvas.drawText("See all", padX + 12 * density,
+        canvas.drawText(view.getResources().getString(
+                jo.codeeditor.ui.R.string.cel_diag_see_all), padX + 12 * density,
                 seeAllCy + view.metrics.getTextSize() * 0.32f, view.textPaint);
         view.textPaint.setFakeBoldText(false);
         view.caretPaint.setStrokeWidth(1.6f * density);

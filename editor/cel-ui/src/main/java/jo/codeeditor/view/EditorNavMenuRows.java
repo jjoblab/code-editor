@@ -61,7 +61,8 @@ class EditorNavMenuRows {
         }
         if (!view.navMenuOptions.isEmpty()) {
             rows.add(new EditorView.NavMenuRow(EditorView.NavMenuRow.TYPE_HEADER, 0,
-                    EditorView.NavMenuRow.SECTION_GO_TO, "GO TO"));
+                    EditorView.NavMenuRow.SECTION_GO_TO,
+                    view.getResources().getString(jo.codeeditor.ui.R.string.cel_nav_goto)));
             for (int i = 0; i < view.navMenuOptions.size(); i++) {
                 rows.add(new EditorView.NavMenuRow(EditorView.NavMenuRow.TYPE_OPTION, i,
                         EditorView.NavMenuRow.SECTION_GO_TO, view.navMenuOptions.get(i)));
@@ -69,7 +70,8 @@ class EditorNavMenuRows {
         }
         if (!view.navMenuQuickFixes.isEmpty()) {
             rows.add(new EditorView.NavMenuRow(EditorView.NavMenuRow.TYPE_HEADER, 0,
-                    EditorView.NavMenuRow.SECTION_QUICK_FIXES, "QUICK FIXES"));
+                    EditorView.NavMenuRow.SECTION_QUICK_FIXES,
+                    view.getResources().getString(jo.codeeditor.ui.R.string.cel_diag_quick_fixes)));
             for (int i = 0; i < view.navMenuQuickFixes.size(); i++) {
                 rows.add(new EditorView.NavMenuRow(EditorView.NavMenuRow.TYPE_ACTION, i,
                         EditorView.NavMenuRow.SECTION_QUICK_FIXES, view.navMenuQuickFixes.get(i)));
@@ -77,7 +79,8 @@ class EditorNavMenuRows {
         }
         if (!view.navMenuIntentions.isEmpty()) {
             rows.add(new EditorView.NavMenuRow(EditorView.NavMenuRow.TYPE_HEADER, 0,
-                    EditorView.NavMenuRow.SECTION_INTENTIONS, "INTENTIONS"));
+                    EditorView.NavMenuRow.SECTION_INTENTIONS,
+                    view.getResources().getString(jo.codeeditor.ui.R.string.cel_nav_intentions)));
             for (int i = 0; i < view.navMenuIntentions.size(); i++) {
                 rows.add(new EditorView.NavMenuRow(EditorView.NavMenuRow.TYPE_ACTION, i,
                         EditorView.NavMenuRow.SECTION_INTENTIONS, view.navMenuIntentions.get(i)));
@@ -89,7 +92,8 @@ class EditorNavMenuRows {
         // SelectionAction), section INTENTIONS (icône ampoule).
         if (!view.popupManager.selActions.overflow.isEmpty()) {
             rows.add(new EditorView.NavMenuRow(EditorView.NavMenuRow.TYPE_HEADER, 0,
-                    EditorView.NavMenuRow.SECTION_INTENTIONS, "MORE"));
+                    EditorView.NavMenuRow.SECTION_INTENTIONS,
+                    view.getResources().getString(jo.codeeditor.ui.R.string.cel_nav_more)));
             for (int i = 0; i < view.popupManager.selActions.overflow.size(); i++) {
                 rows.add(new EditorView.NavMenuRow(EditorView.NavMenuRow.TYPE_ACTION, i,
                         EditorView.NavMenuRow.SECTION_INTENTIONS,
