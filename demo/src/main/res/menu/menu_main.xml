@@ -108,6 +108,23 @@
     </item>
 
     <item
+        android:id="@+id/action_line_numbers"
+        android:title="@string/menu_line_numbers"
+        app:showAsAction="never">
+        <menu>
+            <item
+                android:id="@+id/line_numbers_absolute"
+                android:title="@string/line_numbers_absolute" />
+            <item
+                android:id="@+id/line_numbers_relative"
+                android:title="@string/line_numbers_relative" />
+            <item
+                android:id="@+id/line_numbers_hybrid"
+                android:title="@string/line_numbers_hybrid" />
+        </menu>
+    </item>
+
+    <item
         android:id="@+id/action_find"
         android:title="@string/menu_find"
         app:showAsAction="never" />

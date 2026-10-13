@@ -1,4 +1,4 @@
-# MISE À JOUR DE CodeIDE — brancher la version 3.65.0 de `code-editor`
+# MISE À JOUR DE CodeIDE — brancher la version 3.66.0 de `code-editor`
 
 > **Destinataire** : agent IA chargé de la mise à jour du dépôt `CodeIDE`
 > (jjoblab/CodeIDE, audité @ `04a65ea`, v0.105.0).
@@ -24,7 +24,7 @@
 
 ---
 
-## 0. Résumé express — deux lots + quatre retours terrain + lots B10-B11, un seul changement requis
+## 0. Résumé express — deux lots + quatre retours terrain + lots B10-B12, un seul changement requis
 
 | Lot | Versions | Thème | Ce que CodeIDE y gagne |
 |---|---|---|---|
@@ -38,6 +38,7 @@
 | Retour terrain n°6 | 3.63.0 | Quatre irritants réglés à la racine | B9a : plus de « secousse » des lignes pendant le drag de sélection (le recentrage du caret est suspendu pendant le geste — la dent de scie auto-scroll↔recentrage est morte) ; B9b : le caret reste FIXE au pincement (traînées du doigt restant englouties, point focal ancré en lecture seule) ; B9c : l'icône d'aperçu (œil) vit dans la GOUTTIÈRE sur la rangée du caret, façon Android Studio, tap = bascule ; B9d : analyse des écarts Android Studio ↔ code-editor n°6 (`docs/ANALYSE-GAPS-ANDROID-STUDIO.md`) |
 | **Lot B10 (recherche)** | **3.64.0** | Le plus grand écart P0 de l'analyse est refermé | `EditorSearchBar` : recherche/remplacement DANS LE FICHIER (requête vivante, compte « 3/17 », navigation bouclante, remplacement courant avec groupes `$1`, TOUT en une seule annulation) — ouverture menu/`Ctrl+F`, amorçage depuis la sélection (adoption optionnelle, §4.10) ; 4e tap = PARAGRAPHE (cascade caret → mot → ligne → paragraphe, le 5e y reste) ; surlignage purgé au changement de session |
 | **Lot B11 (navigation)** | **3.65.0** | La navigation dans le contenu est au niveau AS | Fast-scroller : le drag de gouttière devient un positionnement ABSOLU (pouce + bulle de ligne, tout le fichier d'un seul geste, parité Android Studio) ; bande d'erreurs au bord droit : marqueurs de diagnostics de TOUT le fichier (même hors écran) + rect du viewport, tap = centrage + fiche, drag = scroll absolu — GRATUIT à la montée (aucune adoption), bascule `setErrorStripeEnabled` si CodeIDE préfère l'éteindre |
+| **Lot B12 (confort)** | **3.66.0** | Le zoom et les numéros se souviennent | P1-3 : zoom PERSISTANT par type de fichier — `setZoomMemoryKey(".java")` à l'ouverture, pincement/A± enregistrés, réouverture = réglage restauré, le zoom ne fuit pas entre types (adoption recommandée, §4.12 — trois lignes) ; P1-4 : numéros de gouttière RELATIFS/HYBRIDES façon AS (`LineNumberStyle`, optionnel) |
 
 **Un seul changement est indispensable** : monter la version dans
 `gradle/libs.versions.toml` (§2). Tout le reste est additif — les
@@ -49,7 +50,7 @@ surcharges ou des constructeurs étendus déléguant à l'existant.
 
 ---
 
-## 1. Les lots 3.52.0 → 3.57.0 (complets) puis les retours terrain 3.58.0/3.59.0/3.60.0/3.61.0/3.62.0/3.63.0 et les lots B10/B11 (3.64.0/3.65.0)
+## 1. Les lots 3.52.0 → 3.57.0 (complets) puis les retours terrain 3.58.0/3.59.0/3.60.0/3.61.0/3.62.0/3.63.0 et les lots B10-B12 (3.64.0→3.66.0)
 
 `code-editor` est le CLIENT ; `lsp/java` de CodeIDE est le SERVEUR. Le
 lot tactile travaille presque entièrement côté client (rendu, gestes,
@@ -456,11 +457,53 @@ VOIR où l'on est et d'ATTEINDRE n'importe où — les deux manquaient.
   version. CodeIDE n'éteint la bande que si l'écran partagé le
   réclame (§4.11).
 
+### 1.12 Lot B12 (3.66.0) — zoom persistant par type + colonnes relatives
+
+Troisième lot de la feuille de route de l'analyse des écarts n°6 : le
+P1-3 (zoom mémorisé par type de fichier, comme Android Studio) et le
+P1-4 (numéros relatifs à la ligne du caret). Deux écarts de CONFORT —
+le palier navigation (B10-B11) étant refermé, ce sont les irritants
+quotidiens qui restent : régler le zoom du code à 130 % puis le
+REFAIRE à chaque ouverture d'un `.java`, compter les lignes à la main
+pour sauter « 12 lignes plus bas ».
+
+- **B12a — `EditorZoomMemory` + `setZoomMemoryKey` (P1-3)** — mémoire
+  PROCESS des échelles de police, par clé de type posée par l'HÔTE
+  (extension, id de langage — CodeIDE choisit sa granularité).
+  Chaque mutation d'échelle (pincement, A+/A− du fil d'Ariane,
+  `setFontScale`) enregistre l'échelle bornée [0,6–2,6] sous la clé
+  courante ; reposer la clé applique le réglage du type. Sémantique
+  « UN ZOOM PAR TYPE » : le zoom du type précédent ne FUIT PAS sur le
+  suivant (un `.md` jamais zoomé repart à 1, il n'hérite pas du 1,8
+  du `.java` voisin). Clé nulle : mémoire désactivée, comportement
+  historique EXACT. La rotation reste portée par l'état d'instance
+  B17, PLUS PRÉCIS — la restauration s'exécute après le câblage de
+  l'hôte, l'échelle exacte de CETTE vue l'emporte sur la mémoire du
+  type. Portée : le process (survit aux onglets/activités recréés,
+  pas au redémarrage de l'app — pour cela CodeIDE persisterait les
+  clés lui-même dans ses Settings, la classe reste un cache
+  d'appoint).
+- **B12b — `LineNumberStyle` ABSOLUTE/RELATIVE/HYBRID (P1-4)** — le
+  mode des numéros de gouttière, posé par
+  `EditorView.setLineNumberStyle` (relais public, `null` retombe sur
+  ABSOLUTE). ABSOLUTE (défaut, inchangé) : numéros de document ;
+  RELATIVE : distance à la ligne du caret — 0 au caret, 1, 2, 3…
+  autour (lecture directe des déplacements `5j`/`10k`, convention
+  « relative line numbers » d'Android Studio) ; HYBRID : numéro
+  RÉEL au caret + distances autour (le mode par défaut de VS Code).
+  La surbrillance (gras + couleur texte) de la ligne du caret reste
+  posée dans les trois modes ; un caret invalide retombe sur
+  ABSOLUTE.
+- **Zéro adoption requise** : sans clé posée et sans style touché,
+  le comportement est l'historique EXACT. La clé de zoom est
+  recommandée (§4.12 — trois lignes à l'ouverture du fichier) ; le
+  style de numéros est un confort optionnel (réglage utilisateur).
+
 ## 2. Changement REQUIS — montée de version de la dépendance
 
 ```toml
 # gradle/libs.versions.toml (CodeIDE) — ligne ~52
-code-editor = "3.65.0"     # était "3.49.2" (audit) / "3.51.1" (guide 3.51.1) / "3.57.0" (guide J6) / "3.58.0"-"3.60.0" (guides retours terrain) / "3.61.0"-"3.63.0" (guides retours n°4-6) / "3.64.0" (lot B10) / "3.65.0" (lot B11)
+code-editor = "3.66.0"     # était "3.49.2" (audit) / "3.51.1" (guide 3.51.1) / "3.57.0" (guide J6) / "3.58.0"-"3.60.0" (guides retours terrain) / "3.61.0"-"3.63.0" (guides retours n°4-6) / "3.64.0" (lot B10) / "3.65.0" (lot B11) / "3.66.0" (lot B12)
 ```
 
 Les deux modules consommateurs ne changent pas (ils suivent le
@@ -470,7 +513,7 @@ Les deux modules consommateurs ne changent pas (ils suivent le
 - `feature/editor/build.gradle.kts:14` → `implementation(libs.codeeditor.ui)`
 
 **Compatibilité API : vérifiée additive sur toute la plage
-3.51.1 → 3.64.0** (aucune rupture binaire : nouveaux champs des
+3.51.1 → 3.66.0** (aucune rupture binaire : nouveaux champs des
 modèles diagnostic/inlay via constructeurs étendus, les
 constructeurs historiques délèguent avec défaut vide ; les ajouts
 3.58.0 sont `BreadcrumbBar.*` et `EditorView.setPreviewIconsVisible`,
@@ -493,7 +536,29 @@ setter public (`EditorView.setErrorStripeEnabled`/`isErrorStripeEnabled`)
  et DEUX collaborateurs internes `@RestrictTo(LIBRARY_GROUP)`
 (`EditorFastScroller`, `EditorErrorStripe`) sans rien retirer — le
 comportement du drag de gouttière change volontairement (scroll
-relatif → positionnement absolu, c'est le but du P0-3)).
+relatif → positionnement absolu, c'est le but du P0-3)) ; 3.66.0
+ajoute UNE classe publique (`EditorZoomMemory`), UN enum public
+(`LineNumberStyle`) et TROIS méthodes de vue
+(`setZoomMemoryKey`, `setLineNumberStyle`, `getLineNumberStyle`)
+sans rien retirer ni changer aucun comportement par défaut — le
+zoom mémoire et le style de numéros ne s'activent QUE si l'hôte
+pose la clé/le style).
+
+### Publication (2026-10-13, lot B12)
+
+- `main` poussé (merge du lot B12, trois commits) ; tag
+  **`v3.66.0`** posé sur le merge ; workflows CI + Publication
+  GitHub Packages déclenchés par le poussage (vérifier l'état sur
+  la page Actions du dépôt).
+- **Consigne du propriétaire (2026-10, reconduite)** : le build
+  JitPack n'est PAS attendu ni vérifié pour ce lot (pas de
+  changement majeur au sens de la politique de version — JitPack
+  construira `3.66.0` à la demande à partir du tag ; les 3.51.1+
+  sont saines, seules `3.50.0`/`3.51.0` restent interdites via
+  JitPack — incident 429 historique, servies sur GitHub Packages
+  uniquement).
+- Coordonnées : `com.github.jjoblab.code-editor:cel-ui:3.66.0` et
+  `com.github.jjoblab.code-editor:cel-lsp:3.66.0`.
 
 ### Publication (2026-10-13, lot B11)
 
@@ -741,6 +806,41 @@ editor.setErrorStripeEnabled(false);   // default: true (parité AS)
 Le fast-scroller (drag de gouttière) reste actif dans tous les cas —
 il n'occupe l'écran que pendant le geste.
 
+### 4.12 Poser la clé de zoom par type + offrir les numéros relatifs (B12, 3.66.0) — trois lignes, recommandé
+
+La clé de zoom est l'adoption LA PLUS RENTABLE du lot : trois lignes
+à l'endroit où CodeIDE ouvre un fichier (l'extension est la clé
+naturelle — id de langage si CodeIDE préfère) :
+
+```java
+// À l'ouverture du fichier (feature/editor, là où la session est posée)
+String key = extensionOf(currentFilePath);   // ".java", ".md", …
+editor.setZoomMemoryKey(key);                // active la mémoire
+```
+
+À partir de là, TOUT est automatique : le pincement et les boutons
+A+/A− s'enregistrent sous la clé, un fichier du même type ouvert
+plus tard repart du réglage, un type jamais zoomé reste à 1. La
+sémantique est « un zoom par TYPE » (pas par fichier) — le zoom du
+`.md` ne fuit pas sur le `.java`. Rotation : rien à faire, l'état
+d'instance B17 l'emporte (plus précis). Redémarrage de l'app : la
+mémoire est un cache process — pour la survivre, persister les
+paires clé/échelle dans les Settings CodeIDE et réinjecter via
+`EditorZoomMemory.remember(key, scale)` au démarrage (les getters
+publics `recall`/`isRemembered` sont fournis).
+
+Les numéros relatifs sont un réglage UTILISATEUR (pas une adoption
+structurelle) :
+
+```java
+editor.setLineNumberStyle(LineNumberStyle.RELATIVE);   // ou HYBRID
+// import jo.codeeditor.view.chrome.LineNumberStyle;
+```
+
+CodeIDE peut l'exposer dans ses préférences d'éditeur (une
+`SwitchPreference` ou un sélecteur à trois états) — le défaut
+libre ABSOLUTE ne change rien pour les utilisateurs existants.
+
 ---
 
 ## 5. Protocole de vérification sur appareil (après montée de version)
@@ -917,6 +1017,28 @@ ajouter les épreuves du lot tactile :
     **d)** ouvrir la feuille d'aperçu d'un Markdown (œil de
     gouttière) → la bande DISPARAÎT (le bord droit appartient à
     l'aperçu) ; la refermer → la bande revient.
+
+21. **Lot B12 (3.66.0, via la démo)** — quatre vérifications ciblées :
+    **a)** échantillon Java → PINCER pour régler le zoom (ex. 150 %)
+    → changer d'échantillon (menu langage, ex. Markdown) → le zoom
+    REPART DE 1 (le zoom de Java ne fuit pas sur le Markdown) ;
+    revenir à Java → 150 % RESTAURÉ ;
+    **b)** avec le Java à 150 %, A+/A− du fil d'Ariane → changer
+    d'échantillon et revenir : le réglage est bien le DERNIER état
+    (les boutons s'enregistrent comme le pincement) ; faire tourner
+    l'appareil → le zoom de la vue est conservé EXACT (état
+    d'instance, plus précis que la mémoire du type) ;
+    **c)** menu « Numéros de ligne » → « Relatifs au caret » : le
+    numéro de la ligne du caret devient 0, ceux autour affichent la
+    distance (1, 2, 3…) — déplacer le caret de quelques lignes → les
+    distances se recalculent à la volée ; « Hybrides » : le caret
+    garde son NUMÉRO réel, les autres lignes gardent la distance ;
+    « Absolus » : retour exact au comportement historique ;
+    **d)** fermer/rouvrir la démo (process tué, vue NEUVE) → le zoom
+    Java mémorisé au a) n'est PAS restauré (la mémoire est un cache
+    process, pas une persistance disque — comportement documenté ;
+    l'hôte qui veut la survivance la réinjecte depuis ses Settings,
+    §4.12).
 
 ---
 

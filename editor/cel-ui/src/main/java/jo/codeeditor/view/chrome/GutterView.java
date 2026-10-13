@@ -41,6 +41,13 @@ public class GutterView {
     /** Renvoie true si la ligne de document donnée est masquée par un repli fermé. */
     private IntPredicate hiddenLineChecker;
 
+    // ── B12 (P1-4) : mode des numéros de ligne ──
+    /**
+     * Mode d'affichage des numéros — ABSOLUTE par défaut (comportement
+     * historique inchangé). Voir {@link LineNumberStyle}.
+     */
+    private LineNumberStyle lineNumberStyle = LineNumberStyle.ABSOLUTE;
+
     /**
      * ★ B11+B20 — Géométrie de l'hôte ({@code EditorView.docLineToY} /
      * {@code docLineForScreenY}) : quand elle est définie, la gouttière
@@ -172,6 +179,24 @@ public class GutterView {
      */
     public void setDiagnostics(int[] diagnostics) {
         this.diagnostics = diagnostics != null ? diagnostics : new int[0];
+    }
+
+    /**
+     * B12 (P1-4) — définit le mode d'affichage des numéros de ligne.
+     *
+     * <p>Voir {@link LineNumberStyle}. {@code null} retombe sur
+     * {@link LineNumberStyle#ABSOLUTE} (l'hôte ne doit jamais pouvoir
+     * casser le rendu avec un null accidentel).</p>
+     *
+     * @param style ABSOLUTE, RELATIVE ou HYBRID
+     */
+    public void setLineNumberStyle(LineNumberStyle style) {
+        this.lineNumberStyle = style != null ? style : LineNumberStyle.ABSOLUTE;
+    }
+
+    /** Mode courant des numéros de ligne (jamais null). */
+    public LineNumberStyle getLineNumberStyle() {
+        return lineNumberStyle;
     }
 
     /**
@@ -314,6 +339,26 @@ public class GutterView {
         }
     }
 
+    /**
+     * B12 (P1-4) — libellé du numéro selon le mode courant.
+     *
+     * <p>ABSOLUTE : {@code lineIdx + 1}. RELATIVE : distance à la ligne
+     * du caret (0 au caret). HYBRID : numéro réel au caret, distance
+     * ailleurs. Un {@code currentLine} invalide (négatif — session sans
+     * caret, test standalone) retombe sur ABSOLUTE : une distance vers
+     * une ligne inconnue ne veut rien dire.</p>
+     */
+    private String lineNumberLabel(int lineIdx, int currentLine) {
+        if (lineNumberStyle != LineNumberStyle.ABSOLUTE && currentLine >= 0) {
+            if (lineNumberStyle == LineNumberStyle.RELATIVE
+                    || lineIdx != currentLine) {
+                return String.valueOf(Math.abs(lineIdx - currentLine));
+            }
+            // HYBRID sur la ligne du caret : le numéro réel.
+        }
+        return String.valueOf(lineIdx + 1);
+    }
+
     /** Dessine un numéro de ligne + son point de diagnostic au Y donné.
      *
      *  <p>Le point est épinglé au bord GAUCHE du gutter (centre à
@@ -326,7 +371,7 @@ public class GutterView {
     private void drawLineNumber(Canvas canvas, Paint numberPaint, float textX,
                                  float y, float lineHeight, int lineIdx, int currentLine,
                                  float lineNumberAreaRight) {
-        String lineStr = String.valueOf(lineIdx + 1);
+        String lineStr = lineNumberLabel(lineIdx, currentLine);
         float lineNumberWidth = numberPaint.measureText(lineStr);
 
         if (lineIdx == currentLine) {

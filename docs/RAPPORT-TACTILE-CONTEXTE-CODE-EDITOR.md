@@ -54,7 +54,15 @@
 > le fichier — même hors écran — + rect du viewport, alimentés par
 > le pusher de gouttière, tap = dépliage + centrage + fiche, drag =
 > scroll absolu, silence en aperçu, `setErrorStripeEnabled` public,
-> défaut actif). 1 710 tests verts (+11).
+> défaut actif). 1 710 tests verts (+11). **Lot B12 (3.66.0)** :
+> P1-3 + P1-4 de la feuille de route — le zoom devient PERSISTANT
+> par type de fichier (`EditorZoomMemory` + `setZoomMemoryKey` :
+> pincement/A± enregistrés sous la clé de l'hôte, réouverture =
+> réglage restauré, le zoom ne fuit pas entre types, clé nulle =
+> comportement historique, rotation B17 toujours plus précise) et
+> les numéros de gouttière apprennent le RELATIF (`LineNumberStyle`
+> ABSOLUTE/RELATIVE/HYBRID : 0 au caret / numéro réel au caret +
+> distances, défaut ABSOLUTE inchangé). 1 729 tests verts (+19).
 > **Retour terrain n°6 (3.63.0)** : quatre irritants réglés à la
 > racine — B9a la « secousse » des lignes pendant le drag de sélection
 > (le recentrage du caret déclenché par CHAQUE application de

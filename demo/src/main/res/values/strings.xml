@@ -10,6 +10,12 @@
     <string name="menu_about">À propos</string>
     <string name="menu_find">Rechercher dans le fichier</string>
 
+    <!-- B12 (P1-4) : mode des numéros de ligne de la gouttière -->
+    <string name="menu_line_numbers">Numéros de ligne</string>
+    <string name="line_numbers_absolute">Absolus (1, 2, 3…)</string>
+    <string name="line_numbers_relative">Relatifs au caret (0, 1, 2…)</string>
+    <string name="line_numbers_hybrid">Hybrides (numéro au caret)</string>
+
     <!-- Plafond de lignes sticky (S4, lot 2) -->
     <string name="sticky_max_1">Max : 1 ligne</string>
     <string name="sticky_max_2">Max : 2 lignes (défaut)</string>
@@ -36,7 +42,7 @@
 
     <!-- À propos -->
     <string name="about_title">À propos de la démo</string>
-    <string name="about_message">Terrain de jeu pour la bibliothèque code-editor v3.65.0 (Java, Canvas, MIT).
+    <string name="about_message">Terrain de jeu pour la bibliothèque code-editor v3.66.0 (Java, Canvas, MIT).
 
 \u2022 28 langages : basculez via le menu Langage.
 \u2022 Analyseur factice : diagnostics, complétion, signatures, quick doc et code actions synthétiques \u2014 sans serveur LSP.
