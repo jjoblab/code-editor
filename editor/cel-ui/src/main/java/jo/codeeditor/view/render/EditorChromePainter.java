@@ -226,11 +226,13 @@ public class EditorChromePainter {
 
     /**
      * Dessine les icônes d'aperçu scindé/plein en haut à droite.
-     * Dessinées seulement quand le fichier est prévisualisable et que le
-     * mode d'aperçu est NONE.
+     * Dessinées seulement quand le fichier est prévisualisable, que le mode
+     * d'aperçu est NONE et que les icônes n'ont pas été RELOCALISÉES dans
+     * la barre de fil d'Ariane (B5 — {@code view.previewIconsVisible}).
      */
     void drawPreviewIcons(Canvas canvas) {
-        if (!view.previewable || view.previewMode != EditorView.PreviewMode.NONE) return;
+        if (!view.previewable || !view.previewIconsVisible
+                || view.previewMode != EditorView.PreviewMode.NONE) return;
         float density = view.getResources().getDisplayMetrics().density;
         float iconSize = 24f * density;
         float margin = 8f * density;
