@@ -97,7 +97,37 @@ public final class EditorIcons {
          */
         CLOSE(false,
                 "M6.4 6.4l11.2 11.2",
-                "M17.6 6.4L6.4 17.6");
+                "M17.6 6.4L6.4 17.6"),
+
+        /**
+         * Rechercher — la loupe : cercle approché par QUATRE cubiques
+         * (le parseur du moteur rejette les arcs elliptiques — famille
+         * STROKE, parité scinder/étendre/fermer) + manche vers le coin.
+         */
+        SEARCH(false,
+                "M4,10.5 C4,6.9 6.9,4 10.5,4 C14.1,4 17,6.9 17,10.5 "
+                + "C17,14.1 14.1,17 10.5,17 C6.9,17 4,14.1 4,10.5 Z",
+                "M15.5,15.5 L20.5,20.5"),
+
+        /**
+         * Occurrence précédente — chevron vers le haut. Famille STROKE.
+         */
+        CHEVRON_UP(false,
+                "M6,16 L12,8 L18,16"),
+
+        /**
+         * Occurrence suivante — chevron vers le bas. Famille STROKE.
+         */
+        CHEVRON_DOWN(false,
+                "M6,8 L12,16 L18,8"),
+
+        /**
+         * Bascule remplacer — deux flèches verticales opposées (l'aller
+         * et le retour du remplacement). Famille FILL.
+         */
+        SWAP_VERT(true,
+                "M6.99 11L3 15l3.99 4v-3H14v-2H6.99v-3z "
+                + "M21 9l-3.99-4v3H10v2h7.01v3L21 9z");
 
         /** true = famille FILL (formes pleines), false = STROKE (traits). */
         final boolean fill;
