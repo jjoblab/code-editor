@@ -21,8 +21,8 @@
 > compatibles binairement), garde-fous verts (figures de tests, budgets de
 > lignes, baseline lint), un commit conventionné par changement logique.
 > **Statut** : **jalons J1 à J6 LIVRÉS (lot complet, 3.52.0 → 3.57.0),
-> PLUS les retours terrain post-J6 (3.58.0, 3.59.0) ET la refonte B6
-> (3.60.0)** — B6 (3.60.0) : la barre de fil d'Ariane ne porte plus
+> PLUS les retours terrain post-J6 (3.58.0, 3.59.0, 3.61.0) ET la
+> refonte B6 (3.60.0)** — B6 (3.60.0) : la barre de fil d'Ariane ne porte plus
 > QUE les trois actions d'IDE via `addEditorActions()` (annuler/
 > rétablir câblés sur la session, aperçu qui n'EXISTE que pour un
 > fichier prévisualisable et BASCULE ouvrir/fermer), icônes
@@ -33,6 +33,21 @@
 > automatiques (setFileName/setPreviewMode rafraîchissent la barre
 > sœur), moteur Markdown v2 dans la démo (liens, tables, tâches,
 > barré) ; 1 618 tests verts, EditorView/EditorSession inchangés.
+> **Retour terrain n°4 (3.61.0)** : six irritants réglés à la racine —
+> B7a les boutons annuler/rétablir de la barre réagissent enfin à la
+> FRAPPE (le rafraîchissement vivait sur le hook hôte, pas sur le
+> chemin IME — « ils ne font rien quand j'appuie ») ; B7b l'auto-scroll
+> du drag de sélection devient aussi HORIZONTAL (bords gauche/droite,
+> coin = diagonale, inerte en retour à la ligne) ; B7c l'appui long ne
+> vole plus le geste des popups (garde `popupOwnsTouch` — maintien dans
+> la complétion ou sous le scrim modal ne démarre plus de sélection
+> pour drag) ; B7d l'aperçu est « fit » (HTML rendu BRUT — la démo
+> l'échappait via le Markdown, zoom de police système verrouillé,
+> coins de la carte clippés, position de lecture préservée à la frappe)
+> ; B7e échantillon HTML dédié dans la démo (« XML / HTML » redevient
+> « XML ») ; B7f fondus fluides des popups (`EditorPopupFade` Canvas +
+> `EditorPopupMotion` fenêtres — le mécanisme animatorie du caret
+> généralisé) ; 1 640 tests verts (+22).
 > UX-4
 > (3.58.0) : le CONTENU du popup ancré de diagnostic suit la carte
 > (bug d'appareil : cadre à droite, contenu resté au bord gauche ; la

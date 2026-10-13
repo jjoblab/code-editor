@@ -81,7 +81,12 @@ public class EditorSelectionGestures {
     private boolean autoScrollRunning = false;
     /** Tick d'auto-scroll : défile selon la pénétration du bord et
      *  ré-applique la sélection sous le doigt, puis se RE-poste tant
-     *  que le doigt reste dans la zone et que le document peut défiler. */
+     *  que le doigt reste dans la zone et que le document peut défiler.
+     *  B7 (retour terrain n°4) : la pénétration se mesure sur les DEUX
+     *  axes — bords haut/bas (vertical) ET gauche/droite (horizontal,
+     *  sans retour à la ligne uniquement — en wrap il n'y a rien à
+     *  défiler horizontalement). Le doigt peut tenir un COIN : les deux
+     *  axes défilent ensemble. */
     private final Runnable autoScrollTick = new Runnable() {
         @Override
         public void run() {
@@ -89,24 +94,53 @@ public class EditorSelectionGestures {
             if (!isAutoScrollDragActive()) return;
             float density = view.getResources().getDisplayMetrics().density;
             float edge = EDGE_ZONE_DP * density;
+            float viewW = view.getWidth();
             float viewH = view.getHeight();
-            if (viewH <= 0) return;
-            int dir = 0;
-            float penetration = 0f;
+            if (viewH <= 0 || viewW <= 0) return;
+
+            // ── Pénétration verticale (bords haut/bas). ──
+            float penY = 0f;
             if (lastDragY < edge) {
-                dir = -1;
-                penetration = (edge - lastDragY) / edge;
+                penY = (edge - lastDragY) / edge;
             } else if (lastDragY > viewH - edge) {
-                dir = 1;
-                penetration = (lastDragY - (viewH - edge)) / edge;
+                penY = (lastDragY - (viewH - edge)) / edge;
             }
-            if (dir == 0) return; // hors zone — le prochain MOVE ré-armera
-            if (penetration > 1f) penetration = 1f;
-            float speed = (EDGE_MIN_SPEED_DP
-                    + (EDGE_MAX_SPEED_DP - EDGE_MIN_SPEED_DP) * penetration) * density;
-            float before = view.vOffset;
-            view.scrollManager.scrollBy(dir * speed);
-            if (view.vOffset == before) return; // borné (début/fin) — stop
+            if (penY > 1f) penY = 1f;
+
+            // ── Pénétration horizontale (bords gauche/droite) —
+            //    uniquement hors wrap : en mode retour à la ligne, le
+            //    document n'a AUCUN défilement horizontal (maxH() = 0,
+            //    scrollHorizontallyBy serait un no-op chronométré). ──
+            float penX = 0f;
+            if (!view.wordWrap) {
+                if (lastDragX < edge) {
+                    penX = (edge - lastDragX) / edge;
+                } else if (lastDragX > viewW - edge) {
+                    penX = (lastDragX - (viewW - edge)) / edge;
+                }
+                if (penX > 1f) penX = 1f;
+            }
+
+            if (penY <= 0f && penX <= 0f) return; // hors zone — le prochain MOVE ré-armera
+
+            // Vitesse de chaque axe selon SA pénétration (le coin
+            // défile en diagonale, chaque axe à son rythme).
+            float speedY = (EDGE_MIN_SPEED_DP
+                    + (EDGE_MAX_SPEED_DP - EDGE_MIN_SPEED_DP) * penY) * density;
+            float speedX = (EDGE_MIN_SPEED_DP
+                    + (EDGE_MAX_SPEED_DP - EDGE_MIN_SPEED_DP) * penX) * density;
+
+            float beforeV = view.vOffset;
+            float beforeH = view.hOffset;
+            if (penY > 0f) {
+                view.scrollManager.scrollBy(lastDragY < edge ? -speedY : speedY);
+            }
+            if (penX > 0f) {
+                view.scrollManager.scrollHorizontallyBy(lastDragX < edge ? -speedX : speedX);
+            }
+            if (view.vOffset == beforeV && view.hOffset == beforeH) {
+                return; // borné sur les DEUX axes (début/fin/gauche/droite) — stop
+            }
             // Le contenu a défilé sous le doigt : ré-applique la
             // sélection à la même position écran (offsetAt rend la
             // nouvelle position sous le doigt).
@@ -133,6 +167,15 @@ public class EditorSelectionGestures {
     }
 
     void handleLongPress(float x, float y) {
+        // B7 (retour terrain n°4) : un popup qui possède le point (région
+        // propre ou scrim modal) garde son appui long — l'appui long
+        // « sélection pour drag » ne démarre PAS derrière un popup
+        // affiché. Le garde doit venir AVANT tout effet (marquage,
+        // sélection du mot, clavier) : au relâchement, le tap du popup
+        // suit son chemin habituel (choix de rangée, dismiss…).
+        if (input.popupOwnsTouch(x, y)) {
+            return;
+        }
         // État du dispatcher (longPressTriggered, fin de drag/scroll) via
         // l'orchestrateur — corps historique déplacé à l'identique.
         input.markLongPressTriggered();
@@ -373,6 +416,9 @@ public class EditorSelectionGestures {
     }
 
     void dismissSelectionToolbar() {
+        // B7 : photographie la pill AVANT de nettoyer son état — le
+        // fantôme s'efface en 110 ms (fondus d'apparition/disparition).
+        view.popupFade.snuff(jo.codeeditor.view.popup.EditorPopupFade.Kind.SELECTION_TOOLBAR);
         view.selectionToolbarVisible = false;
         view.selectionToolbarPressedIdx = -1;
         view.invalidate();

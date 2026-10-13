@@ -5,6 +5,91 @@ All notable changes to **code-editor-lib** are documented in this file.
 Le format suit la convention [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.61.0] — 2026-10-13 — Retour n°4 : câblage réel d'annuler/rétablir, auto-scroll horizontal, popups sages et animés
+
+Quatrième retour d'appareil, six irritants réels réglés à la racine :
+les boutons annuler/rétablir de la barre restaient grisés après la
+frappe (le rafraîchissement vivait sur le hook hôte, pas sur le chemin
+IME) ; l'auto-scroll du drag ignorait les bords gauche/droite ; un
+appui long pendant un popup volait le geste et démarrait une sélection
+pour drag derrière lui ; l'aperçu n'était pas « fit » (HTML échappé par
+le Markdown de démo, zoom de police système qui gonflait la prose, coins
+de la carte non clippés, feuille remontée en haut à chaque frappe) ;
+l'échantillon HTML manquait ; les popups claquaient sans animation.
+Additif et correctifs uniquement, zéro rupture d'API.
+
+### Fixed
+
+- **B7a — annuler/rétablir réellement câblés sur la frappe** — le
+  rafraîchissement des boutons vivait dans `notifyTextChanged()` (hook
+  hôte pour éditions programmatiques) SEULEMENT, or la frappe réelle
+  passe par `EditorImeBridge.commitText` → `onTextChanged()` : les
+  boutons restaient grisés après une édition clavier (« ils ne font
+  rien quand j'appuie ») et un undo au bouton ne réactivait pas redo.
+  Le point de rafraîchissement descend dans `onTextChanged()` (les
+  deux chemins partagent), les clics annuler/rétablir passent par
+  `notifyTextChanged()` après l'opération (même comptabilité que les
+  raccourcis clavier : caret scrollé, popups refermés, états
+  réactivés) ; l'appel mort `EditorBarTools.invalidateButtonsIn` est
+  retiré au passage (la classe reste, disposition en attente).
+- **B7c — les popups ne fuient plus l'appui long** — le
+  `GestureDetector` est alimenté AVANT la cascade de hit-test des
+  popups : son minuteur d'appui long se déclenchait même quand le geste
+  appartenait à un popup — un maintien dans la complétion ou sous le
+  scrim modal d'une fiche de diagnostic démarrait une sélection de mot
+  pour drag, ouvrait le clavier et volait le focus. Nouveau garde
+  `EditorInputHandler.popupOwnsTouch(x, y)` (modaux = tout l'écran ;
+  complétion, quick doc, menu contextuel, pill, squiggle, actions de
+  code, aller-au-symbole = leurs bornes), consulté avant tout effet ;
+  hors des popups, l'appui long garde son comportement normal.
+- **B7d — l'aperçu est enfin « fit »** — trois causes racines : la
+  DÉMO envoyait TOUT le texte dans la conversion Markdown (le moteur
+  échappe le HTML : une page `.html` rendait ses balises en texte, et
+  l'échantillon XML mappé au faux nom `index.html` rendait n'importe
+  quoi) ; le WebView suivait l'échelle de police SYSTÈME et s'ouvrait
+  sans mode aperçu ; le rechargement débouncé remontait la feuille en
+  haut toutes les 200 ms et le corps dépassait les coins de la carte.
+  Corrigé : `payloadFor()` route le type (`.html`/`.htm` brut, `.md`
+  converti), zoom de texte verrouillé à 100, overview mode + viewport
+  large, scroll de lecture préservé, `setClipToOutline(true)` sur la
+  carte, CSS durci (overflow-wrap, text-size-adjust).
+
+### Added
+
+- **B7b — auto-scroll HORIZONTAL du drag de sélection** — le tick
+  d'auto-scroll mesurait la pénétration du doigt sur les bords haut/bas
+  seulement : un drag-select (ou une traînée de poignée) tenu près du
+  bord gauche/droite ne déclenchait rien horizontalement. La
+  pénétration se mesure maintenant sur les DEUX axes (horizontal hors
+  retour à la ligne seulement), chaque axe défile à son rythme — le
+  doigt tenu dans un COIN fait défiler le document en diagonale, la
+  sélection suit le contenu qui défile.
+- **B7e — échantillon HTML dédié dans la démo** — page autonome
+  moderne (en-tête, cartes, table, code inline, footer, TODO/FIXME pour
+  les diagnostics) rendue BRUTE par la feuille d'aperçu ; « XML / HTML »
+  redevient « XML » et l'échantillon XML ne porte plus le faux nom
+  `.html` ; la démo compte 28 langages.
+- **B7f — fondus fluides d'apparition/disparition des popups** — le
+  mécanisme animatorie du glissement du caret, généralisé :
+  `EditorPopupFade` (popups Canvas) — fondu d'entrée 120 ms par front
+  montant dans le pipeline (aucun crochet à l'ouverture), fondu de
+  sortie 110 ms par photographie au dismiss (l'état logique meurt
+  immédiatement, seul le fantôme s'efface — complétion, quick doc, menu
+  contextuel, pill), réouverture en vol sans flash plein ;
+  `EditorPopupMotion` (popups en fenêtre) — aller-à-la-ligne,
+  renommage et feuille d'aperçu se posent en 140 ms et s'effacent en
+  110 ms, avec garde d'environnement (carte jamais mesurée, fenêtre
+  déjà morte → dismiss immédiat).
+
+### Tests
+
+- 1 640 tests verts, 0 échec (+22) : frappe IME qui réactive annuler
+  SANS refresh manuel, clic annuler qui réactive rétablir, auto-scroll
+  horizontal (droite/gauche/coin/diagonale/wrap mort), appui long dans
+  la complétion/hors complétion/sous scrim modal, routage HTML brut vs
+  Markdown, réglages WebView verrouillés, états du contrôleur de
+  fondus et replis des cartes en fenêtre.
+
 ## [3.60.0] — 2026-10-13 — Refonte B6 : fil d'Ariane intelligent, moteur d'icônes, aperçu repensé
 
 Troisième retour d'appareil post-lot tactile, direction « plus

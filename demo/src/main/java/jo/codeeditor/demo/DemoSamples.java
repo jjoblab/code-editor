@@ -38,7 +38,11 @@ final class DemoSamples {
         LANGUAGES.put("Rust", "rust");
         LANGUAGES.put("Swift", "swift");
         LANGUAGES.put("Dart", "dart");
-        LANGUAGES.put("XML / HTML", "xml");
+        // B7 (retour terrain n°4) : échantillon HTML dédié — la preuve
+        // complète de l'aperçu (page autonome rendue BRUTE par la feuille,
+        // ses propres styles). « XML / HTML » devient « XML » tout court.
+        LANGUAGES.put("XML", "xml");
+        LANGUAGES.put("HTML", "html");
         LANGUAGES.put("JSON", "json");
         LANGUAGES.put("YAML", "yaml");
         LANGUAGES.put("TOML", "toml");
@@ -616,6 +620,105 @@ final class DemoSamples {
             </LinearLayout>
             """;
 
+    /**
+     * B7 (retour terrain n°4) — échantillon HTML dédié : page autonome
+     * moderne rendue BRUTE par l'aperçu (la feuille n'applique PAS la
+     * conversion Markdown aux .html). TODO/FIXME pour alimenter les
+     * diagnostics de l'analyseur factice, imbrication de balises pour les
+     * plis, attributs pour la coloration.
+     */
+    private static final String HTML = """
+            <!DOCTYPE html>
+            <html lang="fr">
+            <head>
+                <meta charset="utf-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1">
+                <title>code-editor — page HTML de démonstration</title>
+                <style>
+                    :root { color-scheme: dark; }
+                    body {
+                        margin: 0;
+                        font: 15px/1.65 -apple-system, 'Segoe UI', Roboto, sans-serif;
+                        background: #0d1117;
+                        color: #e6edf3;
+                        overflow-wrap: break-word;
+                    }
+                    /* TODO: extraire ce thème dans une feuille partagée */
+                    header, main, footer { padding: 14px 18px; }
+                    header {
+                        border-bottom: 1px solid #21262d;
+                        background: #161b22;
+                    }
+                    header h1 { margin: 0; font-size: 1.3em; color: #f0f6fc; }
+                    header p { margin: 4px 0 0; color: #8b949e; font-size: .9em; }
+                    .cartes {
+                        display: grid;
+                        grid-template-columns: 1fr 1fr;
+                        gap: 12px;
+                        margin: 16px 0;
+                    }
+                    .carte {
+                        border: 1px solid #21262d;
+                        border-radius: 10px;
+                        padding: 12px 14px;
+                        background: #161b22;
+                    }
+                    .carte h2 { margin: 0 0 6px; font-size: 1em; color: #58a6ff; }
+                    .carte p { margin: 0; font-size: .92em; color: #a9b1ba; }
+                    table { border-collapse: collapse; margin: 12px 0; max-width: 100%; }
+                    th, td { border: 1px solid #21262d; padding: 6px 10px; text-align: left; }
+                    th { background: #161b22; color: #f0f6fc; }
+                    code {
+                        font: 12.5px/1.5 Menlo, Consolas, monospace;
+                        background: #1c2128; color: #f0c674;
+                        border: 1px solid #2d333b;
+                        border-radius: 5px; padding: 2px 5px;
+                    }
+                    footer {
+                        border-top: 1px solid #21262d;
+                        color: #8b949e; font-size: .85em;
+                    }
+                </style>
+            </head>
+            <body>
+                <header>
+                    <h1>Feuille d'aperçu — page.html</h1>
+                    <p>Échantillon HTML de la démo, rendu <em>brut</em> dans la carte flottante.</p>
+                </header>
+                <main>
+                    <section class="cartes">
+                        <div class="carte">
+                            <h2>Scindé</h2>
+                            <p>La feuille prend la moitié droite ; le texte reste éditable à gauche.</p>
+                        </div>
+                        <div class="carte">
+                            <h2>Plein</h2>
+                            <p>Le bouton <code>&#9726;</code> de l'en-tête étend la carte sur l'éditeur.</p>
+                        </div>
+                    </section>
+                    <table>
+                        <thead>
+                            <tr><th>Mode</th><th>Largeur</th><th>Rendu</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>Scindé</td><td>moitié</td><td>HTML brut + styles propres</td></tr>
+                            <tr><td>Plein</td><td>plein écran</td><td>idem, ajusté</td></tr>
+                        </tbody>
+                    </table>
+                    <p>
+                        La frappe re-rend en direct (débounce ~200 ms) et la
+                        position de lecture est conservée — modifiez ce
+                        paragraphe dans l'éditeur pour voir la carte suivre.
+                    </p>
+                    <!-- FIXME: ajouter un formulaire de contact -->
+                </main>
+                <footer>
+                    Démonstration de la bibliothèque — v3.61.0.
+                </footer>
+            </body>
+            </html>
+            """;
+
     private static final String JSON = """
             {
               "nom": "code-editor",
@@ -866,7 +969,8 @@ final class DemoSamples {
             case "rust": return RUST;
             case "swift": return SWIFT;
             case "dart": return DART;
-            case "xml": case "html": return XML;
+            case "xml": return XML;
+            case "html": return HTML;
             case "json": return JSON;
             case "yaml": return YAML;
             case "toml": return TOML;

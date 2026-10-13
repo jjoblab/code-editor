@@ -104,6 +104,9 @@ public class EditorQuickDocPopup {
 
     void dismissQuickDoc() {
         quickDocGeneration++;
+        // B7 : photographie le popup AVANT de vider son contenu — le
+        // fantôme s'efface en 110 ms (fondus d'apparition/disparition).
+        view.popupFade.snuff(jo.codeeditor.view.popup.EditorPopupFade.Kind.QUICK_DOC);
         view.quickDocVisible = false;
         view.quickDocContent = null;
         view.invalidate();

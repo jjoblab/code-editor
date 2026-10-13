@@ -13,6 +13,7 @@ import jo.codeeditor.document.EditorDocument;
 import jo.codeeditor.document.Selection;
 import jo.codeeditor.highlight.StyledLine;
 import jo.codeeditor.shift.DiagnosticShift;
+import jo.codeeditor.view.popup.EditorPopupAnchors;
 
 import java.util.List;
 
@@ -68,6 +69,75 @@ public class EditorRenderer {
         this.diagnostics = new EditorDiagnosticsPainter(view);
         this.assist = new EditorAssistPopupPainter(view);
         this.chrome = new EditorChromePainter(view, text, highlights, diagnostics);
+        // B7 : enregistre chaque popup Canvas auprès du contrôleur des
+        // fondus — fournisseur de visibilité (front montant d'apparition)
+        // + peintre (photographie au dismiss quand les bornes sont
+        // mesurables publiquement).
+        registerPopupFades();
+    }
+
+    /** B7 — branche les popups Canvas sur le contrôleur des fondus. */
+    private void registerPopupFades() {
+        jo.codeeditor.view.popup.EditorPopupFade fade = view.popupFade;
+        fade.register(jo.codeeditor.view.popup.EditorPopupFade.Kind.COMPLETION,
+                () -> view.completionVisible,
+                popupPainter(assist::drawCompletionPopup, () -> {
+                    float[] a = view.completionPopupAnchor();
+                    return a == null || a.length < 4 ? null
+                            : new RectF(a[0], a[1], a[0] + a[2], a[1] + a[3]);
+                }));
+        fade.register(jo.codeeditor.view.popup.EditorPopupFade.Kind.SIGNATURE,
+                () -> view.signatureHelpVisible,
+                popupPainter(assist::drawSignatureHelpPopup, () -> null));
+        fade.register(jo.codeeditor.view.popup.EditorPopupFade.Kind.QUICK_DOC,
+                () -> view.quickDocVisible,
+                popupPainter(assist::drawQuickDocPopup, () -> {
+                    float[] m = view.quickDocMetrics();
+                    return m == null || m.length < 4 ? null
+                            : new RectF(m[0], m[1], m[0] + m[2], m[1] + m[3]);
+                }));
+        fade.register(jo.codeeditor.view.popup.EditorPopupFade.Kind.CODE_ACTIONS,
+                () -> view.codeActionsPopupVisible,
+                popupPainter(assist::drawCodeActionsPopup, () -> null));
+        fade.register(jo.codeeditor.view.popup.EditorPopupFade.Kind.NAV_MENU,
+                () -> view.navMenuVisible,
+                popupPainter(chrome::drawNavMenu, () -> {
+                    float[] m = view.navMenuMetrics();
+                    return m == null || m.length < 4 ? null
+                            : new RectF(m[0], m[1], m[0] + m[2], m[1] + m[3]);
+                }));
+        fade.register(jo.codeeditor.view.popup.EditorPopupFade.Kind.GOTO_SYMBOL,
+                () -> view.goToSymbolVisible,
+                popupPainter(assist::drawGoToSymbolPopup, () -> null));
+        fade.register(jo.codeeditor.view.popup.EditorPopupFade.Kind.SELECTION_TOOLBAR,
+                () -> view.selectionToolbarVisible,
+                popupPainter(chrome::drawSelectionToolbar, () -> {
+                    EditorPopupAnchors.SelectionToolbarMetrics m =
+                            view.selectionToolbarMetrics();
+                    return m == null ? null : new RectF(m.x, m.y, m.x + m.w, m.y + m.h);
+                }));
+        fade.register(jo.codeeditor.view.popup.EditorPopupFade.Kind.SQUIGGLE_POPUP,
+                () -> view.squigglePopupVisible,
+                popupPainter(diagnostics::drawSquigglePopup, () -> null));
+        fade.register(jo.codeeditor.view.popup.EditorPopupFade.Kind.DIAGNOSTIC_POPUP,
+                () -> view.diagnosticPopupVisible,
+                popupPainter(diagnostics::drawDiagnosticPopup, () -> null));
+        fade.register(jo.codeeditor.view.popup.EditorPopupFade.Kind.DIAGNOSTIC_LIST_SHEET,
+                () -> view.diagnosticListSheetLine >= 0,
+                popupPainter(diagnostics::drawDiagnosticListSheet, () -> null));
+        fade.register(jo.codeeditor.view.popup.EditorPopupFade.Kind.DIAGNOSTIC_SHEET,
+                () -> view.diagnosticSheetVisible,
+                popupPainter(diagnostics::drawDiagnosticSheet, () -> null));
+    }
+
+    /** Assemble un peintre de fondu (dessin + fournisseur de bornes). */
+    private static jo.codeeditor.view.popup.EditorPopupFade.PopupPainter popupPainter(
+            java.util.function.Consumer<Canvas> draw,
+            java.util.function.Supplier<RectF> bounds) {
+        return new jo.codeeditor.view.popup.EditorPopupFade.PopupPainter() {
+            @Override public void draw(Canvas canvas) { draw.accept(canvas); }
+            @Override public RectF bounds() { return bounds.get(); }
+        };
     }
 
     // ════════════════════════════════════════════════════════════════
@@ -77,6 +147,9 @@ public class EditorRenderer {
     /** Point d'entrée principal — appelé par {@link EditorView#onDraw(Canvas)}. */
     public void draw(Canvas canvas) {
         if (view.session == null) return;
+        // B7 : contrôleur des fondus de popups (enregistré à la
+        // construction — jamais null ici).
+        final jo.codeeditor.view.popup.EditorPopupFade fade = view.popupFade;
 
         final EditorDocument doc = view.session.getDocument();
         final List<StyledLine> styledLines = view.session.getStyledLines();
@@ -368,22 +441,30 @@ public class EditorRenderer {
         highlights.drawSelectionHandles(canvas);
 
         // 11. Popup de complétion (dessiné en dernier pour être au-dessus de tout)
-        assist.drawCompletionPopup(canvas);
+        // B7 : chaque popup Canvas passe par le contrôleur des fondus
+        // (apparition 120 ms, fantôme de disparition 110 ms).
+        fade.onDraw(jo.codeeditor.view.popup.EditorPopupFade.Kind.COMPLETION,
+                canvas, () -> assist.drawCompletionPopup(canvas));
 
         // 12. Popup d'aide de signature (dessiné en dernier — au-dessus de la ligne du curseur)
-        assist.drawSignatureHelpPopup(canvas);
+        fade.onDraw(jo.codeeditor.view.popup.EditorPopupFade.Kind.SIGNATURE,
+                canvas, () -> assist.drawSignatureHelpPopup(canvas));
 
         // 13. Popup de documentation rapide
-        assist.drawQuickDocPopup(canvas);
+        fade.onDraw(jo.codeeditor.view.popup.EditorPopupFade.Kind.QUICK_DOC,
+                canvas, () -> assist.drawQuickDocPopup(canvas));
 
         // 14. Ampoules de code actions + popup
         assist.drawCodeActionsBulbs(canvas, firstDocVisible, lastDocVisible, lineHeight, paddingTop);
-        assist.drawCodeActionsPopup(canvas);
+        fade.onDraw(jo.codeeditor.view.popup.EditorPopupFade.Kind.CODE_ACTIONS,
+                canvas, () -> assist.drawCodeActionsPopup(canvas));
         // 14.5. Menu contextuel unifié (NavMenu — toolbar de sélection)
-        chrome.drawNavMenu(canvas);
+        fade.onDraw(jo.codeeditor.view.popup.EditorPopupFade.Kind.NAV_MENU,
+                canvas, () -> chrome.drawNavMenu(canvas));
 
         // 15. Popup d'aller-au-symbole
-        assist.drawGoToSymbolPopup(canvas);
+        fade.onDraw(jo.codeeditor.view.popup.EditorPopupFade.Kind.GOTO_SYMBOL,
+                canvas, () -> assist.drawGoToSymbolPopup(canvas));
 
         // 16. Couches overlay : chips de diagnostic + toolbar de sélection +
         //     sheet de diagnostic. (Le go-to-line et le rename utilisent de
@@ -393,11 +474,16 @@ public class EditorRenderer {
         }
         // Popup ancré de squiggle (D1) — niveau 1 de lecture, sous les
         // fiches basses (modales) et au-dessus des chips.
-        diagnostics.drawSquigglePopup(canvas);
-        diagnostics.drawDiagnosticListSheet(canvas);
-        chrome.drawSelectionToolbar(canvas);
-        diagnostics.drawDiagnosticPopup(canvas);
-        diagnostics.drawDiagnosticSheet(canvas);
+        fade.onDraw(jo.codeeditor.view.popup.EditorPopupFade.Kind.SQUIGGLE_POPUP,
+                canvas, () -> diagnostics.drawSquigglePopup(canvas));
+        fade.onDraw(jo.codeeditor.view.popup.EditorPopupFade.Kind.DIAGNOSTIC_LIST_SHEET,
+                canvas, () -> diagnostics.drawDiagnosticListSheet(canvas));
+        fade.onDraw(jo.codeeditor.view.popup.EditorPopupFade.Kind.SELECTION_TOOLBAR,
+                canvas, () -> chrome.drawSelectionToolbar(canvas));
+        fade.onDraw(jo.codeeditor.view.popup.EditorPopupFade.Kind.DIAGNOSTIC_POPUP,
+                canvas, () -> diagnostics.drawDiagnosticPopup(canvas));
+        fade.onDraw(jo.codeeditor.view.popup.EditorPopupFade.Kind.DIAGNOSTIC_SHEET,
+                canvas, () -> diagnostics.drawDiagnosticSheet(canvas));
 
         // Dessiner les icônes d'aperçu en haut à droite quand le fichier est
         // prévisualisable (.md/.html/.xml) et que le mode d'aperçu est NONE.

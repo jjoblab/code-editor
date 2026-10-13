@@ -81,6 +81,8 @@ public class EditorGoToLinePopup {
             goToLinePopup = null;
         });
         goToLinePopup.showAtLocation(view, Gravity.TOP | Gravity.CENTER_HORIZONTAL, 0, view.dp(48));
+        // B7 : la carte descend du haut et se pose (140 ms).
+        EditorPopupMotion.cardIn(card.container, -view.dp(8));
         field.requestFocus();
     }
 
@@ -117,7 +119,10 @@ public class EditorGoToLinePopup {
     void dismissGoToLine() {
         goToLineVisible = false;
         if (goToLinePopup != null) {
-            goToLinePopup.dismiss();
+            // B7 : la vitre s'efface vers le haut (110 ms) — la référence
+            // meurt maintenant, la fenêtre à la fin de l'animation (Retour
+            // système ou double dismiss : dismiss immédiat, garde interne).
+            EditorPopupMotion.cardOut(goToLinePopup, -view.dp(8));
             goToLinePopup = null;
         }
         view.invalidate();

@@ -2,6 +2,7 @@ package jo.codeeditor.view.preview;
 
 import jo.codeeditor.view.EditorView;
 import jo.codeeditor.view.icons.EditorIcons;
+import jo.codeeditor.view.popup.EditorPopupMotion;
 
 import androidx.annotation.RestrictTo;
 
@@ -157,6 +158,9 @@ public class EditorPreviewSheet {
         // Le bouton Retour ferme la feuille (le OnKeyListener par défaut du
         // PopupWindow honore KEYCODE_BACK quand focusable=true).
         popup.showAtLocation(editor, Gravity.NO_GRAVITY, x, y);
+        // B7 : la carte monte du bas et se pose (140 ms) — même mécanisme
+        // que les cartes glass (go-to-line, rename).
+        EditorPopupMotion.cardIn(sheetContainer, editor.dp(10));
 
         // Pousse le contenu initial dans le corps.
         refreshBody();
@@ -164,8 +168,13 @@ public class EditorPreviewSheet {
 
     void dismiss() {
         if (popup != null) {
-            popup.dismiss();
-            // onDismissed sera invoqué par le listener.
+            // B7 : la carte s'efface vers le bas (110 ms) — la fenêtre
+            // meurt à la fin de l'animation ; Retour système / double
+            // dismiss : garde interne (dismiss immédiat), onDismissed
+            // reste le point de sortie unique de l'état éditeur.
+            EditorPopupMotion.cardOut(popup, editor.dp(10));
+            // onDismissed sera invoqué par le listener à la mort réelle
+            // de la fenêtre (fin d'animation ou Retour).
         }
     }
 
@@ -257,6 +266,11 @@ public class EditorPreviewSheet {
         // Carte flottante : ombre réelle au-dessus de l'éditeur (le contour
         // du GradientDrawable fournit l'outline de l'élévation).
         container.setElevation(editor.dp(12));
+        // B7 « fit » : le corps hôte (WebView & co.) est CLIPPÉ aux coins
+        // arrondis de la carte — sans quoi ses coins carrés dépassaient
+        // visuellement la carte flottante (l'outline du fond sert de
+        // masque, forme ET ombre partagent les mêmes rayons).
+        container.setClipToOutline(true);
     }
 
     private View buildHeader(Context ctx) {

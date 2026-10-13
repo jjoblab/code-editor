@@ -35,9 +35,9 @@
 
     <!-- À propos -->
     <string name="about_title">À propos de la démo</string>
-    <string name="about_message">Terrain de jeu pour la bibliothèque code-editor v3.40.0 (Java, Canvas, MIT).
+    <string name="about_message">Terrain de jeu pour la bibliothèque code-editor v3.61.0 (Java, Canvas, MIT).
 
-\u2022 27 langages : basculez via le menu Langage.
+\u2022 28 langages : basculez via le menu Langage.
 \u2022 Analyseur factice : diagnostics, complétion, signatures, quick doc et code actions synthétiques \u2014 sans serveur LSP.
 \u2022 Scheme de couleurs : la bascule Scheme applique « Crépuscule ambré » par-dessus le thème (sélection, caret, commentaires, fonctions, javadoc) \u2014 cascade de résolution, purge des caches incluse.
 \u2022 Distinctions fines : javadocs, contrôle de flux (if/for/return), modificateurs (public/static), caractères, chaînes brutes, namespaces XML, entités et emphase Markdown sont colorés distinctement.

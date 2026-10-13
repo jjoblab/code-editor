@@ -1,4 +1,4 @@
-# MISE À JOUR DE CodeIDE — brancher la version 3.59.0 de `code-editor`
+# MISE À JOUR DE CodeIDE — brancher la version 3.61.0 de `code-editor`
 
 > **Destinataire** : agent IA chargé de la mise à jour du dépôt `CodeIDE`
 > (jjoblab/CodeIDE, audité @ `04a65ea`, v0.105.0).
@@ -33,6 +33,7 @@
 | Retour terrain post-J6 | 3.58.0 | Le popup se lit à droite ; les boutons se rangent | UX-4 : le CONTENU du popup ancré suit le CADRE (bug corrigé automatiquement) ; B5 : `BreadcrumbBar` porte les actions d'éditeur en haut à droite (adoption optionnelle, §4.8) |
 | Retour terrain n°2 | 3.59.0 | Plus de boutons invisibles en haut à droite | UX-5 : retrait des zones de tap fantômes de l'ancienne toolbar canvas (bug corrigé automatiquement) — un tap en haut à droite redevient un placement de caret |
 | Refonte B6 (retour n°3) | 3.60.0 | Fil d'Ariane « intelligent, plus moderne » | Moteur d'icônes vectorielles ; `addEditorActions()` : les TROIS actions (annuler, rétablir, aperçu) câblées sans code hôte ; l'œil n'existe que pour un fichier prévisualisable et BASCULE ouvrir/fermer ; feuille d'aperçu carte flottante (adoption optionnelle, §4.9) |
+| Retour terrain n°4 | 3.61.0 | Six irritants réels réglés à la racine | B7a : annuler/rétablir réactifs à la FRAPPE (chemin IME) ; B7b : auto-scroll du drag aussi HORIZONTAL (coin = diagonale) ; B7c : l'appui long ne vole plus le geste des popups ; B7d : aperçu « fit » (HTML brut, zoom verrouillé, coins clippés, scroll préservé) ; B7e : échantillon HTML ; B7f : fondus d'apparition/disparition des popups |
 
 **Un seul changement est indispensable** : monter la version dans
 `gradle/libs.versions.toml` (§2). Tout le reste est additif — les
@@ -44,7 +45,7 @@ surcharges ou des constructeurs étendus déléguant à l'existant.
 
 ---
 
-## 1. Les lots 3.52.0 → 3.57.0 (complets) puis les retours terrain 3.58.0/3.59.0/3.60.0
+## 1. Les lots 3.52.0 → 3.57.0 (complets) puis les retours terrain 3.58.0/3.59.0/3.60.0/3.61.0
 
 `code-editor` est le CLIENT ; `lsp/java` de CodeIDE est le SERVEUR. Le
 lot tactile travaille presque entièrement côté client (rendu, gestes,
@@ -203,13 +204,57 @@ apporte d'office :
 Zéro rupture d'API : tout est additif (EditorView et EditorSession
 inchangés ligne à ligne — aucun budget déplacé).
 
+### 1.7 Retour terrain n°4 (3.61.0) — six irritants réglés à la racine
+
+Quatrième retour d'appareil. Les symptômes et leurs causes racines :
+
+- **« Tu n'as pas connecté les icônes undo redo, ils ne font rien
+  quand j'appuie »** (B7a) — le câblage B6 existait mais son
+  rafraîchissement vivait sur `notifyTextChanged()` (hook hôte)
+  SEULEMENT ; la frappe réelle passe par le chemin IME
+  (`commitText` → `onTextChanged()`), qui ne rafraîchissait JAMAIS la
+  barre : les boutons restaient grisés après une édition clavier, et un
+  undo au bouton ne réactivait pas redo. Le point de rafraîchissement
+  est descendu dans `onTextChanged()` (les deux chemins partagent) et
+  les clics passent par `notifyTextChanged()` après l'opération.
+- **« L'auto scrolling doit aussi être horizontal, quand je sélectionne
+  pour draguer »** (B7b) — le tick d'auto-scroll ne mesurait la
+  pénétration que sur les bords haut/bas. Mesure maintenant sur les
+  DEUX axes (horizontal hors retour à la ligne), chaque axe à son
+  rythme ; le doigt tenu dans un COIN défile en diagonale.
+- **« Vérifier que les popups n'interfèrent pas avec le long click »**
+  (B7c) — le `GestureDetector` est alimenté avant la cascade de
+  hit-test des popups : l'appui long se déclenchait même quand le geste
+  appartenait à un popup (maintien dans la complétion, scrim modal d'une
+  fiche de diagnostic) — sélection pour drag + clavier + focus volés.
+  Nouveau garde `popupOwnsTouch(x, y)` consulté avant tout effet.
+- **« Le rendu n'est pas assez fit, que ce soit en split ou en plein »**
+  (B7d) — trois causes additionnées : la DÉMO échappait le HTML via la
+  conversion Markdown (l'échantillon XML mappé au faux nom
+  `index.html` rendait n'importe quoi) ; le WebView suivait l'échelle
+  de police SYSTÈME ; le rechargement débouncé remontait la feuille en
+  haut toutes les 200 ms et le corps dépassait les coins de la carte.
+  Corrigé : `.html`/`.htm` rendus BRUTS, zoom de texte verrouillé à 100,
+  overview mode, scroll préservé, `setClipToOutline(true)`, CSS durci.
+- **Échantillon HTML (B7e)** — page autonome (cartes, table, footer)
+  rendue brute par la feuille ; « XML / HTML » redevient « XML ».
+- **« Les popup : animations d'affichage/disparition plus fluides »**
+  (B7f) — le mécanisme animatorie du caret glissé, généralisé :
+  `EditorPopupFade` (popups Canvas : entrée 120 ms par front montant,
+  sortie 110 ms par photographie au dismiss) et `EditorPopupMotion`
+  (popups en fenêtre : cartes posées 140 ms, effacées 110 ms).
+
+Zéro rupture d'API : correctifs et additions (un appel mort interne
+retiré, un champ restreint ajouté à EditorView — aucune surface
+publique touchée).
+
 ---
 
 ## 2. Changement REQUIS — montée de version de la dépendance
 
 ```toml
 # gradle/libs.versions.toml (CodeIDE) — ligne ~52
-code-editor = "3.60.0"     # était "3.49.2" (audit) / "3.51.1" (guide 3.51.1) / "3.57.0" (guide J6) / "3.58.0"-"3.59.0" (guides retours terrain)
+code-editor = "3.61.0"     # était "3.49.2" (audit) / "3.51.1" (guide 3.51.1) / "3.57.0" (guide J6) / "3.58.0"-"3.60.0" (guides retours terrain)
 ```
 
 Les deux modules consommateurs ne changent pas (ils suivent le
@@ -219,7 +264,7 @@ Les deux modules consommateurs ne changent pas (ils suivent le
 - `feature/editor/build.gradle.kts:14` → `implementation(libs.codeeditor.ui)`
 
 **Compatibilité API : vérifiée additive sur toute la plage
-3.51.1 → 3.60.0** (aucune rupture binaire : nouveaux champs des
+3.51.1 → 3.61.0** (aucune rupture binaire : nouveaux champs des
 modèles diagnostic/inlay via constructeurs étendus, les
 constructeurs historiques délèguent avec défaut vide ; les ajouts
 3.58.0 sont `BreadcrumbBar.*` et `EditorView.setPreviewIconsVisible`,
@@ -227,7 +272,10 @@ purement additifs ; 3.59.0 ne fait que RETIRER un hit-test interne
 `@RestrictTo(LIBRARY_GROUP)` — aucune surface publique touchée ; les
 ajouts 3.60.0 sont `BreadcrumbBar.addIconAction`/`addEditorActions` et
 le moteur `EditorIcons`, purement additifs — `addAction` texte et
-`addPreviewAction` restent compatibles).
+`addPreviewAction` restent compatibles ; 3.61.0 est un lot de
+correctifs internes + deux classes `@RestrictTo(LIBRARY_GROUP)`
+(`EditorPopupFade`, `EditorPopupMotion`) — aucune surface publique
+touchée).
 
 ### Publication vérifiée (2026-10-13)
 
@@ -477,6 +525,31 @@ ajouter les épreuves du lot tactile :
     actif voilé d'accent) ; le rendu affiche liens, tables, cases de
     tâches, barré ; la frappe se reflète en ~200 ms ; fermer par ✕ ou
     par le bouton Retour.
+16. **Retour n°4 (3.61.0, via la démo)** — six vérifications ciblées :
+    **a)** taper du texte au clavier → le bouton ANNULER de la barre
+    s'allume IMMÉDIATEMENT (plus besoin d'autre action) ; le tap
+    annule, RÉTABLIR s'allume, le tap rétablit ;
+    **b)** désactiver le retour à la ligne, ouvrir un échantillon à
+    lignes longues (XML), double-taper un mot puis le traîner au bord
+    DROIT de l'écran et maintenir → le document défile
+    HORIZONTALEMENT, la sélection s'étend ; maintenir dans le COIN
+    bas-droit → défilement en diagonale ;
+    **c)** taper un identifiant → complétion visible → maintenir un
+    appui long DANS le popup → RIEN ne se sélectionne derrière (pas de
+    pill, pas de poignées) ; idem pendant la fiche de diagnostic
+    (scrim modal) ;
+    **d)** échantillon **HTML** → l'œil apparaît → la feuille rend la
+    page BRUTE (en-tête, cartes, table — pas de balises visibles en
+    texte), le contenu tient dans la carte (coins clippés), scroller
+    puis taper → la position de lecture est conservée ; même épreuve
+    sur Markdown (rendu converti) ; changer d'échantillon (Java) →
+    l'œil disparaît ;
+    **e)** les popups (complétion, quick doc, menu, pill, go-to-line,
+    rename, feuille d'aperçu) apparaissent et disparaissent en FONDU
+    (~120/110 ms), jamais en claquement sec ;
+    **f)** rappel APK : les boutons morts de 3.60.0 venaient d'un
+    correctif interne — installer l'APK démo **3.61.0** (l'ancien APK
+    garde le comportement ancien).
 
 ---
 

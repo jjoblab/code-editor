@@ -272,4 +272,157 @@ public class SelectionDragAutoScrollTest {
         up(view, hx, edgeY);
         assertEquals(0, view.handleDragMode);
     }
+
+    // ════════════════════════════════════════════════════════════════
+    // B7 (retour terrain n°4) — auto-scroll HORIZONTAL du drag : bords
+    // gauche/droite, sélection qui suit, coin en diagonale, wrap mort.
+    // ════════════════════════════════════════════════════════════════
+
+    /** Ligne 2 longue (~267 colonnes) : « count » visible au départ, puis
+     *  du remplissage bien au-delà de la fenêtre (~100 colonnes). Le
+     *  document garde aussi assez de lignes pour défiler VERTICALEMENT
+     *  (83 lignes × 40 px > viewport). */
+    private static String docLongLine() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("public class Main {\n")             // 0
+          .append("    void run() {\n");               // 1
+        sb.append("        int count = 0; // ");
+        for (int i = 0; i < 30; i++) sb.append("abcdefgh");
+        sb.append("\n");                               // 2 — longue
+        for (int i = 0; i < 78; i++) {
+            sb.append("        int filler").append(i).append(" = ").append(i).append(";\n");
+        }
+        sb.append("    }\n}\n");
+        return sb.toString();
+    }
+
+    private EditorView newLongLineView() {
+        Context ctx = RuntimeEnvironment.getApplication();
+        EditorView view = new EditorView(ctx);
+        EditorSession session = new EditorSession(EditorDocument.of(docLongLine()));
+        view.setSession(session);
+        session.setLanguage("java");
+        view.measure(VIEW_W, VIEW_H);
+        view.layout(0, 0, VIEW_W, VIEW_H);
+        injectMetrics(view, LINE_H, CHAR_W);
+        return view;
+    }
+
+    @Test
+    public void dragSelect_tenuAuBordDroit_défileHorizontalementEtÉtend() {
+        EditorView view = newLongLineView();
+        String text = docLongLine();
+        int line2Start = text.indexOf('\n', text.indexOf('\n') + 1) + 1;
+        float y = lineCenterY(view, 2); // hors des zones de bord VERTICALES
+        float x = view.metrics.getGutterWidth() + view.metrics.getPadLeft() + 12 * CHAR_W;
+
+        // Appui long sur « count » (visible à hOffset = 0) → drag armé.
+        longPressDown(view, x, y);
+        assertEquals("le mot est sélectionné par l'appui long",
+                "count", text.substring(view.getSession().getSelection().start,
+                        view.getSession().getSelection().end));
+
+        // Glissement au-delà du slop vers le bord DROIT, doigt tenu à
+        // 20 px du bord (dans la zone 56 px).
+        float edgeX = VIEW_W - 20f;
+        for (int i = 1; i <= 6; i++) {
+            float mx = x + (edgeX - x) * i / 6f;
+            move(view, mx, y, 20);
+            SystemClock.sleep(20);
+        }
+        assertEquals(0f, view.hOffset, 0f);
+        runAutoScrollFrames(view, 30);
+
+        assertTrue("l'auto-scroll horizontal a défilé vers la droite"
+                + " (hOffset=" + view.hOffset + ")",
+                view.hOffset > 0f);
+        assertEquals("le doigt est verticalement au centre : AUCUN défilement vertical",
+                0f, view.vOffset, 0f);
+        Selection sel = view.getSession().getSelection();
+        int selEndCol = Math.max(sel.start, sel.end) - line2Start;
+        assertTrue("la sélection s'étend au-delà des colonnes visibles"
+                + " (colonne fin " + selEndCol + ")",
+                selEndCol > 100);
+        up(view, edgeX, y);
+    }
+
+    @Test
+    public void dragSelect_tenuAuBordGauche_reviensVersLaGauche() {
+        EditorView view = newLongLineView();
+        // Document déjà défilé à droite : seules les colonnes ≥ 60 sont
+        // visibles — l'appui long se fait sur le remplissage visible.
+        view.hOffset = 600f;
+        float y = lineCenterY(view, 2);
+        float x = view.metrics.getGutterWidth() + view.metrics.getPadLeft()
+                + (70 - 60) * CHAR_W; // colonne 70 à l'écran
+
+        longPressDown(view, x, y);
+
+        // Doigt tenu à 10 px du bord GAUCHE.
+        for (int i = 1; i <= 6; i++) {
+            float mx = x + (10f - x) * i / 6f;
+            move(view, mx, y, 20);
+            SystemClock.sleep(20);
+        }
+        float before = view.hOffset;
+        runAutoScrollFrames(view, 30);
+
+        assertTrue("l'auto-scroll ramène vers la gauche (hOffset " + before
+                + " → " + view.hOffset + ")",
+                view.hOffset < before);
+        up(view, 10f, y);
+    }
+
+    @Test
+    public void dragSelect_tenuAuCoinBasDroit_défileEnDiagonale() {
+        EditorView view = newLongLineView();
+        String text = docLongLine();
+        int line2Start = text.indexOf('\n', text.indexOf('\n') + 1) + 1;
+        float x = view.metrics.getGutterWidth() + view.metrics.getPadLeft() + 12 * CHAR_W;
+
+        longPressDown(view, x, lineCenterY(view, 2));
+
+        // Doigt tenu dans le COIN bas-droit : les DEUX zones de bord.
+        float edgeX = VIEW_W - 20f;
+        float edgeY = VIEW_H - 20f;
+        for (int i = 1; i <= 8; i++) {
+            float mx = x + (edgeX - x) * i / 8f;
+            float my = lineCenterY(view, 2) + (edgeY - lineCenterY(view, 2)) * i / 8f;
+            move(view, mx, my, 20);
+            SystemClock.sleep(20);
+        }
+        runAutoScrollFrames(view, 30);
+
+        assertTrue("le coin défile horizontalement (hOffset=" + view.hOffset + ")",
+                view.hOffset > 0f);
+        assertTrue("le coin défile verticalement (vOffset=" + view.vOffset + ")",
+                view.vOffset > 0f);
+        Selection sel = view.getSession().getSelection();
+        int selEndCol = Math.max(sel.start, sel.end) - line2Start;
+        assertTrue("la sélection suit la diagonale (colonne fin " + selEndCol + ")",
+                selEndCol > 100);
+        up(view, edgeX, edgeY);
+    }
+
+    @Test
+    public void dragSelect_enModeWrap_aucunDéfilementHorizontal() {
+        EditorView view = newLongLineView();
+        view.setWordWrap(true);
+        float y = lineCenterY(view, 2);
+        float x = view.metrics.getGutterWidth() + view.metrics.getPadLeft() + 12 * CHAR_W;
+
+        longPressDown(view, x, y);
+
+        float edgeX = VIEW_W - 20f;
+        for (int i = 1; i <= 6; i++) {
+            float mx = x + (edgeX - x) * i / 6f;
+            move(view, mx, y, 20);
+            SystemClock.sleep(20);
+        }
+        runAutoScrollFrames(view, 20);
+
+        assertEquals("en retour à la ligne, rien ne défile horizontalement",
+                0f, view.hOffset, 0f);
+        up(view, edgeX, y);
+    }
 }

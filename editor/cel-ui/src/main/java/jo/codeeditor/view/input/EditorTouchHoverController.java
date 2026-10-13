@@ -51,6 +51,9 @@ public class EditorTouchHoverController {
             }
             // Re-contrôle qu'aucun scroll/drag n'a commencé.
             if (input.isScrollingOrDragging()) return;
+            // B7 : un popup affiché possède le point → pas de hover quick
+            // doc par-dessus lui (même garde que l'appui long).
+            if (input.popupOwnsTouch(tapHoldHoverStartX, tapHoldHoverStartY)) return;
             // Déclenche le hover — montre le quick doc à l'offset touché.
             int offset = view.offsetAt(tapHoldHoverStartX, tapHoldHoverStartY);
             if (offset >= 0 && view.quickDocResolver != null) {
