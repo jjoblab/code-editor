@@ -1,13 +1,15 @@
-# MISE À JOUR DE CodeIDE — brancher la version 3.56.0 de `code-editor`
+# MISE À JOUR DE CodeIDE — brancher la version 3.57.0 de `code-editor`
 
 > **Destinataire** : agent IA chargé de la mise à jour du dépôt `CodeIDE`
 > (jjoblab/CodeIDE, audité @ `04a65ea`, v0.105.0).
 > **Objet** : tirer parti du lot « actions de code au point
 > d'invocation » livré dans `code-editor` 3.50.0/3.50.1 et ses finitions
 > 3.51.0/3.51.1, PUIS du lot « édition tactile et contexte visuel »
-> livré en cinq jalons 3.52.0 → 3.56.0 (popup de diagnostic au tap,
+> livré en six jalons 3.52.0 → 3.57.0 (popup de diagnostic au tap,
 > SPI d'actions de la pill, sticky interactif, inlays typés, loupe
-> instrument, en-têtes enrichis, i18n).
+> instrument, en-têtes enrichis, i18n) — **le lot est COMPLET en
+> 3.57.0** : labelParts des inlays, hints cliquables, fenêtre
+> viewport, sticky délégué au SPI langue, mouvements de lignes.
 > **Ce document est la copie de référence archivée dans le dépôt** : il
 > résume le comportement attendu et les changements côté CodeIDE. Les
 > identifiants de commits sont ceux du dépôt du propriétaire, cités à
@@ -20,7 +22,7 @@
 | Lot | Versions | Thème | Ce que CodeIDE y gagne |
 |---|---|---|---|
 | Actions de code | 3.50.0 → 3.51.1 | Le pont client ne vide plus les réponses LSP | Quick-fixes réels au caret, ampoule dès publication, trigger « . », Unnecessary grisé |
-| Tactile & contexte | 3.52.0 → 3.56.0 | Le dernier geste naturel est câblé | Tap sur le squiggle → popup ancré, pill extensible (SPI + actions socle), sticky interactif, inlays typés + tooltips, loupe réglable, en-tête de diagnostic enrichi (code/source), libellés traduisibles |
+| Tactile & contexte | 3.52.0 → 3.57.0 | Le dernier geste naturel est câblé — lot COMPLET | Tap sur le squiggle → popup ancré, pill extensible (SPI + actions socle, mouvements de lignes), sticky interactif + délégable au SPI langue, inlays typés + tooltips PAR PART + hints CLIQUABLES, loupe réglable, en-tête enrichi (code/source), libellés traduisibles |
 
 **Un seul changement est indispensable** : monter la version dans
 `gradle/libs.versions.toml` (§2). Tout le reste est additif — les
@@ -32,7 +34,7 @@ surcharges ou des constructeurs étendus déléguant à l'existant.
 
 ---
 
-## 1. Le lot tactile 3.52.0 → 3.56.0 — ce qui change pour CodeIDE
+## 1. Le lot tactile 3.52.0 → 3.57.0 — ce qui change pour CodeIDE
 
 `code-editor` est le CLIENT ; `lsp/java` de CodeIDE est le SERVEUR. Le
 lot tactile travaille presque entièrement côté client (rendu, gestes,
@@ -91,11 +93,45 @@ sans rien faire.
 
 ---
 
+### 1.3 J6 (3.57.0) — inlays cliquables, labelParts, fenêtre viewport : le CONTRAT SERVEUR s'ouvre
+
+Le sixième jalon complète le lot sans rien exiger, mais il OUVRE des
+voies côté serveur CodeIDE :
+
+- **I4 — hints cliquables** : un hint LSP dont une `labelPart` porte
+  une `command` (spec 3.17 — `InlayHintLabelPart.command`) devient
+  TAPPABLE dans l'éditeur : le tap déclenche
+  `workspace/executeCommand` (asynchrone, jamais bloquant). **Si
+  CodeIDE veut des hints « … » d'expansion, son serveur doit (1)
+  poser la command sur la part et (2) implémenter le handler
+  `workspace/executeCommand`** — sans ça, le hint reste passif (aucun
+  crash, aucun appel).
+- **I3 — labelParts** : les tooltips servis PAR PART
+  (`InlayHintLabelPart.tooltip`) sont consultés à l'appui long sur la
+  sous-plage de la part. Un serveur mono-tooltip continue de
+  fonctionner à l'identique (le tooltip du hint entier reste la
+  voie de repli).
+- **I5 — fenêtre viewport** : le provider LSP intégré de la
+  bibliothèque reste en « document entier » (défaut) — CodeIDE n'a
+  RIEN à faire. La fenêtre `viewport ± 4 lignes + re-requête au
+  scroll idle` est un drapeau SPI (`wantsViewportRange`) pour des
+  providers CUSTOM — inutile de l'activer, mais si un jour CodeIDE
+  expose son propre provider, l'option existe. Le serveur doit
+  simplement continuer d'honorer la `range` reçue (il le fait déjà).
+- **S5 — sticky délégué** : si CodeIDE enregistre des
+  `LanguageProfile` custom, `Builder.stickyHeaderTest(...)` laisse la
+  langue décider de ses en-têtes collés (sinon : tables C_LIKE/Python
+  par défaut, inchangées).
+- **Mouvements de lignes (P2)** : `moveLinesUp/moveLinesDown` sont des
+  actions de pill INTÉGRÉES optionnelles — même SPI que Duplicate
+  (`addSelectionAction`), CodeIDE décide de les installer ou non
+  (le bloc de lignes de la sélection bouge, la sélection suit).
+
 ## 2. Changement REQUIS — montée de version de la dépendance
 
 ```toml
 # gradle/libs.versions.toml (CodeIDE) — ligne ~52
-code-editor = "3.56.0"     # était "3.49.2" (audit) / "3.51.1" (guide précédent)
+code-editor = "3.57.0"     # était "3.49.2" (audit) / "3.51.1" (guide 3.51.1)
 ```
 
 Les deux modules consommateurs ne changent pas (ils suivent le
@@ -105,25 +141,25 @@ Les deux modules consommateurs ne changent pas (ils suivent le
 - `feature/editor/build.gradle.kts:14` → `implementation(libs.codeeditor.ui)`
 
 **Compatibilité API : vérifiée additive sur toute la plage
-3.51.1 → 3.56.0** (aucune rupture binaire : nouveaux champs du modèle
-diagnostic via constructeurs étendus, les constructeurs historiques
-délèguent avec défaut vide).
+3.51.1 → 3.57.0** (aucune rupture binaire : nouveaux champs des
+modèles diagnostic/inlay via constructeurs étendus, les
+constructeurs historiques délèguent avec défaut vide).
 
 ### Publication vérifiée (2026-10-13)
 
-- `main` @ `edb37fe` poussé (merge J5) ; tag **`v3.56.0`** posé sur le
-  commit de version `0a47a5c`.
+- `main` @ `6f67e9f` poussé (merge J6 — lot complet) ; tag **`v3.57.0`**
+  posé sur le commit de version `72dda7a`.
 - CI verte sur les deux workflows (merge + tag) — runs
-  `38325969517` / `38325969869`, conclusion `success`.
-- **JitPack `v3.56.0` : « ok »** — 4 modules (cel-core, cel-lsp-api,
-  cel-lsp, cel-ui), POM vérifiés servis (HTTP 200) :
-  `https://jitpack.io/com/github/jjoblab/code-editor/cel-ui/v3.56.0/`
+  `38331276328` / `38331276248`, conclusion `success`.
+- **JitPack `v3.57.0` : « ok »** — 4 modules (cel-core, cel-lsp-api,
+  cel-lsp, cel-ui), POM + `.module` vérifiés servis (HTTP 200) :
+  `https://jitpack.io/com/github/jjoblab/code-editor/cel-ui/3.57.0/`
 - Règle inchangée : **ne jamais consommer** `3.50.0`/`3.51.0` via
   JitPack (incident 429 historique — servies sur GitHub Packages
   uniquement) ; 3.51.1 et 3.52.0+ sont saines sur JitPack.
 
-Coordonnées : `com.github.jjoblab.code-editor:cel-ui:3.56.0` et
-`com.github.jjoblab.code-editor:cel-lsp:3.56.0`.
+Coordonnées : `com.github.jjoblab.code-editor:cel-ui:3.57.0` et
+`com.github.jjoblab.code-editor:cel-lsp:3.57.0`.
 
 ---
 
@@ -215,6 +251,15 @@ v3.56.0.
 
 ---
 
+### 4.7 Inlays cliquables — implémenter `workspace/executeCommand` (I4, 3.57.0)
+
+Le SPI est ouvert mais muet sans serveur : pour des hints d'expansion
+(expander un import, révéler le reste d'un appel…), le serveur CodeIDE
+doit répondre à `workspace/executeCommand` — la command LSP posée sur
+une `labelPart` part telle quelle (command id + arguments), l'éditeur
+l'appelle au tap et journalise l'échec sans crash. Tant que le handler
+n'existe pas, les hints éventuels restent du texte fantôme passif.
+
 ## 5. Protocole de vérification sur appareil (après montée de version)
 
 Reprendre le protocole « LSP branché » (guide 3.51.1, §4, inchangé) et
@@ -243,6 +288,15 @@ ajouter les épreuves du lot tactile :
    presse-papiers (coller ailleurs pour vérifier).
 8. **Journal** : `codeAction: requesting for range …` UNE ligne par
    invocation (inchangé depuis 3.51.x).
+9. **Mouvements de lignes (J6)** : sélectionner une ligne entière (ou
+   plusieurs), tap sur la pill → « Move down » : le BLOC descend d'une
+   ligne et la sélection SUIT ; l'item est estompé en bord de document.
+10. **Hint expansible (I4, via la démo)** : sur l'échantillon Python de
+    l'APK démo 3.57.0, la ligne `# TODO: …` porte un « ⋯ » tissé en fin
+    de ligne → appui long = tooltip, TAP = l'indice se développe
+    (TODO devient INDICE + ligne d'indice). Côté CodeIDE branché, la
+    même épreuve prouve `workspace/executeCommand` dès que le serveur
+    pose une command sur une labelPart.
 
 ---
 
