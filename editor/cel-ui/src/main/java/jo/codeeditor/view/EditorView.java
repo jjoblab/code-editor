@@ -1227,6 +1227,13 @@ public class EditorView extends View {
             if (session != null) rebuildWrapModel();
             else wrapModel = null;
         }
+        // ★ B10 : les surlignages de recherche décrivent l'ANCIEN
+        // document — leurs offsets sont périmés sur le nouveau (le
+        // contrôleur de recherche recalcule et repousse les siens via
+        // sa méthode refresh ; sans purge, des bandes pouvaient rester
+        // dessinées aux offsets hasardeux du fichier précédent).
+        findHighlights.clear();
+        findCurrentIndex = -1;
         invalidate();
     }
 

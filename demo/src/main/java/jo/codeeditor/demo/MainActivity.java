@@ -22,6 +22,7 @@ import jo.codeeditor.document.EditorDocument;
 import jo.codeeditor.session.EditorSession;
 import jo.codeeditor.view.EditorView;
 import jo.codeeditor.view.chrome.BreadcrumbBar;
+import jo.codeeditor.view.chrome.EditorSearchBar;
 import jo.codeeditor.view.chrome.EditorTheme;
 
 /**
@@ -35,6 +36,7 @@ public class MainActivity extends AppCompatActivity {
     EditorView editor; // package-private : accès par le test de fumée
     EditorSession session; // package-private : accès par le test de fumée
     private BreadcrumbBar breadcrumb;
+    private EditorSearchBar searchBar;
     private DemoAnalyzer analyzer;
 
     private String languageId = "java";
@@ -94,6 +96,18 @@ public class MainActivity extends AppCompatActivity {
         breadcrumb.bind(editor);
         breadcrumb.addEditorActions();
         root.addView(breadcrumb, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        // B10 : barre de recherche/remplacement DANS LE FICHIER — cachée
+        // par défaut (GONE interne), au-dessus de l'éditeur. Trois
+        // entrées d'ouverture : menu « Rechercher », Ctrl+F (le listener
+        // de sélection ci-dessous implémente OnFindRequestedListener)
+        // et rien d'autre — l'éditeur garde SA barre de fil d'Ariane à
+        // trois actions (retour terrain B6 : une barre, trois actions).
+        searchBar = new EditorSearchBar(this);
+        searchBar.bind(editor);
+        root.addView(searchBar, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT));
 
@@ -191,6 +205,10 @@ public class MainActivity extends AppCompatActivity {
         int id = item.getItemId();
         if (id == R.id.action_language) {
             showLanguagePicker();
+            return true;
+        }
+        if (id == R.id.action_find) {
+            searchBar.open();
             return true;
         }
         if (id == R.id.indent_guides_scope) {
@@ -336,6 +354,10 @@ public class MainActivity extends AppCompatActivity {
         editor.setFileName("markdown".equals(id) ? "exemple.md"
                 : "html".equals(id) ? "page.html" : null);
         breadcrumb.refreshActions();
+        // B10 : la recherche suit le changement d'échantillon — le
+        // contrôleur ré-accroche la session et recalcule (purge du
+        // surlignage déjà faite par EditorView.setSession).
+        if (searchBar != null) searchBar.refresh();
         // T2 (lot 2, J4) : preuve des actions socle sur la pill — les
         // INTÉGRÉES (Duplicate / Comment / Toggle case / Share /
         // Move up / Move down) sont injectées via le MÊME SPI que les
@@ -359,12 +381,38 @@ public class MainActivity extends AppCompatActivity {
         editor.addSelectionAction(jo.codeeditor.view.BuiltinSelectionActions.moveLinesUp(editor));
         editor.addSelectionAction(jo.codeeditor.view.BuiltinSelectionActions.moveLinesDown(editor));
 
-        editor.setOnSelectionChangedListener((line, col, isCursor) ->
-                toolbar.setSubtitle(String.format(java.util.Locale.FRANCE,
-                        "Ln %d, Col %d — %s", line + 1, col + 1, label)));
+        // B10 : le listener primaire porte les DEUX rôles — la barre
+        // d'état (sélection) ET l'ouverture de la recherche : le
+        // raccourci Ctrl+F de l'éditeur (EditorKeyHandler →
+        // EditorCommands.FIND) cherche le OnFindRequestedListener dans
+        // le listener primaire, donc l'objet doit implémenter les deux
+        // interfaces (classe interne FindableSelectionListener).
+        editor.setOnSelectionChangedListener(
+                new FindableSelectionListener());
 
         if (editorLight) editor.setTheme(EditorTheme.light());
         toolbar.setSubtitle(label);
+    }
+
+    /**
+     * B10 : le listener primaire de l'éditeur, portant les DEUX rôles —
+     * la barre d'état (sélection) et l'ouverture de la recherche
+     * (Ctrl+F → EditorCommands.FIND cherche le OnFindRequestedListener
+     * dans le listener primaire).
+     */
+    private final class FindableSelectionListener
+            implements EditorView.OnSelectionChangedListener,
+            EditorView.OnFindRequestedListener {
+        @Override
+        public void onSelectionChanged(int line, int col, boolean isCursor) {
+            toolbar.setSubtitle(String.format(java.util.Locale.FRANCE,
+                    "Ln %d, Col %d — %s", line + 1, col + 1, languageLabel));
+        }
+
+        @Override
+        public void onFindRequested() {
+            searchBar.open();
+        }
     }
 
     @Override

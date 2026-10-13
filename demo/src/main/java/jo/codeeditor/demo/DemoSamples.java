@@ -713,7 +713,7 @@ final class DemoSamples {
                     <!-- FIXME: ajouter un formulaire de contact -->
                 </main>
                 <footer>
-                    Démonstration de la bibliothèque — v3.63.0.
+                    Démonstration de la bibliothèque — v3.64.0.
                 </footer>
             </body>
             </html>

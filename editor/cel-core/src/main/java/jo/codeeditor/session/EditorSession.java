@@ -1019,6 +1019,30 @@ public class EditorSession {
         setSelection(Selection.range(start, end));
     }
 
+    /**
+     * Sélectionne le PARAGRAPHE contenant l'offset (B10, 4e tap de la
+     * cascade mot → ligne → paragraphe) : le bloc maximal de lignes
+     * contiguës NON VIDES autour de la ligne de l'offset, borné par les
+     * lignes vides (ou blanches : espaces/tablulations seuls) et les
+     * extrémités du document. Sans le saut de ligne final — parité
+     * {@link #selectLineAt}. Sur une ligne vide, le « paragraphe » est
+     * cette ligne seule.
+     */
+    public void selectParagraphAt(int offset) {
+        int line = doc.lineForOffset(offset);
+        int count = doc.lineCount();
+        int first = line;
+        int last = line;
+        while (first > 0 && !isBlankDocLine(first - 1)) first--;
+        while (last < count - 1 && !isBlankDocLine(last + 1)) last++;
+        setSelection(Selection.range(doc.lineStart(first), doc.lineEnd(last)));
+    }
+
+    /** Ligne du document vide ou blanche (espaces/tablulations seuls). */
+    private boolean isBlankDocLine(int line) {
+        return doc.lineText(line).trim().isEmpty();
+    }
+
     // ── Expand selection (lot 4 #27) ───────────────────────────
 
     /**

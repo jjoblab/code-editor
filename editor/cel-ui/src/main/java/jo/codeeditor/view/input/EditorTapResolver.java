@@ -488,8 +488,18 @@ public class EditorTapResolver {
                 view.handlesVisible = true;
                 selectionGestures.showSelectionToolbar();
                 break;
-            default:
+            case 3:
                 view.session.selectLineAt(offset);
+                view.handlesVisible = true;
+                selectionGestures.showSelectionToolbar();
+                break;
+            default:
+                // B10 : 4e tap (et suivants) — le PARAGRAPHE : bloc de
+                // lignes contiguës non vides autour du tap, borné par les
+                // lignes vides. La cascade complète devient
+                // caret → mot → ligne → paragraphe ; au-delà, on reste au
+                // paragraphe (le 5e tap ne repart pas au caret).
+                view.session.selectParagraphAt(offset);
                 view.handlesVisible = true;
                 selectionGestures.showSelectionToolbar();
                 break;

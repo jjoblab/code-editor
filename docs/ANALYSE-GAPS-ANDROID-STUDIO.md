@@ -74,7 +74,14 @@ sont donc des **prochaines marches**, pas des fondations manquantes.
 
 ### P0 — friction quotidienne
 
-**P0-1 · Recherche / remplacement dans le fichier.** Android Studio :
+**P0-1 · Recherche / remplacement dans le fichier — ✅ LIVRÉ en B10
+(v3.64.0)** : `EditorSearchBar` + `EditorSearchController`
+(`view/chrome/`), requête vivante (frappe + édition + session
+ré-accrochée), compte n/m, navigation bouclante caret-suivante,
+remplacement courant (groupes `$1`, repli littéral) et TOUT en une
+seule entrée d'annulation ; entrées menu + `Ctrl+F` ; purge du
+surlignage au changement de session. Historique de l'écart (v3.63.0) :
+Android Studio :
 `Ctrl+F` / `Ctrl+R`, surlignage de toutes les occurrences, navigation
 précédent/suivant, remplacement unitaire ou global. code-editor : le
 moteur EXISTE (`jo.codeeditor.find.FindReplace.findMatches`,
@@ -90,7 +97,11 @@ highlights), boutons ‹ › et replace/replace-all ; câblage démo par item
 de menu + raccourci `Ctrl+F` dans `EditorKeyHandler`. Effort : lot
 moyen (~1 version).
 
-**P0-2 · Sélection par paragraphe (4e tap).** La cascade s'arrête à
+**P0-2 · Sélection par paragraphe (4e tap) — ✅ LIVRÉ en B10 (v3.64.0)** :
+`EditorSession.selectParagraphAt` (bloc de lignes contiguës non vides,
+borné par les vides/blanches, fin sans le saut) + cran 4 de la cascade
+(le 5e tap y reste). Historique de l'écart (v3.63.0) : la cascade
+s'arrête à
 mot→ligne ; Android Studio étend jusqu'au paragraphe. Sur mobile, la
 sélection de blocs longs au doigt est pénible — le 4e tap est le
 raccourci naturel du « je veux tout ce paragraphe ». `EditorSession`
@@ -174,8 +185,8 @@ coût. À ne faire que sur demande explicite.
 
 | Lot | Contenu | Priorité | Taille |
 |---|---|---|---|
-| B10 | P0-1 recherche/remplacement (`EditorSearchBar` + surlignage + raccourci) | P0 | moyenne |
-| B10 | P0-2 `selectParagraphAt` + 4e tap | P0 | petite |
+| B10 | P0-1 recherche/remplacement (`EditorSearchBar` + surlignage + raccourci) — **livré v3.64.0** | P0 | moyenne |
+| B10 | P0-2 `selectParagraphAt` + 4e tap — **livré v3.64.0** | P0 | petite |
 | B11 | P0-3 fast-scroller de gouttière + P1-1 error stripe | P0/P1 | moyenne |
 | B12 | P1-3 persistance du zoom + P1-4 colonnes relatives | P1 | petite |
 | B12 | P2-2 API `GutterAction` généralisée (fondée sur B9c) | P2 | moyenne |

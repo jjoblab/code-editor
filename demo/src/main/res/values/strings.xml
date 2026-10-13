@@ -8,6 +8,7 @@
     <string name="menu_language_title">Choisir un langage</string>
     <string name="menu_reset">Réinitialiser l\u2019échantillon</string>
     <string name="menu_about">À propos</string>
+    <string name="menu_find">Rechercher dans le fichier</string>
 
     <!-- Plafond de lignes sticky (S4, lot 2) -->
     <string name="sticky_max_1">Max : 1 ligne</string>
@@ -35,7 +36,7 @@
 
     <!-- À propos -->
     <string name="about_title">À propos de la démo</string>
-    <string name="about_message">Terrain de jeu pour la bibliothèque code-editor v3.63.0 (Java, Canvas, MIT).
+    <string name="about_message">Terrain de jeu pour la bibliothèque code-editor v3.64.0 (Java, Canvas, MIT).
 
 \u2022 28 langages : basculez via le menu Langage.
 \u2022 Analyseur factice : diagnostics, complétion, signatures, quick doc et code actions synthétiques \u2014 sans serveur LSP.
