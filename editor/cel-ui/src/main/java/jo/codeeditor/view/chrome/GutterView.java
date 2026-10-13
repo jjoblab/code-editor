@@ -4,10 +4,13 @@ import jo.codeeditor.view.EditorMetrics;
 
 import android.graphics.Canvas;
 import android.graphics.Paint;
+import android.graphics.RectF;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.IntPredicate;
+
+import jo.codeeditor.view.icons.EditorIcons;
 
 /**
  * Dessine les numéros de ligne et les points de diagnostic dans la zone du
@@ -77,6 +80,74 @@ public class GutterView {
      * depuis la frame du painter host.
      */
     private Map<Integer, Integer> pluginMarks = new HashMap<>(0);
+
+    // ── B9c (retour terrain n°6) : icône d'aperçu de la gouttière ──
+    // « comme Android Studio » : les icônes de gutter (run, Compose
+    // @Preview…) vivent dans la gouttière, ancrées à la ligne qu'elles
+    // concernent. L'œil d'aperçu se pose sur la RANGÉE DU CARET (la ligne
+    // que l'utilisateur regarde) — un tap bascule la feuille d'aperçu,
+    // l'état ouvert s'allume de l'accent (parité avec l'œil du fil
+    // d'Ariane B6).
+    /** Icône d'aperçu visible (fichier prévisualisable). */
+    private boolean previewActionVisible = false;
+    /** Icône d'aperçu à l'état ACTIF (feuille ouverte — accent). */
+    private boolean previewActionActive = false;
+    /** Peinture dédiée de l'icône (couleur posée par frame — prêtée à
+     * EditorIcons.draw qui gère style/épaisseur). */
+    private final Paint previewIconPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    /** Rectangle de la pill (réutilisé — pas d'allocation par frame). */
+    private final RectF previewPillRect = new RectF();
+
+    /**
+     * B9c — définit l'état de l'action d'aperçu de la gouttière.
+     *
+     * @param visible vrai si le fichier courant est prévisualisable
+     *                (l'icône se dessine sur la rangée du caret)
+     * @param active  vrai si la feuille d'aperçu est OUVERTE (icône
+     *                allumée à l'accent)
+     */
+    public void setPreviewAction(boolean visible, boolean active) {
+        this.previewActionVisible = visible;
+        this.previewActionActive = active;
+    }
+
+    /**
+     * B9c — rectangle de la cible tactile de l'icône d'aperçu sur la
+     * rangée du caret. DÉTERMINISTE (métriques + haut de rangée) : le
+     * dessin et le hit-test du resolver calculent LE MÊME rectangle
+     * sans partager d'état mutable.
+     *
+     * <p>Pill centrée horizontalement dans la zone des NUMÉROS (avant la
+     * bande de repli), calée sur le centre vertical de la rangée. Côté
+     * 26 dp (borné par la hauteur de ligne) — cible confortable, plus
+     * large que le glyphe 20 dp.</p>
+     *
+     * @param metrics    métriques de l'éditeur (largeurs de gouttière)
+     * @param density    densité d'écran (px/dp)
+     * @param rowTop     Y ÉCRAN du HAUT de la rangée du caret
+     * @param lineHeight hauteur d'une ligne (px)
+     * @param out        rect de sortie (pill de l'icône)
+     */
+    public static void previewActionRect(EditorMetrics metrics, float density,
+            float rowTop, float lineHeight, RectF out) {
+        float numberArea = metrics.getGutterWidth() - metrics.getFoldStripWidth();
+        float cx = numberArea * 0.5f;
+        float cy = rowTop + lineHeight * 0.5f;
+        float side = Math.min(26f * density, lineHeight);
+        out.set(cx - side * 0.5f, cy - side * 0.5f,
+                cx + side * 0.5f, cy + side * 0.5f);
+    }
+
+    /**
+     * B9c — vrai si le point (x, y) tombe dans la cible tactile de
+     * l'icône d'aperçu posée sur la rangée donnée.
+     */
+    public static boolean previewActionContains(EditorMetrics metrics, float density,
+            float rowTop, float lineHeight, float x, float y) {
+        RectF r = new RectF();
+        previewActionRect(metrics, density, rowTop, lineHeight, r);
+        return r.contains(x, y);
+    }
 
     public GutterView(EditorMetrics metrics, EditorTheme theme) {
         this.metrics = metrics;
@@ -303,6 +374,46 @@ public class GutterView {
             canvas.drawRect(barX, barY, barX + 2f * density,
                     barY + lineHeight * 0.6f, markPaint);
         }
+
+        // B9c : icône d'aperçu sur la rangée du CARET (pill + œil), façon
+        // Android Studio. Dessinée en DERNIER : elle REMPLACE le numéro de
+        // la rangée annotée (comme le run ▶ d'Android Studio remplace le
+        // numéro de la ligne qu'il concerne).
+        if (previewActionVisible && lineIdx == currentLine) {
+            drawPreviewAction(canvas, y, lineHeight);
+        }
+    }
+
+    /**
+     * B9c — dessine la pill + l'œil d'aperçu sur la rangée du caret.
+     *
+     * <p>État INACTIF : pill de fond verre opaque (masque le numéro gras
+     * dessous) + œil sobre (gutterText 0,9) ; état ACTIF (feuille
+     * ouverte) : pill voilée d'accent + œil à l'accent (theme.keyword —
+     * même accent que l'œil du fil d'Ariane B6).</p>
+     */
+    private void drawPreviewAction(Canvas canvas, float rowTop, float lineHeight) {
+        previewActionRect(metrics, density, rowTop, lineHeight, previewPillRect);
+        float cx = previewPillRect.centerX();
+        float cy = previewPillRect.centerY();
+        float r = previewPillRect.height() * 0.5f;
+
+        if (previewActionActive) {
+            bgPaint.setColor(theme.keyword);
+            bgPaint.setAlpha(40); // voile discret de l'accent
+        } else {
+            bgPaint.setColor(theme.gutterBg);
+            bgPaint.setAlpha(255);
+        }
+        canvas.drawRoundRect(previewPillRect, r, r, bgPaint);
+        bgPaint.setAlpha(255);
+
+        previewIconPaint.setColor(previewActionActive
+                ? theme.keyword
+                : jo.codeeditor.view.EditorView.applyAlphaToColor(theme.gutterText, 0.9f));
+        EditorIcons.draw(canvas, EditorIcons.Icon.EYE, cx, cy,
+                Math.min(20f * density, previewPillRect.height() * 0.8f),
+                previewIconPaint);
     }
 
     private int getDiagnosticColor(int severity) {

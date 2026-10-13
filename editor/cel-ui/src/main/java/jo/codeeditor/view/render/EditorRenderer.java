@@ -421,6 +421,13 @@ public class EditorRenderer {
         } else {
             view.gutterView.setPluginMarks(null);
         }
+        // B9c (retour terrain n°6) : pousse l'état de l'action d'aperçu de
+        // la gouttière (œil sur la rangée du caret, façon Android Studio)
+        // — visible pour un fichier prévisualisable, accent quand la
+        // feuille est ouverte. Le toggle vit dans le tap resolver via
+        // EditorView.hitTestGutterPreviewAction (même rectangle déterministe).
+        view.gutterView.setPreviewAction(view.previewable,
+                view.previewMode != EditorView.PreviewMode.NONE);
         view.gutterView.draw(canvas, view.vOffset, height, doc.lineCount(), currentLine);
         chrome.drawFoldChevrons(canvas, doc, firstDocVisible, lastDocVisible, lineHeight, paddingTop);
         canvas.restore();
