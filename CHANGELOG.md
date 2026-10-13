@@ -5,6 +5,91 @@ All notable changes to **code-editor-lib** are documented in this file.
 Le format suit la convention [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.63.0] — 2026-10-13 — Retour n°6 : fin de la secousse du drag, caret fixe au pincement, œil d'aperçu dans la gouttière
+
+Sixième retour d'appareil, quatre irritants réglés : pendant un drag de
+sélection les lignes « secouaient » (le recentrage du caret se battait avec
+l'auto-scroll du drag en dent de scie) ; au pincement zoom/dézoom le caret
+ne restait pas fixe (les traînées du doigt restant faisaient défiler le
+viewport juste après le zoom, et la lecture seule n'avait aucun ancrage) ;
+l'icône d'aperçu manquait à la gouttière (façon Android Studio) ; et une
+sixième analyse des écarts Android Studio ↔ code-editor est livrée. Zéro
+rupture d'API.
+
+### Fixed
+
+- **B9a — la « secousse » des lignes pendant le drag de sélection** —
+  chaque application de sélection du drag déclenchait
+  `EditorImeBridge.onSelectionChanged → scrollCaretIntoView()`, qui
+  TIRAIT le viewport vers l'ancre du drag pendant que l'auto-scroll
+  UX-2 le POUSSAIT dans la direction du doigt : dès que `vOffset`
+  dépassait le Y de l'ancre, le recentrage le ramenait en arrière —
+  le viewport oscillait en dent de scie `anchorY − lh ↔ anchorY` au
+  rythme des ticks, tout le texte tremblait (retour terrain : « les
+  lignes ont tendance à secouer », surtout visible ancre près du haut
+  de l'écran). Correctif : `EditorView.isSelectionDragActive()` —
+  pendant qu'un drag de sélection (poignée ou drag-select au doigt)
+  possède le viewport, le recentrage est SUSPENDU ; il reprend au geste
+  suivant. Régression prouvée : `DragSelectionShakeTest` détecte la
+  dent de scie (non-monotonie de `vOffset`) sans la garde. La loupe est
+  en outre STABILISÉE : Y snappé au centre de la rangée réglée (le
+  contenu de la bulle ne tremble plus verticalement, wrap-aware) et X
+  amorti exponentiellement — le zoom ×2 n'amplifie plus le jitter du
+  capteur ; un pincement qui démarre met fin proprement à tout drag en
+  cours (tick d'auto-scroll, poignée, loupe).
+- **B9b — le caret reste fixe au pincement** — trois causes : (1) au
+  relevé d'un doigt, le doigt RESTANT continue d'envoyer des MOVE —
+  loin du DOWN d'origine, le slop était déjà franchi — chaque traînée
+  résiduelle déclenchait un SCROLL juste après le zoom : le viewport
+  glissait et le caret « ne restait pas fixe » alors même que
+  l'ancrage avait fonctionné ; les traînées d'un geste qui a pincé sont
+  désormais englouties (parité TextView). (2) les sessions en lecture
+  seule (et sans caret exploitable) n'avaient AUCUN ancrage — le
+  contenu sautait sous le pincement ; l'ancre est désormais le POINT
+  FOCAL (le haut de la ligne sous le milieu des deux doigts, colonne
+  hors wrap), `applyPinchScale(factor, focusX, focusY)`, l'API
+  historique délégue sur le centre du viewport. (3) l'ancrage caret
+  (session éditable) est inchangé et reste vérifié par
+  `EditorPinchZoomCaretAnchorTest`. Régression prouvée : le test des
+  traînées échoue sans l'avalement.
+
+### Added
+
+- **B9c — l'icône d'aperçu vit dans la gouttière, comme Android
+  Studio** — les icônes de gouttière d'Android Studio (run ▶, Compose
+  `@Preview`) vivent dans la gouttière, ancrées à la ligne qu'elles
+  concernent : l'œil d'aperçu suit la même grammaire. Pill + œil
+  (`EditorIcons.EYE`) posés sur la RANGÉE DU CARET, visibles dès que le
+  fichier est prévisualisable, état ACTIF allumé à l'accent quand la
+  feuille est ouverte (parité avec l'œil du fil d'Ariane B6) ; l'icône
+  remplace le numéro de la rangée annotée. Rectangle DÉTERMINISTE
+  (`GutterView.previewActionRect`, 26 dp bornés par la ligne) partagé
+  par le dessin et le hit-test ; le tap BASCULE la feuille sans
+  déplacer le caret (`EditorView.hitTestGutterPreviewAction`, garde
+  rangée à l'écran — aucune zone tactile fantôme).
+- **B9d — analyse des écarts Android Studio ↔ code-editor (n°6)**
+  (`docs/ANALYSE-GAPS-ANDROID-STUDIO.md`) — angle : l'édition tactile.
+  Sol crédité (20+ fonctionnalités vérifiées dans le code), écarts
+  priorisés P0/P1/P2 : recherche/remplacement dans le fichier (le
+  moteur `FindReplace` existe en cel-core, aucune entrée UI), 4e tap
+  paragraphe, fast-scroller de gouttière, bande d'erreurs à droite,
+  drag-déposer de bloc, persistance du zoom, plis par niveau, API
+  `GutterAction` généralisée (fondée sur B9c). Feuille de route
+  B10→B14.
+
+### Tests
+
+- 1 664 tests verts (+12) : `DragSelectionShakeTest` ×2 (monotonie de
+  `vOffset` pendant le drag — la dent de scie sans garde ; recentrage
+  rouvert au repos), `PinchResidualAndFocusAnchorTest` ×4 (traînées
+  post-pincement n'écrivent pas les offsets ; pincement qui démarre tue
+  le drag-select ; lecture seule — ligne sous le point focal fixe ; API
+  historique centrée), `GutterPreviewActionTest` ×6 (rect déterministe,
+  hit dans la pill uniquement, aucune zone fantôme, bascule
+  SHEET_SPLIT↔NONE sans déplacer le caret, draw sans crash) ;
+  `EditorMagnifierHandleDragTest` passé au contrat stabilisé (Y constant
+  dans la rangée, X amorti, activation brute).
+
 ## [3.62.0] — 2026-10-13 — Retour n°5 : wrap multi-fichiers, aperçu plein ajusté, popups rejetés au toucher extérieur
 
 Cinquième retour d'appareil, trois irritants réglés à la racine : avec le
