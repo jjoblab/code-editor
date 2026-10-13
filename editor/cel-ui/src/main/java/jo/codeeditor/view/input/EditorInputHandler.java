@@ -170,12 +170,31 @@ public class EditorInputHandler {
         // Route d'abord les événements multi-doigts via le détecteur de scale.
         scaleDetector.onTouchEvent(event);
         if (scaleDetector.isInProgress()) {
+            if (!wasPinching) {
+                // B9 (retour terrain n°6) : le pincement qui démarre prend
+                // possession du viewport — tout drag de sélection en cours
+                // (poignée ou drag-select au doigt) s'arrête PROPREMENT :
+                // le tick d'auto-scroll meurt (dragSelectEngaged=false),
+                // la poignée relâchée, la loupe refermée. Sans cela, le
+                // tick continuait de défiler avec la dernière direction
+                // pendant le pincement.
+                selectionGestures.disarmDragSelect();
+                view.handleDragMode = 0;
+                view.dismissMagnifier();
+            }
             wasPinching = true;
             isDragging = false;
             isScrolling = false;
             return true;
         }
         if (event.getPointerCount() > 1) {
+            if (!wasPinching) {
+                // Multi-doigts hors pincement actif (amorce, doigts posés
+                // trop près) : même propriété — le geste n'est plus un drag.
+                selectionGestures.disarmDragSelect();
+                view.handleDragMode = 0;
+                view.dismissMagnifier();
+            }
             wasPinching = true;
             isDragging = false;
             isScrolling = false;
@@ -295,6 +314,18 @@ public class EditorInputHandler {
                 return true;
             case MotionEvent.ACTION_MOVE:
                 if (sheetGesture) return true; // scrim modal — englouti
+                // B9 (retour terrain n°6) : après un pincement DANS CE
+                // GESTE, les MOVE du doigt restant sont engloutis. Le
+                // pincement écarte/rapproche les deux doigts de dizaines
+                // de pixels : au relevé d'un doigt, le doigt restant est
+                // loin du DOWN d'origine → le slop était déjà dépassé →
+                // chaque MOVE résiduel déclenchait un SCROLL (et la
+                // sélection d'un éventuel drag) — le viewport glissait
+                // juste après le zoom et le caret « ne restait pas à une
+                // position fixe » alors même que l'ancrage du pincement
+                // avait fonctionné. Le geste est un pincement : ses
+                // traînées ne sont pas des scrolls (parité TextView).
+                if (wasPinching) return true;
                 // Drag sur le quick doc : scroll du corps (clampé).
                 if (quickDocGesture) {
                     float dy = y - lastTouchY;
@@ -734,6 +765,17 @@ public class EditorInputHandler {
         return isScrolling || isDragging;
     }
 
+    /**
+     * B9 (retour terrain n°6) — vrai pendant qu'un drag de sélection
+     * (poignée ou drag-select au doigt) possède le viewport : l'IME
+     * bridge suspend alors le recentrage du caret (le combat
+     * recentrage↔auto-scroll faisait « secouer » les lignes pendant le
+     * drag). Relais vers {@code EditorSelectionGestures}.
+     */
+    public boolean isSelectionDragActive() {
+        return selectionGestures.isAutoScrollDragActive();
+    }
+
     /** Bascule l'appui long du détecteur de gestes (exclusivité hover/sélection). */
     void setLongPressEnabled(boolean enabled) {
         gestureDetector.setIsLongpressEnabled(enabled);
@@ -757,18 +799,26 @@ public class EditorInputHandler {
         }
         @Override
         public boolean onScale(ScaleGestureDetector detector) {
-            // ★ Pinch-zoom ancré sur le caret. L'ancienne impl
-            // appliquait fontScale * scaleFactor SANS compenser les
-            // offsets : le caret « sautait » à une nouvelle position écran
-            // (les nouvelles metrics donnent un nouveau lineHeight/charWidth
-            // → docLineToY(line) et visualCol * charWidth changent, vOffset
-            // reste → le caret bouge visuellement).
+            // ★ Pinch-zoom ancré. L'ancienne impl appliquait fontScale *
+            // scaleFactor SANS compenser les offsets : le caret « sautait »
+            // à une nouvelle position écran (les nouvelles metrics donnent
+            // un nouveau lineHeight/charWidth → docLineToY(line) et
+            // visualCol * charWidth changent, vOffset reste → le caret
+            // bouge visuellement).
             //
-            // applyPinchScale capture la position caret AVANT le scale,
+            // applyPinchScale capture la position d'ANCRE AVANT le scale
+            // (le caret s'il est visible — il reste visuellement fixe et
+            // grandit/réduit avec le zoom ; sinon le POINT FOCAL du
+            // pincement, le contenu sous le milieu des deux doigts),
             // applique le scale, puis ajuste vOffset/hOffset pour ramener
-            // le caret à sa position écran d'origine. Le caret reste fixe
-            // visuellement et grandit/réduit avec le zoom.
-            view.applyPinchScale(detector.getScaleFactor());
+            // l'ancre à sa position écran d'origine.
+            //
+            // B9 (retour terrain n°6) : le point focal est passé au
+            // contrôleur — sans lui, un caret hors écran (ou une session
+            // en lecture seule) n'avait AUCUN ancrage et le contenu
+            // sautait sous le pincement.
+            view.applyPinchScale(detector.getScaleFactor(),
+                    detector.getFocusX(), detector.getFocusY());
             return true;
         }
     }

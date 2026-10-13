@@ -267,6 +267,40 @@ public class EditorSelectionGestures {
         applyDragSelect(event.getX(), event.getY());
     }
 
+    /**
+     * B9 (retour terrain n°6) — alimente la loupe d'une position
+     * STABILISÉE : Y snappé au centre de la RANGÉE sous le doigt (la
+     * rangée portant l'offset que le doigt règle — son contenu ne
+     * tremble JAMAIS verticalement, quel que soit le jitter du capteur
+     * dans la rangée ; changer de rangée fait un PAS net d'une ligne,
+     * pas une oscillation), X amorti exponentiellement (α = 0,55 par
+     * frame : le tremblement haute fréquence du doigt est filtré, le
+     * suivi reste réactif — constante de temps ≈ 2 frames à 60 Hz).
+     *
+     * <p>C'est la sémantique des loupes plateforme (android.widget.
+     * Magnifier aligne son contenu sur la grille de lignes du texte) :
+     * la bulle agrandit ce qu'on RÈGLE, pas le tremblement du doigt.
+     * Avant, la bulle suivait le doigt BRUT — zoom ×2, chaque pixel de
+     * jitter devenait 2 px de « secousse » des lignes dans la bulle.</p>
+     *
+     * <p>Y via le couple offsetAt→caretScreenPos : la rangée EXACTTE
+     * (consciente du wrap : la sous-rangée, pas la ligne document) qui
+     * porte l'offset sous le doigt.</p>
+     */
+    private void updateMagnifier(float x, float y) {
+        float targetY = y;
+        if (view.session != null) {
+            int offset = view.offsetAt(x, y);
+            float[] row = view.caretScreenPos(offset);
+            targetY = row[1] + view.metrics.getLineHeight() * 0.5f;
+        }
+        view.magnifierX = view.magnifierActive
+                ? view.magnifierX + (x - view.magnifierX) * 0.55f
+                : x;
+        view.magnifierY = targetY;
+        view.magnifierActive = true;
+    }
+
     /** Corps du drag-select (partagé avec le tick d'auto-scroll UX-2 :
      *  ré-appliquer la sélection après un défilement, sans MOVE). Règle
      *  d'ancre : la borne du MOT opposée au doigt reste l'ancre — doigt à
@@ -293,9 +327,7 @@ public class EditorSelectionGestures {
         // T4 : mémorise la borne du DOIGT pour l'ancrage de la pill.
         dragSelectMobileEdge = offset < anchor
                 ? Math.min(anchor, offset) : Math.max(anchor, offset);
-        view.magnifierActive = true;
-        view.magnifierX = x;
-        view.magnifierY = y;
+        updateMagnifier(x, y);
         view.invalidate();
     }
 
@@ -311,9 +343,9 @@ public class EditorSelectionGestures {
         lastDragX = x;
         lastDragY = y;
         ensureAutoScrollTick();
-        view.magnifierActive = true;
-        view.magnifierX = x;
-        view.magnifierY = y;
+        // B9 : la loupe suit la position STABILISÉE (Y snappé au centre
+        // de la rangée réglée, X amorti) — cf. updateMagnifier.
+        updateMagnifier(x, y);
         int offset = view.offsetAt(x, y);
         switch (view.handleDragMode) {
             case 1: {
@@ -521,9 +553,21 @@ public class EditorSelectionGestures {
 
     // ── UX-2 (J3) : plomberie du tick d'auto-scroll ─────────────────
 
-    /** Vrai si un drag de sélection est ACTIF (poignée ou drag-select
-     *  engagé) — condition de survie du tick. */
-    private boolean isAutoScrollDragActive() {
+    /**
+     * B9 (retour terrain n°6) — vrai pendant qu'un drag de sélection
+     * (poignée traînée ou drag-select au doigt) possède le viewport.
+     * Consulté par l'IME bridge pour SUSPENDRE le recentrage du caret
+     * pendant le geste : chaque application de sélection déclenchait
+     * {@code scrollCaretIntoView}, qui combattait l'auto-scroll UX-2 du
+     * drag — l'un déflait, l'autre recentrait, au rythme des MOVE —
+     * c'était la cause racine des lignes qui « secouaient » pendant le
+     * drag de sélection.
+     *
+     * <p>Le drag et SON auto-scroll dirigent seuls le viewport ; le
+     * recentrage reprend au geste suivant (frappe, déplacement clavier,
+     * tap) via les chemins habituels.</p>
+     */
+    boolean isAutoScrollDragActive() {
         return view.session != null
                 && (view.handleDragMode > 0
                     || (dragSelectEngaged && isDragSelectArmed()));
