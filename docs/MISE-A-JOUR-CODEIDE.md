@@ -1,4 +1,4 @@
-# MISE À JOUR DE CodeIDE — brancher la version 3.62.0 de `code-editor`
+# MISE À JOUR DE CodeIDE — brancher la version 3.63.0 de `code-editor`
 
 > **Destinataire** : agent IA chargé de la mise à jour du dépôt `CodeIDE`
 > (jjoblab/CodeIDE, audité @ `04a65ea`, v0.105.0).
@@ -24,7 +24,7 @@
 
 ---
 
-## 0. Résumé express — deux lots + trois retours terrain, un seul changement requis
+## 0. Résumé express — deux lots + quatre retours terrain, un seul changement requis
 
 | Lot | Versions | Thème | Ce que CodeIDE y gagne |
 |---|---|---|---|
@@ -35,6 +35,7 @@
 | Refonte B6 (retour n°3) | 3.60.0 | Fil d'Ariane « intelligent, plus moderne » | Moteur d'icônes vectorielles ; `addEditorActions()` : les TROIS actions (annuler, rétablir, aperçu) câblées sans code hôte ; l'œil n'existe que pour un fichier prévisualisable et BASCULE ouvrir/fermer ; feuille d'aperçu carte flottante (adoption optionnelle, §4.9) |
 | Retour terrain n°4 | 3.61.0 | Six irritants réels réglés à la racine | B7a : annuler/rétablir réactifs à la FRAPPE (chemin IME) ; B7b : auto-scroll du drag aussi HORIZONTAL (coin = diagonale) ; B7c : l'appui long ne vole plus le geste des popups ; B7d : aperçu « fit » (HTML brut, zoom verrouillé, coins clippés, scroll préservé) ; B7e : échantillon HTML ; B7f : fondus d'apparition/disparition des popups |
 | Retour terrain n°5 | 3.62.0 | Trois irritants réglés à la racine | B8a : le modèle de wrap suit le document après `setSession()` (plus de lignes « empilées » en bas en changeant de fichier avec le retour à la ligne actif) ; B8b : l'aperçu plein se ré-ajuste au changement de taille et se zoome au PINCEMENT (démo) ; B8c : un tap HORS du cadre referme le popup (feuille d'aperçu, cartes glass, actions de code, aller-au-symbole, aide de signature) |
+| Retour terrain n°6 | 3.63.0 | Quatre irritants réglés à la racine | B9a : plus de « secousse » des lignes pendant le drag de sélection (le recentrage du caret est suspendu pendant le geste — la dent de scie auto-scroll↔recentrage est morte) ; B9b : le caret reste FIXE au pincement (traînées du doigt restant englouties, point focal ancré en lecture seule) ; B9c : l'icône d'aperçu (œil) vit dans la GOUTTIÈRE sur la rangée du caret, façon Android Studio, tap = bascule ; B9d : analyse des écarts Android Studio ↔ code-editor n°6 (`docs/ANALYSE-GAPS-ANDROID-STUDIO.md`) |
 
 **Un seul changement est indispensable** : monter la version dans
 `gradle/libs.versions.toml` (§2). Tout le reste est additif — les
@@ -46,7 +47,7 @@ surcharges ou des constructeurs étendus déléguant à l'existant.
 
 ---
 
-## 1. Les lots 3.52.0 → 3.57.0 (complets) puis les retours terrain 3.58.0/3.59.0/3.60.0/3.61.0/3.62.0
+## 1. Les lots 3.52.0 → 3.57.0 (complets) puis les retours terrain 3.58.0/3.59.0/3.60.0/3.61.0/3.62.0/3.63.0
 
 `code-editor` est le CLIENT ; `lsp/java` de CodeIDE est le SERVEUR. Le
 lot tactile travaille presque entièrement côté client (rendu, gestes,
@@ -289,13 +290,70 @@ Zéro rupture d'API : un correctif interne (`setSession`), une méthode
 outil restreinte (`EditorPopupMotion.outsideTapDismisses`) et la
 cascade de taps enrichie — aucune surface publique touchée.
 
+### 1.9 Retour terrain n°6 (3.63.0) — quatre irritants réglés à la racine
+
+Sixième retour d'appareil. Les symptômes et leurs causes racines :
+
+- **« Pendant le drag de sélection, les lignes ont tendance à
+  secouer »** (B9a) — chaque application de sélection du drag
+  déclenchait `EditorImeBridge.onSelectionChanged →
+  scrollCaretIntoView()`, qui TIRAIT le viewport vers l'ancre du drag
+  pendant que l'auto-scroll UX-2 le POUSSAIT dans la direction du
+  doigt : dès que le défilement dépassait le Y de l'ancre, le
+  recentrage ramenait le viewport en arrière — oscillation en dent de
+  scie au rythme des ticks, tout le texte tremblait (surtout visible
+  ancre près du haut de l'écran, doigt tenu dans la zone de bord).
+  Pendant qu'un drag de sélection est actif
+  (`EditorView.isSelectionDragActive()`), le recentrage est SUSPENDU —
+  le geste et son auto-scroll dirigent seuls le viewport. La loupe est
+  en outre stabilisée : Y snappé au centre de la rangée réglée (le
+  contenu de la bulle ne tremble plus verticalement), X amorti
+  exponentiellement — le zoom ×2 n'amplifie plus le jitter du capteur.
+  **Correctif automatique pour CodeIDE : rien à faire.**
+- **« Quand je fais pince avec 2 doigts pour zoom/dézoomer, le caret
+  ne reste pas à une position fixe »** (B9b) — trois causes
+  superposées : (1) l'ancrage du caret fonctionnait PENDANT le
+  pincement, mais au relevé d'un doigt le doigt RESTANT continuait
+  d'envoyer des MOVE — le slop était déjà franchi au DOWN — chaque
+  traînée déclenchait un SCROLL juste après le zoom (le viewport
+  glissait, le caret partait avec) : les traînées d'un geste qui a
+  pincé sont englouties (parité TextView) ; (2) les sessions en
+  LECTURE SEULE n'avaient aucun ancrage (le contenu sautait sous le
+  pincement) : l'ancre est désormais le POINT FOCAL du pincement
+  (le haut de la ligne sous le milieu des deux doigts, colonne hors
+  wrap) ; (3) l'ancrage caret (session éditable) est conservé tel
+  quel. Un pincement qui démarre met en outre fin proprement à tout
+  drag de sélection en cours. **Correctif automatique : rien à faire.**
+- **« Assures-toi que l'icône pour preview dans le gutterview est
+  bien là, comme Android Studio »** (B9c) — les icônes de gouttière
+  d'Android Studio (run ▶, Compose `@Preview`) vivent DANS la
+  gouttière, ancrées à la ligne qu'elles concernent : l'œil d'aperçu
+  suit la même grammaire. Pill + œil sur la RANGÉE DU CARET, visible
+  dès que le fichier est prévisualisable (`previewable` — md, html,
+  htm…), allumé à l'accent quand la feuille est ouverte, tap =
+  bascule SANS déplacer le caret. Rectangle déterministe partagé par
+  le dessin et le hit-test (26 dp bornés par la ligne) ; aucune zone
+  tactile fantôme (garde rangée à l'écran). L'œil du fil d'Ariane B6
+  reste inchangé — les deux entrées cohabitent.
+- **« Énième analyse Android Studio ↔ code-editor »** (B9d) — livrée
+  dans `docs/ANALYSE-GAPS-ANDROID-STUDIO.md` (copie dans
+  `download/`) : angle édition tactile, sol crédité, écarts
+  priorisés P0/P1/P2 et feuille de route B10→B14 — le P0 n°1 est la
+  recherche/remplacement dans le fichier (le moteur `FindReplace`
+  existe déjà dans cel-core, il ne manque que l'interface).
+
+Zéro rupture d'API : une méthode publique restreinte de plus
+(`applyPinchScale(factor, focusX, focusY)` surcharge), un relais
+d'état (`isSelectionDragActive`), l'icône de gouttière et son
+hit-test — aucune surface existante modifiée.
+
 ---
 
 ## 2. Changement REQUIS — montée de version de la dépendance
 
 ```toml
 # gradle/libs.versions.toml (CodeIDE) — ligne ~52
-code-editor = "3.62.0"     # était "3.49.2" (audit) / "3.51.1" (guide 3.51.1) / "3.57.0" (guide J6) / "3.58.0"-"3.60.0" (guides retours terrain) / "3.61.0" (guide retour n°4)
+code-editor = "3.63.0"     # était "3.49.2" (audit) / "3.51.1" (guide 3.51.1) / "3.57.0" (guide J6) / "3.58.0"-"3.60.0" (guides retours terrain) / "3.61.0"-"3.62.0" (guides retours n°4-5)
 ```
 
 Les deux modules consommateurs ne changent pas (ils suivent le
@@ -305,7 +363,7 @@ Les deux modules consommateurs ne changent pas (ils suivent le
 - `feature/editor/build.gradle.kts:14` → `implementation(libs.codeeditor.ui)`
 
 **Compatibilité API : vérifiée additive sur toute la plage
-3.51.1 → 3.62.0** (aucune rupture binaire : nouveaux champs des
+3.51.1 → 3.63.0** (aucune rupture binaire : nouveaux champs des
 modèles diagnostic/inlay via constructeurs étendus, les
 constructeurs historiques délèguent avec défaut vide ; les ajouts
 3.58.0 sont `BreadcrumbBar.*` et `EditorView.setPreviewIconsVisible`,
@@ -315,7 +373,7 @@ ajouts 3.60.0 sont `BreadcrumbBar.addIconAction`/`addEditorActions` et
 le moteur `EditorIcons`, purement additifs — `addAction` texte et
 `addPreviewAction` restent compatibles ; 3.61.0 est un lot de
 correctifs internes + deux classes `@RestrictTo(LIBRARY_GROUP)`
-(`EditorPopupFade`, `EditorPopupMotion`) ; 3.62.0 est un correctif
+(`EditorPopupFade`, `EditorPopupMotion`) ; 3.62.0-3.63.0 sont des correctifs
 interne (`setSession` reconstruit le modèle de wrap) + une méthode
 outil `@RestrictTo(LIBRARY_GROUP)`
 (`EditorPopupMotion.outsideTapDismisses`) — aucune surface publique
@@ -609,6 +667,29 @@ ajouter les épreuves du lot tactile :
     où l'on a tapé ; idem carte aller-à-la-ligne (menu clavier
     Ctrl+G) → tap hors carte → fermeture ; complétion visible → tap
     ailleurs → fermeture (comportement historique conservé).
+18. **Retour n°6 (3.63.0, via la démo)** — quatre vérifications ciblées :
+    **a)** appui long sur un mot près du HAUT de l'écran, glisser
+    jusqu'au bord BAS et MAINTENIR (l'auto-scroll s'engage) → le
+    texte défile vers le bas de façon FLUIDE et RÉGULIÈRE, les lignes
+    ne « secouent » plus (l'épreuve échoue sans le correctif : le
+    texte tremble verticalement en dent de scie) ; la loupe pendant
+    le drag montre des lignes STABLES (le contenu de la bulle ne
+    tremble pas) ;
+    **b)** poser le caret quelque part de visible, PINCER pour zoomer
+    puis dézoomer, relever UN doigt puis l'autre → le caret est
+    RESTÉ à sa position écran (pendant le pincement ET après : le
+    doigt restant ne fait pas défiler l'éditeur) ; répéter en sens
+    inverse (dézoom puis zoom) → aucune dérive (retour au même
+    endroit) ;
+    **c)** ouvrir l'échantillon Markdown → la GOUTTIÈRE montre
+    l'icône ŒIL sur la rangée du caret (à la place du numéro,
+    façon Android Studio) → TAP dessus → la feuille d'aperçu s'ouvre
+    et l'icône s'allume de l'accent → TAP à nouveau → la feuille se
+    referme ; le caret n'a PAS bougé ; sur un échantillon Java
+    (non prévisualisable) → aucune icône ;
+    **d)** lire `download/ANALYSE-GAPS-ANDROID-STUDIO.md` — la
+    sixième analyse (angle édition tactile, écarts P0/P1/P2, feuille
+    de route B10+) pour décider du prochain lot.
 
 ---
 
