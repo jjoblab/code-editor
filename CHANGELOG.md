@@ -5,6 +5,61 @@ All notable changes to **code-editor-lib** are documented in this file.
 Le format suit la convention [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.62.0] — 2026-10-13 — Retour n°5 : wrap multi-fichiers, aperçu plein ajusté, popups rejetés au toucher extérieur
+
+Cinquième retour d'appareil, trois irritants réglés à la racine : avec le
+retour à la ligne actif, ouvrir un autre fichier empilait les lignes du
+bas (le modèle de wrap de l'ANCIEN document survit au changement de
+session, et son clamp de queue renvoie toutes les lignes au-delà de
+l'ancien compte au MÊME Y) ; la preview en plein restait zoomée sans
+pouvoir se corriger au pincement ; aucun popup ne se refermait d'un tap
+hors de son cadre. Correctifs et additif, zéro rupture d'API.
+
+### Fixed
+
+- **B8a — le modèle de wrap suit le document après `setSession()`** —
+  `EditorView.setSession()` purgeait le cache de rendu et le scroll mais
+  JAMAIS le modèle de wrap : avec le retour à la ligne actif, le modèle
+  de l'ancien fichier rendait le nouveau (ses `topRow()` au-delà de
+  l'ancien compte de lignes clampe sur le total → toutes les lignes de
+  queue au même Y, « empilées » en bas, d'autant plus visibles que le
+  fichier est long ; même compte de lignes ≠ sauvetage, les rangées sont
+  comptées sur les longueurs de l'ancien document). Correctif :
+  reconstruction à chaque changement de session quand le wrap est actif,
+  purge du modèle sans session (parité `setWordWrap(false)`).
+  Régression prouvée : `WrapSessionSwapTest` échoue 4/4 sans le fix.
+- **B8b — l'aperçu plein se ré-ajuste et se zoome au doigt (démo)** —
+  le pincement ne faisait RIEN (contrôles de zoom intégrés désactivés
+  par défaut), et la bascule scindé → plein gardait l'échelle et la
+  mise en page de l'ANCIENNE largeur (le re-rendre ne repassait jamais
+  par overview mode). Correctifs dans `DemoPreviewHost` : contrôles de
+  zoom intégrés activés SANS les boutons +/− ; rechargement du payload
+  à chaque changement de taille (`onPreviewModeChanged`, la position de
+  lecture est préservée) ; WebView créée du contexte RÉEL de l'éditeur
+  (le contexte applicatif peut porter des DisplayMetrics étrangères à
+  l'affichage courant → échelle initiale fausse).
+- **B8c — un tap hors du cadre referme le popup** — audit complet de la
+  fermeture extérieure. Fenêtres : la feuille d'aperçu et les cartes
+  glass (aller-à-la-ligne, renommage) portaient un verrou « ✕
+  uniquement » ; elles reçoivent la recette Android complète
+  (`EditorPopupMotion.outsideTapDismisses` : `setOutsideTouchable` +
+  fond non nul → `ACTION_OUTSIDE` → dismiss automatique, le tap
+  traverse vers l'éditeur qui place son caret, la saisie clavier reste
+  captée). Canvas : le popup d'actions de code et l'aller-au-symbole se
+  referment sur un tap hors bornes (la cascade continue derrière, même
+  motif que le popup ancré de squiggle) ; l'aide de signature —
+  bannière passive sans rangée interactive — se referme sur tout tap.
+
+### Tests
+
+- 1 652 tests verts (+12) : `WrapSessionSwapTest` ×4 (modèle reconstruit
+  au changement de session, lignes de queue dés-empilées, rangées
+  recomptées à compte égal, purge sans session), `PopupOutsideTapDismissTest`
+  ×5 (signature, actions de code, aller-au-symbole, recette complète
+  feuille + carte), `DemoPreviewHostTest` +3 (pincement actif sans
+  boutons, rechargement au changement de taille, contenu retenu avant
+  l'ouverture).
+
 ## [3.61.0] — 2026-10-13 — Retour n°4 : câblage réel d'annuler/rétablir, auto-scroll horizontal, popups sages et animés
 
 Quatrième retour d'appareil, six irritants réels réglés à la racine :

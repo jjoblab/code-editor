@@ -76,6 +76,10 @@ public class EditorGoToLinePopup {
             ViewGroup.LayoutParams.WRAP_CONTENT,
             ViewGroup.LayoutParams.WRAP_CONTENT, true);
         goToLinePopup.setFocusable(true);
+        // B8 (retour terrain n°5) : un tap hors de la carte la referme (le
+        // tap traverse vers l'éditeur — placement du caret) ; la saisie
+        // clavier du champ reste captée par la carte.
+        EditorPopupMotion.outsideTapDismisses(goToLinePopup);
         goToLinePopup.setOnDismissListener(() -> {
             goToLineVisible = false;
             goToLinePopup = null;

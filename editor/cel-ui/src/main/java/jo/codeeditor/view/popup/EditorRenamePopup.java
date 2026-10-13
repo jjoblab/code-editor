@@ -103,6 +103,10 @@ public class EditorRenamePopup {
             ViewGroup.LayoutParams.WRAP_CONTENT,
             ViewGroup.LayoutParams.WRAP_CONTENT, true);
         renamePopup.setFocusable(true);
+        // B8 (retour terrain n°5) : un tap hors de la carte la referme (le
+        // tap traverse vers l'éditeur) ; la saisie clavier du champ reste
+        // captée par la carte.
+        EditorPopupMotion.outsideTapDismisses(renamePopup);
         renamePopup.setOnDismissListener(() -> {
             renameVisible = false;
             renamePopup = null;

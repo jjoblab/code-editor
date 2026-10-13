@@ -69,6 +69,8 @@ import android.widget.TextView;
  *   <li>Taper le bouton ✕</li>
  *   <li>Taper le bouton d'action d'aperçu de la barre de fil d'Ariane
  *       (bascule B6)</li>
+ *   <li>Taper en dehors du cadre (B8 — la feuille se referme et le tap
+ *       traverse vers la vue touchée : l'éditeur place son caret)</li>
  *   <li>Appuyer sur Retour (géré par le OnKeyListener par défaut de {@link PopupWindow})</li>
  * </ul>
  */
@@ -152,7 +154,13 @@ public class EditorPreviewSheet {
 
         popup = new PopupWindow(sheetContainer, width, height, true);
         popup.setFocusable(true);
-        popup.setOutsideTouchable(false); // fermeture via ✕ uniquement — évite une fermeture accidentelle pendant la saisie dans l'éditeur
+        // B8 (retour terrain n°5) : « le touché en dehors du cadre dismiss
+        // le popup » — un tap dans l'éditeur (scindé) ou le chrome hôte
+        // (plein) referme la feuille ET traverse vers la vue touchée
+        // (placement du caret / bouton activé). ✕, Retour et la bascule
+        // d'en-tête restent les voies directes ; l'ancien verrou
+        // « ✕ uniquement » fermait TOUT autre geste à vide.
+        EditorPopupMotion.outsideTapDismisses(popup);
         popup.setClippingEnabled(true);
         popup.setOnDismissListener(this::onDismissed);
         // Le bouton Retour ferme la feuille (le OnKeyListener par défaut du

@@ -1,4 +1,4 @@
-# MISE À JOUR DE CodeIDE — brancher la version 3.61.0 de `code-editor`
+# MISE À JOUR DE CodeIDE — brancher la version 3.62.0 de `code-editor`
 
 > **Destinataire** : agent IA chargé de la mise à jour du dépôt `CodeIDE`
 > (jjoblab/CodeIDE, audité @ `04a65ea`, v0.105.0).
@@ -34,6 +34,7 @@
 | Retour terrain n°2 | 3.59.0 | Plus de boutons invisibles en haut à droite | UX-5 : retrait des zones de tap fantômes de l'ancienne toolbar canvas (bug corrigé automatiquement) — un tap en haut à droite redevient un placement de caret |
 | Refonte B6 (retour n°3) | 3.60.0 | Fil d'Ariane « intelligent, plus moderne » | Moteur d'icônes vectorielles ; `addEditorActions()` : les TROIS actions (annuler, rétablir, aperçu) câblées sans code hôte ; l'œil n'existe que pour un fichier prévisualisable et BASCULE ouvrir/fermer ; feuille d'aperçu carte flottante (adoption optionnelle, §4.9) |
 | Retour terrain n°4 | 3.61.0 | Six irritants réels réglés à la racine | B7a : annuler/rétablir réactifs à la FRAPPE (chemin IME) ; B7b : auto-scroll du drag aussi HORIZONTAL (coin = diagonale) ; B7c : l'appui long ne vole plus le geste des popups ; B7d : aperçu « fit » (HTML brut, zoom verrouillé, coins clippés, scroll préservé) ; B7e : échantillon HTML ; B7f : fondus d'apparition/disparition des popups |
+| Retour terrain n°5 | 3.62.0 | Trois irritants réglés à la racine | B8a : le modèle de wrap suit le document après `setSession()` (plus de lignes « empilées » en bas en changeant de fichier avec le retour à la ligne actif) ; B8b : l'aperçu plein se ré-ajuste au changement de taille et se zoome au PINCEMENT (démo) ; B8c : un tap HORS du cadre referme le popup (feuille d'aperçu, cartes glass, actions de code, aller-au-symbole, aide de signature) |
 
 **Un seul changement est indispensable** : monter la version dans
 `gradle/libs.versions.toml` (§2). Tout le reste est additif — les
@@ -45,7 +46,7 @@ surcharges ou des constructeurs étendus déléguant à l'existant.
 
 ---
 
-## 1. Les lots 3.52.0 → 3.57.0 (complets) puis les retours terrain 3.58.0/3.59.0/3.60.0/3.61.0
+## 1. Les lots 3.52.0 → 3.57.0 (complets) puis les retours terrain 3.58.0/3.59.0/3.60.0/3.61.0/3.62.0
 
 `code-editor` est le CLIENT ; `lsp/java` de CodeIDE est le SERVEUR. Le
 lot tactile travaille presque entièrement côté client (rendu, gestes,
@@ -248,13 +249,53 @@ Zéro rupture d'API : correctifs et additions (un appel mort interne
 retiré, un champ restreint ajouté à EditorView — aucune surface
 publique touchée).
 
+### 1.8 Retour terrain n°5 (3.62.0) — trois irritants réglés à la racine
+
+Cinquième retour d'appareil. Les symptômes et leurs causes racines :
+
+- **« Quand le retour à la ligne est actif et que j'ouvre un autre
+  fichier, les lignes en bas semblent empilées »** (B8a) —
+  `EditorView.setSession()` purgeait le cache de rendu et le scroll
+  mais JAMAIS le modèle de wrap : le modèle de l'ANCIEN document
+  rendait le nouveau. `WrapModel.topRow()` clampe toute ligne au-delà
+  de l'ancien compte de lignes sur le MÊME total → toutes les lignes
+  de queue se dessinent au même Y (« empilées »), d'autant plus
+  visibles que le fichier est long ; même compte de lignes ne
+  sauvegardait pas (les rangées par ligne restent comptées sur les
+  longueurs de l'ancien document). Le modèle est désormais reconstruit
+  à chaque changement de session quand le wrap est actif (et purgé
+  sans session). **Correctif automatique pour CodeIDE : c'est le bug
+  du changement d'onglet en mode wrap — rien à faire.**
+- **« La preview en full : le zoom est trop, pas fit, je ne peux pas
+  zoomer ou dézoomer »** (B8b, démo) — deux causes côté hôte de démo :
+  les contrôles de zoom intégrés du WebView étaient désactivés (le
+  pincement ne faisait RIEN), et la bascule scindé → plein ne
+  re-rendait jamais (le WebView gardait échelle et mise en page de
+  l'ANCIENNE largeur). Correctifs : pincement actif (sans boutons
+  +/−), rechargement du payload à chaque changement de taille
+  (`onPreviewModeChanged` — LE point d'extension si CodeIDE écrit son
+  propre hôte d'aperçu), WebView créée du contexte RÉEL de l'éditeur.
+- **« Quand le popup est visible, le touché en dehors du cadre
+  dismiss le popup »** (B8c) — audit complet de la fermeture
+  extérieure : la feuille d'aperçu et les cartes glass
+  (aller-à-la-ligne, renommage) portaient un verrou « ✕ uniquement »
+  (recette Android complète désormais : `setOutsideTouchable` + fond
+  non nul → `ACTION_OUTSIDE` → dismiss automatique, le tap traverse
+  vers l'éditeur qui place son caret) ; les popups Canvas d'actions
+  de code et l'aller-au-symbole se referment sur un tap hors bornes ;
+  l'aide de signature (bannière passive) se referme sur tout tap.
+
+Zéro rupture d'API : un correctif interne (`setSession`), une méthode
+outil restreinte (`EditorPopupMotion.outsideTapDismisses`) et la
+cascade de taps enrichie — aucune surface publique touchée.
+
 ---
 
 ## 2. Changement REQUIS — montée de version de la dépendance
 
 ```toml
 # gradle/libs.versions.toml (CodeIDE) — ligne ~52
-code-editor = "3.61.0"     # était "3.49.2" (audit) / "3.51.1" (guide 3.51.1) / "3.57.0" (guide J6) / "3.58.0"-"3.60.0" (guides retours terrain)
+code-editor = "3.62.0"     # était "3.49.2" (audit) / "3.51.1" (guide 3.51.1) / "3.57.0" (guide J6) / "3.58.0"-"3.60.0" (guides retours terrain) / "3.61.0" (guide retour n°4)
 ```
 
 Les deux modules consommateurs ne changent pas (ils suivent le
@@ -264,7 +305,7 @@ Les deux modules consommateurs ne changent pas (ils suivent le
 - `feature/editor/build.gradle.kts:14` → `implementation(libs.codeeditor.ui)`
 
 **Compatibilité API : vérifiée additive sur toute la plage
-3.51.1 → 3.61.0** (aucune rupture binaire : nouveaux champs des
+3.51.1 → 3.62.0** (aucune rupture binaire : nouveaux champs des
 modèles diagnostic/inlay via constructeurs étendus, les
 constructeurs historiques délèguent avec défaut vide ; les ajouts
 3.58.0 sont `BreadcrumbBar.*` et `EditorView.setPreviewIconsVisible`,
@@ -274,7 +315,10 @@ ajouts 3.60.0 sont `BreadcrumbBar.addIconAction`/`addEditorActions` et
 le moteur `EditorIcons`, purement additifs — `addAction` texte et
 `addPreviewAction` restent compatibles ; 3.61.0 est un lot de
 correctifs internes + deux classes `@RestrictTo(LIBRARY_GROUP)`
-(`EditorPopupFade`, `EditorPopupMotion`) — aucune surface publique
+(`EditorPopupFade`, `EditorPopupMotion`) ; 3.62.0 est un correctif
+interne (`setSession` reconstruit le modèle de wrap) + une méthode
+outil `@RestrictTo(LIBRARY_GROUP)`
+(`EditorPopupMotion.outsideTapDismisses`) — aucune surface publique
 touchée).
 
 ### Publication vérifiée (2026-10-13)
@@ -550,6 +594,21 @@ ajouter les épreuves du lot tactile :
     **f)** rappel APK : les boutons morts de 3.60.0 venaient d'un
     correctif interne — installer l'APK démo **3.61.0** (l'ancien APK
     garde le comportement ancien).
+17. **Retour n°5 (3.62.0, via la démo)** — trois vérifications ciblées :
+    **a)** retour à la ligne COCHÉ (défaut de la démo) → ouvrir
+    l'échantillon Markdown (long) → le rendu est PROPRE jusqu'en bas
+    (aucune ligne empilée) ; changer d'échantillon (Java → Markdown →
+    HTML) plusieurs fois → chaque rendu reste propre ; l'épreuve
+    échoue SANS le correctif (lignes du bas superposées) ;
+    **b)** ouvrir l'aperçu Markdown, basculer en PLEIN (bouton ⤢ de
+    l'en-tête) → la page se RÉ-AJUSTE à la pleine largeur (plus de
+    zoom hérité du mode scindé) ; PINCER la page → elle zoome et se
+    dézoome au doigt (aucun bouton +/− n'apparaît) ;
+    **c)** feuille d'aperçu ouverte en SCINDÉ → tap dans la ZONE
+    ÉDITEUR (à gauche) → la feuille se referme ET le caret se pose là
+    où l'on a tapé ; idem carte aller-à-la-ligne (menu clavier
+    Ctrl+G) → tap hors carte → fermeture ; complétion visible → tap
+    ailleurs → fermeture (comportement historique conservé).
 
 ---
 

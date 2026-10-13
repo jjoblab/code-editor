@@ -160,7 +160,7 @@ par responsabilité.
 |----------------|------|---------|-------------|
 | WrapModel (lignes par ligne) | ✅ | `wrap/WrapModel.java` | Compte de lignes wrappées |
 | Prefix sum | ✅ | `wrap/WrapModel.java` | O(1) ligne → rangée |
-| topRow / rowsOf / docLineForRow | ✅ | `wrap/WrapModel.java` | Mapping fold-aware |
+| topRow / rowsOf / docLineForRow | ✅ | `wrap/WrapModel.java` | Mapping fold-aware ; B8 : clamp de queue — toute ligne au-delà du compte renvoie le total (le modèle doit décrire le document COURANT, `setSession` le reconstruit) |
 | resize / setRows | ✅ | `wrap/WrapModel.java` | Mise à jour incrémentale |
 
 ---
@@ -256,8 +256,8 @@ et les barres d'habillage dans `view/chrome/`.
 | Aperçu XML | ✅ | `view/preview/EditorPreviewController.java`, `view/preview/EditorPreviewHost.java` | Split/full via hôte |
 | Breadcrumb + actions (B5/B6/B7) | ✅ | `view/chrome/BreadcrumbBar.java` | Barre de fil d'Ariane + zone d'actions d'éditeur en haut à droite ; B6 : `addEditorActions()` (undo/redo câblés session + aperçu), boutons-icônes pill 40 dp, aperçu `GONE` si fichier non prévisualisable, bascule ouvrir/fermer, `addAction` texte (compat B5) ; B7 : états rafraîchis par le chemin IME (frappe/clique), plus de boutons morts |
 | Moteur d'icônes vectorielles (B6) | ✅ | `view/icons/EditorIcons.java` | UNDO/REDO/EYE (FILL) + SPLIT/EXPAND/CLOSE (STROKE), paths Material 24×24 parsés une fois puis cachés, teinte du thème, `draw(Canvas, Icon, cx, cy, size, paint)` |
-| Feuille d'aperçu carte flottante (B6/B7) | ✅ | `view/preview/EditorPreviewSheet.java` | Élévation 12 dp, coins arrondis 16 dp côté flottant, en-tête œil+nom, segmented control scindé/plein ; B7 : corps clippé aux coins de la carte, entrée/sortie animées |
-| Fondus de popups (B7) | ✅ | `view/popup/EditorPopupFade.java`, `view/popup/EditorPopupMotion.java` | Popups Canvas : apparition 120 ms (front montant dans le pipeline), disparition 110 ms par photographie au dismiss (complétion, quick doc, menu, pill) ; popups en fenêtre : cartes posées 140 ms / effacées 110 ms |
+| Feuille d'aperçu carte flottante (B6/B7/B8) | ✅ | `view/preview/EditorPreviewSheet.java` | Élévation 12 dp, coins arrondis 16 dp côté flottant, en-tête œil+nom, segmented control scindé/plein ; B7 : corps clippé aux coins de la carte, entrée/sortie animées ; B8 : un tap hors du cadre referme la feuille (le tap traverse vers l'éditeur) |
+| Fondus de popups (B7) + rejet extérieur (B8) | ✅ | `view/popup/EditorPopupFade.java`, `view/popup/EditorPopupMotion.java` | Popups Canvas : apparition 120 ms (front montant dans le pipeline), disparition 110 ms par photographie au dismiss (complétion, quick doc, menu, pill) ; popups en fenêtre : cartes posées 140 ms / effacées 110 ms ; B8 : `outsideTapDismisses` — la recette Android complète (outside touchable + fond non nul) qui traduit un tap hors cadre en dismiss automatique |
 | Barre de symboles | ✅ | `view/chrome/SymbolBarView.java` | Symboles du document |
 | Retour à la ligne / ligatures / non-imprimables | ✅ | `view/EditorView.java` | Bascules publiques |
 | Thèmes | ✅ | `view/chrome/EditorTheme.java` | dark()/light() + 30+ couleurs custom |

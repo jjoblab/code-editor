@@ -120,6 +120,17 @@ public class EditorTapResolver {
         // Un tap en haut à droite ne doit plus déclencher d'action
         // invisible : il retombe dans la cascade normale (caret).
 
+        // ★ B8 (retour terrain n°5) : l'aide de signature est une bannière
+        // PASSIVE (aucune rangée interactive — la navigation des
+        // surcharges est clavier) flottant au-dessus de la ligne du
+        // caret. Un tap quelconque la referme : le geste appartient au
+        // texte derrière (placement du caret), la cascade continue.
+        // Elle revient à la prochaine édition si le caret est encore
+        // dans un appel (refreshSignatureHelp, chemin onTextChanged).
+        if (view.signatureHelpVisible) {
+            view.dismissSignatureHelp();
+        }
+
         // Test de touche du popup de complétion.
         if (view.completionVisible) {
             int hitRow = hitTester.hitTestCompletionPopup(x, y);
@@ -244,6 +255,11 @@ public class EditorTapResolver {
                 view.applySelectedCodeAction();
                 return;
             }
+            // ★ B8 (retour terrain n°5) : tap HORS du cadre → le popup
+            // se referme et la cascade CONTINUE (le tap visait le texte
+            // derrière — placement du caret), même motif que le popup
+            // ancré de squiggle juste en dessous.
+            view.dismissCodeActions();
         }
 
         // Test de touche du popup aller-au-symbole.
@@ -254,6 +270,9 @@ public class EditorTapResolver {
                 view.goToSymbolAccept();
                 return;
             }
+            // ★ B8 (retour terrain n°5) : tap HORS du cadre → fermeture,
+            // cascade continue (parité actions de code / squiggle).
+            view.dismissGoToSymbol();
         }
 
         // ── S3 (lot 2, J4) : tap sur une ligne sticky → navigation ──
