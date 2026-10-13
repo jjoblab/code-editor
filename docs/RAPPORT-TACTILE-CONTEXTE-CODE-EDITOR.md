@@ -33,7 +33,19 @@
 > automatiques (setFileName/setPreviewMode rafraîchissent la barre
 > sœur), moteur Markdown v2 dans la démo (liens, tables, tâches,
 > barré) ; 1 618 tests verts, EditorView/EditorSession inchangés.
-> **Retour terrain n°6 (3.63.0)** : quatre irritants réglés à la
+> **Lot B10 (3.64.0)** : le plus grand écart P0 de l'analyse n°6 est
+> refermé — `EditorSearchBar` + `EditorSearchController` : recherche/
+> remplacement DANS LE FICHIER (requête vivante à la frappe ET à
+> l'édition du document, listener ré-accroché au changement de
+> session, surlignage purgé par `setSession`), navigation bouclante
+> (courante teintée, viewport amené, caret au début SANS sélection),
+> remplacement courant (groupes `$1` en regex par matcher borné à la
+> région, repli littéral sur remplacement mal formé) et TOUT en une
+> passe (une seule entrée d'annulation) ; entrées menu + `Ctrl+F`,
+> amorçage depuis la sélection, requête survivante à la fermeture ;
+> la cascade de taps gagne son 4e cran — caret → mot → ligne →
+> PARAGRAPHE (`selectParagraphAt`, le 5e tap y reste). 1 699 tests
+> verts (+35). **Retour terrain n°6 (3.63.0)** : quatre irritants réglés à la
 > racine — B9a la « secousse » des lignes pendant le drag de sélection
 > (le recentrage du caret déclenché par CHAQUE application de
 > sélection du drag tirait le viewport vers l'ancre pendant que

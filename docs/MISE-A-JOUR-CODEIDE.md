@@ -1,4 +1,4 @@
-# MISE À JOUR DE CodeIDE — brancher la version 3.63.0 de `code-editor`
+# MISE À JOUR DE CodeIDE — brancher la version 3.64.0 de `code-editor`
 
 > **Destinataire** : agent IA chargé de la mise à jour du dépôt `CodeIDE`
 > (jjoblab/CodeIDE, audité @ `04a65ea`, v0.105.0).
@@ -24,7 +24,7 @@
 
 ---
 
-## 0. Résumé express — deux lots + quatre retours terrain, un seul changement requis
+## 0. Résumé express — deux lots + quatre retours terrain + lot B10, un seul changement requis
 
 | Lot | Versions | Thème | Ce que CodeIDE y gagne |
 |---|---|---|---|
@@ -36,6 +36,7 @@
 | Retour terrain n°4 | 3.61.0 | Six irritants réels réglés à la racine | B7a : annuler/rétablir réactifs à la FRAPPE (chemin IME) ; B7b : auto-scroll du drag aussi HORIZONTAL (coin = diagonale) ; B7c : l'appui long ne vole plus le geste des popups ; B7d : aperçu « fit » (HTML brut, zoom verrouillé, coins clippés, scroll préservé) ; B7e : échantillon HTML ; B7f : fondus d'apparition/disparition des popups |
 | Retour terrain n°5 | 3.62.0 | Trois irritants réglés à la racine | B8a : le modèle de wrap suit le document après `setSession()` (plus de lignes « empilées » en bas en changeant de fichier avec le retour à la ligne actif) ; B8b : l'aperçu plein se ré-ajuste au changement de taille et se zoome au PINCEMENT (démo) ; B8c : un tap HORS du cadre referme le popup (feuille d'aperçu, cartes glass, actions de code, aller-au-symbole, aide de signature) |
 | Retour terrain n°6 | 3.63.0 | Quatre irritants réglés à la racine | B9a : plus de « secousse » des lignes pendant le drag de sélection (le recentrage du caret est suspendu pendant le geste — la dent de scie auto-scroll↔recentrage est morte) ; B9b : le caret reste FIXE au pincement (traînées du doigt restant englouties, point focal ancré en lecture seule) ; B9c : l'icône d'aperçu (œil) vit dans la GOUTTIÈRE sur la rangée du caret, façon Android Studio, tap = bascule ; B9d : analyse des écarts Android Studio ↔ code-editor n°6 (`docs/ANALYSE-GAPS-ANDROID-STUDIO.md`) |
+| **Lot B10 (recherche)** | **3.64.0** | Le plus grand écart P0 de l'analyse est refermé | `EditorSearchBar` : recherche/remplacement DANS LE FICHIER (requête vivante, compte « 3/17 », navigation bouclante, remplacement courant avec groupes `$1`, TOUT en une seule annulation) — ouverture menu/`Ctrl+F`, amorçage depuis la sélection (adoption optionnelle, §4.10) ; 4e tap = PARAGRAPHE (cascade caret → mot → ligne → paragraphe, le 5e y reste) ; surlignage purgé au changement de session |
 
 **Un seul changement est indispensable** : monter la version dans
 `gradle/libs.versions.toml` (§2). Tout le reste est additif — les
@@ -47,7 +48,7 @@ surcharges ou des constructeurs étendus déléguant à l'existant.
 
 ---
 
-## 1. Les lots 3.52.0 → 3.57.0 (complets) puis les retours terrain 3.58.0/3.59.0/3.60.0/3.61.0/3.62.0/3.63.0
+## 1. Les lots 3.52.0 → 3.57.0 (complets) puis les retours terrain 3.58.0/3.59.0/3.60.0/3.61.0/3.62.0/3.63.0 et le lot B10 (3.64.0)
 
 `code-editor` est le CLIENT ; `lsp/java` de CodeIDE est le SERVEUR. Le
 lot tactile travaille presque entièrement côté client (rendu, gestes,
@@ -349,11 +350,63 @@ hit-test — aucune surface existante modifiée.
 
 ---
 
+### 1.10 Lot B10 (3.64.0) — recherche/remplacement dans le fichier + 4e tap paragraphe
+
+Premier lot de la feuille de route de l'analyse des écarts n°6 : les
+deux écarts P0. Le moteur de correspondance (`FindReplace` en cel-core)
+et le surlignage du viewport (`setFindHighlights`) existaient depuis
+longtemps — mais AUCUNE plomberie ne les reliait : c'était le seul écart
+que le propriétaire toucherait à chaque session sur des fichiers longs.
+
+- **`EditorSearchController`** (view/chrome) porte l'état et les actions
+  sans une ligne d'UI : recherche vivante (recalcul différé à la frappe
+  ET à chaque édition du document, listener ré-accroché quand la
+  session change) ; navigation bouclante — l'occurrence courante est
+  teintée `findCurrent`, le viewport l'amène, le caret va à son début
+  SANS sélection (la pill et les poignées de l'utilisateur ne sont pas
+  parasitées) ; remplacement de l'occurrence courante (splice ciblé ;
+  mode regex : expansion des groupes `$1`/`$2` par matcher borné à la
+  région de l'occurrence ; remplacement mal formé — « $ » orphelin —
+  repli littéral, jamais de crash) ; remplacement de TOUT en UNE passe
+  sur le texte d'origine : une seule entrée d'annulation (l'undo
+  restaure le document entier), caret restauré borné. Après chaque
+  remplacement la courante devient la première occurrence à partir de
+  la fin du texte inséré — enchaîner « Remplacer » remplace bien tout,
+  une par une.
+- **`EditorSearchBar`** (view/chrome) est la vue, dans le registre
+  visuel du fil d'Ariane (pill, accent des bascules actives, thème
+  lié) : rangée requête + compte « 3/17 » + précédent/suivant +
+  fermer ; rangée de bascules « Aa » casse / « ab » mot entier /
+  « .* » regex + bascule remplacer ; rangée de remplacement
+  (« Remplacer » / « Tout »). Enter = occurrence suivante, Échap
+  (clavier physique) referme, l'ouverture amorce la requête depuis la
+  sélection si elle tient sur une ligne, la fermeture garde la requête
+  (réouverture sans re-frapper).
+- **Deux entrées d'ouverture** : un article de menu de l'hôte, et le
+  raccourci `Ctrl+F` qui existait déjà (il route vers le listener
+  primaire de sélection — un objet implémentant À LA FOIS
+  `OnSelectionChangedListener` et `OnFindRequestedListener` reçoit
+  l'appel).
+- **Purge du surlignage au changement de session** (`setSession`) :
+  les offsets de recherche de l'ancien document sont périmés sur le
+  nouveau — sans purge, des bandes restaient dessinées à des offsets
+  hasardeux (bug corrigé d'office à la montée de version).
+- **`selectParagraphAt` + 4e tap** : la cascade de taps gagne son
+  quatrième cran — caret (1) → mot (2) → ligne (3) → PARAGRAPHE (4) :
+  bloc maximal de lignes contiguës non vides autour du tap, borné par
+  les lignes vides ou blanches, fin sans le saut (parité ligne). Le
+  5e tap RESTE au paragraphe. Sur CodeIDE : gratuit à la montée, les
+  taps successifs sélectionnent des blocs entiers (commenter/déplacer
+  un paragraphe d'un coup).
+- **Quatre icônes vectorielles** (loupe en cubiques — le parseur du
+  moteur rejette les arcs —, chevrons haut/bas, double-flèche) et 14
+  libellés canoniques `cel_find_*` traduisibles par l'hôte.
+
 ## 2. Changement REQUIS — montée de version de la dépendance
 
 ```toml
 # gradle/libs.versions.toml (CodeIDE) — ligne ~52
-code-editor = "3.63.0"     # était "3.49.2" (audit) / "3.51.1" (guide 3.51.1) / "3.57.0" (guide J6) / "3.58.0"-"3.60.0" (guides retours terrain) / "3.61.0"-"3.62.0" (guides retours n°4-5)
+code-editor = "3.64.0"     # était "3.49.2" (audit) / "3.51.1" (guide 3.51.1) / "3.57.0" (guide J6) / "3.58.0"-"3.60.0" (guides retours terrain) / "3.61.0"-"3.63.0" (guides retours n°4-6) / "3.64.0" (lot B10)
 ```
 
 Les deux modules consommateurs ne changent pas (ils suivent le
@@ -363,7 +416,7 @@ Les deux modules consommateurs ne changent pas (ils suivent le
 - `feature/editor/build.gradle.kts:14` → `implementation(libs.codeeditor.ui)`
 
 **Compatibilité API : vérifiée additive sur toute la plage
-3.51.1 → 3.63.0** (aucune rupture binaire : nouveaux champs des
+3.51.1 → 3.64.0** (aucune rupture binaire : nouveaux champs des
 modèles diagnostic/inlay via constructeurs étendus, les
 constructeurs historiques délèguent avec défaut vide ; les ajouts
 3.58.0 sont `BreadcrumbBar.*` et `EditorView.setPreviewIconsVisible`,
@@ -377,9 +430,26 @@ correctifs internes + deux classes `@RestrictTo(LIBRARY_GROUP)`
 interne (`setSession` reconstruit le modèle de wrap) + une méthode
 outil `@RestrictTo(LIBRARY_GROUP)`
 (`EditorPopupMotion.outsideTapDismisses`) — aucune surface publique
-touchée).
+touchée ; 3.64.0 ajoute DEUX classes publiques (`EditorSearchBar`,
+`EditorSearchController`) et une méthode de sélection
+(`EditorSession.selectParagraphAt`) sans rien retirer — le 4e tap
+modifie volontairement la cascade multi-tap au-delà du triple tap
+(ligne → paragraphe : c'est le but du cran)).
 
-### Publication vérifiée (2026-10-13)
+### Publication (2026-10-13, lot B10)
+
+- `main` poussé (merge du lot B10, quatre commits) ; tag
+  **`v3.64.0`** posé sur le merge ; workflows CI + Publication GitHub
+  Packages déclenchés par le poussage (vérifier l'état sur la page
+  Actions du dépôt).
+- **Consigne du propriétaire (2026-10)** : le build JitPack n'est PLUS
+  attendu systématiquement après un poussage — le guide ne consigne
+  plus sa vérification à chaque version (JitPack construira `3.64.0`
+  à la demande à partir du tag ; les 3.51.1+ sont saines, seules
+  `3.50.0`/`3.51.0` restent interdites via JitPack — incident 429
+  historique, servies sur GitHub Packages uniquement).
+- Coordonnées : `com.github.jjoblab.code-editor:cel-ui:3.64.0` et
+  `com.github.jjoblab.code-editor:cel-lsp:3.64.0`.
 
 - `main` @ `8bf590a` poussé (merge retour terrain n°6 + merge du
   correctif de course CI) ; tag **`v3.63.0`** posé sur le merge du
@@ -566,6 +636,40 @@ sur tous les appareils.
 
 ---
 
+### 4.10 Adopter la barre de recherche/remplacement (B10, 3.64.0) — trois lignes
+
+`EditorSearchBar` se pose dans la hiérarchie de l'Activity/Fragment,
+entre l'en-tête et l'éditeur, et se câble en deux appels :
+
+```java
+EditorSearchBar searchBar = new EditorSearchBar(this);
+searchBar.bind(editor);            // contrôleur + thème de l'éditeur
+root.addView(searchBar, LinearLayout.LayoutParams.MATCH_PARENT,
+        LinearLayout.LayoutParams.WRAP_CONTENT); // GONE par défaut
+```
+
+Ouverture : `searchBar.open()` (amorce la requête depuis la sélection,
+focus + clavier au champ). Fermeture : le ✕ de la barre, ou
+`searchBar.close()`. Après un changement de fichier/onglet :
+`searchBar.refresh()` (le contrôleur ré-accroche la session courante
+et recalcule les occurrences — la purge du surlignage est déjà faite
+par `setSession`).
+
+Pour que `Ctrl+F` l'ouvre : le listener primaire de sélection doit
+implémenter AUSSI `OnFindRequestedListener` (le raccourci cherche
+cette interface dans le listener primaire) :
+
+```java
+editor.setOnSelectionChangedListener(new BothRoles());
+// class BothRoles implements EditorView.OnSelectionChangedListener,
+//         EditorView.OnFindRequestedListener { ... searchBar.open(); }
+```
+
+CodeIDE peut traduire les libellés en redéclarant les ressources
+`cel_find_*` (préfixe du préfixe `cel_`, mécanisme T3 du §4.6).
+
+---
+
 ## 5. Protocole de vérification sur appareil (après montée de version)
 
 Reprendre le protocole « LSP branché » (guide 3.51.1, §4, inchangé) et
@@ -696,6 +800,27 @@ ajouter les épreuves du lot tactile :
     **d)** lire `download/ANALYSE-GAPS-ANDROID-STUDIO.md` — la
     sixième analyse (angle édition tactile, écarts P0/P1/P2, feuille
     de route B10+) pour décider du prochain lot.
+19. **Lot B10 (3.64.0, via la démo)** — quatre vérifications ciblées :
+    **a)** menu « ⋯ » → **Rechercher dans le fichier** → la barre
+    apparaît entre le fil d'Ariane et l'éditeur, le clavier s'ouvre
+    sur le champ → taper `class` (échantillon Java) → TOUTES les
+    occurrences se surlignent, le compte tourne (ex. « 1/12 ») ; le
+    viewport saute à la première occurrence à partir du caret ;
+    **b)** taper Enter (action clavier « Rechercher ») puis les
+    chevrons ▲▼ → la courante avance/recule et BOUCLE (dernière →
+    première), le caret suit le début de la courante, la pill de
+    sélection n'apparaît PAS ; basculer « Aa » (casse) et « .* »
+    (regex) → le compte change en direct (ex. regex `Cl\w+`) ;
+    **c)** bascule remplacer (⇄) → la rangée de remplacement apparaît
+    → taper `Klass` → « Remplacer » : l'occurrence courante change,
+    la courante AVANCE automatiquement ; « Tout » → tout change en
+    une fois, UNE seule annulation (annuler via le bouton ↶ du fil
+    d'Ariane restaure le document ENTIER) ;
+    **d)** quatre taps RAPIDES au même endroit dans le texte → la
+    cascade sélectionne mot → ligne → PARAGRAPHE (bloc de lignes
+    non vides) ; un 5e tap reste au paragraphe ; fermer la barre
+    (✕) → le surlignage disparaît, la requête survit (réouverture :
+    la recherche retrouve ses occurrences sans re-frapper).
 
 ---
 
