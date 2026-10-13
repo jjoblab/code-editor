@@ -54,6 +54,32 @@
     </item>
 
     <item
+        android:id="@+id/action_magnifier"
+        android:title="@string/menu_magnifier"
+        app:showAsAction="never">
+        <menu>
+            <item
+                android:id="@+id/magnifier_zoom_15"
+                android:title="@string/magnifier_zoom_15" />
+            <item
+                android:id="@+id/magnifier_zoom_20"
+                android:title="@string/magnifier_zoom_20" />
+            <item
+                android:id="@+id/magnifier_zoom_25"
+                android:title="@string/magnifier_zoom_25" />
+            <item
+                android:id="@+id/magnifier_zoom_30"
+                android:title="@string/magnifier_zoom_30" />
+            <item
+                android:id="@+id/magnifier_native_on"
+                android:title="@string/magnifier_native_on" />
+            <item
+                android:id="@+id/magnifier_native_off"
+                android:title="@string/magnifier_native_off" />
+        </menu>
+    </item>
+
+    <item
         android:id="@+id/action_color_swatches"
         android:title="Carrés de couleur"
         app:showAsAction="never">

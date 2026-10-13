@@ -16,6 +16,15 @@
     <string name="sticky_max_4">Max : 4 lignes (tablette)</string>
     <string name="sticky_max_5">Max : 5 lignes (tablette)</string>
 
+    <!-- Loupe de sélection (M2/M3, lot 2 J5) -->
+    <string name="menu_magnifier">Loupe de sélection</string>
+    <string name="magnifier_native_on">Loupe native (API 28+)</string>
+    <string name="magnifier_native_off">Loupe custom (défaut)</string>
+    <string name="magnifier_zoom_15">Zoom ×1,5 (lecture)</string>
+    <string name="magnifier_zoom_20">Zoom ×2 (défaut)</string>
+    <string name="magnifier_zoom_25">Zoom ×2,5</string>
+    <string name="magnifier_zoom_30">Zoom ×3 (maximum)</string>
+
     <!-- Bascules rapides -->
     <string name="toggle_wrap">Retour à la ligne</string>
     <string name="toggle_minimap">Minimap</string>
