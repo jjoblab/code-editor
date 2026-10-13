@@ -1,11 +1,13 @@
-# MISE À JOUR DE CodeIDE — brancher la version 3.51.1 de `code-editor`
+# MISE À JOUR DE CodeIDE — brancher la version 3.56.0 de `code-editor`
 
 > **Destinataire** : agent IA chargé de la mise à jour du dépôt `CodeIDE`
 > (jjoblab/CodeIDE, audité @ `04a65ea`, v0.105.0).
-> **Objet** : tirer parti du lot « actions de code au point d'invocation »
-> livré dans `code-editor` 3.50.0/3.50.1 et de ses finitions 3.51.0/3.51.1
-> (branches `agent/actions-lsp-3.50.0` puis `agent/actions-lsp-fin-3.51.0`,
-> 17 commits au total, 1 429 tests verts, garde-fous verts).
+> **Objet** : tirer parti du lot « actions de code au point
+> d'invocation » livré dans `code-editor` 3.50.0/3.50.1 et ses finitions
+> 3.51.0/3.51.1, PUIS du lot « édition tactile et contexte visuel »
+> livré en cinq jalons 3.52.0 → 3.56.0 (popup de diagnostic au tap,
+> SPI d'actions de la pill, sticky interactif, inlays typés, loupe
+> instrument, en-têtes enrichis, i18n).
 > **Ce document est la copie de référence archivée dans le dépôt** : il
 > résume le comportement attendu et les changements côté CodeIDE. Les
 > identifiants de commits sont ceux du dépôt du propriétaire, cités à
@@ -13,39 +15,87 @@
 
 ---
 
-## 0. Ce que le lot 3.50.x → 3.51.x change pour le serveur LSP Java de CodeIDE
+## 0. Résumé express — deux lots, un seul changement requis
 
-`code-editor` est le CLIENT ; `lsp/java` de CodeIDE est le SERVEUR. Le lot
-corrige le pont client qui **vidait structurellement les réponses** du
-serveur. Concrètement, après la montée de version :
+| Lot | Versions | Thème | Ce que CodeIDE y gagne |
+|---|---|---|---|
+| Actions de code | 3.50.0 → 3.51.1 | Le pont client ne vide plus les réponses LSP | Quick-fixes réels au caret, ampoule dès publication, trigger « . », Unnecessary grisé |
+| Tactile & contexte | 3.52.0 → 3.56.0 | Le dernier geste naturel est câblé | Tap sur le squiggle → popup ancré, pill extensible (SPI + actions socle), sticky interactif, inlays typés + tooltips, loupe réglable, en-tête de diagnostic enrichi (code/source), libellés traduisibles |
 
-| Côté serveur (CodeIDE, déjà en place, inchangé) | Côté client (code-editor 3.51.x, réparé) |
-|---|---|
-| `DiagnosticService`/`JavaTextDocumentService` publient des diagnostics avec `code` (« ecj:<ID> »), `data` (arguments du compilateur), `source` | Le contexte `textDocument/codeAction` retransmet les diagnostics TELS QUELS (code + data + source + tags + sévérité), filtrés par intersection avec la plage demandée |
-| `CodeActionService.actionsFor` rend vide si `diagnostic.code() == null` (l. 79) | Le code arrive → les quick-fixes réels (import du bon FQN, try-catch, cast, création de méthode, point-virgule, suppression d'import inutilisé) arrivent enfin à l'écran |
-| `codeAction` répond des `CodeAction` avec `WorkspaceEdit` complet | L'edit est capturé et appliqué à l'acceptation (voie confinée, tout-ou-rien, atomique — inchangée) |
-| Le serveur ne pousse pas `workspace/applyEdit` ni de commandes | Ces voies sont désormais implémentées côté client (aucune action serveur requise — elles sont simplement prêtes) |
-| `renameProvider = true` (booléen) | Le client n'appelle `prepareRename` QUE si le serveur l'annonce (voir §3 — amélioration recommandée) |
-| `completionProvider` annonce ses caractères déclencheurs (« . ») | (3.51.x) Le `CompletionContext` transporte le triggerKind RÉEL : `TriggerCharacter` + le caractère quand la complétion part de la frappe d'un « . », `Invoked` sinon |
-| L'action « Organiser les imports » répond à `only = ["source.organizeImports"]` pour toute plage | (3.51.x) UNE requête par document avec le `only` — entrée « Organize imports » dans le menu contextuel de l'éditeur |
-| Diagnostics avec `tags = [Unnecessary]` (import mort) et/ou sans sévérité | (3.51.x) Le tag est transporté : la plage est peinte ESTOMPÉE (grisé Android Studio) au lieu du soulignement ; sévérité absente → Information (plus de jaune injustifié) |
-
-Le modèle d'invocation change aussi côté éditeur : **une seule requête
-`codeAction` au point d'invocation** (caret/sélection/mot), au lieu d'une
-requête par ligne visible toutes les 800 ms — la charge sur le moteur ECJ
-tombe d'environ ×60 à ×1 par demande d'utilisateur, et l'ampoule de
-gouttière apparaît dès la publication des diagnostics (plus de fenêtre de
-debounce), y compris après défilement.
+**Un seul changement est indispensable** : monter la version dans
+`gradle/libs.versions.toml` (§2). Tout le reste est additif — les
+surfaces que CodeIDE touche (`LspProject`, `addServerDefinition`,
+`createEditor`, `setEditorView`, `setCurrentFilePath`, `connect`,
+`disconnect`, `shutdown`, `setLogSink`, `sendDidChangeConfiguration`)
+sont inchangées ; les ajouts sont des méthodes par défaut, des
+surcharges ou des constructeurs étendus déléguant à l'existant.
 
 ---
 
-## 1. Changement REQUIS — montée de version de la dépendance
+## 1. Le lot tactile 3.52.0 → 3.56.0 — ce qui change pour CodeIDE
 
-**Un seul changement est indispensable pour bénéficier du lot :**
+`code-editor` est le CLIENT ; `lsp/java` de CodeIDE est le SERVEUR. Le
+lot tactile travaille presque entièrement côté client (rendu, gestes,
+chrome) ; **un seul point touche le contrat serveur : le champ
+`source` des diagnostics (§1.1)**.
+
+### 1.1 D4 (3.56.0) — l'en-tête des diagnostics s'enrichit : `code` et `source` enfin affichés
+
+Avant 3.56.0, le `code` (« ecj:ID ») publié par `DiagnosticService`/
+`JavaTextDocumentService` **mourait au pont client** (non transporté au
+modèle interne), et le `source` LSP n'était même pas lu. Depuis :
+
+| Côté serveur (CodeIDE) | Côté client (code-editor 3.56.0, réparé) |
+|---|---|
+| `code` : déjà envoyé (l. 705+) | Transporté jusqu'au rendu ET conservé par le décalage incrémental après édition |
+| `source` : champ LSP optionnel — **non rempli par CodeIDE aujourd'hui** | Désormais lu (`lspDiag.getSource()`) et affiché dans l'en-tête |
+
+L'en-tête du popup ancré (tap sur le squiggle) et de la fiche basse
+affiche : `Error · ecj:67 · java · 3:9 · ×2` — sévérité, code, source,
+ligne/colonne 1-based, badge de comptage des diagnostics partageant la
+plage.
+
+**Recommandé côté serveur (§4.2)** : renseigner `source` (ex. `"java"`)
+dans les diagnostics publiés — sans cela, l'en-tête reste correct mais
+amputé du nom du moteur. Le `code` existe déjà : il s'affichera seul,
+sans rien faire.
+
+### 1.2 Ce qui arrive automatiquement après la montée de version (zéro action)
+
+- **D1 (3.52.0)** — tap au cœur d'un squiggle → **popup ancré au mot**,
+  non modal, quick-fixes résolus à l'ouverture, « See all » vers la
+  fiche basse existante ; re-tap = caret (parité), bords ±1 = caret
+  direct ; multi-diagnostics sur l'offset → mini-liste ancrée.
+- **UX-1/2/3 (3.54.0)** — un seul « ⋯ » sur la pill (menu unifié) ;
+  **auto-scroll directionnel pendant le drag de sélection** (le doigt
+  tenu dans la zone de bord fait défiler le document) ; popup de
+  diagnostic resserré sur son contenu.
+- **S1/S2 (3.53.0)** — lignes sticky stylées (pipeline complet, plus de
+  résumé gris) et détection mémoïsée par révision (plus de creux de
+  fluidité sur fichier long).
+- **M1 (3.53.0)** — la loupe de drag montre la **bande de sélection, le
+  squiggle et le caret** (instrument de réglage au caractère près).
+- **I1/I2 (3.54.0)** — inlays typés au rendu (paramètres italiques
+  pâles, types droits — `kind` du hint porté jusqu'au rendu) ;
+  **appui long sur un hint → tooltip** (quick doc, resolve paresseux
+  au premier appui).
+- **S3/S4 (3.55.0)** — tap sur une rangée collée → la ligne d'origine
+  est centrée ; plafond sticky configurable (§4.4).
+- **T2/D3 (3.55.0)** — actions socle disponibles (§4.3) ; appui long
+  sur un squiggle → message copié au presse-papiers.
+- **T4 (3.56.0)** — la pill suit la borne **en cours de drag** (tirer
+  la poignée gauche n'envoie plus la pill à l'opposé du doigt).
+- **M2 (3.56.0)** — `setMagnifierZoom(float)` ×1.5–×3 (§4.5).
+- **D2, T3 (3.56.0)** — interne (factorisation de géométrie) et
+  i18n (§4.6).
+
+---
+
+## 2. Changement REQUIS — montée de version de la dépendance
 
 ```toml
 # gradle/libs.versions.toml (CodeIDE) — ligne ~52
-code-editor = "3.51.1"     # était "3.49.2"
+code-editor = "3.56.0"     # était "3.49.2" (audit) / "3.51.1" (guide précédent)
 ```
 
 Les deux modules consommateurs ne changent pas (ils suivent le
@@ -54,158 +104,156 @@ Les deux modules consommateurs ne changent pas (ils suivent le
 - `lsp/host/build.gradle.kts:62` → `api(libs.codeeditor.lsp)`
 - `feature/editor/build.gradle.kts:14` → `implementation(libs.codeeditor.ui)`
 
-**Compatibilité API : vérifiée additive** — les surfaces que CodeIDE
-touche (`LspProject(root)`, `addServerDefinition`, `createEditor`,
-`setEditorView`, `setCurrentFilePath`, `connect()`, `disconnect()`,
-`shutdown()`, `setLogSink`, `sendDidChangeConfiguration`) sont inchangées.
-Les ajouts du lot sont tous des méthodes par défaut, des surcharges ou
-des constructeurs étendus déléguant à l'existant.
+**Compatibilité API : vérifiée additive sur toute la plage
+3.51.1 → 3.56.0** (aucune rupture binaire : nouveaux champs du modèle
+diagnostic via constructeurs étendus, les constructeurs historiques
+délèguent avec défaut vide).
 
-### Prérequis — le tag `v3.51.1` est publié et vert (2026-10-13)
+### Publication vérifiée (2026-10-13)
 
-> **Note de re-publication** : le build JitPack de `v3.51.0` a été frappé
-> par le même incident d'infrastructure que `v3.50.0` (HTTP 429 Maven
-> Central, côté JitPack — échec en résolution de dépendances, aucune
-> erreur de code) et sa clé est restée en erreur sans artefact servi ;
-> le contenu a été re-publié sous `3.51.1` (commit `7a1d9de` = `554ca26`
-> + bump). **Consommer 3.51.1** — jamais `3.50.0`/`3.51.0` (JitPack) ;
-> ces deux versions restent servies sur GitHub Packages uniquement.
-> Historique : `3.50.0` (échec 429) re-publiée en `3.50.1` ; le lot
-> complet de finitions P2-9/P2-10/P2-11 est identique en 3.51.0 et
-> 3.51.1.
+- `main` @ `edb37fe` poussé (merge J5) ; tag **`v3.56.0`** posé sur le
+  commit de version `0a47a5c`.
+- CI verte sur les deux workflows (merge + tag) — runs
+  `38325969517` / `38325969869`, conclusion `success`.
+- **JitPack `v3.56.0` : « ok »** — 4 modules (cel-core, cel-lsp-api,
+  cel-lsp, cel-ui), POM vérifiés servis (HTTP 200) :
+  `https://jitpack.io/com/github/jjoblab/code-editor/cel-ui/v3.56.0/`
+- Règle inchangée : **ne jamais consommer** `3.50.0`/`3.51.0` via
+  JitPack (incident 429 historique — servies sur GitHub Packages
+  uniquement) ; 3.51.1 et 3.52.0+ sont saines sur JitPack.
 
-Publié et vérifié (rien n'est attendu côté code-editor) : `main` @
-`7a1d9de` poussé ; CI verte sur les deux commits de la livraison ; GitHub
-Packages `3.51.0` et `3.51.1` publiées par le workflow de tag ; **JitPack
-`v3.51.1` : « ok »** — 4 modules (cel-core, cel-lsp-api, cel-lsp,
-cel-ui), POM et AAR vérifiés servis (HTTP 200, 2026-10-13) :
-`https://jitpack.io/com/github/jjoblab/code-editor/cel-lsp/v3.51.1/`
-
-L'étape restante (côté CodeIDE) est unique : monter la version dans
-`libs.versions.toml` et compiler.
-
-Coordonnées complètes : `com.github.jjoblab.code-editor:cel-ui:3.51.1` et
-`com.github.jjoblab.code-editor:cel-lsp:3.51.1`.
+Coordonnées : `com.github.jjoblab.code-editor:cel-ui:3.56.0` et
+`com.github.jjoblab.code-editor:cel-lsp:3.56.0`.
 
 ---
 
-## 2. Ce qui n'exige RIEN côté CodeIDE (vérifié sur le code du serveur)
+## 3. Ce qui n'exige RIEN côté CodeIDE (vérifié sur le code du serveur)
 
-- **Quick-fixes** : `JavaTextDocumentService.codeAction` lit
-  `lspDiag.getCode()` (l. 705) et `lspDiag.getData()` (l. 719) — le client
-  les transporte ; `extractDiagnosticArgs` accepte déjà le `JsonElement`
-  qu'ils deviennent après le round-trip JSON-RPC (l. 1917+).
-- **`context.only = null`** (popup au caret) : `wantsQuickFix` et
-  `wantsOrganizeImports` restent vrais (l. 643-652) ; « Organiser les
-  imports » apparaît UNE fois dans le popup au caret.
-- **`context.only = ["source.organizeImports"]`** (3.51.x, menu
-  contextuel « Organize imports ») : le serveur répond l'action pour toute
-  plage — UNE requête par document, plus de sondage multi-lignes.
-- **Trigger kind de complétion** (3.51.0) : le serveur reçoit
-  `TriggerCharacter` + « . » après la frappe d'un point (les propositions
-  de membres n'ont plus à être devinées), `Invoked` sinon — si le serveur
-  lit le contexte, il peut affiner ; sinon, aucun changement.
-- **Sévérité/plage/tags** : le round-trip est identitaire (l'objet brut est
-  retransmis) ; le tag `Unnecessary` devient peinture estompée côté client.
-- **`workspace/applyEdit` / `workspace/executeCommand` / `codeAction/resolve`** :
-  implémentés côté client, le serveur ne les utilise pas — aucun
-  changement requis, aucune régression possible.
-- **Diagnostics `data`-support / tags** : le client déclare
-  `publishDiagnostics.dataSupport/tagSupport/codeDescriptionSupport` —
-  purement déclaratif, le serveur continue d'envoyer ce qu'il envoyait.
+- **Quick-fixes / codeAction / trigger kind / tags** : tout le §2 du
+  guide précédent reste vrai (pont réparé en 3.51.x, inchangé depuis).
+- **Tooltips d'inlays (I2)** : le resolve est paresseux côté client ;
+  le serveur n'est sollicité que si le provider le demande — les hints
+  internes de CodeIDE fonctionnent sans changement.
+- **Sticky lines** : la détection est interne au client (tables par
+  langage) ; `isBlockHeaderLine` (S5, délégation SPI langue) n'est PAS
+  encore livré — rien à prévoir.
+- **Loupe native / zoom** : réglages clients purs (§4.5), aucun appel
+  serveur.
+- **En-tête enrichi (D4)** : le `code` déjà publié s'affiche seul ; le
+  badge ×N et la ligne/colonne sont calculés côté client.
 
 ---
 
-## 3. Améliorations RECOMMANDÉES côté CodeIDE (optionnelles)
+## 4. Améliorations RECOMMANDÉES côté CodeIDE (optionnelles)
 
-### 3.1 `prepareRename` côté serveur
+### 4.1 `prepareRename` côté serveur (inchangé depuis le guide 3.51.1)
 
-Le popup de renommage de l'éditeur CONSOMME désormais
-`textDocument/prepareRename` quand le serveur l'annonce : champ pré-rempli
-par le nom proposé, refus propre quand le caret n'est pas sur un
-identifiant renommable (plus d'attente de 10 s avant l'échec).
+Le popup de renommage consomme `textDocument/prepareRename` quand le
+serveur l'annonce : champ pré-rempli, refus propre hors identifiant.
+Annoncer via `RenameOptions.setPrepareProvider(true)` dans
+`ServerCapabilitiesProvider` (l. 94) et implémenter
+`prepareRename(PrepareRenameParams)` borné 3 s sur la lane ANALYSIS.
+Sans cela : repli local sur le mot sous le caret — aucun blocage.
 
-1. **Annoncer** — `lsp/java/src/main/java/jo/lspjava/lsp/ServerCapabilitiesProvider.java`
-   (l. 94, remplacer le booléen) :
+### 4.2 D4 — renseigner `source` dans les diagnostics publiés
 
-   ```java
-   // Avant : caps.setRenameProvider(true);
-   org.eclipse.lsp4j.RenameOptions renameOptions = new org.eclipse.lsp4j.RenameOptions();
-   renameOptions.setPrepareProvider(true);
-   caps.setRenameProvider(org.eclipse.lsp4j.jsonrpc.messages.Either.forRight(renameOptions));
-   ```
+`DiagnosticService`/`JavaTextDocumentService` : ajouter
+`diag.setSource("java")` (nom du moteur/inspection) à la publication.
+Cinq lignes ; l'en-tête du popup et de la fiche affichera alors
+`Error · ecj:67 · java · 3:9` au lieu de `Error · ecj:67 · 3:9`.
+Le `code` (« ecj:ID ») existe déjà côté CodeIDE — il s'affiche dès la
+montée de version, sans rien faire.
 
-2. **Implémenter** — `JavaTextDocumentService` : ajouter la méthode
-   `prepareRename(PrepareRenameParams)` qui retourne
-   `Either3.forSecond(new PrepareRenameResult(range, placeholder))` où
-   `range`/`placeholder` viennent de `EcjRenameEngine` (le symbole sous le
-   caret : identifiant ? plage + texte ; mot-clé/littéral → `null` pour
-   refuser proprement). Borné (3 s), lane ANALYSIS du
-   `EcjEngineScheduler` comme les autres tirs.
+### 4.3 Consommer les actions socle de la pill (T2, 3.55.0)
 
-Sans ce changement, le renommage fonctionne exactement comme avant
-(repli local sur le mot sous le caret) — aucun blocage.
+Quatre lignes dans l'éditeur CodeIDE donnent à la pill
+Duplicate / Comment / Share + conversion de casse — livrées via le
+MÊME SPI que les actions d'hôte :
 
-### 3.2 Consommer les nouvelles API d'hôte (3.51.x)
+```java
+editorView.addSelectionAction(BuiltinSelectionActions.duplicate(editorView));
+editorView.addSelectionAction(BuiltinSelectionActions.toggleComment(editorView));
+editorView.addSelectionAction(BuiltinSelectionActions.convertCase(
+        editorView, BuiltinSelectionActions.CaseMode.TOGGLE));
+// Share est OPT-IN (ACTION_SEND) — à n'installer que si CodeIDE le veut :
+// editorView.addSelectionAction(BuiltinSelectionActions.share(editorView));
+```
 
-- **`EditorView.performFixAll(callback)`** — exécute l'action
-  `source.fixAll` du serveur (UNE requête par document, application
-  locale). Utile le jour où `CodeActionService` propose un fix-all ;
-  aujourd'hui le callback reçoit FALSE (aucun serveur ne la propose).
-- **`setOnDiagnosticsPublishedListener`** — le listener est désormais
-  notifié aussi pour les publications **LSP** (avant : voie locale
-  seulement) : l'onglet Problèmes du lot h3 peut s'y brancher, les
-  diagnostics arrivent à chaque publication du serveur, avec la
-  conversion sévérité/tags déjà faite.
+`Comment` utilise `CommentSyntax.forLanguage` (JSON estompé) ; chaque
+action est retirable par identifiant (`removeSelectionAction`). CodeIDE
+peut AUSSI injecter ses propres actions (recherche projet, actions
+Git…) via `addSelectionAction(new SelectionAction(id, label, run,
+enabledSupplier))` — le débordement alimente la section « MORE » du
+menu unifié.
+
+### 4.4 Sticky : plafond selon la classe d'appareil (S4, 3.55.0)
+
+`setStickyMaxLines(int)` (1-5, défaut 2 = classe + méthode) : 3-4 est
+tenable sur tablette — CodeIDE peut lire la densité/sw600dp et
+positionner la valeur à la création de l'éditeur.
+
+### 4.5 Loupe : zoom de lecture + opt-in natif (M2/M3, 3.56.0)
+
+- `setMagnifierZoom(float)` (×1.5–×3, défaut ×2) — accessibilité
+  lecture, la bulle grossit au facteur choisi.
+- `setNativeMagnifierEnabled(true)` (API 28+) — la bulle devient le
+  widget plateforme : rendu de la VRAIE frame (fidélité maximale,
+  style système non maîtrisé). Décision propriétaire notée lot 1 :
+  custom par défaut — l'opt-in reste un choix explicite de CodeIDE.
+
+### 4.6 Traduire l'éditeur (T3, 3.56.0)
+
+Les 20 libellés canoniques de cel-ui vivent désormais en ressources
+(préfixe `cel_` : `cel_sel_copy`, `cel_diag_error`,
+`cel_diag_quick_fixes`, `cel_nav_goto`…, défauts anglais identiques).
+**CodeIDE est francophone** : redéclarer les mêmes noms dans
+`app/src/main/res/values-fr/strings.xml` traduit la pill, le menu
+contextuel, le NavMenu et les diagnostics de l'éditeur — la résolution
+Android priorise la ressource de l'application. Liste complète :
+`editor/cel-ui/src/main/res/values/strings.xml` du dépôt code-editor
+v3.56.0.
 
 ---
 
-## 4. Protocole de vérification sur appareil (après montée de version)
+## 5. Protocole de vérification sur appareil (après montée de version)
 
-Reprendre le protocole « LSP branché » existant, avec les épreuves
-directes ajoutées :
+Reprendre le protocole « LSP branché » (guide 3.51.1, §4, inchangé) et
+ajouter les épreuves du lot tactile :
 
-1. Ouvrir un projet Java ; attendre la barre d'indexation verte.
-2. **Ouvrir un fichier avec une erreur intentionnelle** (ex. référence non
-   résolue `Foo bar;` sans import) : l'ampoule de gouttière apparaît
-   DÈS la publication des diagnostics — y compris après un défilement ;
-   le point de diagnostic de la gouttière est présent.
-3. **Tap sur l'ampoule** (ou `Ctrl+.` / `Ctrl+Shift+L` au caret sur
-   l'erreur) : le popup liste les quick-fixes RÉELS du serveur
-   (« Importer Foo (java.util) », etc.) — corrections (engrenage) en
-   tête, refactorings/source ensuite.
-4. **Choisir un fix** : l'édition s'applique (import inséré), UN SEUL
-   undo restaure l'état exact.
-5. Journal : `codeAction: requesting for range …` UNE ligne par
-   invocation (plus de rafale par ligne visible) ;
-   `codeAction: got N actions`.
-6. Menu « Actions ⋯ » de la toolbar de sélection : sections QUICK
-   FIXES/INTENTIONS peuplées (résolution à la demande à l'ouverture).
-7. **(3.51.0) Import inutilisé** : ouvrir un fichier avec un import mort
-   — si le serveur l'envoie avec `tags: [1]`, la plage est GRISÉE
-   (estompée), pas soulignée en jaune.
-8. **(3.51.0) Menu contextuel** (clic secondaire / appui long selon
-   l'appareil) : entrée « Organize imports » quand le serveur LSP est
-   branché — un tap déclenche UNE requête `only=["source.organizeImports"]`
-   et applique la réorganisation (journal : une seule ligne
-   `codeAction: requesting`).
-9. **(3.51.0) Complétion** : taper `foo.` — le journal client affiche
-   `completion: requesting at caret=… trigger=.` (et non `invoked`) ;
-   les propositions de membres arrivent.
-10. Renommage (avant §3.1) : comportement inchangé ; (après §3.1) : champ
-    pré-rempli + refus immédiat sur mot-clé.
+1. **Popup au tap** : ouvrir un fichier avec une erreur intentionnelle
+   (`Foo bar;` sans import) → **tap au cœur du mot souligné rouge** :
+   popup ancré AU-DESSUS du mot, non modal (tap ailleurs ferme), en-tête
+   `Error · ecj:<ID> · 3:9` (le code apparaît sans rien faire côté
+   serveur ; `java` s'y ajoute après §4.2), bouton de quick-fix, « See
+   all » → fiche basse. Re-tap sur la même plage → le caret se pose.
+2. **Pill qui suit le geste (T4)** : double-tap un mot, attraper la
+   poignée GAUCHE et tirer vers la gauche → la pill suit la borne du
+   doigt (plus de paradoxe « pill part à droite »).
+3. **Auto-scroll (UX-2)** : drag de sélection maintenu dans le bord
+   bas/haut → le document défile dans la direction de la pénétration.
+4. **Loupe instrument (M1) + zoom (M2)** : tirer lentement la poignée
+   de caret → la bulle montre bande/squiggle/caret ; régler le zoom
+   (menu démo : ×1,5 → ×3) et vérifier le grossissement.
+5. **Sticky interactif (S3/S4)** : scroller un long fichier Java →
+   en-têtes colorés collés ; tap sur une rangée collée → centrage de la
+   ligne d'origine.
+6. **Inlays typés (I1) + tooltip (I2)** : paramètres en italique pâle,
+   types droits ; appui long sur un hint → tooltip/quick doc.
+7. **Appui long sur squiggle (D3)** : le message part au
+   presse-papiers (coller ailleurs pour vérifier).
+8. **Journal** : `codeAction: requesting for range …` UNE ligne par
+   invocation (inchangé depuis 3.51.x).
 
-## 5. Pistes suivantes (optionnelles, hors périmètre de cette mise à jour)
+---
 
-- **Onglet Problèmes** (feuille des diagnostics du document) : le pont
-  `setOnDiagnosticsPublishedListener` est désormais vivant pour les
-  publications LSP — lot h3 côté CodeIDE.
-- **Navigation inter-fichiers côté hôte** (`setOnNavigateToFileListener`)
-  et **source décompilée** — gestes d'activité, pas de vue.
-- **Couverture de `CodeActionService`** : familles de problèmes non
-  couvertes (`default ->` du dispatch) — moteur, pas client.
-- **`codeAction/resolve` serveur** : inutile tant que les edits partent
-  complets ; utile si un jour les candidats deviennent nombreux (l'éditeur
-  résout à l'application quand `resolveProvider` est annoncé).
-- **`source.fixAll` serveur** : l'API client `performFixAll` est prête —
-  il suffit de répondre l'action quand `only=["source.fixAll"]` arrive.
+## 6. Pistes suivantes (optionnelles, hors périmètre de cette mise à jour)
+
+- **Onglet Problèmes** : `setOnDiagnosticsPublishedListener` est vivant
+  pour les publications LSP — lot h3 côté CodeIDE (inchangé).
+- **S5 (détection sticky par SPI langue)** : non livré — permettra à
+  CodeIDE de déclarer ses propres en-têtes collés quand il sortira.
+- **I3-I5 (labelParts, inlays cliquables, plage visible)** : non
+  livrés — serviront les serveurs riches.
+- **`source.fixAll` serveur** : l'API client `performFixAll` est prête
+  (depuis 3.51.x) — répondre l'action quand `only=["source.fixAll"]`
+  arrive.
