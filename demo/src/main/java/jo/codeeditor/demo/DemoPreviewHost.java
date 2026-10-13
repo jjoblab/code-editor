@@ -45,6 +45,19 @@ import java.util.regex.Pattern;
  *   <li><b>Scroll préservé</b> : le rechargement débouncé pendant la frappe
  *       ne remonte plus la feuille en haut à chaque 200 ms.</li>
  * </ul>
+ *
+ * <p><b>Moteur v4 (B8, retour terrain n°5)</b> — le « fit » du mode PLEIN et
+ * le zoom :</p>
+ * <ul>
+ *   <li><b>Re-rendre au changement de taille</b> ({@code onPreviewModeChanged})
+ *       : scindé → plein recharge le payload, sinon le WebView gardait
+ *       l'échelle de l'ancienne largeur (« le zoom est trop, pas fit ») ;</li>
+ *   <li><b>Pincement actif</b> : contrôles de zoom intégrés sans boutons —
+ *       la page se zoome/dézoome au doigt ;</li>
+ *   <li><b>Contexte réel</b> : le WebView naît du contexte de l'ÉDITEUR (le
+ *       contexte applicatif peut porter des DisplayMetrics étrangères à
+ *       l'affichage courant).</li>
+ * </ul>
  */
 public class DemoPreviewHost implements EditorPreviewHost {
 
@@ -52,6 +65,11 @@ public class DemoPreviewHost implements EditorPreviewHost {
     /** Dernier nom vu via {@link #canPreview} / {@link #onCreatePreviewView} —
      *  pilote le choix HTML brut vs conversion Markdown. */
     private String currentFileName = "";
+    /** Dernier contenu vu — sert au re-rendre « fit » quand la feuille
+     *  change de taille (B8 : scindé ↔ plein). */
+    private CharSequence lastText = null;
+    /** Compteur de chargements (observable par le harnais de test). */
+    int reloadCount = 0;
 
     @Override
     public boolean canPreview(String fileName) {
@@ -66,12 +84,21 @@ public class DemoPreviewHost implements EditorPreviewHost {
     @Override
     public void onPreviewModeChanged(EditorView.PreviewMode mode,
             int previewLeft, int previewWidth) {
-        // La feuille popup de la bibliothèque gère sa surface ; le WebView
-        // vit dans son corps (onCreatePreviewView).
+        // B8 (retour terrain n°5) : la feuille vient de changer de taille
+        // (scindé ↔ plein via le segmented control, ou resize d'activité).
+        // Le WebView gardait ALORS son échelle et sa mise en page de
+        // l'ANCIENNE largeur — « le zoom est trop, pas fit ». On recharge
+        // le payload : overview mode ré-ajuste la page à la NOUVELLE
+        // largeur (scroll de lecture préservé par loadInto).
+        if (webView != null && lastText != null
+                && mode != EditorView.PreviewMode.NONE) {
+            loadInto(webView, lastText);
+        }
     }
 
     @Override
     public void onPreviewContentChanged(CharSequence text) {
+        lastText = text;
         if (webView != null) {
             loadInto(webView, text);
         }
@@ -97,12 +124,23 @@ public class DemoPreviewHost implements EditorPreviewHost {
     public View onCreatePreviewView(Context ctx, EditorView editor,
             EditorView.PreviewMode mode) {
         if (webView == null) {
-            webView = new WebView(ctx.getApplicationContext());
+            // B8 : contexte RÉEL de l'éditeur (pas ApplicationContext) — le
+            // WebView calcule sa densité/son échelle initiale sur les
+            // DisplayMetrics de SON contexte ; le contexte applicatif peut
+            // porter des métriques périmées ou étrangères à l'affichage
+            // courant (multi-fenêtre, densité modifiée) → « zoom trop ».
+            // L'hôte meurt avec l'éditeur qui le porte : aucune fuite.
+            webView = new WebView(ctx);
             webView.getSettings().setJavaScriptEnabled(false);
             // B7 « fit » : verrouille le zoom de texte — le WebView suit
             // sinon l'échelle de police SYSTÈME et un appareil réglé
             // « grand » gonflait la prose hors de la feuille.
             webView.getSettings().setTextZoom(100);
+            // B8 (retour terrain n°5) : le pincement zoome/dézoome la page
+            // (« je ne peux pas zoom ou dezoomer ») — contrôles intégrés
+            // SANS les boutons +/- qui polluent la carte flottante.
+            webView.getSettings().setBuiltInZoomControls(true);
+            webView.getSettings().setDisplayZoomControls(false);
             // B7 « fit » : la page s'ouvre ajustée à la largeur réelle de
             // la feuille (pas à une largeur fantôme puis dézoomée).
             webView.getSettings().setLoadWithOverviewMode(true);
@@ -114,7 +152,9 @@ public class DemoPreviewHost implements EditorPreviewHost {
         String name = editor.getFileName();
         if (name != null) currentFileName = name;
         if (editor.getSession() != null) {
-            loadInto(webView, editor.getSession().getText());
+            CharSequence text = editor.getSession().getText();
+            lastText = text;
+            loadInto(webView, text);
         }
         return webView;
     }
@@ -130,6 +170,7 @@ public class DemoPreviewHost implements EditorPreviewHost {
         final int saveY = target.getScrollY();
         target.loadDataWithBaseURL(null, payloadFor(currentFileName, text),
                 "text/html", "utf-8", null);
+        reloadCount++;
         if (saveX != 0 || saveY != 0) {
             target.post(() -> target.scrollTo(saveX, saveY));
         }

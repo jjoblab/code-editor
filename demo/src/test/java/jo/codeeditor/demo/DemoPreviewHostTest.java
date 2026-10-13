@@ -225,4 +225,97 @@ public class DemoPreviewHostTest {
         assertFalse("pas de JavaScript dans l'aperçu",
                 settings.getJavaScriptEnabled());
     }
+
+    // ════════════════════════════════════════════════════════════════
+    // B8 (retour terrain n°5) — « preview en full : le zoom est trop, pas
+    // fit, je ne peux pas zoom ou dezoomer ».
+    // ════════════════════════════════════════════════════════════════
+
+    @Test
+    public void webviewCree_pincementZoomActifSansBoutons() {
+        // « je ne peux pas zoom ou dezoomer » : les contrôles de zoom
+        // intégrés étaient désactivés (défaut Android) — le pincement ne
+        // faisait RIEN dans la feuille d'aperçu.
+        org.robolectric.RuntimeEnvironment.getApplication();
+        DemoPreviewHost host = new DemoPreviewHost();
+        android.content.Context ctx =
+                org.robolectric.RuntimeEnvironment.getApplication();
+        jo.codeeditor.view.EditorView editor =
+                new jo.codeeditor.view.EditorView(ctx);
+        android.view.View body = host.onCreatePreviewView(
+                ctx, editor, jo.codeeditor.view.EditorView.PreviewMode.SHEET_SPLIT);
+        android.webkit.WebSettings settings = ((android.webkit.WebView) body).getSettings();
+        assertTrue("contrôles de zoom intégrés ACTIFS (pincement)",
+                settings.getBuiltInZoomControls());
+        assertFalse("sans les boutons +/- qui polluent la carte flottante",
+                settings.getDisplayZoomControls());
+    }
+
+    @Test
+    public void changementDeTaille_rechargeLePayload_pourReAjuster() {
+        // « n'est toujours pas fit » en plein : scindé → plein, le WebView
+        // gardait l'échelle de l'ANCIENNE largeur. B8 : onPreviewModeChanged
+        // (appelé par la bascule du segmented control ET le resize) recharge
+        // le payload — overview mode ré-ajuste à la nouvelle largeur.
+        org.robolectric.RuntimeEnvironment.getApplication();
+        DemoPreviewHost host = new DemoPreviewHost();
+        android.content.Context ctx =
+                org.robolectric.RuntimeEnvironment.getApplication();
+        jo.codeeditor.view.EditorView editor =
+                new jo.codeeditor.view.EditorView(ctx);
+        editor.setSession(new jo.codeeditor.session.EditorSession(
+                jo.codeeditor.document.EditorDocument.of("# Titre\n")));
+        host.canPreview("exemple.md");
+
+        // Ouverture initiale : le contenu est chargé une première fois.
+        host.onCreatePreviewView(ctx, editor,
+                jo.codeeditor.view.EditorView.PreviewMode.SHEET_SPLIT);
+        int afterOpen = host.reloadCount;
+
+        // Bascule scindé → plein (la feuille vient d'être agrandie).
+        host.onPreviewModeChanged(jo.codeeditor.view.EditorView.PreviewMode.SHEET_FULL,
+                0, 1080);
+        assertEquals("la bascule de taille recharge le payload (re-fit)",
+                afterOpen + 1, host.reloadCount);
+
+        // Retour plein → scindé : idem (rétrécissement symétrique).
+        host.onPreviewModeChanged(jo.codeeditor.view.EditorView.PreviewMode.SHEET_SPLIT,
+                540, 540);
+        assertEquals("le retour en scindé recharge aussi",
+                afterOpen + 2, host.reloadCount);
+
+        // Fermeture (mode NONE) : aucun rechargement inutile — la WebView
+        // vit encore (cache de l'hôte), on ne paie pas un reload fantôme.
+        host.onPreviewModeChanged(jo.codeeditor.view.EditorView.PreviewMode.NONE, 0, 0);
+        assertEquals("la fermeture ne recharge rien",
+                afterOpen + 2, host.reloadCount);
+    }
+
+    @Test
+    public void contenuAvantOuverture_premierChargementALouverture_puisReFitPossible() {
+        // L'éditeur pousse le contenu AVANT que la feuille n'existe
+        // (setPreviewMode → onPreviewContentChanged, la WebView n'est pas
+        // encore créée) : le dernier texte est retenu pour le re-fit.
+        org.robolectric.RuntimeEnvironment.getApplication();
+        DemoPreviewHost host = new DemoPreviewHost();
+        android.content.Context ctx =
+                org.robolectric.RuntimeEnvironment.getApplication();
+        jo.codeeditor.view.EditorView editor =
+                new jo.codeeditor.view.EditorView(ctx);
+        editor.setSession(new jo.codeeditor.session.EditorSession(
+                jo.codeeditor.document.EditorDocument.of("# Bonjour\n")));
+        host.canPreview("exemple.md");
+
+        // Contenu poussé SANS WebView vivante : rien ne charge encore…
+        host.onPreviewContentChanged("# Bonjour\n");
+        assertEquals("rien ne charge sans WebView", 0, host.reloadCount);
+        // …mais le texte est retenu : l'ouverture le charge,
+        host.onCreatePreviewView(ctx, editor,
+                jo.codeeditor.view.EditorView.PreviewMode.SHEET_FULL);
+        assertEquals("l'ouverture charge le contenu retenu", 1, host.reloadCount);
+        // …et le premier changement de taille peut re-fiter dessus.
+        host.onPreviewModeChanged(jo.codeeditor.view.EditorView.PreviewMode.SHEET_SPLIT,
+                540, 540);
+        assertEquals("le re-fit a bien un texte à re-rendre", 2, host.reloadCount);
+    }
 }
