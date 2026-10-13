@@ -260,14 +260,26 @@ public class BreadcrumbBar extends LinearLayout {
                 () -> editor.getSession() != null
                         && editor.getSession().getUndoManager().canUndo(),
                 v -> {
-                    if (editor.getSession() != null) editor.getSession().undo();
+                    if (editor.getSession() != null) {
+                        editor.getSession().undo();
+                        // B7 : même comptabilité que le raccourci clavier
+                        // (raccourcis Undo/Redo de EditorKeyHandler) —
+                        // l'annulation déplace le caret, referme les
+                        // popups et RÉACTIVE le bouton rétablir. Sans ce
+                        // passage, redo restait grisé après une annulation
+                        // (retour terrain n°4).
+                        editor.notifyTextChanged();
+                    }
                 });
         ActionButton redo = addIconAction(EditorIcons.Icon.REDO,
                 getContext().getString(jo.codeeditor.ui.R.string.cel_redo),
                 () -> editor.getSession() != null
                         && editor.getSession().getUndoManager().canRedo(),
                 v -> {
-                    if (editor.getSession() != null) editor.getSession().redo();
+                    if (editor.getSession() != null) {
+                        editor.getSession().redo();
+                        editor.notifyTextChanged();
+                    }
                 });
         ActionButton preview = addPreviewAction();
         return new ActionButton[]{undo, redo, preview};

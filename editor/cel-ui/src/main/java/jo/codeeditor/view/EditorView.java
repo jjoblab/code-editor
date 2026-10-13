@@ -2512,13 +2512,10 @@ public class EditorView extends View {
      */
     public void notifyTextChanged() {
         onTextChanged();
-        // Invalide le EditorBarTools parent pour que les états
-        // activé/désactivé des boutons undo/redo se mettent à jour après
-        // chaque édition.
-        EditorBarTools.invalidateButtonsIn(getParent());
-        // B5 : même rafraîchissement pour les actions de la barre de fil
-        // d'Ariane (annuler/rétablir/aperçu grisés ou non).
-        BreadcrumbBar.invalidateActionsIn(getParent());
+        // B7 : le rafraîchissement des actions de la barre de fil d'Ariane
+        // vit dans onTextChanged() — le chemin IME doit les rafraîchir au
+        // même titre qu'une édition programmatique (retour terrain : les
+        // boutons annuler/rétablir restaient grisés après la frappe).
     }
 
     /** Appelé par l'InputConnection après chaque édition pour rafraîchir
@@ -2571,6 +2568,13 @@ public class EditorView extends View {
         selectionToolbarPressedIdx = -1;
         handlesVisible = false;
         inputHandler.cancelPendingTapDismiss();
+        // B7 : rafraîchit les actions de la barre de fil d'Ariane sœur
+        // (annuler/rétablir/aperçu — états activé/visible/actif). Vit ICI
+        // et pas seulement dans notifyTextChanged() : le chemin IME
+        // (commitText → onTextChanged) est le chemin de frappe réel sur
+        // appareil — sans ceci, les boutons restaient grisés après une
+        // édition clavier (retour terrain n°4 : « ils ne font rien »).
+        BreadcrumbBar.invalidateActionsIn(getParent());
         invalidate();
     }
 

@@ -243,4 +243,60 @@ public class BreadcrumbBarModernTest {
         bar.clearActions();
         assertEquals("segments seuls", 1, bar.getChildCount());
     }
+
+    // ════════════════════════════════════════════════════════════════
+    // B7 (retour terrain n°4) — le câblage doit vivre SANS refresh
+    // manuel : le chemin IME (commitText → onTextChanged) et le clic
+    // des boutons eux-mêmes réactivent les états.
+    // ════════════════════════════════════════════════════════════════
+
+    /**
+     * B7 — le chemin IME réactive le bouton annuler. Avant le correctif,
+     * seule notifyTextChanged() (hook hôte) rafraîchissait la barre : la
+     * frappe réelle (EditorImeBridge.commitText → onTextChanged) laissait
+     * les boutons grisés — « ils ne font rien quand j'appuie ».
+     */
+    @Test
+    public void frappeIMEReactiveAnnulerSansRefreshManuel() {
+        EditorView editor = newEditor();
+        BreadcrumbBar bar = new BreadcrumbBar(RuntimeEnvironment.getApplication());
+        bar.bind(editor);
+        BreadcrumbBar.ActionButton[] buttons = bar.addEditorActions();
+        newHost(editor, bar); // sœurs dans le même parent — comme la démo
+        assertFalse("précondition : grisé sans historique", buttons[0].isEnabled());
+
+        // Chemin IME : la session mute, la vue est informée via
+        // onTextChanged() — AUCUN refreshActions() manuel.
+        editor.getSession().replaceRange(0, 0, "XYZ ");
+        editor.onTextChanged();
+
+        assertTrue("frappe clavier : annuler réactivé SANS refresh manuel",
+                buttons[0].isEnabled());
+    }
+
+    /**
+     * B7 — le clic sur annuler réactive rétablir immédiatement (comptabilité
+     * du raccourci clavier). Avant le correctif, redo restait grisé après
+     * une annulation au bouton.
+     */
+    @Test
+    public void clicAnnulerReactiveRetablirSansRefreshManuel() {
+        EditorView editor = newEditor();
+        BreadcrumbBar bar = new BreadcrumbBar(RuntimeEnvironment.getApplication());
+        bar.bind(editor);
+        BreadcrumbBar.ActionButton[] buttons = bar.addEditorActions();
+        newHost(editor, bar);
+
+        editor.getSession().replaceRange(0, 0, "XYZ ");
+        editor.onTextChanged(); // comme la frappe
+        assertTrue(buttons[0].isEnabled());
+
+        // Le clic standard annule ET rafraîchit les deux boutons.
+        buttons[0].performClick();
+        assertEquals("le clic a annulé l'édition",
+                "alpha beta\n", editor.getSession().getText());
+        assertFalse("plus rien à annuler après le clic", buttons[0].isEnabled());
+        assertTrue("rétablir réactivé PAR LE CLIC (pas de refresh manuel)",
+                buttons[1].isEnabled());
+    }
 }
