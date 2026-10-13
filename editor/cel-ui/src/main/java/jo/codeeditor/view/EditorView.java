@@ -1214,6 +1214,19 @@ public class EditorView extends View {
         // précédent ne laisse pas le viewport échoué.
         vOffset = 0;
         hOffset = 0;
+        // ★ B8 (retour terrain n°5) : le modèle de wrap décrit l'ANCIEN
+        // document — sans reconstruction, il survit au changement de
+        // session et WrapModel.topRow() clampe toute ligne au-delà de
+        // l'ANCIEN compte de lignes sur le MÊME total : toutes les lignes
+        // de queue se dessinent alors au même Y (« lignes empilées » en
+        // bas, d'autant plus visibles que le nouveau fichier est long).
+        // Même compte de lignes ≠ sauvetage : les rangées par ligne sont
+        // comptées sur les longueurs de l'ancien document. Sans session,
+        // le modèle meurt avec son document (parité setWordWrap(false)).
+        if (wordWrap) {
+            if (session != null) rebuildWrapModel();
+            else wrapModel = null;
+        }
         invalidate();
     }
 
