@@ -8,6 +8,7 @@
     <string name="menu_language_title">Choisir un langage</string>
     <string name="menu_reset">Réinitialiser l\u2019échantillon</string>
     <string name="menu_about">À propos</string>
+    <string name="menu_find">Rechercher dans le fichier</string>
 
     <!-- Plafond de lignes sticky (S4, lot 2) -->
     <string name="sticky_max_1">Max : 1 ligne</string>
