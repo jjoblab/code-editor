@@ -73,7 +73,17 @@
 > B9), tap = annulation, CANCEL/pincement/session = retombée
 > propre ; dépôt en UNE annulation (`EditorSession.moveRange`,
 > sélection ré-épinglée, sémantique caractère). 1 746 tests verts
-> (+17).
+> (+17). **Lot B14 (3.68.0)** : P1-5 de la feuille de route — pliage
+> sélectif par NIVEAU d'imbrication (« Replier au niveau N » :
+> profondeur EXACTE, 1 = classes, 2 = méthodes — les parents restent
+> ouverts, chaque région porte son état) + « tout replier / tout
+> déplier » (`collapseFoldsAtLevel`/`collapseAllFolds`/
+> `expandAllFolds`, retour compté, la révision de plis invalide
+> l'index mémoïsé de la vue sans re-pose de session) ; les marqueurs
+> de région tolèrent l'espace OU son absence (`#region` C#,
+> `//region` IntelliJ) et l'off-by-one du nom de région est corrigé.
+> 1 758 tests verts (+12) — la feuille de route P0/P1 de l'analyse
+> des écarts n°6 est ÉPUISÉE.
 > **Retour terrain n°6 (3.63.0)** : quatre irritants réglés à la
 > racine — B9a la « secousse » des lignes pendant le drag de sélection
 > (le recentrage du caret déclenché par CHAQUE application de
