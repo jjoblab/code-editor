@@ -1,7 +1,9 @@
 package jo.codeeditor.view.render;
 
 import jo.codeeditor.view.EditorView;
+import jo.codeeditor.view.icons.EditorIcons;
 import jo.codeeditor.view.popup.EditorPopupAnchors;
+import jo.codeeditor.view.preview.EditorPreviewController;
 import jo.codeeditor.view.preview.EditorPreviewHost;
 
 import androidx.annotation.RestrictTo;
@@ -43,6 +45,9 @@ public class EditorChromePainter {
     // Objet de travail réutilisable — évite les allocations par frame.
     // Usage mono-thread (uniquement depuis onDraw sur le thread UI).
     private final Path scratchPath = new Path();
+
+    // Paint dédié aux icônes d'aperçu du coin (B6 — moteur EditorIcons).
+    private final Paint iconPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 
     // Paint DÉDIÉ à la loupe. La loupe ne doit JAMAIS muter le textPaint
     // partagé du rendu principal (typeface, taille ni couleur) : ce paint
@@ -229,79 +234,38 @@ public class EditorChromePainter {
      * Dessinées seulement quand le fichier est prévisualisable, que le mode
      * d'aperçu est NONE et que les icônes n'ont pas été RELOCALISÉES dans
      * la barre de fil d'Ariane (B5 — {@code view.previewIconsVisible}).
+     *
+     * <p>B6 : les glyphes artisanals (panneaux + œil en arcs) laissent la
+     * place au moteur d'icônes vectorielles ({@link EditorIcons}) — même
+     * dessin que la barre et la feuille d'aperçu, tailles alignées sur les
+     * constantes du contrôleur (le hit-test partage ces bornes).</p>
      */
     void drawPreviewIcons(Canvas canvas) {
         if (!view.previewable || !view.previewIconsVisible
                 || view.previewMode != EditorView.PreviewMode.NONE) return;
         float density = view.getResources().getDisplayMetrics().density;
-        float iconSize = 24f * density;
-        float margin = 8f * density;
+        float iconSize = EditorPreviewController.PREVIEW_ICON_SIZE_DP * density;
+        float margin = EditorPreviewController.PREVIEW_ICON_MARGIN_DP * density;
         float iconY = margin;
         float iconW = iconSize;
         float fullX = view.getWidth() - margin - iconW;
         float splitX = fullX - iconW - margin * 0.5f;
         int iconColor = view.applyAlphaToColor(view.theme.gutterText, 0.65f);
         int accentColor = view.applyAlphaToColor(view.theme.keyword, 0.85f);
-        float cornerR = 3f * density;
 
-        // Icône d'aperçu scindé : deux rectangles arrondis remplis côte à côte.
-        // Panneau gauche (éditeur) — teinte de couleur d'accent.
-        view.selPaint.setStyle(android.graphics.Paint.Style.FILL);
-        view.selPaint.setColor(view.applyAlphaToColor(accentColor, 0.35f));
-        float paneW = iconW * 0.38f;
-        float paneH = iconW * 0.7f;
-        float paneY = iconY + (iconW - paneH) * 0.5f;
-        android.graphics.RectF leftPane = new android.graphics.RectF(
-            splitX + iconW * 0.05f, paneY,
-            splitX + iconW * 0.05f + paneW, paneY + paneH);
-        canvas.drawRoundRect(leftPane, cornerR, cornerR, view.selPaint);
-        // Bordure du panneau gauche.
-        view.selPaint.setStyle(android.graphics.Paint.Style.STROKE);
-        view.selPaint.setStrokeWidth(1.2f * density);
-        view.selPaint.setColor(iconColor);
-        canvas.drawRoundRect(leftPane, cornerR, cornerR, view.selPaint);
-        // Panneau droit (aperçu) — contour seul.
-        android.graphics.RectF rightPane = new android.graphics.RectF(
-            splitX + iconW * 0.55f, paneY,
-            splitX + iconW * 0.55f + paneW, paneY + paneH);
-        view.selPaint.setStyle(android.graphics.Paint.Style.STROKE);
-        canvas.drawRoundRect(rightPane, cornerR, cornerR, view.selPaint);
-        // Ligne de séparation verticale entre les panneaux.
-        float divX = splitX + iconW * 0.5f;
-        canvas.drawLine(divX, paneY + 2f * density, divX, paneY + paneH - 2f * density, view.selPaint);
+        // Icône d'aperçu scindé : panneau barré du séparateur central
+        // (l'éditeur à gauche, l'aperçu à droite).
+        iconPaint.setColor(iconColor);
+        EditorIcons.draw(canvas, EditorIcons.Icon.SPLIT,
+                splitX + iconW * 0.5f, iconY + iconW * 0.5f,
+                iconW * 0.72f, iconPaint);
 
-        // Icône d'aperçu plein : œil rempli avec pupille.
-        float cx = fullX + iconW * 0.5f;
-        float cy = iconY + iconW * 0.5f;
-        float eyeW = iconW * 0.7f;
-        float eyeH = iconW * 0.42f;
-        // Forme de l'œil — amande remplie.
-        android.graphics.Path eyePath = new android.graphics.Path();
-        eyePath.moveTo(cx - eyeW * 0.5f, cy);
-        // Courbe supérieure.
-        android.graphics.RectF topArc = new android.graphics.RectF(
-            cx - eyeW * 0.5f, cy - eyeH,
-            cx + eyeW * 0.5f, cy + eyeH);
-        eyePath.addArc(topArc, 200, 140);
-        // Courbe inférieure (miroir).
-        android.graphics.RectF botArc = new android.graphics.RectF(
-            cx - eyeW * 0.5f, cy - eyeH * 0.3f,
-            cx + eyeW * 0.5f, cy + eyeH * 1.7f);
-        eyePath.arcTo(botArc, 20, 140);
-        eyePath.close();
-        // Remplir le fond de l'œil.
-        view.selPaint.setStyle(android.graphics.Paint.Style.FILL);
-        view.selPaint.setColor(view.applyAlphaToColor(iconColor, 0.15f));
-        canvas.drawPath(eyePath, view.selPaint);
-        // Contour de l'œil.
-        view.selPaint.setStyle(android.graphics.Paint.Style.STROKE);
-        view.selPaint.setStrokeWidth(1.5f * density);
-        view.selPaint.setColor(iconColor);
-        canvas.drawPath(eyePath, view.selPaint);
-        // Pupille (cercle rempli).
-        view.selPaint.setStyle(android.graphics.Paint.Style.FILL);
-        view.selPaint.setColor(iconColor);
-        canvas.drawCircle(cx, cy, iconW * 0.12f, view.selPaint);
+        // Icône d'aperçu plein : l'œil — accent léger pour la distinguer
+        // du scindé (le plein écran est l'action « immersive »).
+        iconPaint.setColor(accentColor);
+        EditorIcons.draw(canvas, EditorIcons.Icon.EYE,
+                fullX + iconW * 0.5f, iconY + iconW * 0.5f,
+                iconW * 0.72f, iconPaint);
     }
 
     // ════════════════════════════════════════════════════════════════

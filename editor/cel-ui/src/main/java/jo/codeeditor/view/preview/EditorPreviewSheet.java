@@ -1,6 +1,7 @@
 package jo.codeeditor.view.preview;
 
 import jo.codeeditor.view.EditorView;
+import jo.codeeditor.view.icons.EditorIcons;
 
 import androidx.annotation.RestrictTo;
 
@@ -9,9 +10,8 @@ import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
-import android.graphics.Path;
-import android.graphics.RectF;
 import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.RippleDrawable;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
@@ -27,24 +27,34 @@ import android.widget.TextView;
  * l'hôte (généralement une WebView pour Markdown/HTML, ou une View canvas
  * pour les aperçus de layout XML).
  *
- * <p>Le chrome de la feuille (en-tête carte de verre avec nom de fichier
- * + bouton fermer, bascule scindé/plein optionnelle, geste
- * glisser-pour-fermer) appartient entièrement à la bibliothèque
+ * <p>Le chrome de la feuille appartient entièrement à la bibliothèque
  * d'éditeur — l'hôte fournit uniquement la View de corps via
  * {@link EditorPreviewHost#onCreatePreviewView(Context, EditorView,
- * EditorView.PreviewMode)}. Quand l'hôte renvoie {@code null}, la
- * feuille retombe sur une {@link CanvasBodyView} qui délègue le
- * {@code onDraw} de chaque frame à {@link EditorPreviewHost#drawPreview}.
+ * EditorView.PreviewMode)}. Quand l'hôte renvoie {@code null}, la feuille
+ * retombe sur une {@link CanvasBodyView} qui délègue le {@code onDraw}
+ * de chaque frame à {@link EditorPreviewHost#drawPreview}.</p>
+ *
+ * <h3>B6 — chrome modernisé</h3>
+ * <ul>
+ *   <li>Carte flottante : élévation réelle ({@code 12 dp}) au-dessus de
+ *       l'éditeur, coins arrondis côté flottant (gauche en scindé) ;</li>
+ *   <li>En-tête : petite icône ŒIL ({@link EditorIcons}) + nom de
+ *       fichier, <b>segmented control</b> scindé/plein (pilule avec
+ *       compartiment actif allumé) et bouton fermer — icônes vectorielles
+ *       du moteur, teintées du thème ;</li>
+ *   <li>La bascule de mode re-dessine la carte (rayons de coins adaptés)
+ *       sans reconstruire le popup.</li>
+ * </ul>
  *
  * <h3>Layout</h3>
  * <pre>
- *  ┌─────────────────────────────────────────────┐
- *  │  filename.md        [split] [full]    [X]   │ ← en-tête (24dp de haut)
- *  ├─────────────────────────────────────────────┤
- *  │                                             │
- *  │           corps hôte (WebView/Canvas)        │
- *  │                                             │
- *  └─────────────────────────────────────────────┘
+ *  ╭──────────────────────────────────────────────╮
+ *  │ ◉ exemple.md      [◧][⤢]  [✕]                │ ← en-tête (44 dp)
+ *  ├──────────────────────────────────────────────┤
+ *  │                                              │
+ *  │         corps hôte (WebView / canvas)        │
+ *  │                                              │
+ *  ╰──────────────────────────────────────────────╯
  * </pre>
  *
  * <p>Largeur/hauteur sont calculées depuis la géométrie de l'éditeur :
@@ -55,8 +65,9 @@ import android.widget.TextView;
  *
  * <h3>Fermeture</h3>
  * <ul>
- *   <li>Taper le bouton X</li>
- *   <li>Taper hors de la feuille (quand {@code setOutsideTouchable} est honoré)</li>
+ *   <li>Taper le bouton ✕</li>
+ *   <li>Taper le bouton d'action d'aperçu de la barre de fil d'Ariane
+ *       (bascule B6)</li>
  *   <li>Appuyer sur Retour (géré par le OnKeyListener par défaut de {@link PopupWindow})</li>
  * </ul>
  */
@@ -68,6 +79,11 @@ public class EditorPreviewSheet {
     private PopupWindow popup;
     private View bodyView;
     private boolean canvasFallback = false;
+    /** Conteneur carte — fond dérivé du mode (rayons de coins). */
+    private LinearLayout sheetContainer;
+    /** Compartiments du segmented control (scindé / plein). */
+    private View splitSegment;
+    private View fullSegment;
 
     EditorPreviewSheet(EditorView editor, EditorView.PreviewMode mode) {
         this.editor = editor;
@@ -104,18 +120,18 @@ public class EditorPreviewSheet {
             ViewGroup.LayoutParams.MATCH_PARENT));
 
         // ── Construction du conteneur de la feuille : en-tête en haut, corps en dessous. ──
-        LinearLayout sheet = buildSheetContainer(ctx);
-        sheet.addView(buildHeader(ctx));
+        sheetContainer = buildSheetContainer(ctx);
+        sheetContainer.addView(buildHeader(ctx));
         View divider = new View(ctx);
         divider.setBackgroundColor(editor.theme.glassBorder);
         divider.setLayoutParams(new LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, Math.max(1, editor.dp(1))));
-        sheet.addView(divider);
+        sheetContainer.addView(divider);
         FrameLayout bodyFrame = new FrameLayout(ctx);
         bodyFrame.setLayoutParams(new LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
         bodyFrame.addView(bodyView);
-        sheet.addView(bodyFrame);
+        sheetContainer.addView(bodyFrame);
 
         // ── Calcul largeur/hauteur et position d'ancrage. ──
         int width, height, x, y;
@@ -133,9 +149,9 @@ public class EditorPreviewSheet {
             y = location[1];
         }
 
-        popup = new PopupWindow(sheet, width, height, true);
+        popup = new PopupWindow(sheetContainer, width, height, true);
         popup.setFocusable(true);
-        popup.setOutsideTouchable(false); // fermeture via X uniquement — évite une fermeture accidentelle pendant la saisie dans l'éditeur
+        popup.setOutsideTouchable(false); // fermeture via ✕ uniquement — évite une fermeture accidentelle pendant la saisie dans l'éditeur
         popup.setClippingEnabled(true);
         popup.setOnDismissListener(this::onDismissed);
         // Le bouton Retour ferme la feuille (le OnKeyListener par défaut du
@@ -195,6 +211,8 @@ public class EditorPreviewSheet {
             y = location[1];
         }
         popup.update(x, y, width, height);
+        // La carte se re-identifie : rayons de coins + élévation du mode.
+        applyCardAppearance();
         // Notifie l'hôte des nouvelles bornes.
         EditorPreviewHost host = editor.getPreviewHost();
         if (host != null) {
@@ -204,7 +222,7 @@ public class EditorPreviewSheet {
     }
 
     // ════════════════════════════════════════════════════════════════
-    // Chrome de la feuille
+    // Chrome de la feuille (B6 — carte flottante modernisée)
     // ════════════════════════════════════════════════════════════════
 
     private LinearLayout buildSheetContainer(Context ctx) {
@@ -213,20 +231,32 @@ public class EditorPreviewSheet {
         container.setLayoutParams(new ViewGroup.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.MATCH_PARENT));
+        applyCardAppearance(container);
+        return container;
+    }
+
+    /** Fond + rayons + élévation de la carte selon le mode courant. */
+    private void applyCardAppearance() {
+        if (sheetContainer != null) applyCardAppearance(sheetContainer);
+    }
+
+    private void applyCardAppearance(View container) {
         GradientDrawable bg = new GradientDrawable();
         bg.setColor(editor.theme.glassBg);
         bg.setStroke(editor.dp(1), editor.theme.glassBorder);
-        // Léger rayon de coin pour SHEET_SPLIT (le côté droit flotte) ; 0 pour FULL.
+        // Scindé : la carte flotte à droite de l'éditeur — coins GAUCHES
+        // arrondis (16 dp), côté ancré droit net. Plein : couvre l'éditeur,
+        // coins droits seuls pour rester raccord avec le bord d'écran.
+        float r = editor.dp(16);
         if (mode == EditorView.PreviewMode.SHEET_SPLIT) {
-            float r = editor.dp(14);
-            // 8 rayons : top-left-x, top-left-y, top-right-x, top-right-y,
-            // bottom-right-x, bottom-right-y, bottom-left-x, bottom-left-y.
-            bg.setCornerRadii(new float[]{
-                r, r, 0, 0, 0, 0, r, r
-            });
+            bg.setCornerRadii(new float[]{r, r, 0, 0, 0, 0, r, r});
+        } else {
+            bg.setCornerRadii(new float[]{0, 0, r, r, r, r, 0, 0});
         }
         container.setBackground(bg);
-        return container;
+        // Carte flottante : ombre réelle au-dessus de l'éditeur (le contour
+        // du GradientDrawable fournit l'outline de l'élévation).
+        container.setElevation(editor.dp(12));
     }
 
     private View buildHeader(Context ctx) {
@@ -239,6 +269,23 @@ public class EditorPreviewSheet {
         header.setLayoutParams(new LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
+        // Petite icône ŒIL en accent — signature « aperçu » de la carte.
+        View eye = new View(ctx) {
+            private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+            @Override
+            protected void onDraw(Canvas canvas) {
+                super.onDraw(canvas);
+                p.setColor(editor.theme.keyword);
+                EditorIcons.draw(canvas, EditorIcons.Icon.EYE,
+                        getWidth() / 2f, getHeight() / 2f,
+                        Math.min(getWidth(), getHeight()) * 0.8f, p);
+            }
+        };
+        LinearLayout.LayoutParams eyeLp = new LinearLayout.LayoutParams(
+            editor.dp(18), editor.dp(18));
+        eyeLp.rightMargin = editor.dp(8);
+        header.addView(eye, eyeLp);
+
         // Nom de fichier (gauche)
         TextView title = new TextView(ctx);
         String name = editor.getFileName();
@@ -247,7 +294,7 @@ public class EditorPreviewSheet {
         title.setTextColor(editor.theme.textColor);
         title.setTextSize(14);
         title.setTypeface(title.getTypeface(), android.graphics.Typeface.BOLD);
-        title.setMaxEms(20);
+        title.setMaxEms(16);
         title.setSingleLine(true);
         title.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE);
         LinearLayout.LayoutParams titleLp = new LinearLayout.LayoutParams(
@@ -255,55 +302,118 @@ public class EditorPreviewSheet {
         title.setLayoutParams(titleLp);
         header.addView(title);
 
-        // Bouton de bascule scindé (icône chevron droit)
-        View splitBtn = buildIconButton(ctx, this::onSplitClicked,
-            "Split preview", EditorPreviewSheet::drawSplitGlyph);
-        header.addView(splitBtn);
-        LinearLayout.LayoutParams splitLp = new LinearLayout.LayoutParams(
-            editor.dp(28), editor.dp(28));
-        splitLp.setMargins(editor.dp(8), 0, 0, 0);
-        splitBtn.setLayoutParams(splitLp);
+        // Segmented control scindé/plein (pilule à deux compartiments).
+        View segmented = buildSegmentedControl(ctx);
+        LinearLayout.LayoutParams segLp = new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT, editor.dp(32));
+        segLp.leftMargin = editor.dp(8);
+        segmented.setLayoutParams(segLp);
+        header.addView(segmented);
 
-        // Bouton de bascule plein écran (icône œil)
-        View fullBtn = buildIconButton(ctx, this::onFullClicked,
-            "Full preview", EditorPreviewSheet::drawFullGlyph);
-        header.addView(fullBtn);
-        LinearLayout.LayoutParams fullLp = new LinearLayout.LayoutParams(
-            editor.dp(28), editor.dp(28));
-        fullLp.setMargins(editor.dp(4), 0, 0, 0);
-        fullBtn.setLayoutParams(fullLp);
-
-        // Bouton de fermeture X
+        // Bouton de fermeture ✕
         View closeBtn = buildIconButton(ctx, this::onCloseClicked,
-            "Close preview", EditorPreviewSheet::drawCloseGlyph);
+            "Close preview", EditorIcons.Icon.CLOSE);
         header.addView(closeBtn);
         LinearLayout.LayoutParams closeLp = new LinearLayout.LayoutParams(
-            editor.dp(28), editor.dp(28));
-        closeLp.setMargins(editor.dp(4), 0, 0, 0);
+            editor.dp(32), editor.dp(32));
+        closeLp.leftMargin = editor.dp(4);
         closeBtn.setLayoutParams(closeLp);
 
         return header;
     }
 
-    @FunctionalInterface interface GlyphDrawer {
-        void draw(Canvas c, float cx, float cy, float r, Paint p);
+    /** Pilule scindé/plein — compartiment actif voilé d'accent. */
+    private View buildSegmentedControl(Context ctx) {
+        LinearLayout pill = new LinearLayout(ctx);
+        pill.setOrientation(LinearLayout.HORIZONTAL);
+        pill.setGravity(Gravity.CENTER_VERTICAL);
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(editor.applyAlphaToColor(editor.theme.gutterText, 0.10f));
+        bg.setStroke(editor.dp(1), editor.theme.glassBorder);
+        bg.setCornerRadius(editor.dp(16));
+        pill.setBackground(bg);
+        int pad = editor.dp(2);
+        pill.setPadding(pad, pad, pad, pad);
+
+        splitSegment = buildSegment(ctx, EditorIcons.Icon.SPLIT,
+                "Split preview", this::onSplitClicked);
+        fullSegment = buildSegment(ctx, EditorIcons.Icon.EXPAND,
+                "Full preview", this::onFullClicked);
+        pill.addView(splitSegment, new LinearLayout.LayoutParams(
+                editor.dp(36), editor.dp(28)));
+        pill.addView(fullSegment, new LinearLayout.LayoutParams(
+                editor.dp(36), editor.dp(28)));
+
+        highlightActiveSegment();
+        return pill;
     }
 
-    private View buildIconButton(Context ctx, Runnable onClick,
-                                  String contentDesc, GlyphDrawer glyph) {
-        ImageView btn = new ImageView(ctx, null, 0) {
-            final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private View buildSegment(Context ctx, EditorIcons.Icon icon,
+            String contentDesc, Runnable onClick) {
+        ImageView segment = new ImageView(ctx, null, 0) {
+            private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
             @Override
             protected void onDraw(Canvas canvas) {
                 super.onDraw(canvas);
                 int w = getWidth(), h = getHeight();
                 if (w == 0 || h == 0) return;
-                float cx = w * 0.5f, cy = h * 0.5f;
-                float r = Math.min(w, h) * 0.32f;
-                p.setStyle(Paint.Style.STROKE);
-                p.setStrokeWidth(Math.max(1f, editor.dp(2)));
+                boolean active = isSegmentActive(this);
+                p.setColor(active
+                        ? editor.theme.keyword
+                        : editor.applyAlphaToColor(editor.theme.gutterText, 0.85f));
+                EditorIcons.draw(canvas, icon, w * 0.5f, h * 0.5f,
+                        Math.min(w, h) * 0.55f, p);
+            }
+        };
+        segment.setContentDescription(contentDesc);
+        segment.setFocusable(true);
+        segment.setClickable(true);
+        segment.setOnClickListener(v -> {
+            onClick.run();
+            // Le compartiment actif change — redessine la pilule entière.
+            highlightActiveSegment();
+            if (splitSegment != null) splitSegment.invalidate();
+            if (fullSegment != null) fullSegment.invalidate();
+        });
+        segment.setBackground(rippleBackground(ctx));
+        return segment;
+    }
+
+    private boolean isSegmentActive(View segment) {
+        boolean splitActive = mode == EditorView.PreviewMode.SHEET_SPLIT;
+        return (segment == splitSegment) == splitActive;
+    }
+
+    /** Voile le compartiment du mode courant (le second reste neutre). */
+    private void highlightActiveSegment() {
+        if (splitSegment == null || fullSegment == null) return;
+        applySegmentBackground(splitSegment,
+                mode == EditorView.PreviewMode.SHEET_SPLIT);
+        applySegmentBackground(fullSegment,
+                mode == EditorView.PreviewMode.SHEET_FULL);
+    }
+
+    private void applySegmentBackground(View segment, boolean active) {
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(active
+                ? editor.applyAlphaToColor(editor.theme.keyword, 0.22f)
+                : 0x00000000);
+        bg.setCornerRadius(editor.dp(14));
+        segment.setBackground(bg);
+    }
+
+    private View buildIconButton(Context ctx, Runnable onClick,
+                                  String contentDesc, EditorIcons.Icon icon) {
+        ImageView btn = new ImageView(ctx, null, 0) {
+            private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+            @Override
+            protected void onDraw(Canvas canvas) {
+                super.onDraw(canvas);
+                int w = getWidth(), h = getHeight();
+                if (w == 0 || h == 0) return;
                 p.setColor(editor.applyAlphaToColor(editor.theme.gutterText, 0.85f));
-                glyph.draw(canvas, cx, cy, r, p);
+                EditorIcons.draw(canvas, icon, w * 0.5f, h * 0.5f,
+                        Math.min(w, h) * 0.55f, p);
             }
         };
         btn.setContentDescription(contentDesc);
@@ -319,7 +429,6 @@ public class EditorPreviewSheet {
 
     /** Ripple simple sélectionnable — construit en code pour éviter les dépendances au thème. */
     private android.graphics.drawable.RippleDrawable rippleBackground(Context ctx) {
-        int statePressed = android.R.attr.state_pressed;
         android.content.res.ColorStateList rippleCs =
             android.content.res.ColorStateList.valueOf(
                 editor.applyAlphaToColor(editor.theme.keyword, 0.32f));
@@ -352,44 +461,6 @@ public class EditorPreviewSheet {
             // Fermeture via l'API publique pour garder l'état de l'éditeur cohérent.
             editor.closePreviewSheet();
         }
-    }
-
-    // ════════════════════════════════════════════════════════════════
-    // Dessinateurs de glyphes (évite d'embarquer des ressources drawable dans la lib éditeur)
-    // ════════════════════════════════════════════════════════════════
-
-    private static void drawSplitGlyph(Canvas c, float cx, float cy, float r, Paint p) {
-        // Deux rects arrondis en contour côte à côte (écho de EditorRenderer.drawPreviewIcons).
-        RectF left = new RectF(cx - r, cy - r * 0.7f, cx - r * 0.2f, cy + r * 0.7f);
-        RectF right = new RectF(cx + r * 0.2f, cy - r * 0.7f, cx + r, cy + r * 0.7f);
-        p.setStyle(Paint.Style.STROKE);
-        c.drawRoundRect(left, r * 0.18f, r * 0.18f, p);
-        c.drawRoundRect(right, r * 0.18f, r * 0.18f, p);
-        // Ligne de séparation verticale entre les panneaux.
-        c.drawLine(cx, cy - r * 0.6f, cx, cy + r * 0.6f, p);
-    }
-
-    private static void drawFullGlyph(Canvas c, float cx, float cy, float r, Paint p) {
-        // Œil rempli avec pupille.
-        Path eye = new Path();
-        RectF topArc = new RectF(cx - r, cy - r * 0.6f, cx + r, cy + r * 0.6f);
-        eye.addArc(topArc, 200, 140);
-        RectF botArc = new RectF(cx - r, cy - r * 0.18f, cx + r, cy + r * 1.02f);
-        eye.arcTo(botArc, 20, 140);
-        eye.close();
-        p.setStyle(Paint.Style.FILL);
-        c.drawPath(eye, p);
-        p.setStyle(Paint.Style.STROKE);
-        c.drawPath(eye, p);
-        p.setStyle(Paint.Style.FILL);
-        c.drawCircle(cx, cy, r * 0.2f, p);
-    }
-
-    private static void drawCloseGlyph(Canvas c, float cx, float cy, float r, Paint p) {
-        // « X » stylisé.
-        p.setStyle(Paint.Style.STROKE);
-        c.drawLine(cx - r, cy - r, cx + r, cy + r, p);
-        c.drawLine(cx - r, cy + r, cx + r, cy - r, p);
     }
 
     // ════════════════════════════════════════════════════════════════
