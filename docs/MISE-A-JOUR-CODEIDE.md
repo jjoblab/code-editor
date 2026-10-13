@@ -1,4 +1,4 @@
-# MISE À JOUR DE CodeIDE — brancher la version 3.64.0 de `code-editor`
+# MISE À JOUR DE CodeIDE — brancher la version 3.65.0 de `code-editor`
 
 > **Destinataire** : agent IA chargé de la mise à jour du dépôt `CodeIDE`
 > (jjoblab/CodeIDE, audité @ `04a65ea`, v0.105.0).
@@ -24,7 +24,7 @@
 
 ---
 
-## 0. Résumé express — deux lots + quatre retours terrain + lot B10, un seul changement requis
+## 0. Résumé express — deux lots + quatre retours terrain + lots B10-B11, un seul changement requis
 
 | Lot | Versions | Thème | Ce que CodeIDE y gagne |
 |---|---|---|---|
@@ -37,6 +37,7 @@
 | Retour terrain n°5 | 3.62.0 | Trois irritants réglés à la racine | B8a : le modèle de wrap suit le document après `setSession()` (plus de lignes « empilées » en bas en changeant de fichier avec le retour à la ligne actif) ; B8b : l'aperçu plein se ré-ajuste au changement de taille et se zoome au PINCEMENT (démo) ; B8c : un tap HORS du cadre referme le popup (feuille d'aperçu, cartes glass, actions de code, aller-au-symbole, aide de signature) |
 | Retour terrain n°6 | 3.63.0 | Quatre irritants réglés à la racine | B9a : plus de « secousse » des lignes pendant le drag de sélection (le recentrage du caret est suspendu pendant le geste — la dent de scie auto-scroll↔recentrage est morte) ; B9b : le caret reste FIXE au pincement (traînées du doigt restant englouties, point focal ancré en lecture seule) ; B9c : l'icône d'aperçu (œil) vit dans la GOUTTIÈRE sur la rangée du caret, façon Android Studio, tap = bascule ; B9d : analyse des écarts Android Studio ↔ code-editor n°6 (`docs/ANALYSE-GAPS-ANDROID-STUDIO.md`) |
 | **Lot B10 (recherche)** | **3.64.0** | Le plus grand écart P0 de l'analyse est refermé | `EditorSearchBar` : recherche/remplacement DANS LE FICHIER (requête vivante, compte « 3/17 », navigation bouclante, remplacement courant avec groupes `$1`, TOUT en une seule annulation) — ouverture menu/`Ctrl+F`, amorçage depuis la sélection (adoption optionnelle, §4.10) ; 4e tap = PARAGRAPHE (cascade caret → mot → ligne → paragraphe, le 5e y reste) ; surlignage purgé au changement de session |
+| **Lot B11 (navigation)** | **3.65.0** | La navigation dans le contenu est au niveau AS | Fast-scroller : le drag de gouttière devient un positionnement ABSOLU (pouce + bulle de ligne, tout le fichier d'un seul geste, parité Android Studio) ; bande d'erreurs au bord droit : marqueurs de diagnostics de TOUT le fichier (même hors écran) + rect du viewport, tap = centrage + fiche, drag = scroll absolu — GRATUIT à la montée (aucune adoption), bascule `setErrorStripeEnabled` si CodeIDE préfère l'éteindre |
 
 **Un seul changement est indispensable** : monter la version dans
 `gradle/libs.versions.toml` (§2). Tout le reste est additif — les
@@ -48,7 +49,7 @@ surcharges ou des constructeurs étendus déléguant à l'existant.
 
 ---
 
-## 1. Les lots 3.52.0 → 3.57.0 (complets) puis les retours terrain 3.58.0/3.59.0/3.60.0/3.61.0/3.62.0/3.63.0 et le lot B10 (3.64.0)
+## 1. Les lots 3.52.0 → 3.57.0 (complets) puis les retours terrain 3.58.0/3.59.0/3.60.0/3.61.0/3.62.0/3.63.0 et les lots B10/B11 (3.64.0/3.65.0)
 
 `code-editor` est le CLIENT ; `lsp/java` de CodeIDE est le SERVEUR. Le
 lot tactile travaille presque entièrement côté client (rendu, gestes,
@@ -402,11 +403,64 @@ que le propriétaire toucherait à chaque session sur des fichiers longs.
   moteur rejette les arcs —, chevrons haut/bas, double-flèche) et 14
   libellés canoniques `cel_find_*` traduisibles par l'hôte.
 
+### 1.11 Lot B11 (3.65.0) — fast-scroller de gouttière + bande d'erreurs
+
+Deuxième lot de la feuille de route de l'analyse des écarts n°6 : le
+P0-3 (retour visuel du drag de gouttière) et le P1-1 (error stripe,
+le plus rentable de la famille P1). Les deux partagent la même
+conclusion : la navigation dans un fichier long au doigt exige de
+VOIR où l'on est et d'ATTEINDRE n'importe où — les deux manquaient.
+
+- **`EditorFastScroller` (P0-3)** — le drag dans la gouttière (zone
+  des numéros) devient un positionnement ABSOLU, comme Android
+  Studio : au-delà du touch-slop, un POUCE (pill 4 dp au bord
+  droit, hauteur proportionnelle au viewport, plancher 32 dp)
+  apparaît et suit la hauteur du doigt ; la position du document
+  suit en proportion (`top / (viewH − thumbH) × maxV`, géométrie
+  consciente du retour à la ligne ET des plis). Une BULLE à gauche
+  du pouce affiche la ligne du milieu du viewport (le retour
+  visuel du fast-scroller des listes Android). Relâchement : fondu
+  de 250 ms, PAS de fling (le positionnement est absolu, un fling
+  le casserait). Annulation immédiate au pincement, au CANCEL, à
+  l'appui long et au changement de session. Un tap reste un tap :
+  le pouce n'apparaît JAMAIS sous le slop — les points de
+  diagnostic et l'icône d'aperçu de gouttière gardent leur
+  résolution, et le jitter d'un simple appui dans les numéros ne
+  défile plus (l'ancien chemin pixel-relatif défilait AU PREMIER
+  pixel de mouvement, horizontal inclus).
+- **`EditorErrorStripe` (P1-1)** — la bande d'erreurs d'Android
+  Studio : 4 dp au bord droit (zone tactile 10 dp). Un MARQUEUR
+  coloré par ligne diagnostiquée (erreur/avertissement/info,
+  couleurs du thème, sévérité max par ligne — même source que les
+  points de gouttière via `EditorDiagnosticsPusher`, compactée en
+  paires sparse : le dessin reste O(diagnostics)) et le RECTANGLE
+  DU VIEWPORT façon scrollbar. Sur un fichier long, les erreurs
+  hors écran deviennent visibles d'un coup d'œil. TAP sur un
+  marqueur : dépliage du pli englobant, centrage de la ligne
+  (`scrollToLineCentered`) et ouverture de la fiche (popup de
+  détail, ou liste groupée si la ligne porte plusieurs diagnostics
+  — parité exacte avec le point de gouttière et la chip de fin de
+  ligne). DRAG sur la bande : même positionnement absolu que le
+  fast-scroller (pouce + bulle). Tap sans marqueur : geste consommé
+  (ni caret ni fiche derrière — la bande est un chrome, pas du
+  texte). La bande se tait quand un aperçu est ouvert
+  (SPLIT/FULL/feuille) : le bord droit appartient alors au corps
+  d'aperçu. Purge au changement de session (marqueurs de l'ancien
+  document effacés, pouce masqué).
+- **Bascule publique** : `EditorView.setErrorStripeEnabled(boolean)`
+  / `isErrorStripeEnabled()` — défaut ACTIVÉ (parité Android
+  Studio out of the box) ; `setMinimapEnabled` reste
+  l'opt-in de la minimap (les deux cohabitent : la bande borde le
+  flanc droit de la minimap).
+- **Zéro adoption requise** : tout est gratuit à la montée de
+  version. CodeIDE n'éteint la bande que si l'écran partagé le
+  réclame (§4.11).
+
 ## 2. Changement REQUIS — montée de version de la dépendance
 
 ```toml
 # gradle/libs.versions.toml (CodeIDE) — ligne ~52
-code-editor = "3.64.0"     # était "3.49.2" (audit) / "3.51.1" (guide 3.51.1) / "3.57.0" (guide J6) / "3.58.0"-"3.60.0" (guides retours terrain) / "3.61.0"-"3.63.0" (guides retours n°4-6) / "3.64.0" (lot B10)
+code-editor = "3.65.0"     # était "3.49.2" (audit) / "3.51.1" (guide 3.51.1) / "3.57.0" (guide J6) / "3.58.0"-"3.60.0" (guides retours terrain) / "3.61.0"-"3.63.0" (guides retours n°4-6) / "3.64.0" (lot B10) / "3.65.0" (lot B11)
 ```
 
 Les deux modules consommateurs ne changent pas (ils suivent le
@@ -434,22 +488,28 @@ touchée ; 3.64.0 ajoute DEUX classes publiques (`EditorSearchBar`,
 `EditorSearchController`) et une méthode de sélection
 (`EditorSession.selectParagraphAt`) sans rien retirer — le 4e tap
 modifie volontairement la cascade multi-tap au-delà du triple tap
-(ligne → paragraphe : c'est le but du cran)).
+(ligne → paragraphe : c'est le but du cran)) ; 3.65.0 ajoute UN
+setter public (`EditorView.setErrorStripeEnabled`/`isErrorStripeEnabled`)
+ et DEUX collaborateurs internes `@RestrictTo(LIBRARY_GROUP)`
+(`EditorFastScroller`, `EditorErrorStripe`) sans rien retirer — le
+comportement du drag de gouttière change volontairement (scroll
+relatif → positionnement absolu, c'est le but du P0-3)).
 
-### Publication (2026-10-13, lot B10)
+### Publication (2026-10-13, lot B11)
 
-- `main` poussé (merge du lot B10, quatre commits) ; tag
-  **`v3.64.0`** posé sur le merge ; workflows CI + Publication GitHub
-  Packages déclenchés par le poussage (vérifier l'état sur la page
-  Actions du dépôt).
-- **Consigne du propriétaire (2026-10)** : le build JitPack n'est PLUS
-  attendu systématiquement après un poussage — le guide ne consigne
-  plus sa vérification à chaque version (JitPack construira `3.64.0`
-  à la demande à partir du tag ; les 3.51.1+ sont saines, seules
+- `main` poussé (merge du lot B11, trois commits — le lot B10
+  avait été poussé dans la même session) ; tag **`v3.65.0`** posé
+  sur le merge ; workflows CI + Publication GitHub Packages
+  déclenchés par le poussage (vérifier l'état sur la page Actions
+  du dépôt).
+- **Consigne du propriétaire (2026-10)** : le build JitPack n'est
+  PAS attendu ni vérifié pour ce lot (pas de changement majeur au
+  sens de la politique de version — JitPack construira `3.65.0` à
+  la demande à partir du tag ; les 3.51.1+ sont saines, seules
   `3.50.0`/`3.51.0` restent interdites via JitPack — incident 429
   historique, servies sur GitHub Packages uniquement).
-- Coordonnées : `com.github.jjoblab.code-editor:cel-ui:3.64.0` et
-  `com.github.jjoblab.code-editor:cel-lsp:3.64.0`.
+- Coordonnées : `com.github.jjoblab.code-editor:cel-ui:3.65.0` et
+  `com.github.jjoblab.code-editor:cel-lsp:3.65.0`.
 
 - `main` @ `8bf590a` poussé (merge retour terrain n°6 + merge du
   correctif de course CI) ; tag **`v3.63.0`** posé sur le merge du
@@ -668,6 +728,19 @@ editor.setOnSelectionChangedListener(new BothRoles());
 CodeIDE peut traduire les libellés en redéclarant les ressources
 `cel_find_*` (préfixe du préfixe `cel_`, mécanisme T3 du §4.6).
 
+### 4.11 Éteindre la bande d'erreurs si l'écran partagé le réclame (B11, 3.65.0) — UNE ligne, optionnelle
+
+La bande d'erreurs et le fast-scroller sont GRATUITS à la montée
+(aucune adoption). Si CodeIDE partage l'écran horizontalment avec un
+autre panneau et juge les 4 dp trop coûteux :
+
+```java
+editor.setErrorStripeEnabled(false);   // default: true (parité AS)
+```
+
+Le fast-scroller (drag de gouttière) reste actif dans tous les cas —
+il n'occupe l'écran que pendant le geste.
+
 ---
 
 ## 5. Protocole de vérification sur appareil (après montée de version)
@@ -821,6 +894,29 @@ ajouter les épreuves du lot tactile :
     non vides) ; un 5e tap reste au paragraphe ; fermer la barre
     (✕) → le surlignage disparaît, la requête survit (réouverture :
     la recherche retrouve ses occurrences sans re-frapper).
+
+20. **Lot B11 (3.65.0, via la démo)** — quatre vérifications ciblées :
+    **a)** échantillon Java diagnostiqué (celui du retour D2) → la
+    bande d'erreurs apparaît au bord DROIT (marqueurs
+    rouge/jaune/bleu + rectangle du viewport) ; un marqueur en BAS
+    de l'écran (erreur hors viewport) → TAP dessus → la ligne se
+    CENTRE et la fiche de diagnostic s'ouvre (parité point de
+    gouttière) ;
+    **b)** dans la GOUTTIÈRE (zone des numéros), poser le doigt et
+    GLISSER vers le bas au-delà de quelques pixels → le POUCE
+    apparaît au bord droit avec sa bulle de numéro de ligne, suit
+    le doigt, et le document atteint N'IMPORTE QUELLE position en
+    proportion (sur un fichier long, un seul geste traverse tout
+    le document) ; relâcher → fondu de disparition, PAS de fling ;
+    un simple TAP dans la gouttière (point de diagnostic) reste un
+    tap — le pouce n'est jamais apparu ;
+    **c)** drag VERTICAL sur la bande elle-même → même positionnement
+    absolu (pouce + bulle) ; tap sur la bande là où il n'y a PAS de
+    marqueur → rien ne se passe (ni caret ni fiche — le geste est
+    consommé par la bande) ;
+    **d)** ouvrir la feuille d'aperçu d'un Markdown (œil de
+    gouttière) → la bande DISPARAÎT (le bord droit appartient à
+    l'aperçu) ; la refermer → la bande revient.
 
 ---
 

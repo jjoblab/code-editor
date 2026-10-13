@@ -156,10 +156,10 @@ final class EditorDiagnosticsPusher {
 
     /**
      * Construit un tableau de sévérité par ligne à partir des diagnostics
-     * de la session et le pousse vers le GutterView pour qu'il puisse
-     * dessiner le point de diagnostic rouge/jaune devant le numéro de
-     * ligne. Si plusieurs diagnostics tombent sur la même ligne, la
-     * sévérité la plus haute gagne (error bat warning bat info).
+     * de la session et le pousse vers le GutterView (points devant les
+     * numéros) ET vers la bande d'erreurs du bord droit (B11 : marqueurs
+     * + viewport). Si plusieurs diagnostics tombent sur la même ligne,
+     * la sévérité la plus haute gagne (error bat warning bat info).
      */
     private void pushToGutter() {
         if (view.session == null || view.gutterView == null) {
@@ -168,6 +168,7 @@ final class EditorDiagnosticsPusher {
         EditorDocument doc = view.session.getDocument();
         if (doc == null) {
             view.gutterView.setDiagnostics(new int[0]);
+            view.errorStripe.setDiagnostics(new int[0]);
             return;
         }
         int lineCount = doc.lineCount();
@@ -182,5 +183,9 @@ final class EditorDiagnosticsPusher {
             }
         }
         view.gutterView.setDiagnostics(severityPerLine);
+        // ★ B11 (P1-1) : la bande d'erreurs partage LA MÊME source que
+        // la gouttière (sévérité max par ligne) — une seule passe de
+        // calcul pour les deux chrome.
+        view.errorStripe.setDiagnostics(severityPerLine);
     }
 }

@@ -1,5 +1,6 @@
 package jo.codeeditor.view;
 
+import jo.codeeditor.view.chrome.EditorFastScroller;
 import jo.codeeditor.view.chrome.EditorTheme;
 import jo.codeeditor.view.chrome.GutterView;
 import jo.codeeditor.view.input.EditorInputHandler;
@@ -14,6 +15,7 @@ import jo.codeeditor.view.preview.EditorPreviewController;
 import jo.codeeditor.view.preview.EditorPreviewHost;
 import jo.codeeditor.view.preview.EditorPreviewSheet;
 import jo.codeeditor.view.render.CaretAnimator;
+import jo.codeeditor.view.render.EditorErrorStripe;
 import jo.codeeditor.view.render.EditorPainterHost;
 import jo.codeeditor.view.render.EditorRenderer;
 import jo.codeeditor.view.render.EditorShapedLayoutCache;
@@ -106,6 +108,15 @@ public class EditorView extends View {
     public EditorTheme theme;
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
     public final GutterView gutterView;
+    // ── B11 (feuille de route « écarts AS ») — navigation dans le ──
+    // contenu : fast-scroller (retour visuel du drag de gouttière/bande)
+    // et bande d'erreurs du bord droit (marqueurs de diagnostics + rect
+    // du viewport). Les DEUX sont des collaborateurs de dessin possédés
+    // par la vue, pilotés par EditorInputHandler/EditorTapResolver.
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public final EditorFastScroller fastScroller;
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public final EditorErrorStripe errorStripe;
 
     // ── État de défilement ────────────────────────────────────────
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
@@ -1161,6 +1172,11 @@ public class EditorView extends View {
         this.session = new EditorSession();
         this.session.setImeListener(imeBridge.listener);
         this.session.setOnLinesShiftedListener(cacheShiftListener);
+        // ★ B11 : fast-scroller (drag de gouttière/bande) + bande
+        // d'erreurs du bord droit — instanciés AVANT le renderer, qui
+        // les dessine à la fin du pipeline.
+        this.fastScroller = new EditorFastScroller(this);
+        this.errorStripe = new EditorErrorStripe(this);
         // B7 : contrôleur des fondus d'apparition/disparition des popups
         // Canvas — créé AVANT le renderer, qui y enregistre ses peintres à
         // sa construction.
@@ -1234,6 +1250,12 @@ public class EditorView extends View {
         // dessinées aux offsets hasardeux du fichier précédent).
         findHighlights.clear();
         findCurrentIndex = -1;
+        // ★ B11 : les marqueurs de la bande d'erreurs décrivent
+        // l'ANCIEN document (le pusher les repoussera aux diagnostics
+        // de la nouvelle session) et le pouce du fast-scroller n'a plus
+        // de raison d'être — purge immédiate, sans fondu.
+        errorStripe.setDiagnostics(new int[0]);
+        fastScroller.cancel();
         invalidate();
     }
 
@@ -1672,6 +1694,31 @@ public class EditorView extends View {
 
     /** @return {@code true} si la minimap est actuellement visible. */
     public boolean isMinimapEnabled() { return minimapEnabled; }
+
+    // ════════════════════════════════════════════════════════════════
+    // Lot B11 (P1-1) — bande d'erreurs du bord droit
+    // ════════════════════════════════════════════════════════════════
+
+    /**
+     * B11 (P1-1) — active/désactive la bande d'erreurs du bord droit :
+     * marqueurs de diagnostics (erreur/avertissement/info, tout le
+     * fichier même hors écran) + rectangle du viewport façon scrollbar.
+     * Tap sur un marqueur = centrer la ligne + ouvrir la fiche ; drag
+     * sur la bande = défilement absolu (pouce + bulle du fast-scroller).
+     * Activée par défaut (parité Android Studio).
+     *
+     * @param enabled {@code true} pour montrer la bande, {@code false} pour la cacher
+     * @since 3.65.0
+     */
+    public void setErrorStripeEnabled(boolean enabled) {
+        if (errorStripe.isEnabled() == enabled) return;
+        errorStripe.setEnabled(enabled);
+        invalidate();
+    }
+
+    /** @return {@code true} si la bande d'erreurs est visible.
+     * @since 3.65.0 */
+    public boolean isErrorStripeEnabled() { return errorStripe.isEnabled(); }
 
     // ════════════════════════════════════════════════════════════════
     // Lot B.11 (audit v3.41.0) — Style des guides d'indentation

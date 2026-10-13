@@ -45,7 +45,17 @@
 > amorçage depuis la sélection, requête survivante à la fermeture ;
 > la cascade de taps gagne son 4e cran — caret → mot → ligne →
 > PARAGRAPHE (`selectParagraphAt`, le 5e tap y reste). 1 699 tests
-> verts (+35). **Retour terrain n°6 (3.63.0)** : quatre irritants réglés à la
+> verts (+35). **Lot B11 (3.65.0)** : P0-3 + P1-1 de la feuille de
+> route — le drag de gouttière devient un positionnement ABSOLU
+> (`EditorFastScroller` : pouce 4 dp + bulle de ligne, armé au-delà
+> du slop, fondu 250 ms, pas de fling, annulation au pincement/
+> CANCEL/session) et la bande d'erreurs d'Android Studio arrive au
+> bord droit (`EditorErrorStripe` : marqueurs de diagnostics de tout
+> le fichier — même hors écran — + rect du viewport, alimentés par
+> le pusher de gouttière, tap = dépliage + centrage + fiche, drag =
+> scroll absolu, silence en aperçu, `setErrorStripeEnabled` public,
+> défaut actif). 1 710 tests verts (+11).
+> **Retour terrain n°6 (3.63.0)** : quatre irritants réglés à la
 > racine — B9a la « secousse » des lignes pendant le drag de sélection
 > (le recentrage du caret déclenché par CHAQUE application de
 > sélection du drag tirait le viewport vers l'ancre pendant que
