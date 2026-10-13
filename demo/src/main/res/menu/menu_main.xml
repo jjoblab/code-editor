@@ -109,18 +109,18 @@
 
     <item
         android:id="@+id/action_line_numbers"
-        android:title="Numéros de ligne"
+        android:title="@string/menu_line_numbers"
         app:showAsAction="never">
         <menu>
             <item
                 android:id="@+id/line_numbers_absolute"
-                android:title="Absolus (1, 2, 3…)" />
+                android:title="@string/line_numbers_absolute" />
             <item
                 android:id="@+id/line_numbers_relative"
-                android:title="Relatifs au caret (0, 1, 2…)" />
+                android:title="@string/line_numbers_relative" />
             <item
                 android:id="@+id/line_numbers_hybrid"
-                android:title="Hybrides (numéro au caret)" />
+                android:title="@string/line_numbers_hybrid" />
         </menu>
     </item>
 

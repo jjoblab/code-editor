@@ -5,6 +5,52 @@ All notable changes to **code-editor-lib** are documented in this file.
 Le format suit la convention [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.66.0] — 2026-10-13 — Lot B12 : zoom persistant par type + colonnes relatives
+
+Troisième lot de la feuille de route issue de l'analyse des écarts n°6 :
+P1-3 (le zoom mémorisé par type de fichier, comme Android Studio) et
+P1-4 (numéros de ligne relatifs à la ligne du caret). Deux écarts de
+confort refermés sans rupture d'API (une classe publique + un enum
+public + trois méthodes de vue, rien retiré) — un hôte qui ne pose pas
+de clé de zoom ni ne touche au style de numéros ne voit AUCUN
+changement de comportement.
+
+### Added
+
+- **B12a — `EditorZoomMemory` + `EditorView.setZoomMemoryKey` (P1-3)** :
+  mémoire process des échelles de police, par clé de type de fichier
+  posée par l'hôte (extension, id de langage — la granularité lui
+  appartient). Chaque mutation d'échelle (pincement, A+/A−,
+  `setFontScale`) enregistre l'échelle bornée sous la clé courante ;
+  reposer la clé applique le réglage du type — sémantique « un zoom
+  par type » : le zoom du type précédent ne fuit pas sur le suivant,
+  un type jamais zoomé repart à l'échelle de base. Une clé nulle
+  désactive la mémoire (comportement historique exact). La rotation
+  reste portée par l'état d'instance B17, PLUS PRÉCIS : la
+  restauration s'exécute après le câblage de l'hôte, l'échelle exacte
+  de la vue l'emporte sur la mémoire du type.
+- **B12b — `LineNumberStyle` (ABSOLUTE/RELATIVE/HYBRID) (P1-4)** : mode
+  des numéros de gouttière, posé par `EditorView.setLineNumberStyle`
+  (relais public, `null` retombe sur ABSOLUTE). ABSOLUTE (défaut,
+  inchangé) : numéros de document ; RELATIVE : distance à la ligne du
+  caret (0 au caret — lecture directe pour les déplacements du type
+  `5j`/`10k`) ; HYBRID : numéro réel au caret, distances autour (le
+  mode VS Code). La surbrillance de la ligne du caret reste posée dans
+  les trois modes ; un caret invalide retombe sur ABSOLUTE.
+- Démo : `setZoomMemoryKey(id de langage)` à chaque changement
+  d'échantillon (pincer Java à 1,8 puis passer au Markdown → zoom
+  Markdown, revenir → 1,8 restauré) + menu « Numéros de ligne »
+  (absolus / relatifs / hybrides).
+
+### Tests
+
+- +19 (1 729 verts) : `EditorZoomMemoryTest` ×6 (roundtrip, bornage,
+  défaut, oubli, purge, null) ; `ZoomMemoryKeyTest` ×8 (enregistrement
+  par mutation, fuite inter-types, bascule enregistre avant de
+  partir, clé nulle, même clé no-op, vue recréée, rotation >
+  mémoire) ; `LineNumberStyleTest` ×5 (rendu shadow canvas des trois
+  modes, caret invalide, relais de vue + null).
+
 ## [3.65.0] — 2026-10-13 — Lot B11 : fast-scroller de gouttière + bande d'erreurs
 
 Deuxième lot de la feuille de route issue de l'analyse des écarts n°6 :
