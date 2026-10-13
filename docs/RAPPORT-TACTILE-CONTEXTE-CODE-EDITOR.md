@@ -21,7 +21,19 @@
 > compatibles binairement), garde-fous verts (figures de tests, budgets de
 > lignes, baseline lint), un commit conventionné par changement logique.
 > **Statut** : **jalons J1 à J6 LIVRÉS (lot complet, 3.52.0 → 3.57.0),
-> PLUS les retours terrain post-J6 (3.58.0 puis 3.59.0)** — UX-4
+> PLUS les retours terrain post-J6 (3.58.0, 3.59.0) ET la refonte B6
+> (3.60.0)** — B6 (3.60.0) : la barre de fil d'Ariane ne porte plus
+> QUE les trois actions d'IDE via `addEditorActions()` (annuler/
+> rétablir câblés sur la session, aperçu qui n'EXISTE que pour un
+> fichier prévisualisable et BASCULE ouvrir/fermer), icônes
+> vectorielles dessinées au Canvas (`EditorIcons` — plus de
+> glyphes texte/emoji dont le rendu varie par appareil), feuille
+> d'aperçu « carte flottante » (élévation 12 dp, coins arrondis,
+> en-tête œil + nom, segmented control scindé/plein), miroirs
+> automatiques (setFileName/setPreviewMode rafraîchissent la barre
+> sœur), moteur Markdown v2 dans la démo (liens, tables, tâches,
+> barré) ; 1 618 tests verts, EditorView/EditorSession inchangés.
+> UX-4
 > (3.58.0) : le CONTENU du popup ancré de diagnostic suit la carte
 > (bug d'appareil : cadre à droite, contenu resté au bord gauche ; la
 > métrique porte désormais `contentLeft`, source unique pour le dessin

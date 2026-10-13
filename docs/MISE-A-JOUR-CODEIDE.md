@@ -24,7 +24,7 @@
 
 ---
 
-## 0. Résumé express — deux lots + deux retours terrain, un seul changement requis
+## 0. Résumé express — deux lots + trois retours terrain, un seul changement requis
 
 | Lot | Versions | Thème | Ce que CodeIDE y gagne |
 |---|---|---|---|
@@ -32,6 +32,7 @@
 | Tactile & contexte | 3.52.0 → 3.57.0 | Le dernier geste naturel est câblé — lot COMPLET | Tap sur le squiggle → popup ancré, pill extensible (SPI + actions socle, mouvements de lignes), sticky interactif + délégable au SPI langue, inlays typés + tooltips PAR PART + hints CLIQUABLES, loupe réglable, en-tête enrichi (code/source), libellés traduisibles |
 | Retour terrain post-J6 | 3.58.0 | Le popup se lit à droite ; les boutons se rangent | UX-4 : le CONTENU du popup ancré suit le CADRE (bug corrigé automatiquement) ; B5 : `BreadcrumbBar` porte les actions d'éditeur en haut à droite (adoption optionnelle, §4.8) |
 | Retour terrain n°2 | 3.59.0 | Plus de boutons invisibles en haut à droite | UX-5 : retrait des zones de tap fantômes de l'ancienne toolbar canvas (bug corrigé automatiquement) — un tap en haut à droite redevient un placement de caret |
+| Refonte B6 (retour n°3) | 3.60.0 | Fil d'Ariane « intelligent, plus moderne » | Moteur d'icônes vectorielles ; `addEditorActions()` : les TROIS actions (annuler, rétablir, aperçu) câblées sans code hôte ; l'œil n'existe que pour un fichier prévisualisable et BASCULE ouvrir/fermer ; feuille d'aperçu carte flottante (adoption optionnelle, §4.9) |
 
 **Un seul changement est indispensable** : monter la version dans
 `gradle/libs.versions.toml` (§2). Tout le reste est additif — les
@@ -43,7 +44,7 @@ surcharges ou des constructeurs étendus déléguant à l'existant.
 
 ---
 
-## 1. Les lots 3.52.0 → 3.57.0 (complets) puis les retours terrain 3.58.0/3.59.0
+## 1. Les lots 3.52.0 → 3.57.0 (complets) puis les retours terrain 3.58.0/3.59.0/3.60.0
 
 `code-editor` est le CLIENT ; `lsp/java` de CodeIDE est le SERVEUR. Le
 lot tactile travaille presque entièrement côté client (rendu, gestes,
@@ -165,11 +166,50 @@ voies côté serveur CodeIDE :
   restent `BreadcrumbBar.addAction` (§4.8) / `EditorBarTools` /
   l'API publique (`increaseFontSize`, `setShowNonPrintable`…).
 
+### 1.6 Refonte B6 (3.60.0) — le fil d'Ariane devient « intelligent »
+
+Troisième retour d'appareil, direction demandée : « plus intelligent,
+plus moderne », avec une contrainte explicite — SEULEMENT les trois
+options (annuler, rétablir, aperçu) dans la barre. Ce que la montée
+apporte d'office :
+
+- **Moteur d'icônes vectorielles** (`view/icons/EditorIcons.java`) —
+  les boutons troquent les glyphes texte/emoji (« ↶ », « 👁 ») contre
+  des paths dessinés au Canvas (famille FILL : annuler, rétablir,
+  œil ; STROKE : scinder, étendre, fermer), net à toute densité,
+  teintés du thème. Fini l'œil qui sort en emoji couleur selon
+  l'appareil.
+- **`BreadcrumbBar.addEditorActions()`** — UN appel pose les trois
+  actions CÂBLÉES : annuler/rétablir suivent la session (grisés sans
+  historique, rafraîchis à chaque édition, la session est RELUE à
+  chaque évaluation — changement d'onglet couvert) ; l'aperçu
+  n'EXISTE que pour un fichier prévisualisable (`GONE` sinon) et
+  BASCULE (tap = ouvrir la feuille scindée, second tap = fermer).
+- **Miroirs d'aperçu automatiques** — `setFileName` /
+  `setPreviewMode` / `closePreviewSheet` rafraîchissent la barre
+  sœur sans code hôte : l'œil apparaît/disparaît au changement de
+  fichier, s'allume tant que la feuille est ouverte.
+- **Feuille d'aperçu « carte flottante »** — élévation réelle 12 dp,
+  coins arrondis du côté flottant, en-tête œil + nom de fichier,
+  segmented control scindé/plein (compartiment actif voilé
+  d'accent), bouton fermer en icône du moteur.
+- **Barre 40 dp, registre pill** — cible tactile confortable ; fond
+  arrondi à l'appui et en état actif. `addAction` texte (B5) reste
+  disponible pour les libellés courts.
+- **Icônes d'aperçu du canvas alignées** — dessin et hit-test
+  partagent enfin les mêmes bornes (22 dp) ; les hôtes qui n'ont pas
+  de barre y gagnent la même famille visuelle.
+
+Zéro rupture d'API : tout est additif (EditorView et EditorSession
+inchangés ligne à ligne — aucun budget déplacé).
+
+---
+
 ## 2. Changement REQUIS — montée de version de la dépendance
 
 ```toml
 # gradle/libs.versions.toml (CodeIDE) — ligne ~52
-code-editor = "3.59.0"     # était "3.49.2" (audit) / "3.51.1" (guide 3.51.1) / "3.57.0" (guide J6) / "3.58.0" (guide retour terrain n°1)
+code-editor = "3.60.0"     # était "3.49.2" (audit) / "3.51.1" (guide 3.51.1) / "3.57.0" (guide J6) / "3.58.0"-"3.59.0" (guides retours terrain)
 ```
 
 Les deux modules consommateurs ne changent pas (ils suivent le
@@ -179,29 +219,32 @@ Les deux modules consommateurs ne changent pas (ils suivent le
 - `feature/editor/build.gradle.kts:14` → `implementation(libs.codeeditor.ui)`
 
 **Compatibilité API : vérifiée additive sur toute la plage
-3.51.1 → 3.59.0** (aucune rupture binaire : nouveaux champs des
+3.51.1 → 3.60.0** (aucune rupture binaire : nouveaux champs des
 modèles diagnostic/inlay via constructeurs étendus, les
 constructeurs historiques délèguent avec défaut vide ; les ajouts
 3.58.0 sont `BreadcrumbBar.*` et `EditorView.setPreviewIconsVisible`,
 purement additifs ; 3.59.0 ne fait que RETIRER un hit-test interne
-`@RestrictTo(LIBRARY_GROUP)` — aucune surface publique touchée).
+`@RestrictTo(LIBRARY_GROUP)` — aucune surface publique touchée ; les
+ajouts 3.60.0 sont `BreadcrumbBar.addIconAction`/`addEditorActions` et
+le moteur `EditorIcons`, purement additifs — `addAction` texte et
+`addPreviewAction` restent compatibles).
 
 ### Publication vérifiée (2026-10-13)
 
-- `main` @ `4eb8d22` poussé (merge retour terrain n°2) ; tag
-  **`v3.59.0`** posé sur le commit de version `65719f0`.
+- `main` @ `1514207` poussé (merge refonte B6) ; tag
+  **`v3.60.0`** posé sur le commit de version `6605110`.
 - CI verte sur les deux workflows (merge + tag) — runs
-  `38339732999` (CI) / `38339733175` (Publication GitHub Packages),
+  `38345163324` (CI) / `38345163243` (Publication GitHub Packages),
   conclusion `success`.
-- **JitPack `3.59.0` : « ok »** — 4 modules (cel-core, cel-lsp-api,
+- **JitPack `3.60.0` : « ok »** — 4 modules (cel-core, cel-lsp-api,
   cel-lsp, cel-ui), POM + `.module` vérifiés servis (HTTP 200) :
-  `https://jitpack.io/com/github/jjoblab/code-editor/cel-ui/3.59.0/`
+  `https://jitpack.io/com/github/jjoblab/code-editor/cel-ui/3.60.0/`
 - Règle inchangée : **ne jamais consommer** `3.50.0`/`3.51.0` via
   JitPack (incident 429 historique — servies sur GitHub Packages
   uniquement) ; 3.51.1 et 3.52.0+ sont saines sur JitPack.
 
-Coordonnées : `com.github.jjoblab.code-editor:cel-ui:3.59.0` et
-`com.github.jjoblab.code-editor:cel-lsp:3.59.0`.
+Coordonnées : `com.github.jjoblab.code-editor:cel-ui:3.60.0` et
+`com.github.jjoblab.code-editor:cel-lsp:3.60.0`.
 
 ---
 
@@ -334,6 +377,39 @@ Points de vigilance :
   styler, la barre s'aligne sur la gouttière (mode sombre/clair
   compris).
 
+### 4.9 Adopter les trois actions d'IDE (B6, 3.60.0) — un seul appel
+
+La B6 simplifie radicalement l'adoption de la §4.8 : plus besoin de
+câbler annuler/rétablir à la main ni de gérer l'état de l'œil —
+
+```kotlin
+val bar = findViewById<BreadcrumbBar>(R.id.barre_fil_ariane) // ou binding
+bar.bind(vueEditeur)
+bar.addEditorActions()   // annuler + rétablir + aperçu, câblés d'office
+```
+
+Ce que l'appel fait pour CodeIDE :
+
+- **Annuler / rétablir** suivent la session courante (relue à chaque
+  évaluation — le changement d'onglet est couvert) : grisés sans
+  historique, un tap dépile, l'état se rafraîchit à chaque édition.
+- **Aperçu** : le bouton n'EXISTE que quand `setFileName` désigne un
+  fichier prévisualisable au sens du hôte (`canPreview` — `.md`,
+  `.html`…) ; sinon il est `GONE` (aucune rangée squattée). Un tap
+  ouvre la feuille scindée, un second tap la referme ; l'icône reste
+  allumée tant que la feuille est ouverte. `setCurrentFilePath` se
+  branche sur `setFileName` comme en §4.8.
+- Les boutons du bas de CodeIDE qui doublonnaient annuler/rétablir
+  peuvent être retirés — ou conservés : les deux chemins coexistent
+  sans conflit.
+
+Pour un bouton d'icône isolé (action maison), préférer
+`addIconAction(EditorIcons.Icon.UNDO, "…", enabledSupplier) { … }`
+au `addAction("↶", …)` texte — même registre pill, rendu identique
+sur tous les appareils.
+
+---
+
 ## 5. Protocole de vérification sur appareil (après montée de version)
 
 Reprendre le protocole « LSP branché » (guide 3.51.1, §4, inchangé) et
@@ -386,6 +462,21 @@ ajouter les épreuves du lot tactile :
     passer : ni zoom, ni dézoom, ni bascule ¶/ligatures ; le caret se
     pose normalement. La taille de police ne change que via les
     boutons VISIBLES (barre de fil d'Ariane, §4.8) ou l'API.
+14. **Barre B6 (3.60.0, via la démo)** : sur l'APK démo 3.60.0, la
+    rangée ne montre PLUS QUE trois boutons-icônes (annuler, rétablir,
+    aperçu) — plus de « ⇔ A+ A− » ; l'œil n'apparaît QUE sur
+    Markdown / XML-HTML (changer d'échantillon le fait disparaître/
+    réapparaître SANS autre action) ; l'œil s'allume (accent) pendant
+    que la feuille est ouverte ; un second tap sur l'œil referme la
+    feuille. Vérifier aussi : annuler grisé au départ, actif après une
+    frappe, le tap annule réellement.
+15. **Feuille carte flottante (3.60.0)** : ouvrir l'aperçu Markdown →
+    la feuille flotte avec une ombre franche (élévation), coins
+    arrondis côté gauche en scindé ; l'en-tête montre l'œil + le nom
+    `exemple.md` ; la pilule scindé/plein bascule le mode (compartiment
+    actif voilé d'accent) ; le rendu affiche liens, tables, cases de
+    tâches, barré ; la frappe se reflète en ~200 ms ; fermer par ✕ ou
+    par le bouton Retour.
 
 ---
 
