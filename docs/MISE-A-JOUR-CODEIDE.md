@@ -279,20 +279,20 @@ touchée).
 
 ### Publication vérifiée (2026-10-13)
 
-- `main` @ `1514207` poussé (merge refonte B6) ; tag
-  **`v3.60.0`** posé sur le commit de version `6605110`.
+- `main` @ `7eb5997` poussé (merge retour terrain n°4) ; tag
+  **`v3.61.0`** posé sur le commit de version `f234b61`.
 - CI verte sur les deux workflows (merge + tag) — runs
-  `38345163324` (CI) / `38345163243` (Publication GitHub Packages),
+  `38352543410` (CI) / `38352543269` (Publication GitHub Packages),
   conclusion `success`.
-- **JitPack `3.60.0` : « ok »** — 4 modules (cel-core, cel-lsp-api,
+- **JitPack `3.61.0` : « ok »** — 4 modules (cel-core, cel-lsp-api,
   cel-lsp, cel-ui), POM + `.module` vérifiés servis (HTTP 200) :
-  `https://jitpack.io/com/github/jjoblab/code-editor/cel-ui/3.60.0/`
+  `https://jitpack.io/com/github/jjoblab/code-editor/cel-ui/3.61.0/`
 - Règle inchangée : **ne jamais consommer** `3.50.0`/`3.51.0` via
   JitPack (incident 429 historique — servies sur GitHub Packages
   uniquement) ; 3.51.1 et 3.52.0+ sont saines sur JitPack.
 
-Coordonnées : `com.github.jjoblab.code-editor:cel-ui:3.60.0` et
-`com.github.jjoblab.code-editor:cel-lsp:3.60.0`.
+Coordonnées : `com.github.jjoblab.code-editor:cel-ui:3.61.0` et
+`com.github.jjoblab.code-editor:cel-lsp:3.61.0`.
 
 ---
 
