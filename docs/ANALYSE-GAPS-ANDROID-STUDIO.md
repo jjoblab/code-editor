@@ -141,18 +141,26 @@ geste direct (conflit avec l'extension de sélection) ; le drop insère
 au caret fantôme sous le doigt avec la loupe pour la précision. Effort :
 moyen.
 
-**P1-3 · Zoom de police persistant par fichier/type.** Le pincement B9
-est ancré mais l'échelle (0.6–2.6) vit en mémoire : à la réouverture
-d'un fichier, tout revient à 1. Android Studio mémorise le zoom par
-éditeur persistant. **Recommandation** : persistance du `fontScale`
-dans l'état d'instance (B17 `InstanceState` existe déjà pour le reste)
-+ clé par type de fichier via le hôte. Effort : petit.
+**P1-3 · Zoom de police persistant par fichier/type — ✅ LIVRÉ en
+B12 (v3.66.0)** : `EditorZoomMemory` + `EditorView.setZoomMemoryKey`
+— mémoire process par clé de type posée par l'hôte, chaque mutation
+d'échelle (pincement, A±, `setFontScale`) s'enregistre, la repose
+applique le réglage du type (le zoom ne fuit pas entre types), clé
+nulle = comportement historique, rotation B17 toujours plus précise.
+Historique de l'écart (v3.65.0) : le pincement B9 était ancré mais
+l'échelle (0.6–2.6) ne vivait qu'en mémoire de vue — à la
+réouverture d'un fichier, tout revenait à 1. Android Studio mémorise
+le zoom par éditeur persistant (la portée process couvre les vues
+recréées ; la survivance au redémarrage est laissée aux Settings de
+l'hôte, qui réinjecte via `EditorZoomMemory.remember`).
 
-**P1-4 · Colonnes relatives (numéros).** Android Studio (paramètre) :
-numéros relatifs à la ligne du caret pour la navigation `5j/10k`. Sur
-mobile l'usage est faible mais le coût est nul : un mode
-`LineNumberStyle` (ABSOLU/RELATIF/HYBRIDE) dans `GutterView`. Effort :
-petit.
+**P1-4 · Colonnes relatives (numéros) — ✅ LIVRÉ en B12 (v3.66.0)** :
+enum public `LineNumberStyle` (ABSOLUTE/RELATIVE/HYBRID) dans
+`GutterView`, posé par `EditorView.setLineNumberStyle` — RELATIVE :
+distance au caret (0 au caret) ; HYBRID : numéro réel au caret,
+distances autour ; défaut ABSOLUTE inchangé. Historique de l'écart
+(v3.65.0) : numéros absolus uniquement — Android Studio propose les
+numéros relatifs pour la navigation `5j/10k`.
 
 **P1-5 · Plis : « tout replier/déplier » et plis par région.** Le toggle
 par ligne existe (bande + chips). Manquent : le pli sélectif par niveau
@@ -190,7 +198,7 @@ coût. À ne faire que sur demande explicite.
 | B10 | P0-1 recherche/remplacement (`EditorSearchBar` + surlignage + raccourci) — **livré v3.64.0** | P0 | moyenne |
 | B10 | P0-2 `selectParagraphAt` + 4e tap — **livré v3.64.0** | P0 | petite |
 | B11 | P0-3 fast-scroller de gouttière + P1-1 error stripe — **livré v3.65.0** | P0/P1 | moyenne |
-| B12 | P1-3 persistance du zoom + P1-4 colonnes relatives | P1 | petite |
+| B12 | P1-3 persistance du zoom + P1-4 colonnes relatives — **livré v3.66.0** | P1 | petite |
 | B12 | P2-2 API `GutterAction` généralisée (fondée sur B9c) | P2 | moyenne |
 | B13 | P1-2 drag-déposer de bloc (mode pill ✥) | P1 | moyenne |
 | B14 | P1-5 plis par niveau + régions de commentaire | P1 | moyenne |
@@ -210,9 +218,11 @@ l'édition tactile : le composant éditeur est désormais au niveau des
 conventions plateforme sur son cœur. B10 (recherche) puis B11 (stripe
 d'erreurs, fast-scroll) referment le palier suivant — la **navigation
 dans le contenu** : les trois écarts P0/P1-1 partageaient la même
-infrastructure de surlignage et de fenêtrage, désormais livrée. Le
-prochain palier est la parité riche (P1-3 zoom persistant,
-P1-4 colonnes relatives, P1-2 drag de bloc, P1-5 plis par niveau) —
-B12 (petit) est le candidat naturel. L'API `GutterAction` (P2-2)
-reste le pari stratégique : B9c en a posé les fondations, et CodeIDE
-en est le premier consommateur naturel.
+infrastructure de surlignage et de fenêtrage, désormais livrée. B12
+referme le palier CONFORM (P1-3 zoom persistant par type + P1-4
+colonnes relatives) — le zoom de l'utilisateur survit aux
+réouvertures et la gouttière parle « distance au caret » à la
+demande. Restent la parité riche d'édition (P1-2 drag de bloc,
+P1-5 plis par niveau) — B13/B14 de la feuille de route. L'API
+`GutterAction` (P2-2) reste le pari stratégique : B9c en a posé les
+fondations, et CodeIDE en est le premier consommateur naturel.
