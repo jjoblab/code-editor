@@ -121,7 +121,12 @@ public class EditorTapResolver {
         // les branches gouttière (fold/diagnostics) : l'icône vit dans
         // la zone des numéros et possède SA rangée. Le caret n'est PAS
         // déplacé — le geste appartient à l'icône.
-        if (tapCount == 1 && view.hitTestGutterPreviewAction(x, y)) {
+        // Pas de garde tapCount (précédent de la bande de fold ci-dessous) :
+        // les taps de GOUTTIÈRE appartiennent à la gouttière — un
+        // double-tap rapide sur l'icône bascule deux fois (ouvrir puis
+        // refermer), il ne tombe JAMAIS dans la cascade multi-tap du
+        // texte (mot/ligne) derrière.
+        if (view.hitTestGutterPreviewAction(x, y)) {
             if (view.previewMode.isSheet()) {
                 view.closePreviewSheet();
             } else {
