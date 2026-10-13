@@ -353,6 +353,36 @@ public class EditorTapResolver {
             }
         }
 
+        // ── B11 (P1-1) : tap sur un MARQUEUR de la bande d'erreurs ──
+        // (bord droit — tout le fichier, même hors écran). Déplie le pli
+        // englobant, CENTRE la ligne dans le viewport puis ouvre la
+        // fiche : popup de détail si la ligne porte un seul diagnostic,
+        // liste groupée sinon (parité exacte avec le tap sur la chip de
+        // fin de ligne / le point de gouttière). Un tap dans la bande
+        // SANS marqueur consomme le geste (le caret ne se place pas
+        // derrière — la bande est un chrome, pas du texte).
+        if (view.errorStripe.hit(x, y)) {
+            int line = view.errorStripe.markerLineAt(y);
+            if (line >= 0 && view.session != null) {
+                List<DiagnosticShift.Diagnostic> lineDiags =
+                        view.session.getDiagnosticsForLine(line);
+                DiagnosticShift.Diagnostic primary =
+                        view.findDiagnosticAtLine(line);
+                if (primary != null) {
+                    // Le marqueur peut vivre sous un pli replié — sans
+                    // dépliage, on centrerait du vide.
+                    view.session.expandFoldAt(primary.start);
+                    view.scrollManager.scrollToLineCentered(line);
+                    if (lineDiags != null && lineDiags.size() > 1) {
+                        view.showDiagnosticListSheet(line);
+                    } else {
+                        view.showDiagnosticPopup(primary, primary.start);
+                    }
+                }
+            }
+            return;
+        }
+
         // Si le tap est tombé sur la chip placeholder ({...}) d'une ligne
         // de début de fold, étend le fold au lieu de placer le caret.
         // Détecté en vérifiant que la ligne est une ligne de début de fold

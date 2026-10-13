@@ -511,6 +511,13 @@ public class EditorRenderer {
             chrome.drawMinimap(canvas);
         }
 
+        // ★ B11 (P1-1) : bande d'erreurs du bord droit — marqueurs de
+        // diagnostics (tout le fichier, même hors écran) + rectangle du
+        // viewport façon scrollbar. Dessinée APRÈS la minimap : à 4 dp au
+        // bord droit, elle en borde le flanc sans la masquer ; la bande
+        // se tait quand un aperçu est ouvert.
+        view.errorStripe.draw(canvas);
+
         // Sticky lines (en-têtes collés en haut pendant le scroll).
         // Dessiné EN DERNIER pour être par-dessus tout le reste.
         // La liste des lignes ACTIVES (rendu + hit-test S3, plafond
@@ -518,6 +525,12 @@ public class EditorRenderer {
         if (view.stickyLinesEnabled && view.session != null) {
             drawStickyLines(canvas, doc, lineHeight, paddingTop, textAreaLeft);
         }
+
+        // ★ B11 (P0-3) : pouce du fast-scroller + bulle de ligne — LE
+        // TOUT DERNIER, par-dessus tout (sticky lines comprises) : c'est
+        // le retour visuel d'un geste en cours (drag de gouttière ou de
+        // bande), il doit rester lisible pendant le déplacement.
+        view.fastScroller.draw(canvas);
     }
 
     // ════════════════════════════════════════════════════════════════

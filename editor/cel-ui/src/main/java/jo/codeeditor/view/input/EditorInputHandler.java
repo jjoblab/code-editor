@@ -120,6 +120,14 @@ public class EditorInputHandler {
     // a commencé pour que UP distingue un TAP gutter d'un drag gutter.
     private boolean downInLineNumberArea = false;
 
+    // ── B11 (P1-1) : geste de la bande d'erreurs ───────────────
+    // Un DOWN dans la zone tactile du bord droit (bande d'erreurs)
+    // engloutit le geste : tap sur un marqueur → centrer la ligne +
+    // fiche de diagnostic (résolu au UP via handleTap) ; drag →
+    // défilement ABSOLU du document (pouce + bulle du fast-scroller,
+    // même mécanique que le drag de gouttière B11/P0-3).
+    private boolean stripeGesture = false;
+
     // ── Handler partagé des décisions de tap différées ──────────────
     // Possédé par l'orchestrateur ; utilisé par EditorTapResolver
     // (tap-dismiss multi-tap) et EditorTouchHoverController (hover
@@ -185,6 +193,11 @@ public class EditorInputHandler {
             wasPinching = true;
             isDragging = false;
             isScrolling = false;
+            // ★ B11 : le pincement prend possession du viewport — le
+            // fast-scroller de gouttière/bande en cours tombe aussi
+            // (pouce masqué immédiatement).
+            view.fastScroller.cancel();
+            stripeGesture = false;
             return true;
         }
         if (event.getPointerCount() > 1) {
@@ -198,6 +211,8 @@ public class EditorInputHandler {
             wasPinching = true;
             isDragging = false;
             isScrolling = false;
+            view.fastScroller.cancel();
+            stripeGesture = false;
             return true;
         }
 
@@ -309,6 +324,21 @@ public class EditorInputHandler {
                     // là-bas est un TAP (point de diagnostic → fiche), pas
                     // un scroll.
                     downInLineNumberArea = true;
+                    // ★ B11 (P0-3) : arme le fast-scroller — le drag de
+                    // gouttière devient un positionnement ABSOLU (pouce +
+                    // bulle de ligne) ; un tap (sous le slop) reste un tap.
+                    view.fastScroller.arm();
+                }
+                // ★ B11 (P1-1) : la bande d'erreurs du bord droit possède
+                // SA zone tactile — le geste lui appartient (tap marqueur
+                // au UP, drag = scroll absolu au MOVE). Contrôlé APRÈS la
+                // gouttière (zones disjointes) et APRÈS les popups (une
+                // complétion ouverte au bord droit garde la priorité).
+                stripeGesture = view.errorStripe.hit(x, y);
+                if (stripeGesture) {
+                    view.fastScroller.arm();
+                    scrollerCtl.abortAnimation();
+                    return true;
                 }
                 scrollerCtl.abortAnimation();
                 return true;
@@ -408,12 +438,45 @@ public class EditorInputHandler {
                     }
                     return true;
                 }
+                // ★ B11 (P1-1) : drag sur la bande d'erreurs —
+                // défilement ABSOLU (le pouce suit le doigt). Le geste est
+                // englouti par la bande : pas de sélection de texte derrière.
+                // Sous le slop : rien (le tap du marqueur se résout au UP).
+                if (stripeGesture) {
+                    float sdx = x - touchStartX;
+                    float sdy = y - touchStartY;
+                    if (view.fastScroller.isActive()
+                            || sdx * sdx + sdy * sdy > TAP_SLOP_SQ) {
+                        view.fastScroller.dragTo(y);
+                    }
+                    return true;
+                }
                 if (isScrolling) {
-                    float dy = y - lastTouchY;
-                    float dx = x - lastTouchX;
-                    scrollerCtl.scrollByInternal(-dy, -dx);
-                    lastTouchX = x;
-                    lastTouchY = y;
+                    if (view.fastScroller.isArmed()) {
+                        // ★ B11 (P0-3) : drag de gouttière = fast-scroller
+                        // ABSOLU — le pouce (bord droit) suit la hauteur du
+                        // doigt et le document suit en proportion. Le
+                        // positionnement absolu remplace l'ancien scroll
+                        // pixel-relatif (un écran par geste) : tout le
+                        // document devient atteignable d'un seul geste,
+                        // comme le drag de gouttière d'Android Studio.
+                        // Activation au-delà du slop — un jitter de tap ne
+                        // doit ni flasher le pouce ni défiler.
+                        float tdx = x - touchStartX;
+                        float tdy = y - touchStartY;
+                        if (view.fastScroller.isActive()
+                                || tdx * tdx + tdy * tdy > TAP_SLOP_SQ) {
+                            view.fastScroller.dragTo(y);
+                        }
+                    } else {
+                        // Drag hors gouttière : scroll relatif classique
+                        // (fling au relâchement).
+                        float dy = y - lastTouchY;
+                        float dx = x - lastTouchX;
+                        scrollerCtl.scrollByInternal(-dy, -dx);
+                        lastTouchX = x;
+                        lastTouchY = y;
+                    }
                 } else {
                     float totalDx = x - touchStartX;
                     float totalDy = y - touchStartY;
@@ -537,6 +600,24 @@ public class EditorInputHandler {
                     view.performClick();
                     return true;
                 }
+                // ★ B11 (P1-1) : fin du geste de la bande d'erreurs —
+                // tap-like → résolution du marqueur (centrer + fiche)
+                // par la cascade handleTap ; drag → fin du pouce en
+                // fondu (pas de fling : positionnement absolu). Le geste
+                // est englouti par la bande, comme par la pill/le menu.
+                if (stripeGesture) {
+                    stripeGesture = false;
+                    boolean wasStripeTap = (x == touchStartX && y == touchStartY)
+                        || ((x - touchStartX) * (x - touchStartX)
+                            + (y - touchStartY) * (y - touchStartY) < TAP_SLOP_SQ);
+                    view.fastScroller.end();
+                    if (wasStripeTap) {
+                        tapResolver.handleTap(x, y);
+                    }
+                    scrollerCtl.recycleTracker();
+                    view.performClick();
+                    return true;
+                }
                 if (view.handleDragMode > 0) {
                     view.handleDragMode = 0;
                     handleMoving = false;
@@ -576,10 +657,19 @@ public class EditorInputHandler {
                             + (y - touchStartY) * (y - touchStartY) < TAP_SLOP_SQ);
                     if (downInLineNumberArea && tapLike && !longPressTriggered) {
                         tapResolver.handleTap(x, y);
+                    } else if (view.fastScroller.isActive()) {
+                        // ★ B11 (P0-3) : fast-scroll relâché — le pouce
+                        // disparaît en fondu ; PAS de fling (le geste est
+                        // un positionnement absolu, un fling le casserait).
+                        view.fastScroller.end();
                     } else {
                         scrollerCtl.flingFromTracker();
                     }
                 }
+                // ★ B11 (P0-3) : désarme le fast-scroller du geste de
+                // gouttière (tap → jamais actif → aucune trace ; drag →
+                // le fondu a déjà été amorcé ci-dessus).
+                view.fastScroller.end();
                 isScrolling = false;
                 downInLineNumberArea = false;
                 scrollerCtl.recycleTracker();
@@ -591,6 +681,10 @@ public class EditorInputHandler {
                 isDragging = false;
                 handleMoving = false;
                 downInLineNumberArea = false;
+                stripeGesture = false;
+                // ★ B11 : annulation — le pouce du fast-scroller disparaît
+                // immédiatement, sans fondu.
+                view.fastScroller.cancel();
                 selectionGestures.disarmDragSelect();
                 sheetGesture = false; // annule aussi le geste modal
                 toolbarGesture = false;
@@ -682,6 +776,10 @@ public class EditorInputHandler {
         longPressTriggered = true;
         isDragging = false;
         isScrolling = false;
+        // ★ B11 : un appui long ne peut pas être un fast-scroll — le
+        // pouce ne doit pas apparaître si le doigt glisse ensuite.
+        view.fastScroller.cancel();
+        stripeGesture = false;
     }
 
     /**
