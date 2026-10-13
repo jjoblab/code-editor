@@ -125,6 +125,29 @@
     </item>
 
     <item
+        android:id="@+id/action_folds"
+        android:title="@string/menu_folds"
+        app:showAsAction="never">
+        <menu>
+            <item
+                android:id="@+id/folds_level_1"
+                android:title="@string/folds_level_1" />
+            <item
+                android:id="@+id/folds_level_2"
+                android:title="@string/folds_level_2" />
+            <item
+                android:id="@+id/folds_level_3"
+                android:title="@string/folds_level_3" />
+            <item
+                android:id="@+id/folds_all"
+                android:title="@string/folds_all" />
+            <item
+                android:id="@+id/folds_none"
+                android:title="@string/folds_none" />
+        </menu>
+    </item>
+
+    <item
         android:id="@+id/action_find"
         android:title="@string/menu_find"
         app:showAsAction="never" />

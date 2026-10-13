@@ -320,11 +320,14 @@ public final class FoldDetector {
 
     /**
      * Détecte les régions nommées pliables. Supporte les syntaxes
-     * usuelles :
+     * usuelles — B14 (P1-5) : le marqueur tolère l'espace OU son
+     * absence (C# « #region », IntelliJ « //region » — parité
+     * Android Studio) :
      * <ul>
      *   <li>{@code // region Nom} ... {@code // endregion}</li>
      *   <li>{@code // <editor-fold desc="Nom">} ... {@code // </editor-fold>}</li>
      *   <li>{@code # region Nom} ... {@code # endregion} (Python, YAML)</li>
+     *   <li>{@code #region Nom} ... {@code #endregion} (C#)</li>
      * </ul>
      */
     public static List<DiagnosticShift.FoldRegion> detectNamedRegions(String text) {
@@ -338,14 +341,18 @@ public final class FoldDetector {
             String trimmed = lines[li].trim();
             // Détecter les ouvertures.
             if (trimmed.startsWith("// region")
+                    || trimmed.startsWith("//region")
                     || trimmed.startsWith("// <editor-fold")
-                    || trimmed.startsWith("# region")) {
+                    || trimmed.startsWith("# region")
+                    || trimmed.startsWith("#region")) {
                 stack.push(new int[]{offset, li});
             }
             // Détecter les fermetures.
             else if (trimmed.startsWith("// endregion")
+                    || trimmed.startsWith("//endregion")
                     || trimmed.startsWith("// </editor-fold>")
-                    || trimmed.startsWith("# endregion")) {
+                    || trimmed.startsWith("# endregion")
+                    || trimmed.startsWith("#endregion")) {
                 if (!stack.isEmpty()) {
                     int[] open = stack.pop();
                     if (li - open[1] >= 2) {
@@ -363,8 +370,15 @@ public final class FoldDetector {
 
     private static String extractRegionName(String line) {
         String t = line.trim();
-        // // region Nom → "Nom"
+        // // region Nom (9 caractères de marqueur) / //region Nom (8)
+        // → "Nom". B14 : l'off-by-one historique (substring(8) sur
+        // « // region » laissait un « n » parasite en tête de nom) est
+        // corrigé — la chip porte le VRAI nom de la région.
         if (t.startsWith("// region")) {
+            String name = t.substring(9).trim();
+            return name.isEmpty() ? "region" : name;
+        }
+        if (t.startsWith("//region")) {
             String name = t.substring(8).trim();
             return name.isEmpty() ? "region" : name;
         }
@@ -377,8 +391,12 @@ public final class FoldDetector {
             }
             return "region";
         }
-        // # region Nom → "Nom"
+        // # region Nom (8 caractères) / #region Nom (7, C#) → "Nom".
         if (t.startsWith("# region")) {
+            String name = t.substring(8).trim();
+            return name.isEmpty() ? "region" : name;
+        }
+        if (t.startsWith("#region")) {
             String name = t.substring(7).trim();
             return name.isEmpty() ? "region" : name;
         }

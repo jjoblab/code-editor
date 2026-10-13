@@ -184,6 +184,12 @@ public class MainActivity extends AppCompatActivity {
         return button;
     }
 
+    /** B14 (P1-5) : « Replier au niveau N » — profondeur exacte (1=classes, 2=méthodes, 3=blocs). */
+    private void replierAuNiveau(int level) {
+        if (session != null) session.collapseFoldsAtLevel(level);
+        editor.invalidate();
+    }
+
     /** Bascule thème jour/nuit — la base du scheme suit (lot 4 #25). */
     void applyEditorTheme(boolean light) {
         editorLight = light;
@@ -218,6 +224,31 @@ public class MainActivity extends AppCompatActivity {
         }
         if (id == R.id.line_numbers_hybrid) {
             editor.setLineNumberStyle(LineNumberStyle.HYBRID);
+            return true;
+        }
+        // B14 (P1-5) : plis par niveau + tout replier/déplier — le pli
+        // sélectif « méthodes vs classes » façon Android Studio, les
+        // régions nommées étant déjà détectées (// region, #region).
+        if (id == R.id.folds_level_1) {
+            replierAuNiveau(1);
+            return true;
+        }
+        if (id == R.id.folds_level_2) {
+            replierAuNiveau(2);
+            return true;
+        }
+        if (id == R.id.folds_level_3) {
+            replierAuNiveau(3);
+            return true;
+        }
+        if (id == R.id.folds_all) {
+            if (session != null) session.collapseAllFolds();
+            editor.invalidate();
+            return true;
+        }
+        if (id == R.id.folds_none) {
+            if (session != null) session.expandAllFolds();
+            editor.invalidate();
             return true;
         }
         if (id == R.id.action_find) {
