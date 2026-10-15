@@ -3171,16 +3171,6 @@ public class EditorView extends View {
         return new Selection(start, end);
     }
 
-    static int countLeadingWhitespace(String s) {
-        int n = 0;
-        while (n < s.length()) {
-            char c = s.charAt(n);
-            if (c == ' ' || c == '\t') n++;
-            else break;
-        }
-        return n;
-    }
-
     /** Listener optionnel pour que l'Activity hôte réagisse à Ctrl+F. */
     public interface OnFindRequestedListener {
         void onFindRequested();
