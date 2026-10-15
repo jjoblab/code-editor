@@ -143,18 +143,44 @@ public final class EditOps {
     }
 
     /**
-     * Tente de déclencher une complétion postfix à la position
-     * donnée. Wrapper public pour
-     * {@link PostfixCompletion#tryComplete}.
+     * Résultat immuable d'une complétion postfix (D-04) — retourné PAR
+     * APPEL, sans aucun état partagé entre sessions ou threads.
+     */
+    public static final class PostfixResult {
+        /** Début de la plage à remplacer. */
+        public final int start;
+        /** Fin de la plage à remplacer (exclusive). */
+        public final int end;
+        /** Position du caret après insertion. */
+        public final int caret;
+        /** Texte à insérer. */
+        public final String insertText;
+
+        PostfixResult(int start, int end, int caret, String insertText) {
+            this.start = start;
+            this.end = end;
+            this.caret = caret;
+            this.insertText = insertText;
+        }
+    }
+
+    /**
+     * Tente de déclencher une complétion postfix (D-04) — objet
+     * résultat IMMUABLE retourné par appel : deux sessions (ou deux
+     * threads) peuvent interroger simultanément sans qu'aucun état
+     * global ne soit partagé.
      *
      * @param text le texte complet du document
      * @param pos la position du caret
      * @param language l'identifiant de langage
-     * @return un tableau {@code [start, end, caret]} + le texte à
-     *         insérer, ou null si pas de postfix détecté. Le texte
-     *         est obtenu via {@link #getPostfixInsertText()}.
+     * @return le résultat (plage + caret + texte à insérer), ou null si
+     *         aucun postfix n'est détecté
      */
-    private static PostfixCompletion.Result lastPostfixResult;
+    public static PostfixResult tryPostfix(CharSequence text, int pos, String language) {
+        PostfixCompletion.Result r = PostfixCompletion.tryComplete(text, pos, language);
+        if (r == null) return null;
+        return new PostfixResult(r.start, r.end, r.caret, r.insertText);
+    }
 
     /**
      * Tente de déclencher une complétion postfix. Si un postfix est
@@ -163,16 +189,34 @@ public final class EditOps {
      * insérer est disponible via {@link #getPostfixInsertText()}.
      *
      * @return [start, end, caret] ou null si pas de postfix
+     * @deprecated depuis 3.71.0 (D-04) : la paire
+     *             {@code tryPostfixCompletion}/{@code getPostfixInsertText}
+     *             reposait sur un champ STATIQUE MUTABLE partagé entre
+     *             sessions — entrelacée en concurrence, la seconde
+     *             session lisait le texte de la première. Utiliser
+     *             {@link #tryPostfix(CharSequence, int, String)} qui
+     *             retourne l'objet résultat immuable PAR APPEL.
+     *             Retrait prévu au palier suivant (voir CHANGELOG).
      */
+    @Deprecated
     public static int[] tryPostfixCompletion(CharSequence text, int pos, String language) {
-        PostfixCompletion.Result r = PostfixCompletion.tryComplete(text, pos, language);
+        PostfixResult r = tryPostfix(text, pos, language);
         if (r == null) return null;
-        lastPostfixResult = r;
         return new int[]{r.start, r.end, r.caret};
     }
 
-    /** Récupère le texte à insérer du dernier appel à tryPostfixCompletion. */
+    /**
+     * Récupère le texte à insérer du dernier appel à tryPostfixCompletion.
+     *
+     * @deprecated depuis 3.71.0 (D-04) : retourne TOUJOURS null — l'état
+     *             partagé a été retiré (le texte voyage dans le
+     *             résultat immuable de
+     *             {@link #tryPostfix(CharSequence, int, String)}).
+     *             Retrait prévu au palier suivant (voir CHANGELOG).
+     * @return toujours null
+     */
+    @Deprecated
     public static String getPostfixInsertText() {
-        return lastPostfixResult != null ? lastPostfixResult.insertText : null;
+        return null;
     }
 }

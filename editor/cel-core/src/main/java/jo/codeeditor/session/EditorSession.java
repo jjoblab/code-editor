@@ -764,7 +764,8 @@ public class EditorSession {
         // Postfix completion : si le texte inséré complète un postfix
         // (.if, .for, .notnull, .return, .var, .while, .try, .else),
         // déclencher la complétion postfix au lieu de l'insertion
-        // simple.
+        // simple. D-04 : le résultat immuable voyage par appel — plus
+        // d'état statique partagé entre sessions.
         if (text.length() >= 2) {
             CharSequence docChars = doc.charSequence();
             int pos = selection.start;
@@ -772,14 +773,14 @@ public class EditorSession {
             String simulated = docChars.subSequence(0, pos).toString()
                     + text;
             int simulatedPos = pos + text.length();
-            int[] pc = jo.codeeditor.edit.EditOps.tryPostfixCompletion(
-                    simulated, simulatedPos, language);
+            jo.codeeditor.edit.EditOps.PostfixResult pc =
+                    jo.codeeditor.edit.EditOps.tryPostfix(
+                            simulated, simulatedPos, language);
             if (pc != null) {
-                String insertText = jo.codeeditor.edit.EditOps.getPostfixInsertText();
-                int realStart = pc[0];
-                int realEnd = Math.min(pc[1], pos + text.length());
+                int realStart = pc.start;
+                int realEnd = Math.min(pc.end, pos + text.length());
                 replaceRangeWithCaret(realStart, realEnd,
-                        insertText, pc[2]);
+                        pc.insertText, pc.caret);
                 return;
             }
         }
