@@ -3,12 +3,21 @@ package jo.codeeditor.navigation;
 import java.util.*;
 
 /**
- * Navigation go-to : déclaration, implémentation, déclaration de type,
- * super.
- * Résout les cibles de navigation et gère les résultats simples/multiples.
- * Navigation par symboles du document.
+ * Types et filtres de la navigation go-to (déclaration, implémentation,
+ * déclaration de type, super) et du go-to-symbol.
+ *
+ * <p>M-02 (audit 3.69.0) : la machinerie de PICKER instance (résolution,
+ * navigation directe/multiple, sélection d'option) n'avait AUCUN
+ * appelant — le popup de la vue ({@code EditorNavMenuPopup}) pilote ses
+ * propres lignes à partir des types exposés ici. La classe est
+ * désormais un porte-type utilitaire : symboles, cibles, options,
+ * filtrage camel-hump — tout ce qui est réellement consommé.</p>
  */
-public class NavigationMenu {
+public final class NavigationMenu {
+
+    private NavigationMenu() {
+        // Porte-type utilitaire : aucun état d'instance.
+    }
 
     // ── Enums & Types de données ─────────────────────────────────
 
@@ -165,154 +174,4 @@ public class NavigationMenu {
     }
 
     // ── État ───────────────────────────────────────────────────────
-
-    /** Options de navigation courantes. */
-    private List<NavOption> options = new ArrayList<>();
-
-    /** Résolveur de navigation. */
-    private NavigationResolver resolver;
-
-    /** Listener de résultats de navigation. */
-    private NavigationListener listener;
-
-    /** Option courante sélectionnée (pour le picker). */
-    private int selectedOption = 0;
-
-    /** Indique si le picker est ouvert. */
-    private boolean pickerOpen = false;
-
-    /**
-     * Interface de résolution des cibles de navigation depuis le serveur
-     * de langage.
-     */
-    public interface NavigationResolver {
-        /**
-         * Résout les cibles de navigation du kind donné au caret.
-         */
-        List<NavTarget> resolve(NavKind kind, String filePath, int offset);
-    }
-
-    /**
-     * Interface des événements de résultat de navigation.
-     */
-    public interface NavigationListener {
-        /** Appelé quand une cible unique doit recevoir la navigation. */
-        void onNavigate(NavTarget target);
-        /** Appelé quand plusieurs cibles nécessitent un picker. */
-        void onShowPicker(List<NavTarget> targets);
-    }
-
-    // ── Constructeurs ─────────────────────────────────────────────
-
-    public NavigationMenu() {
-        this(null, null);
-    }
-
-    public NavigationMenu(NavigationResolver resolver, NavigationListener listener) {
-        this.resolver = resolver;
-        this.listener = listener;
-    }
-
-    // ── Accesseurs ────────────────────────────────────────────────
-
-    public List<NavOption> getOptions() { return Collections.unmodifiableList(options); }
-    public boolean isPickerOpen() { return pickerOpen; }
-    public int getSelectedOption() { return selectedOption; }
-
-    public void setResolver(NavigationResolver resolver) { this.resolver = resolver; }
-    public void setListener(NavigationListener listener) { this.listener = listener; }
-
-    // ── Navigation ────────────────────────────────────────────────
-
-    /**
-     * Lance la navigation du kind donné à la position courante.
-     * Si une seule cible est trouvée, navigue directement.
-     * Si plusieurs cibles, ouvre un picker.
-     *
-     * @param kind     kind de navigation
-     * @param filePath chemin du fichier courant
-     * @param offset   offset courant du caret
-     */
-    public void runNav(NavKind kind, String filePath, int offset) {
-        if (resolver == null) return;
-
-        List<NavTarget> targets = resolver.resolve(kind, filePath, offset);
-        if (targets == null || targets.isEmpty()) return;
-
-        if (targets.size() == 1) {
-            // Cible unique : navigation directe
-            if (listener != null) {
-                listener.onNavigate(targets.get(0));
-            }
-        } else {
-            // Cibles multiples : affiche un picker
-            if (listener != null) {
-                listener.onShowPicker(targets);
-            }
-            openPicker(targets);
-        }
-    }
-
-    /**
-     * Ouvre le picker de navigation avec les cibles données.
-     */
-    private void openPicker(List<NavTarget> targets) {
-        options = new ArrayList<>();
-        for (NavTarget t : targets) {
-            String label = t.displayName.isEmpty()
-                ? t.path + ":" + t.offset
-                : t.displayName;
-            options.add(new NavOption(label, Collections.singletonList(t)));
-        }
-        pickerOpen = true;
-        selectedOption = 0;
-    }
-
-    /**
-     * Ferme le picker.
-     */
-    public void closePicker() {
-        pickerOpen = false;
-        selectedOption = 0;
-    }
-
-    /**
-     * Déplace la sélection du picker.
-     */
-    public void movePickerSelection(int dir) {
-        if (!pickerOpen || options.isEmpty()) return;
-        selectedOption = Math.max(0, Math.min(options.size() - 1, selectedOption + dir));
-    }
-
-    /**
-     * Sélectionne l'option courante du picker et navigue.
-     */
-    public void selectPickerOption() {
-        if (!pickerOpen || selectedOption < 0 || selectedOption >= options.size()) return;
-        NavOption option = options.get(selectedOption);
-        closePicker();
-        if (listener != null && !option.targets.isEmpty()) {
-            listener.onNavigate(option.targets.get(0));
-        }
-    }
-
-    /**
-     * Navigue vers une option précise par index.
-     */
-    public void navigateToOption(int index) {
-        if (index < 0 || index >= options.size()) return;
-        NavOption option = options.get(index);
-        closePicker();
-        if (listener != null && !option.targets.isEmpty()) {
-            listener.onNavigate(option.targets.get(0));
-        }
-    }
-
-    // ── Réinitialisation ──────────────────────────────────────────
-
-    public void reset() {
-        options = new ArrayList<>();
-        pickerOpen = false;
-        selectedOption = 0;
-    }
 }
