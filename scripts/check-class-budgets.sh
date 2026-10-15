@@ -48,6 +48,10 @@ budget() {
 # Écart au ratchet : plafond LIGNES d'EditorView relevé de 3350 à 4100
 # par décision explicite du propriétaire (2026-10, session J2) — marge
 # pour les jalons du lot 2.
+# A-01 (audit 3.69.0) : le cliquet DESCEND — extraction de l'état
+# Parcelable (EditorSavedState) : 3840 → 3799 lignes mesurées, plafond
+# abaissé à 3810. Les relèvements futurs exigent la décision du
+# propriétaire ; chaque extraction doit accompagner son abaissement.
 # Écart au ratchet : plafonds CHAMPS (170→190) et MÉTHODES PUBLIQUES
 # (255→280) d'EditorView relevés par décision explicite du propriétaire
 # (2026-10, session J3 — « Go pour J3, tu peux aussi augmenter le
@@ -56,7 +60,7 @@ budget() {
 # marge conservée pour J4 (T2 actions socle) ; les 4100 lignes restent
 # le plafond de décomposition — le relèvement ne dispense PAS de
 # décomposer via les collaborateurs existants.
-budget editor/cel-ui/src/main/java/jo/codeeditor/view/EditorView.java 4100 190 280
+budget editor/cel-ui/src/main/java/jo/codeeditor/view/EditorView.java 3810 190 280
 budget editor/cel-core/src/main/java/jo/codeeditor/session/EditorSession.java 1600 15 100
 
 if [ "$echec" -ne 0 ]; then

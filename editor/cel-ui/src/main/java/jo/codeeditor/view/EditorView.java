@@ -2871,7 +2871,7 @@ public class EditorView extends View {
     @Override
     protected Parcelable onSaveInstanceState() {
         Parcelable superState = super.onSaveInstanceState();
-        SavedState ss = new SavedState(superState);
+        EditorSavedState ss = new EditorSavedState(superState);
         ss.vOffset = vOffset;
         ss.hOffset = hOffset;
         ss.fontScale = zoom.fontScale;
@@ -2881,11 +2881,11 @@ public class EditorView extends View {
 
     @Override
     protected void onRestoreInstanceState(Parcelable state) {
-        if (!(state instanceof SavedState)) {
+        if (!(state instanceof EditorSavedState)) {
             super.onRestoreInstanceState(state);
             return;
         }
-        SavedState ss = (SavedState) state;
+        EditorSavedState ss = (EditorSavedState) state;
         super.onRestoreInstanceState(ss.getSuperState());
         // Zoom d'abord : setFontScale reconstruit le modèle de wrap (B13).
         if (ss.fontScale != zoom.fontScale) zoom.setFontScale(ss.fontScale);
@@ -2905,47 +2905,6 @@ public class EditorView extends View {
         invalidate();
     }
 
-    /** État sauvegardé de la vue (scroll/zoom/wrap) — voir
-     *  {@link #onSaveInstanceState()}. */
-    static final class SavedState extends View.BaseSavedState {
-        float vOffset;
-        float hOffset;
-        float fontScale;
-        boolean wordWrap;
-
-        SavedState(Parcelable superState) {
-            super(superState);
-        }
-
-        SavedState(Parcel in) {
-            super(in);
-            vOffset = in.readFloat();
-            hOffset = in.readFloat();
-            fontScale = in.readFloat();
-            wordWrap = in.readByte() != 0;
-        }
-
-        @Override
-        public void writeToParcel(Parcel out, int flags) {
-            super.writeToParcel(out, flags);
-            out.writeFloat(vOffset);
-            out.writeFloat(hOffset);
-            out.writeFloat(fontScale);
-            out.writeByte((byte) (wordWrap ? 1 : 0));
-        }
-
-        public static final Parcelable.Creator<SavedState> CREATOR =
-                new Parcelable.Creator<SavedState>() {
-            @Override
-            public SavedState createFromParcel(Parcel in) {
-                return new SavedState(in);
-            }
-            @Override
-            public SavedState[] newArray(int size) {
-                return new SavedState[size];
-            }
-        };
-    }
 
     // ════════════════════════════════════════════════════════════════
     // Défilement — bornes

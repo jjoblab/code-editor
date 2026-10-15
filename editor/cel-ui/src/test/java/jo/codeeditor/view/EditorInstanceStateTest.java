@@ -68,7 +68,7 @@ public class EditorInstanceStateTest {
     }
 
     /** Aller-retour Parcel complet (comme le ferait le système). */
-    private static EditorView.SavedState roundtrip(EditorView.SavedState state)
+    private static EditorSavedState roundtrip(EditorSavedState state)
             throws Exception {
         Parcel parcel = Parcel.obtain();
         try {
@@ -78,7 +78,7 @@ public class EditorInstanceStateTest {
             try {
                 in.unmarshall(bytes, 0, bytes.length);
                 in.setDataPosition(0);
-                return EditorView.SavedState.CREATOR.createFromParcel(in);
+                return EditorSavedState.CREATOR.createFromParcel(in);
             } finally {
                 in.recycle();
             }
@@ -98,10 +98,10 @@ public class EditorInstanceStateTest {
         view.setWordWrap(true);
         view.vOffset = 300f;
 
-        EditorView.SavedState saved = (EditorView.SavedState) view.onSaveInstanceState();
+        EditorSavedState saved = (EditorSavedState) view.onSaveInstanceState();
         assertEquals("pré-condition : l'offset sauvegardé n'est pas écrasé",
                 300f, saved.vOffset, 0.001f);
-        EditorView.SavedState restored = roundtrip(saved);
+        EditorSavedState restored = roundtrip(saved);
         assertEquals("l'offset survit au aller-retour Parcel",
                 300f, restored.vOffset, 0.001f);
         assertTrue("le wrap survit au aller-retour Parcel", restored.wordWrap);
@@ -122,10 +122,10 @@ public class EditorInstanceStateTest {
         EditorView view = newView(session);
         view.setFontScale(1.5f);
 
-        EditorView.SavedState saved = (EditorView.SavedState) view.onSaveInstanceState();
+        EditorSavedState saved = (EditorSavedState) view.onSaveInstanceState();
         assertEquals("pré-condition : le zoom sauvegardé",
                 1.5f, saved.fontScale, 0.001f);
-        EditorView.SavedState restored = roundtrip(saved);
+        EditorSavedState restored = roundtrip(saved);
 
         EditorView view2 = newView(session);
         view2.onRestoreInstanceState(restored);
@@ -141,10 +141,10 @@ public class EditorInstanceStateTest {
         EditorView view = newView(session);
         view.vOffset = 500f;
 
-        EditorView.SavedState saved = (EditorView.SavedState) view.onSaveInstanceState();
+        EditorSavedState saved = (EditorSavedState) view.onSaveInstanceState();
         assertEquals("pré-condition : capture de l'offset",
                 500f, saved.vOffset, 0.001f);
-        EditorView.SavedState restored = roundtrip(saved);
+        EditorSavedState restored = roundtrip(saved);
 
         // Vue dont la session a été détachée (setSession(null), B21e) :
         // pas de géométrie fiable → offsets conservés BRUTS pour que

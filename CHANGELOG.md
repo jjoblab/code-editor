@@ -47,6 +47,10 @@ Les sections antérieures à la période courante sont archivées dans
 - **Retiens délibérées, documentées dans le catalogue ET la baseline** : `lsp4j` 0.22.0 (la 1.0.0 rompt le contrat — `WorkspaceEdit` porte des `Either<TextEdit, SnippetTextEdit>`, `Hover` simplifie sa somme : l'adoption est un lot de fonctionnalité « éditions snippet », pas une mise à jour) ; `appcompat`/`material` (les versions courantes exigent compileSdk 35+) ; `compileSdk` 34 (décision de toolchain du propriétaire). 18 entrées baseline périmées retirées ; chaque retenue porte son pourquoi.
 - **Vérification minifiée (A-04)** — les quatre modules assemblés en release R8 (`proguard-android-optimize` par défaut) : **BUILD VERT, zéro erreur, zéro classe manquante** — l'écriture des règles consommateur peut partir de faits, pas de suppositions ; la minification reste désactivée par défaut (décision de publication = propriétaire).
 
+### Changed (L10 — A-01)
+
+- **Clivet A-01 : le plafond DESCEND** — première extraction de la décomposition d'`EditorView` : l'état Parcelable (`SavedState`, 60 lignes imbriquées) devient `EditorSavedState`, classe de package dédiée ; la vue conserve les points d'attache View. `EditorView` : 3840 → 3799 lignes (276/280 méthodes publiques) ; **plafond abaissé de 4100 à 3810** — tout relèvement futur exige la décision du propriétaire, chaque extraction accompagne désormais son abaissement. Le test d'état d'instance (parcellisation, restauration) couvre l'extraction.
+
 ### Fixed (D-09)
 
 - **Documentation dérivée resynchronisée** — README/USAGE annonçaient `3.49.2`, BUILD `3.54.0`, SECURITY `3.49.x` (réalité : `3.70.1`) ; le graphe des modules d'AGENT.md omettait `cel-lsp-api → cel-core (api)` et `cel-lsp → cel-ui (compileOnly)` ; les plans 01/02 citaient les collaborateurs `EditorBarTools` (retiré en B15) et `SurroundWith` (retiré au lot M-02). `check-doc-figures.sh` verrouille désormais l'égalité version README/USAGE/BUILD ↔ `build.gradle.kts` (rouge/vert testé par injection d'une version divergente).
