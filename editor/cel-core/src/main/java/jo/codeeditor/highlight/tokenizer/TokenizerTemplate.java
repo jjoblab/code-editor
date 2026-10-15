@@ -133,6 +133,30 @@ import java.util.Set;
  *       jamais fusionnés en course ({@code :}, {@code ,}).</li>
  * </ul>
  *
+ * <p>Champs de l'étape C2-é6 (famille C — java, kotlin,
+ * javascript…) :</p>
+ * <ul>
+ *   <li>{@link #blockLiterals} — littéraux à délimiteurs :
+ *       {@code /*}…{@code *\/} (COMMENT), {@code /**}…{@code *\/}
+ *       (DOC_COMMENT), {@code """}…{@code """} kotlin (RAW_STRING),
+ *       avec état inter-lignes et portes par langage ;</li>
+ *   <li>{@link #charQuotes}/{@link #charType} — littéral de
+ *       caractère orphelin sans état ;</li>
+ *   <li>{@link #templateLiteralLanguages} — backtick JS/TS avec
+ *       interpolations {@code ${…}} en VARIABLE ;</li>
+ *   <li>{@link #annotationPrefixes} — annotés aussi en flux libre
+ *       ({@code @Override}) ;</li>
+ *   <li>{@link #colorPrefix}/{@link #colorType} — littéral de
+ *       couleur hexadécimale (3/4/6/8 chiffres) ;</li>
+ *   <li>{@link #registryKeywords} — mots-clés du REGISTRE par
+ *       langage (repli Java) ;</li>
+ *   <li>{@link #wordControlKeywords}/{@link #wordModifierKeywords}/
+ *       {@link #wordTypeKeywords}/{@link #wordAllCapsType}/
+ *       {@link #wordAfterDotType} — raffinement des mots :
+ *       contrôle, modificateur, type intégré, tout-en-majuscules en
+ *       CONSTANT, identifiant après point en PROPERTY.</li>
+ * </ul>
+ *
  * <p>Dès qu'une règle de jeton de valeur est déclarée (chaîne,
  * nombre ou mot-clé), la zone valeur est tokénisée <b>jeton par
  * jeton</b> ({@link #tokenizesValue()}) et {@link #escapesInValue}
@@ -286,6 +310,39 @@ public final class TokenizerTemplate {
      * en course (JSON : {@code :}, {@code ,}). */
     public final Set<Character> operatorSingleChars;
 
+    /** Littéraux à délimiteurs (famille C) : commentaires de
+     * bloc/documentation, chaîne brute Kotlin. */
+    public final List<BlockLiteral> blockLiterals;
+    /** Guillemets ouvrant un littéral de caractère ({@code 'a'}). */
+    public final Set<Character> charQuotes;
+    /** Type d'un littéral de caractère. */
+    public final TokenType charType;
+    /** Langages où le backtick ouvre un template literal JS/TS. */
+    public final Set<String> templateLiteralLanguages;
+    /** Préfixe d'un littéral de couleur (0 : désactivé). */
+    public final char colorPrefix;
+    /** Type d'un littéral de couleur. */
+    public final TokenType colorType;
+    /** Vrai : les mots-clés viennent du registre des langages
+     * (famille C, repli mots-clés Java). */
+    public final boolean registryKeywords;
+    /** Mots-clés de contrôle raffinés (if, return…). */
+    public final Set<String> wordControlKeywords;
+    /** Type d'un mot-clé de contrôle. */
+    public final TokenType wordControlType;
+    /** Mots-clés modificateurs raffinés (public, static…). */
+    public final Set<String> wordModifierKeywords;
+    /** Type d'un mot-clé modificateur. */
+    public final TokenType wordModifierType;
+    /** Types intégrés reconnus hors mots-clés (String, List…). */
+    public final Set<String> wordTypeKeywords;
+    /** Type d'un mot du jeu de types. */
+    public final TokenType wordTypeKeywordType;
+    /** Type d'un identifiant tout-en-majuscules (null : désactivé). */
+    public final TokenType wordAllCapsType;
+    /** Type d'un identifiant précédé d'un point (null : désactivé). */
+    public final TokenType wordAfterDotType;
+
     private TokenizerTemplate(Builder b) {
         this.lineComments = List.copyOf(b.lineComments);
         this.keyValueSeparators = Collections.unmodifiableSet(
@@ -352,6 +409,25 @@ public final class TokenizerTemplate {
         this.numberLeadingMinus = b.numberLeadingMinus;
         this.operatorSingleChars = Collections.unmodifiableSet(
                 new HashSet<>(b.operatorSingleChars));
+        this.blockLiterals = List.copyOf(b.blockLiterals);
+        this.charQuotes = Collections.unmodifiableSet(new HashSet<>(b.charQuotes));
+        this.charType = b.charType;
+        this.templateLiteralLanguages = Collections.unmodifiableSet(
+                new HashSet<>(b.templateLiteralLanguages));
+        this.colorPrefix = b.colorPrefix;
+        this.colorType = b.colorType;
+        this.registryKeywords = b.registryKeywords;
+        this.wordControlKeywords = Collections.unmodifiableSet(
+                new HashSet<>(b.wordControlKeywords));
+        this.wordControlType = b.wordControlType;
+        this.wordModifierKeywords = Collections.unmodifiableSet(
+                new HashSet<>(b.wordModifierKeywords));
+        this.wordModifierType = b.wordModifierType;
+        this.wordTypeKeywords = Collections.unmodifiableSet(
+                new HashSet<>(b.wordTypeKeywords));
+        this.wordTypeKeywordType = b.wordTypeKeywordType;
+        this.wordAllCapsType = b.wordAllCapsType;
+        this.wordAfterDotType = b.wordAfterDotType;
     }
 
     /**
@@ -496,6 +572,97 @@ public final class TokenizerTemplate {
             .operatorSingleChars(':', ',')
             .build();
 
+    /**
+     * Template de la famille C intégré (migration C2-é6) : le cœur
+     * historique du parser maison. Commentaires de ligne et de bloc
+     * (documentation distincte), chaînes brutes Kotlin à triples
+     * guillemets, littéraux de caractère, template literals JS/TS à
+     * interpolations, annotations, nombres hexadécimaux/suffixés,
+     * couleurs #RGB/#RRGGBB, mots-clés du REGISTRE par langage avec
+     * raffinements (contrôle/modificateur), types intégrés,
+     * tout-en-majuscules en CONSTANT, propriétés après point, courses
+     * d'opérateurs — reprend la grammaire historique de
+     * {@code CLikeTokenizer} octet pour octet, porte du langage
+     * comprise (« kotlin » exact pour les chaînes brutes,
+     * javascript/typescript/js/ts pour les template literals).
+     */
+    public static final TokenizerTemplate CLIKE = builder()
+            .freeForm()
+            .lineComments("//")
+            .blockLiteral("/**", "*/", 2, LexState.DOC_COMMENT, TokenType.DOC_COMMENT)
+            .blockLiteral("/*", "*/", 2, LexState.BLOCK_COMMENT, TokenType.COMMENT)
+            .blockLiteral("\"\"\"", "\"\"\"", 3, LexState.KT_RAW_STRING,
+                    TokenType.RAW_STRING, "kotlin")
+            .plainStringQuotes('"')
+            .charQuotes('\'')
+            .interLineString('"', LexState.XML_STRING)
+            .templateLiteralLanguages("javascript", "typescript", "js", "ts")
+            .annotationPrefixes('@')
+            .annotationType(TokenType.ANNOTATION)
+            .valueType(TokenType.STRING)
+            .valueNumberChars('.', '_', 'x', 'X', 'a', 'b', 'c', 'd', 'e', 'f',
+                    'A', 'B', 'C', 'D', 'E', 'F', 'L', 'l')
+            .colorLiteral('#', TokenType.NUMBER)
+            .registryKeywords(true)
+            .valueKeywordType(TokenType.KEYWORD)
+            .wordControlKeywords(KeywordTables.CONTROL_KEYWORDS)
+            .wordModifierKeywords(KeywordTables.MODIFIER_KEYWORDS)
+            .wordTypeKeywords(KeywordTables.JAVA_TYPES)
+            .wordExtraChars('_')
+            .wordFuncFollowChars('(')
+            .wordUpperCaseType(TokenType.TYPE)
+            .wordAllCapsType(TokenType.CONSTANT)
+            .wordAfterDotType(TokenType.PROPERTY)
+            .wordFallbackType(TokenType.PLAIN)
+            .operatorChars('+', '-', '*', '/', '%', '=', '!', '<', '>', '&',
+                    '|', '^', '~', '?', ':')
+            .build();
+
+    /**
+     * Littéral à délimiteurs (C2-é6, famille C) : ouvrant, fermant,
+     * offset de recherche de la fermante (l'ouverture {@code /**}
+     * cherche sa fermante dès {@code pos+2} — {@code /**&#47;} se referme),
+     * état de sortie inter-lignes, type de jeton et langages
+     * activateurs (vide : tous).
+     *
+     * <p>Immuable et thread-safe.</p>
+     */
+    public static final class BlockLiteral {
+        /** Séquence ouvrante ({@code /*}, {@code /**}, {@code """}). */
+        public final String open;
+        /** Séquence fermante ({@code *\/}). */
+        public final String close;
+        /** La fermante est cherchée à partir de {@code pos + offset}. */
+        public final int searchOffset;
+        /** État de sortie si le littéral n'est pas fermé sur la ligne. */
+        public final int state;
+        /** Type des jetons du littéral. */
+        public final TokenType type;
+        /** Langages qui activent le littéral (vide : tous). */
+        public final Set<String> languages;
+
+        private BlockLiteral(String open, String close, int searchOffset,
+                int state, TokenType type, Set<String> languages) {
+            this.open = open;
+            this.close = close;
+            this.searchOffset = searchOffset;
+            this.state = state;
+            this.type = type;
+            this.languages = Collections.unmodifiableSet(languages);
+        }
+
+        /** Vrai si le littéral s'applique au langage donné. */
+        public boolean appliesTo(String language) {
+            return languages.isEmpty() || languages.contains(language);
+        }
+
+        @Override
+        public String toString() {
+            return open + "…" + close + "→" + state + " (" + type + ")"
+                    + (languages.isEmpty() ? "" : " langages=" + languages);
+        }
+    }
+
     /** Vrai si des en-têtes de section sont déclarées. */
     public boolean hasSections() {
         return sectionOpen != 0;
@@ -573,6 +740,21 @@ public final class TokenizerTemplate {
         private boolean numberRequiresBoundary = true;
         private boolean numberLeadingMinus = false;
         private final Set<Character> operatorSingleChars = new HashSet<>();
+        private final List<BlockLiteral> blockLiterals = new ArrayList<>();
+        private final Set<Character> charQuotes = new HashSet<>();
+        private TokenType charType = TokenType.CHAR;
+        private final Set<String> templateLiteralLanguages = new HashSet<>();
+        private char colorPrefix = 0;
+        private TokenType colorType = TokenType.NUMBER;
+        private boolean registryKeywords = false;
+        private final Set<String> wordControlKeywords = new HashSet<>();
+        private TokenType wordControlType = TokenType.KEYWORD_CONTROL;
+        private final Set<String> wordModifierKeywords = new HashSet<>();
+        private TokenType wordModifierType = TokenType.KEYWORD_MODIFIER;
+        private final Set<String> wordTypeKeywords = new HashSet<>();
+        private TokenType wordTypeKeywordType = TokenType.TYPE;
+        private TokenType wordAllCapsType = null;
+        private TokenType wordAfterDotType = null;
 
         /** Préfixes de commentaire de ligne (entrées vides/nulles ignorées). */
         public Builder lineComments(String... prefixes) {
@@ -892,6 +1074,103 @@ public final class TokenizerTemplate {
             return this;
         }
 
+        /** Littéral à délimiteurs (famille C) : ouvrant, fermant,
+         * offset de recherche de la fermante, état de sortie,
+         * type de jeton, langages activateurs (vide : tous). */
+        public Builder blockLiteral(String open, String close, int searchOffset,
+                int state, TokenType type, String... languages) {
+            Set<String> langs = new HashSet<>();
+            for (String l : languages) {
+                if (l != null && !l.isEmpty()) langs.add(l);
+            }
+            blockLiterals.add(new BlockLiteral(open, close, searchOffset,
+                    state, type, langs));
+            return this;
+        }
+
+        /** Guillemets ouvrant un littéral de caractère ('a'). */
+        public Builder charQuotes(char... quotes) {
+            for (char q : quotes) charQuotes.add(q);
+            return this;
+        }
+
+        /** Type d'un littéral de caractère. */
+        public Builder charType(TokenType type) {
+            this.charType = type != null ? type : TokenType.CHAR;
+            return this;
+        }
+
+        /** Langages où le backtick ouvre un template literal JS/TS
+         * (interpolations ${…} en VARIABLE). */
+        public Builder templateLiteralLanguages(String... languages) {
+            for (String l : languages) {
+                if (l != null && !l.isEmpty()) templateLiteralLanguages.add(l);
+            }
+            return this;
+        }
+
+        /** Littéral de couleur hexadécimale (#RGB, #RRGGBB…), en
+         * 3/4/6/8 chiffres — le type est déclaré avec le préfixe. */
+        public Builder colorLiteral(char prefix, TokenType type) {
+            this.colorPrefix = prefix;
+            this.colorType = type != null ? type : TokenType.NUMBER;
+            return this;
+        }
+
+        /** Mots-clés du REGISTRE des langages (famille C, repli Java). */
+        public Builder registryKeywords(boolean enabled) {
+            this.registryKeywords = enabled;
+            return this;
+        }
+
+        /** Mots-clés de contrôle raffinés (copie défensive). */
+        public Builder wordControlKeywords(Set<String> keywords) {
+            if (keywords != null) wordControlKeywords.addAll(keywords);
+            return this;
+        }
+
+        /** Type d'un mot-clé de contrôle. */
+        public Builder wordControlType(TokenType type) {
+            this.wordControlType = type != null ? type : TokenType.KEYWORD_CONTROL;
+            return this;
+        }
+
+        /** Mots-clés modificateurs raffinés (copie défensive). */
+        public Builder wordModifierKeywords(Set<String> keywords) {
+            if (keywords != null) wordModifierKeywords.addAll(keywords);
+            return this;
+        }
+
+        /** Type d'un mot-clé modificateur. */
+        public Builder wordModifierType(TokenType type) {
+            this.wordModifierType = type != null ? type : TokenType.KEYWORD_MODIFIER;
+            return this;
+        }
+
+        /** Types intégrés reconnus hors mots-clés (copie défensive). */
+        public Builder wordTypeKeywords(Set<String> keywords) {
+            if (keywords != null) wordTypeKeywords.addAll(keywords);
+            return this;
+        }
+
+        /** Type d'un mot du jeu de types. */
+        public Builder wordTypeKeywordType(TokenType type) {
+            this.wordTypeKeywordType = type != null ? type : TokenType.TYPE;
+            return this;
+        }
+
+        /** Type d'un identifiant tout-en-majuscules (≥ 2 caractères). */
+        public Builder wordAllCapsType(TokenType type) {
+            this.wordAllCapsType = type;
+            return this;
+        }
+
+        /** Type d'un identifiant précédé d'un point. */
+        public Builder wordAfterDotType(TokenType type) {
+            this.wordAfterDotType = type;
+            return this;
+        }
+
         public TokenizerTemplate build() {
             return new TokenizerTemplate(this);
         }
@@ -917,6 +1196,8 @@ public final class TokenizerTemplate {
                 + ", marqueursDocument=" + documentMarkers
                 + ", repliScalaire=" + scalarFallback
                 + ", opérateursMono=" + operatorSingleChars
+                + ", littérauxDélimiteurs=" + blockLiterals
+                + ", raffinements=" + (registryKeywords ? "registre" : "table")
                 + ")";
     }
 }

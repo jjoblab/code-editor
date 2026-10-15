@@ -581,4 +581,155 @@ class GenericTokenizerTest {
         assertEquals(LexState.NORMAL, l2.exitState);
         assertEquals(TokenType.STRING, typeAt(l2, 0));
     }
+
+    // ── C2-é6 : littéraux à délimiteurs, raffinement des mots ──────
+
+    /**
+     * Template maison (C2-é6) : mini-langage à syntaxe C francisé —
+     * commentaires de bloc et de documentation à délimiteurs, chaîne
+     * brute à triples guillemets réservée à « kotlin », littéraux de
+     * caractère, template literals JS, annotations, couleurs hexa,
+     * raffinement des mots (contrôle/modificateur/type/constant/
+     * propriété) : la grammaire de la famille C_LIKE sans une ligne
+     * de moteur.
+     */
+    private static final TokenizerTemplate PAGES = TokenizerTemplate.builder()
+            .freeForm()
+            .lineComments("//")
+            .blockLiteral("/**", "*/", 2, 7, TokenType.DOC_COMMENT)
+            .blockLiteral("/*", "*/", 2, 1, TokenType.COMMENT)
+            .blockLiteral("\"\"\"", "\"\"\"", 3, 3, TokenType.RAW_STRING, "kotlin")
+            .plainStringQuotes('"')
+            .charQuotes('\'')
+            .templateLiteralLanguages("javascript", "js")
+            .annotationPrefixes('@')
+            .colorLiteral('#', TokenType.NUMBER)
+            .valueType(TokenType.STRING)
+            .valueNumberChars('.', '_', 'x', 'a', 'b', 'c', 'd', 'e', 'f', 'L')
+            .valueKeywords(java.util.Set.of("si", "sinon", "mut"))
+            .valueKeywordType(TokenType.KEYWORD)
+            .wordControlKeywords(java.util.Set.of("si"))
+            .wordControlType(TokenType.KEYWORD_CONTROL)
+            .wordModifierKeywords(java.util.Set.of("mut"))
+            .wordModifierType(TokenType.KEYWORD_MODIFIER)
+            .wordTypeKeywords(java.util.Set.of("Entier"))
+            .wordTypeKeywordType(TokenType.TYPE)
+            .wordAllCapsType(TokenType.CONSTANT)
+            .wordAfterDotType(TokenType.PROPERTY)
+            .wordUpperCaseType(TokenType.TYPE)
+            .wordFuncFollowChars('(')
+            .wordExtraChars('_')
+            .wordFallbackType(TokenType.PLAIN)
+            .operatorChars('+', '-', '=', '<', '>')
+            .build();
+
+    /**
+     * Template maison (C2-é6) : mots-clés pilotés par le REGISTRE des
+     * langages (voie déclarée de la famille C) — les raffinements
+     * s'appliquent aux mots-clés du langage demandé.
+     */
+    private static final TokenizerTemplate REGISTRE = TokenizerTemplate.builder()
+            .freeForm()
+            .registryKeywords(true)
+            .valueKeywordType(TokenType.KEYWORD)
+            .wordControlKeywords(KeywordTables.CONTROL_KEYWORDS)
+            .wordModifierKeywords(KeywordTables.MODIFIER_KEYWORDS)
+            .wordTypeKeywords(KeywordTables.JAVA_TYPES)
+            .wordFallbackType(TokenType.PLAIN)
+            .build();
+
+    @Test
+    void pagesMaison_commentairesDeBlocEtDoc() {
+        StyledLine l = GenericTokenizer.styleLine(PAGES, "/* x */ si", 0);
+        assertEquals(TokenType.COMMENT, typeAt(l, 0), "bloc fermé → COMMENT");
+        assertEquals(TokenType.KEYWORD_CONTROL, typeAt(l, 8), "« si » raffiné en contrôle");
+        // /**/ : fermante chevauchant l'ouverture, en DOC.
+        StyledLine l2 = GenericTokenizer.styleLine(PAGES, "/**/", 0);
+        assertEquals(TokenType.DOC_COMMENT, typeAt(l2, 0));
+        assertEquals(LexState.NORMAL, l2.exitState);
+        // Bloc ouvert → état inter-lignes déclaré, propagation.
+        StyledLine l3 = GenericTokenizer.styleLine(PAGES, "/* open", 0);
+        assertEquals(1, l3.exitState);
+        StyledLine l4 = GenericTokenizer.styleLine(PAGES, "encore", 1);
+        assertEquals(1, l4.exitState, "pas de fermante : l'état se propage");
+    }
+
+    @Test
+    void pagesMaison_chaîneBrutePortéeAuLangageKotlin() {
+        // kotlin exact : « """ » ouvre la chaîne brute (état 3).
+        StyledLine l = GenericTokenizer.styleLine(PAGES, "s = \"\"\"raw", 0, "kotlin");
+        assertEquals(TokenType.RAW_STRING, typeAt(l, 4));
+        assertEquals(3, l.exitState);
+        StyledLine l2 = GenericTokenizer.styleLine(PAGES, "suite\"\"\" x", 3, "kotlin");
+        assertEquals(TokenType.RAW_STRING, typeAt(l2, 0));
+        assertEquals(LexState.NORMAL, l2.exitState);
+        // Autre langage : retombe dans la règle de chaîne « normale ».
+        StyledLine l3 = GenericTokenizer.styleLine(PAGES, "s = \"\"\"raw", 0, "java");
+        assertEquals(TokenType.STRING, typeAt(l3, 4));
+        assertEquals(TokenType.STRING, typeAt(l3, 6), "deux chaînes « normales »");
+        assertEquals(LexState.NORMAL, l3.exitState);
+    }
+
+    @Test
+    void pagesMaison_littéralDeCaractère() {
+        StyledLine l = GenericTokenizer.styleLine(PAGES, "c = 'a';", 0);
+        assertEquals(TokenType.CHAR, typeAt(l, 4), "'a' → CHAR");
+        StyledLine l2 = GenericTokenizer.styleLine(PAGES, "'x", 0);
+        assertEquals(TokenType.CHAR, typeAt(l2, 0));
+        assertEquals(LexState.NORMAL, l2.exitState, "orphelin sans état inter-lignes");
+    }
+
+    @Test
+    void pagesMaison_templateLiteralsPortésAuxLangagesJs() {
+        StyledLine l = GenericTokenizer.styleLine(PAGES, "`x ${a}`", 0, "javascript");
+        assertEquals(TokenType.STRING, typeAt(l, 0));
+        assertEquals(TokenType.VARIABLE, typeAt(l, 3), "interpolation ${a} → VARIABLE");
+        assertEquals(TokenType.STRING, typeAt(l, 7), "backtick fermant");
+        // Hors des langages déclarés : le backtick n'est rien.
+        StyledLine l2 = GenericTokenizer.styleLine(PAGES, "`x`", 0, "java");
+        assertEquals(TokenType.PUNCT, typeAt(l2, 0));
+    }
+
+    @Test
+    void pagesMaison_annotation() {
+        StyledLine l = GenericTokenizer.styleLine(PAGES, "@Ann x", 0);
+        assertEquals(TokenType.ANNOTATION, typeAt(l, 0), "@ + identifiant en un jeton");
+        assertEquals(TokenType.PLAIN, typeAt(l, 5));
+    }
+
+    @Test
+    void pagesMaison_couleurHexadécimale() {
+        StyledLine l = GenericTokenizer.styleLine(PAGES, "#FF00AA", 0);
+        assertEquals(TokenType.NUMBER, typeAt(l, 0), "6 hex → couleur");
+        // Longueur invalide : repli PUNCT + mot.
+        StyledLine l2 = GenericTokenizer.styleLine(PAGES, "#GG", 0);
+        assertEquals(TokenType.PUNCT, typeAt(l2, 0));
+        assertEquals(TokenType.CONSTANT, typeAt(l2, 1), "GG tout-en-majuscules");
+    }
+
+    @Test
+    void pagesMaison_raffinementDesMots() {
+        StyledLine l = GenericTokenizer.styleLine(PAGES, "mut si sinon Entier", 0);
+        assertEquals(TokenType.KEYWORD_MODIFIER, typeAt(l, 0), "« mut » → modificateur");
+        assertEquals(TokenType.KEYWORD_CONTROL, typeAt(l, 4), "« si » → contrôle");
+        assertEquals(TokenType.KEYWORD, typeAt(l, 7), "« sinon » → mot-clé simple");
+        assertEquals(TokenType.TYPE, typeAt(l, 13), "« Entier » → type déclaré");
+        // ALL_CAPS → CONSTANT, appel → FUNC, après point → PROPERTY.
+        StyledLine l2 = GenericTokenizer.styleLine(PAGES, "MAX Fonc( obj.champ", 0);
+        assertEquals(TokenType.CONSTANT, typeAt(l2, 0));
+        assertEquals(TokenType.FUNC, typeAt(l2, 4));
+        assertEquals(TokenType.PROPERTY, typeAt(l2, 14), "champ suit le point");
+    }
+
+    @Test
+    void registreMaison_motsClésDuRegistreParLangage() {
+        // Langage enregistré : les mots-clés viennent du profil.
+        StyledLine l = GenericTokenizer.styleLine(REGISTRE, "public return String", 0, "java");
+        assertEquals(TokenType.KEYWORD_MODIFIER, typeAt(l, 0), "public via MODIFIER_KEYWORDS");
+        assertEquals(TokenType.KEYWORD_CONTROL, typeAt(l, 7), "return via CONTROL_KEYWORDS");
+        assertEquals(TokenType.TYPE, typeAt(l, 14), "String via JAVA_TYPES");
+        // Langage null : repli mots-clés Java (garde historique).
+        StyledLine l2 = GenericTokenizer.styleLine(REGISTRE, "while", 0, null);
+        assertEquals(TokenType.KEYWORD_CONTROL, typeAt(l2, 0));
+    }
 }

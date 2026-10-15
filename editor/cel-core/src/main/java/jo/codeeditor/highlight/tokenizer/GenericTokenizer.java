@@ -4,9 +4,12 @@ import jo.codeeditor.highlight.LexState;
 import jo.codeeditor.highlight.LineSpan;
 import jo.codeeditor.highlight.StyledLine;
 import jo.codeeditor.highlight.TokenType;
+import jo.codeeditor.languages.LanguageProfile;
+import jo.codeeditor.languages.LanguageRegistry;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Tokéniseur GÉNÉRIQUE piloté par un {@link TokenizerTemplate}
@@ -100,10 +103,28 @@ import java.util.List;
  *       jamais en course ({@code :}, {@code ,}).</li>
  * </ol>
  *
+ * <p><b>Extensions de l'étape C2-é6</b> (migration de la famille C
+ * — comportement de {@code CLikeTokenizer} repris octet pour octet) :</p>
+ * <ol>
+ *   <li>littéraux à délimiteurs
+ *       ({@link TokenizerTemplate#blockLiterals}) : commentaires de
+ *       bloc et de documentation, chaîne brute Kotlin — ouverture en
+ *       boucle, continuation en tête, fermante cherchée à l'offset
+ *       déclaré ({@code /**&#47;} se referme) ;</li>
+ *   <li>littéraux de caractère
+ *       ({@link TokenizerTemplate#charQuotes}) et template literals
+ *       JS/TS à interpolations
+ *       ({@link TokenizerTemplate#templateLiteralLanguages}) ;</li>
+ *   <li>annotations et couleurs hexadécimales en flux libre ;</li>
+ *   <li>mots-clés du REGISTRE par langage
+ *       ({@link TokenizerTemplate#registryKeywords}, repli Java) et
+ *       raffinement des mots : contrôle, modificateur, type intégré,
+ *       tout-en-majuscules, identifiant après point.</li>
+ * </ol>
+ *
  * <p>Les migrations suivantes du cliquet étendront la machine
- * (marqueurs de document, clés à lookahead) tokéniseur par
- * tokéniseur, chaque suite existante restant verte sans modification
- * de ses assertions.</p>
+ * tokéniseur par tokéniseur, chaque suite existante restant verte
+ * sans modification de ses assertions.</p>
  */
 public final class GenericTokenizer {
 
@@ -114,8 +135,19 @@ public final class GenericTokenizer {
      */
     public static StyledLine styleLine(TokenizerTemplate template, String line,
             int entryState) {
+        return styleLine(template, line, entryState, null);
+    }
+
+    /**
+     * Tokénise une ligne selon le template, pour le langage demandé
+     * (C2-é6, famille C) : porte les règles par langage (chaîne brute
+     * Kotlin, template literals JS/TS) et la résolution des mots-clés
+     * du registre. Null pour les grammaires sans langage.
+     */
+    public static StyledLine styleLine(TokenizerTemplate template, String line,
+            int entryState, String language) {
         if (template.freeForm) {
-            return styleFreeFormLine(template, line, entryState);
+            return styleFreeFormLine(template, line, entryState, language);
         }
         return styleZonedLine(template, line, entryState);
     }
@@ -411,10 +443,32 @@ public final class GenericTokenizer {
      * {@link TokenizerTemplate#SHELL}.
      */
     private static StyledLine styleFreeFormLine(TokenizerTemplate template,
-            String line, int entryState) {
+            String line, int entryState, String language) {
         List<LineSpan> spans = new ArrayList<>();
         int pos = 0;
         int state = entryState;
+        // Mots-clés : table du template, ou REGISTRE des langages
+        // (famille C — repli mots-clés Java, règle historique).
+        java.util.Set<String> keywords = template.registryKeywords
+                ? keywordsFor(language) : template.valueKeywords;
+
+        // Littéral à délimiteurs non fermé à la ligne précédente
+        // (commentaire de bloc, documentation, chaîne brute) : consommé
+        // jusqu'au délimiteur fermant, sinon propagé.
+        for (TokenizerTemplate.BlockLiteral bl : template.blockLiterals) {
+            if (state == bl.state) {
+                int end = line.indexOf(bl.close, pos);
+                if (end >= 0) {
+                    spans.add(new LineSpan(pos, end + bl.close.length(), bl.type));
+                    pos = end + bl.close.length();
+                    state = LexState.NORMAL;
+                } else {
+                    spans.add(new LineSpan(pos, line.length(), bl.type));
+                    pos = line.length();
+                }
+                break;
+            }
+        }
 
         // Littéral inter-lignes non fermé à la ligne précédente :
         // consommé jusqu'à la fermante (bash autorise le multi-ligne).
@@ -444,6 +498,33 @@ public final class GenericTokenizer {
             if (commentStartsAt(template, line, pos)) {
                 spans.add(new LineSpan(pos, line.length(), TokenType.COMMENT));
                 pos = line.length();
+                continue;
+            }
+
+            // Littéral à délimiteurs (C2-é6, famille C) : /** et /*
+            // ouvrent les commentaires de documentation et de bloc,
+            // """ (kotlin seulement) une chaîne brute — le plus long
+            // préfixe d'abord (/** avant /*) ; la fermante est cherchée
+            // à l'offset déclaré, absente elle porte l'état
+            // inter-lignes.
+            TokenizerTemplate.BlockLiteral opened = null;
+            for (TokenizerTemplate.BlockLiteral bl : template.blockLiterals) {
+                if (line.startsWith(bl.open, pos) && bl.appliesTo(language)) {
+                    opened = bl;
+                    break;
+                }
+            }
+            if (opened != null) {
+                int end = line.indexOf(opened.close, pos + opened.searchOffset);
+                if (end >= 0) {
+                    spans.add(new LineSpan(pos, end + opened.close.length(),
+                            opened.type));
+                    pos = end + opened.close.length();
+                } else {
+                    spans.add(new LineSpan(pos, line.length(), opened.type));
+                    pos = line.length();
+                    state = opened.state;
+                }
                 continue;
             }
 
@@ -540,6 +621,22 @@ public final class GenericTokenizer {
                 continue;
             }
 
+            // Littéral de caractère (C2-é6, famille C) : paire → un
+            // jeton du type déclaré ('a' → CHAR) ; orpheline → fin de
+            // ligne, SANS état inter-lignes (garde historique C).
+            if (template.charQuotes.contains(ch)) {
+                int end = pos + 1;
+                while (end < line.length()
+                        && !template.charQuotes.contains(line.charAt(end))) {
+                    if (line.charAt(end) == '\\' && end + 1 < line.length()) end++;
+                    end++;
+                }
+                if (end < line.length()) end++;
+                spans.add(new LineSpan(pos, end, template.charType));
+                pos = end;
+                continue;
+            }
+
             // Substitution de commande par paires ; orpheline → repli.
             if (template.commandQuotes.contains(ch)) {
                 int end = line.indexOf(ch, pos + 1);
@@ -548,6 +645,37 @@ public final class GenericTokenizer {
                     pos = end + 1;
                     continue;
                 }
+            }
+
+            // Template literal JS/TS (C2-é6, famille C) : backtick +
+            // interpolations ${…} découpées en VARIABLE pour les
+            // distinguer du texte littéral — pas d'état multi-lignes
+            // (limite historique documentée). Porte par langage.
+            if (ch == '`'
+                    && template.templateLiteralLanguages.contains(language)) {
+                int close = SpanUtils.findStringEnd(line, pos + 1, '`');
+                if (close >= 0) {
+                    addTemplateLiteralSpans(spans, line, pos, close + 1);
+                    pos = close + 1;
+                    continue;
+                }
+                spans.add(new LineSpan(pos, line.length(), TokenType.STRING));
+                pos = line.length();
+                continue;
+            }
+
+            // Annotation (C2-é6, famille C) : préfixe + identifiant en
+            // un jeton (@Override → ANNOTATION).
+            if (template.annotationPrefixes.contains(ch)) {
+                int end = pos + 1;
+                while (end < line.length()
+                        && (Character.isLetterOrDigit(line.charAt(end))
+                                || line.charAt(end) == '_')) {
+                    end++;
+                }
+                spans.add(new LineSpan(pos, end, template.annotationType));
+                pos = end;
+                continue;
             }
 
             // Nombre : chiffre en frontière de mot (pas collé à un
@@ -574,6 +702,24 @@ public final class GenericTokenizer {
                 continue;
             }
 
+            // Littéral de couleur (C2-é6, famille C) : préfixe suivi de
+            // 3/4/6/8 chiffres hexadécimaux → type déclaré ; toute
+            // autre longueur retombe dans les règles suivantes.
+            if (template.colorPrefix != 0 && ch == template.colorPrefix
+                    && pos + 1 < line.length()) {
+                int colorEnd = pos + 1;
+                while (colorEnd < line.length()
+                        && SpanUtils.isHexChar(line.charAt(colorEnd))) {
+                    colorEnd++;
+                }
+                int colorLen = colorEnd - pos - 1;
+                if (colorLen == 3 || colorLen == 4 || colorLen == 6 || colorLen == 8) {
+                    spans.add(new LineSpan(pos, colorEnd, template.colorType));
+                    pos = colorEnd;
+                    continue;
+                }
+            }
+
             // Mot : mot-clé, appel de fonction, initiale majuscule,
             // repli — caractères supplémentaires déclarés inclus ;
             // les chiffres participent au mot sauf dérogation (JSON :
@@ -586,14 +732,34 @@ public final class GenericTokenizer {
                 }
                 String word = line.substring(pos, end);
                 TokenType type;
-                if (template.valueKeywords.contains(word)) {
-                    type = template.valueKeywordType;
+                if (keywords.contains(word)) {
+                    // Raffinement des mots-clés (famille C) : contrôle
+                    // et modificateur via les tables déclarées, sinon
+                    // le type de mot-clé du template.
+                    if (!template.wordControlKeywords.isEmpty()
+                            && template.wordControlKeywords.contains(word)) {
+                        type = template.wordControlType;
+                    } else if (!template.wordModifierKeywords.isEmpty()
+                            && template.wordModifierKeywords.contains(word)) {
+                        type = template.wordModifierType;
+                    } else {
+                        type = template.valueKeywordType;
+                    }
+                } else if (!template.wordTypeKeywords.isEmpty()
+                        && template.wordTypeKeywords.contains(word)) {
+                    type = template.wordTypeKeywordType;
+                } else if (template.wordAllCapsType != null
+                        && SpanUtils.isAllCaps(word) && word.length() > 1) {
+                    type = template.wordAllCapsType;
                 } else if (end < line.length()
                         && template.wordFuncFollowChars.contains(line.charAt(end))) {
                     type = TokenType.FUNC;
                 } else if (template.wordUpperCaseType != null
                         && Character.isUpperCase(word.charAt(0))) {
                     type = template.wordUpperCaseType;
+                } else if (template.wordAfterDotType != null && pos > 0
+                        && line.charAt(pos - 1) == '.') {
+                    type = template.wordAfterDotType;
                 } else {
                     type = template.wordFallbackType;
                 }
@@ -631,6 +797,20 @@ public final class GenericTokenizer {
     }
 
     /**
+     * Mots-clés du REGISTRE des langages pour le langage demandé
+     * (C2-é6, famille C) : les langages intégrés conservent leurs
+     * ensembles exacts, les langages enregistrés par l'hôte sont
+     * honorés, les identifiants inconnus retombent sur les mots-clés
+     * Java — reprise de la règle historique de
+     * {@code CLikeTokenizer.getKeywords}.
+     */
+    private static Set<String> keywordsFor(String language) {
+        if (language == null) return KeywordTables.JAVA_KEYWORDS;
+        LanguageProfile profile = LanguageRegistry.forName(language);
+        return profile != null ? profile.keywords : KeywordTables.JAVA_KEYWORDS;
+    }
+
+    /**
      * Caractère de suite d'un mot en flux libre : le template décide
      * si les chiffres participent au mot (Shell) ou si les mots sont
      * de lettres pures et laissent les chiffres ouvrir des nombres
@@ -642,6 +822,86 @@ public final class GenericTokenizer {
                     || template.wordExtraChars.contains(c);
         }
         return Character.isLetter(c) || template.wordExtraChars.contains(c);
+    }
+
+    /**
+     * Découpe un JS/TS template literal en spans (C2-é6, porté octet
+     * pour octet de {@code CLikeTokenizer}).
+     *
+     * <p>Un template literal ressemble à :
+     * <pre>`Hello ${name}, you are ${age} years old`</pre>
+     *
+     * <p>On veut colorier :
+     * <ul>
+     *   <li>le texte littéral (backticks compris) en
+     *       {@link TokenType#STRING} ;</li>
+     *   <li>les séquences d'échappement ({@code \n}, {@code \t}) en
+     *       {@link TokenType#ESCAPE} ;</li>
+     *   <li>les interpolations {@code ${expr}} en
+     *       {@link TokenType#VARIABLE} (pour les distinguer
+     *       visuellement du texte littéral — pratique pour debug une
+     *       template React qui rate).</li>
+     * </ul>
+     *
+     * <p>Algorithme en une passe : on cherche les marqueurs
+     * {@code ${}, on split ; à l'intérieur d'une interpolation on
+     * continue jusqu'au {@code }} fermant (en comptant les accolades
+     * imbriquées pour gérer les objets {@code ${ {a: 1}.a }}).
+     * L'intérieur de l'interpolation n'est PAS re-tokénisé — effet
+     * visuel « VARIABLE bleuté » suffisant, la tokenisation récursive
+     * ne serait pas justifiée.</p>
+     */
+    private static void addTemplateLiteralSpans(List<LineSpan> spans,
+            String line, int start, int end) {
+        int segStart = start;
+        int pos = start + 1;  // saute le backtick ouvrant
+        while (pos < end - 1) {  // end-1 = backtick fermant
+            char c = line.charAt(pos);
+            // Séquence d'échappement
+            if (c == '\\' && pos + 1 < end - 1) {
+                if (pos > segStart) {
+                    spans.add(new LineSpan(segStart, pos, TokenType.STRING));
+                }
+                int escEnd = pos + 2;
+                if (pos + 1 < end - 1) {
+                    char next = line.charAt(pos + 1);
+                    if (next == 'u' && pos + 5 < end - 1) escEnd = pos + 6;
+                    else if (next == 'x' && pos + 3 < end - 1) escEnd = pos + 4;
+                }
+                spans.add(new LineSpan(pos, Math.min(escEnd, end), TokenType.ESCAPE));
+                pos = escEnd;
+                segStart = pos;
+                continue;
+            }
+            // Début d'interpolation : ${
+            if (c == '$' && pos + 1 < end - 1 && line.charAt(pos + 1) == '{') {
+                // Vide le segment de chaîne précédent.
+                if (pos > segStart) {
+                    spans.add(new LineSpan(segStart, pos, TokenType.STRING));
+                }
+                // Trouve le } correspondant (gère l'imbrication).
+                int depth = 1;
+                int interpEnd = pos + 2;
+                while (interpEnd < end - 1 && depth > 0) {
+                    char ic = line.charAt(interpEnd);
+                    if (ic == '{') depth++;
+                    else if (ic == '}') depth--;
+                    if (depth == 0) break;
+                    interpEnd++;
+                }
+                // Émet l'interpolation ${...} en VARIABLE.
+                spans.add(new LineSpan(pos, interpEnd + 1, TokenType.VARIABLE));
+                pos = interpEnd + 1;
+                segStart = pos;
+                continue;
+            }
+            pos++;
+        }
+        // Segment de chaîne final (entre la dernière interpolation et
+        // le backtick fermant).
+        if (segStart < end) {
+            spans.add(new LineSpan(segStart, end, TokenType.STRING));
+        }
     }
 
     /**
