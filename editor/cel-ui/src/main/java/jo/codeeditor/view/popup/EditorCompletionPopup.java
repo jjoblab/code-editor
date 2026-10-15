@@ -226,13 +226,14 @@ public class EditorCompletionPopup {
         int tokenStart = tokenStartAt(text, caret);
         String prefix = view.session.getDocument().subText(tokenStart, caret);
 
-        // ── Lot 3 (audit v3.41.0) : context gate — pas de complétion
-        // dans les chaînes, les commentaires ou les fichiers de log.
-        // Le popup n'apporte rien dans du texte non-code et clignote
+        // ── Lot 3 (audit v3.41.0), ADR-002 C1 : context gate — pas de
+        // complétion dans les chaînes ou les commentaires (politique
+        // STANDARD), jamais pour les langages à porte OFF (logs), porte
+        // écartée pour les langages à porte ALWAYS (XML). Le popup
+        // n'apporte rien dans du texte non-code et clignote
         // intempestivement quand l'utilisateur tape dans une chaîne.
-        // On réutilise CodeContext.isInStringOrComment (Lot 1) pour
-        // la détection string/comment. Pour log, on vérifie la
-        // famille lexicale via le registre.
+        // La politique est une donnée du profil (CompletionGate) —
+        // défauts par famille, surcharge par langage.
         if (isInCodeContext(text, caret)) {
             // OK, on continue.
         } else {
@@ -304,38 +305,40 @@ public class EditorCompletionPopup {
      */
     private boolean isInCodeContext(CharSequence text, int caret) {
         if (view.session == null) return false;
-        // Fichier de log : pas de complétion. Famille XML (xml, html,
-        // svg) : la porte chaîne/commentaire est ÉCARTÉE — elle est
-        // calibrée pour les littéraux C/Java (une apostrophe dans le
-        // TEXTE français « c'est » basculait l'état « dans une chaîne »
-        // et tuait la complétion sur tout le reste du fichier ; le
-        // curseur entre les guillemets d'une VALEUR d'attribut XML
-        // « android:text="|" est une zone de complétion légitime, pas
-        // un littéral). Le SERVEUR LSP XML tranche déjà lui-même les
-        // zones muettes (texte, fermantes, commentaires <!--, PI <?).
+        // ADR-002 (chantier C1) : la politique de porte est une DONNÉE du
+        // profil (CompletionGate), plus un switch famille dans l'UI.
+        // Historique (Lot 3 + correctif 3.70.1) : LOG → jamais de
+        // complétion (texte non-code) ; XML → porte chaîne/commentaire
+        // ÉCARTÉE — elle est calibrée pour les littéraux C/Java (une
+        // apostrophe dans le TEXTE français « c'est » basculait l'état
+        // « dans une chaîne » et tuait la complétion sur tout le reste
+        // du fichier ; le curseur entre les guillemets d'une VALEUR
+        // d'attribut XML « android:text="|" est une zone de complétion
+        // légitime, pas un littéral). Le SERVEUR LSP XML tranche déjà
+        // lui-même les zones muettes (texte, fermantes, commentaires
+        // <!--, PI <?). Ces défauts descendent dans le profil ; un hôte
+        // les surcharge par langage via
+        // LanguageProfile.builder(...).completionGate(...).
         String lang = view.session.getLanguage();
         if (lang != null) {
             jo.codeeditor.languages.LanguageProfile profile =
                     jo.codeeditor.languages.LanguageRegistry.forName(lang);
             if (profile != null) {
-                if (profile.family == jo.codeeditor.languages.SyntaxFamily.LOG) {
-                    return false;
-                }
-                if (profile.family == jo.codeeditor.languages.SyntaxFamily.XML) {
-                    return true;
+                switch (profile.completionGate) {
+                    case OFF:
+                        return false;
+                    case ALWAYS:
+                        return true;
+                    default:
+                        break; // STANDARD : porte chaîne/commentaire.
                 }
             }
         }
-        // Caret dans une chaîne ou un commentaire : pas de complétion.
-        // CodeContext est package-private dans cel-core — on utilise
-        // une approche simple : si le caret est dans une chaîne ou un
-        // commentaire, isInStringOrComment renvoie true. Le prédicat
-        // est conscient des chaînes, des commentaires de ligne et de
-        // bloc, et est déjà utilisé par SmartTyping pour l'auto-close.
-        // CodeContext n'est pas directement accessible depuis cel-ui
-        // (package-private), mais EditOps expose les helpers
-        // d'édition qui délèguent. On ajoute un wrapper public pour
-        // isInStringOrComment.
+        // STANDARD — caret dans une chaîne ou un commentaire : pas de
+        // complétion. CodeContext est package-private dans cel-core — on
+        // utilise un wrapper public exposé par EditOps (même prédicat,
+        // déjà utilisé par SmartTyping pour l'auto-close : chaînes,
+        // commentaires de ligne et de bloc).
         return !jo.codeeditor.edit.EditOps.isInStringOrComment(text, caret);
     }
 

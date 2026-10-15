@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Les sections antérieures à la période courante sont archivées dans
 [`docs/CHANGELOG-archive.md`](docs/CHANGELOG-archive.md) (A-08, audit 3.69.0).
 
+## [3.72.0] — non publié — Multi-langages (ADR-002 : chantiers C1→C3→C2)
+
+### Added
+
+- **`CompletionGate` : la porte de complétion devient une donnée du profil (ADR-002, C1)** — nouvelle énumération `jo.codeeditor.languages.CompletionGate` (`OFF` / `ALWAYS` / `STANDARD`) portée par `LanguageProfile` (champ + builder `completionGate(...)`). Historiquement les exemptions vivaient dans l'UI : `EditorCompletionPopup.isInCodeContext` commutait sur la famille lexicale (LOG → jamais de complétion, XML → porte chaîne/commentaire écartée depuis le correctif 3.70.1). Ces politiques sont des données par langage : elles descendent dans le profil, avec les mêmes défauts par famille (LOG → `OFF`, XML → `ALWAYS`, toutes les autres → `STANDARD`), surchargeables par langage — un hôte peut offrir la complétion sur un format de log maison ou la couper sur un XML. Comportement des langages intégrés inchangé (tests XML de la 3.70.1 verts sans modification). `CompletionGateTest` (JVM, défauts/surcharges/langages intégrés) + `CompletionGateProfileTest` (Robolectric, rouge avant : les surcharges étaient ignorées par le switch famille).
+
 ## [3.71.0] — 2026-10-16 — Exécution du plan d'audit 3.69.0 (lots L1→L10) + décisions du propriétaire (Apache-2.0, plans 01/03, ADR-002)
 
 ### Added

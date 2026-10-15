@@ -92,12 +92,23 @@ public final class LanguageProfile {
      * qu'un test de préfixe mais pas plus qu'un scan de document.
      */
     public final Predicate<CharSequence> stickyHeaderTest;
+    /**
+     * Politique de la porte de contexte de complétion (ADR-002, C1).
+     * Jamais null. Défaut par famille : LOG → {@link CompletionGate#OFF}
+     * (texte non-code), XML → {@link CompletionGate#ALWAYS} (le serveur
+     * LSP tranche lui-même les zones muettes), toutes les autres →
+     * {@link CompletionGate#STANDARD} (porte calibrée pour les littéraux
+     * C/Java). Un hôte surcharge via
+     * {@link Builder#completionGate(CompletionGate)}.
+     */
+    public final CompletionGate completionGate;
 
     private LanguageProfile(String name, SyntaxFamily family,
             Set<String> aliases, Set<String> extensions,
             Set<String> keywords, CommentSyntax commentSyntax,
             Set<Character> autoCloseQuotes, Set<Character> autoCloseBrackets,
-            FoldStrategy foldStrategy, Predicate<CharSequence> stickyHeaderTest) {
+            FoldStrategy foldStrategy, Predicate<CharSequence> stickyHeaderTest,
+            CompletionGate completionGate) {
         this.name = name;
         this.family = family;
         this.aliases = aliases;
@@ -108,6 +119,7 @@ public final class LanguageProfile {
         this.autoCloseBrackets = autoCloseBrackets;
         this.foldStrategy = foldStrategy;
         this.stickyHeaderTest = stickyHeaderTest;
+        this.completionGate = completionGate;
     }
 
     /** Builder fluent — voir la javadoc de la classe pour un exemple d'utilisation. */
@@ -197,6 +209,9 @@ public final class LanguageProfile {
         private FoldStrategy foldStrategy = null;
         // S5 (lot 2, J6) : détection sticky déléguée au SPI langue.
         private Predicate<CharSequence> stickyHeaderTest;
+        // ADR-002 (C1) : politique de la porte de complétion — donnée
+        // par langage, défaut calculé dans build() depuis la famille.
+        private CompletionGate completionGate;
 
         private Builder(String name) {
             if (name == null) throw new IllegalArgumentException("name is null");
@@ -300,6 +315,23 @@ public final class LanguageProfile {
             return this;
         }
 
+        /**
+         * ADR-002 (C1) : politique de la porte de contexte de complétion
+         * pour CE langage. Si non appelé, la valeur par défaut dépend de
+         * la famille : LOG → {@link CompletionGate#OFF} (fichier de log,
+         * pas de complétion) ; XML → {@link CompletionGate#ALWAYS}
+         * (porte chaîne/commentaire écartée — le fournisseur LSP tranche
+         * lui-même les zones muettes : texte, fermantes, commentaires
+         * {@code <!--}, PI {@code <?}) ; toutes les autres familles →
+         * {@link CompletionGate#STANDARD} (porte calibrée pour les
+         * littéraux C/Java). Passer {@code null} retombe sur le défaut
+         * de famille.
+         */
+        public Builder completionGate(CompletionGate gate) {
+            this.completionGate = gate;
+            return this;
+        }
+
         public LanguageProfile build() {
             // Lot 2 : valeurs par défaut par famille (quand le builder
             // n'a pas été appelé explicitement pour ces traits).
@@ -309,6 +341,8 @@ public final class LanguageProfile {
                     ? autoCloseBrackets : defaultBrackets(family);
             FoldStrategy finalFold = foldStrategy != null
                     ? foldStrategy : defaultFoldStrategy(family);
+            CompletionGate finalGate = completionGate != null
+                    ? completionGate : defaultCompletionGate(family);
             return new LanguageProfile(name, family,
                     Collections.unmodifiableSet(new HashSet<>(aliases)),
                     Collections.unmodifiableSet(new HashSet<>(extensions)),
@@ -317,7 +351,8 @@ public final class LanguageProfile {
                     Collections.unmodifiableSet(new HashSet<>(finalQuotes)),
                     Collections.unmodifiableSet(new HashSet<>(finalBrackets)),
                     finalFold,
-                    stickyHeaderTest);
+                    stickyHeaderTest,
+                    finalGate);
         }
 
         /** Valeurs par défaut pour autoCloseQuotes selon la famille. */
@@ -411,6 +446,18 @@ public final class LanguageProfile {
                 case LOG:
                 default:
                     return FoldStrategy.OFF;
+            }
+        }
+
+        /** Défaut de porte de complétion selon la famille (ADR-002, C1). */
+        private static CompletionGate defaultCompletionGate(SyntaxFamily family) {
+            switch (family) {
+                case LOG:
+                    return CompletionGate.OFF;
+                case XML:
+                    return CompletionGate.ALWAYS;
+                default:
+                    return CompletionGate.STANDARD;
             }
         }
 
