@@ -28,6 +28,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `EditOps.tryPostfixCompletion` / `EditOps.getPostfixInsertText` (D-04) : la paire reposait sur un état global ; `getPostfixInsertText` est inerte (null). Retrait au palier suivant.
 
+### Removed
+
+- **M-02** : `SurroundWith` (103 l., zéro référence en production). `NavigationMenu` perd sa machinerie de picker d'instance jamais appelée (`runNav`, `movePickerSelection`, `selectPickerOption`, `navigateToOption`, `isPickerOpen`, `getSelectedOption`, constructeurs, `setResolver`/`setListener`, `closePicker`/`reset`, interfaces `NavigationResolver`/`NavigationListener`) — la classe devient le porte-type des éléments réellement consommés (`NavKind`, `NavTarget`, `NavOption`, `Symbol`, `filter`, `isCamelHumpSubsequence`).
+
+### Changed (M-02)
+
+- **Une seule implémentation de la fusion de régions de plis** : `FoldModel.mergeRegions` (publique, testée) et l'index de plis de la vue délègue — la copie interne divergente est retirée.
+
+### Added (M-03)
+
+- **Contrats des API publiques sans test** : `BlockEditor` (arbre de blocs : parse, structure, localisation par offset, cycle setSource/getRoot) et `SymbolBarView` (construction, écouteur, cheminement du toucher) reçoivent leur premier test — politique M-03 « au moins un test ».
+
 ## [3.70.0] — 2026-10-15 — Correctif complétion XML : la porte de contexte respecte la famille XML
 
 Retour utilisateur CodeIDE : « le LSP XML ne propose plus de complétion ».
