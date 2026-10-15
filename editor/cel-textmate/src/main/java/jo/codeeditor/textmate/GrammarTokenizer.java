@@ -5,6 +5,8 @@ import jo.codeeditor.highlight.StyledLine;
 import jo.codeeditor.highlight.TokenType;
 import jo.codeeditor.textmate.TextMateGrammar.Rule;
 
+import jo.codeeditor.textmate.internal.RegexCompat;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -12,6 +14,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 
 /**
  * Moteur d'application d'une {@link TextMateGrammar} ligne par ligne
@@ -93,9 +96,25 @@ public final class GrammarTokenizer {
 
     /** Tokénise une ligne avec la grammaire (entrée/sortie d'état du contrat). */
     public StyledLine tokenize(TextMateGrammar grammar, String line, int entryState) {
+        return tokenize(grammar, line, entryState, Map.of());
+    }
+
+    /**
+     * Tokénise une ligne avec la grammaire et un registre de grammaires
+     * EXTERNES (C3-bis, compatibilité sora-editor) : les includes
+     * {@code source.css} et consorts de la grammaire y sont résolus —
+     * portée par portée, la carte est {@code scopeName → grammaire}
+     * (l'hôte construit la vue depuis ses grammaires enregistrées).
+     * Une référence absente du registre ne matche RIEN : la grammaire
+     * mère rend le texte avec ses règles locales — dégradation
+     * documentée (html sans css colorie les balises, pas le contenu
+     * des {@code <style>}).
+     */
+    public StyledLine tokenize(TextMateGrammar grammar, String line, int entryState,
+            Map<String, TextMateGrammar> externals) {
         List<Frame> stack = resolve(entryState);
         List<LineSpan> spans = new ArrayList<>();
-        tokenizeLine(grammar, line, stack, spans);
+        tokenizeLine(grammar, line, stack, spans, externals);
         // Fusion des spans adjacents de même type (le rendu n'a pas
         // besoin de la granularité règle par règle).
         return new StyledLine(merge(spans), entryState, intern(stack));
@@ -125,10 +144,10 @@ public final class GrammarTokenizer {
     // ── Moteur d'une ligne ───────────────────────────────────────
 
     private void tokenizeLine(TextMateGrammar grammar, String line,
-            List<Frame> stack, List<LineSpan> spans) {
+            List<Frame> stack, List<LineSpan> spans, Map<String, TextMateGrammar> externals) {
         int pos = 0;
         while (pos < line.length()) {
-            Step step = nextStep(grammar, line, pos, stack);
+            Step step = nextStep(grammar, line, pos, stack, externals);
             if (step == null) {
                 // Aucune règle ne matche sur le reste : le texte
                 // restant reçoit la portée de contenu du sommet (ou
@@ -150,7 +169,7 @@ public final class GrammarTokenizer {
 
     /** Le plus proche match parmi les règles candidates à la position courante. */
     private Step nextStep(TextMateGrammar grammar, String line, int pos,
-            List<Frame> stack) {
+            List<Frame> stack, Map<String, TextMateGrammar> externals) {
         Step best = null;
         // Candidats : au sommet d'un begin/end — le end (prioritaire,
         // comme TextMate) puis les sous-règles ; sinon les patterns racine.
@@ -161,22 +180,26 @@ public final class GrammarTokenizer {
                 best = new Step(m, top.rule, true);
             }
             for (Rule sub : top.rule.patterns) {
-                best = better(best, tryRule(sub, grammar, line, pos));
+                best = better(best, tryRule(sub, grammar, line, pos, externals, 0));
             }
         } else {
             for (Rule root : grammar.patterns) {
-                best = better(best, tryRule(root, grammar, line, pos));
+                best = better(best, tryRule(root, grammar, line, pos, externals, 0));
             }
         }
         return best;
     }
 
     /** Évalue une règle (et ses includes) à la recherche d'un match depuis pos. */
-    private Step tryRule(Rule rule, TextMateGrammar grammar, String line, int pos) {
+    private Step tryRule(Rule rule, TextMateGrammar grammar, String line, int pos,
+            Map<String, TextMateGrammar> externals, int depth) {
         if (rule.include != null) {
-            Rule resolved = resolveInclude(rule, grammar);
+            Rule resolved = resolveInclude(rule, grammar, externals);
             if (resolved == null || resolved == rule) return null; // absent ou cycle
-            return tryRule(resolved, grammar, line, pos);
+            // Garde de profondeur : une inclusion externe mutuelle ne
+            // doit jamais provoquer de récursion infinie.
+            if (depth >= 50) return null;
+            return tryRule(resolved, grammar, line, pos, externals, depth + 1);
         }
         if (rule.match != null) {
             Matcher m = rule.match.matcher(line);
@@ -195,12 +218,13 @@ public final class GrammarTokenizer {
         // Règle conteneur (groupe de patterns) : chercher dans ses enfants.
         Step best = null;
         for (Rule sub : rule.patterns) {
-            best = better(best, tryRule(sub, grammar, line, pos));
+            best = better(best, tryRule(sub, grammar, line, pos, externals, depth));
         }
         return best;
     }
 
-    private Rule resolveInclude(Rule rule, TextMateGrammar grammar) {
+    private Rule resolveInclude(Rule rule, TextMateGrammar grammar,
+            Map<String, TextMateGrammar> externals) {
         String ref = rule.include;
         if ("$self".equals(ref) || "$base".equals(ref)) {
             // Règle conteneur synthétique exposant les patterns racine.
@@ -212,7 +236,12 @@ public final class GrammarTokenizer {
             if (target == rule) return rule; // self-include → stop
             return target;
         }
-        return null;
+        // Include externe (C3-bis) : résolu par le registre — absent,
+        // la règle ne matche rien (dégradation documentée).
+        TextMateGrammar foreign = externals.get(ref);
+        if (foreign == null) return null;
+        return new Rule(ref, null, null, null, null, null,
+                Map.of(), Map.of(), Map.of(), foreign.patterns, null);
     }
 
     private Step better(Step a, Step b) {
@@ -275,7 +304,14 @@ public final class GrammarTokenizer {
             }
             sb.append(c);
         }
-        return Pattern.compile(sb.toString());
+        try {
+            return Pattern.compile(RegexCompat.translate(sb.toString()));
+        } catch (PatternSyntaxException e) {
+            // Garde du contrat « jamais d'échec en coloration » : une
+            // fermante au dialecte intraduisible ne ferme jamais (le
+            // bloc porte l'état inter-lignes jusqu'au rebouclage).
+            return Pattern.compile("(?!)");
+        }
     }
 
     /**

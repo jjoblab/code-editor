@@ -85,14 +85,101 @@ class TextMateGrammarTest {
                         "{\"scopeName\": \"s\", \"repository\": "
                                 + "{\"r\": {\"match\": \"(unclosed\"}}}"));
         assertTrue(e.getMessage().contains("r"));
-        // Include externe (grammaire tierce) : non supporté, refusé
-        // explicitement plutôt qu'ignoré en silence.
-        assertThrows(TextMateGrammar.GrammarException.class,
-                () -> TextMateGrammar.parse(
-                        "{\"scopeName\": \"s\", \"patterns\": "
-                                + "[{\"include\": \"source.js\"}]}"));
         // JSON illisible.
         assertThrows(TextMateGrammar.GrammarException.class,
                 () -> TextMateGrammar.parse("{pas du json"));
+        // Plist XML illisible (racine non plist).
+        assertThrows(TextMateGrammar.GrammarException.class,
+                () -> TextMateGrammar.parse("<plist><array><string>x</string></array></plist>"));
+    }
+
+    // ── Compatibilité sora-editor / VS Code (C3-bis) ────────────────
+
+    @Test
+    void sourcePlist_parseIdentiqueAuJson() {
+        // Les grammaires TextMate historiques (kotlin de sora-editor)
+        // sont des plist XML — même modèle après parse.
+        String plist = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                + "<plist version=\"1.0\">\n"
+                + "  <dict>\n"
+                + "    <key>scopeName</key><string>source.ex</string>\n"
+                + "    <key>name</key><string>Exemple</string>\n"
+                + "    <key>patterns</key>\n"
+                + "    <array>\n"
+                + "      <dict>\n"
+                + "        <key>match</key><string>\\bfoo\\b</string>\n"
+                + "        <key>name</key><string>keyword.control.ex</string>\n"
+                + "      </dict>\n"
+                + "    </array>\n"
+                + "    <key>repository</key>\n"
+                + "    <dict>\n"
+                + "      <key>strings</key>\n"
+                + "      <dict>\n"
+                + "        <key>begin</key><string>\"</string>\n"
+                + "        <key>end</key><string>\"</string>\n"
+                + "        <key>name</key><string>string.quoted.ex</string>\n"
+                + "      </dict>\n"
+                + "    </dict>\n"
+                + "  </dict>\n"
+                + "</plist>\n";
+        TextMateGrammar g = TextMateGrammar.parse(plist);
+        assertEquals("source.ex", g.scopeName);
+        assertEquals("Exemple", g.name);
+        assertEquals(1, g.patterns.size());
+        assertNotNull(g.patterns.get(0).match);
+        assertEquals("string.quoted.ex", g.repository.get("strings").name);
+        assertNotNull(g.repository.get("strings").begin);
+    }
+
+    @Test
+    void clauseWhile_acceptéeCommeEnd() {
+        // Les grammaires modernes (markdown de sora-editor) utilisent
+        // begin/while pour les blocs continus — while est accepté comme
+        // fermante (simplification documentée : le bloc se referme sur
+        // la ligne de continuation, ré-ouvert par sa propre begin).
+        String source = "{\"scopeName\": \"s\", \"patterns\": ["
+                + "{\"begin\": \"^>\", \"while\": \"^>\", "
+                + "\"name\": \"markup.quote\"}]}";
+        TextMateGrammar g = TextMateGrammar.parse(source);
+        assertEquals("^>", g.patterns.get(0).end, "while sert de fermante");
+    }
+
+    @Test
+    void includeExterne_acceptéEtCollecté() {
+        // Un include source.xxx (html → source.css, markdown → ses
+        // blocs de code…) ne fait plus ÉCHOUER le chargement : la règle
+        // est conservée, la référence collectée — la résolution a lieu
+        // à la tokénisation (registre de grammaires de l'hôte, repli
+        // dégradé documenté si absente).
+        String source = "{\"scopeName\": \"source.html\", \"patterns\": ["
+                + "{\"include\": \"source.css\"}, "
+                + "{\"include\": \"#local\"}], "
+                + "\"repository\": {\"local\": {\"match\": \"x\"}}}";
+        TextMateGrammar g = TextMateGrammar.parse(source);
+        assertEquals("source.css", g.patterns.get(0).include);
+        assertTrue(g.externalRefs.contains("source.css"),
+                "la référence externe est collectée pour le registre");
+    }
+
+    @Test
+    void regexOniguruma_commentairesEtAccolades() {
+        // Deux écarts du dialecte Oniguruma signalés par les grammaires
+        // réelles (java : accolade « { » seule ; python : (?# …)
+        // commentaire inline) — traduits vers java.util.regex au parse.
+        TextMateGrammar braces = TextMateGrammar.parse(
+                "{\"scopeName\": \"s\", \"patterns\": "
+                        + "[{\"match\": \"\\\\{\", \"name\": \"punct\"}]}");
+        assertTrue(braces.patterns.get(0).match.matcher("{").matches(),
+                "accolade littérale");
+        TextMateGrammar comment = TextMateGrammar.parse(
+                "{\"scopeName\": \"s\", \"patterns\": "
+                        + "[{\"match\": \"a(?# comment)b\", \"name\": \"kw\"}]}");
+        assertTrue(comment.patterns.get(0).match.matcher("ab").matches(),
+                "le commentaire inline est retiré");
+        // {3} reste un quantificateur valide — jamais échappé.
+        TextMateGrammar quant = TextMateGrammar.parse(
+                "{\"scopeName\": \"s\", \"patterns\": "
+                        + "[{\"match\": \"a{3}\", \"name\": \"kw\"}]}");
+        assertTrue(quant.patterns.get(0).match.matcher("aaa").matches());
     }
 }

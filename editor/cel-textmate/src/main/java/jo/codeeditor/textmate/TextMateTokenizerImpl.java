@@ -48,6 +48,9 @@ public final class TextMateTokenizerImpl implements TextMateTokenizer {
     private final Map<String, TextMateGrammar> grammars = new HashMap<>();
     /** Moteurs par grammaire (l'interning des piles est par moteur). */
     private final Map<TextMateGrammar, GrammarTokenizer> engines = new HashMap<>();
+    /** Références externes déjà signalées sur stderr (une fois). */
+    private final java.util.Set<String> warnedExternals =
+            java.util.Collections.synchronizedSet(new java.util.HashSet<>());
 
     /** Constructeur vide — voir {@link #create()} pour le chargement embarqué. */
     public TextMateTokenizerImpl() {
@@ -105,17 +108,27 @@ public final class TextMateTokenizerImpl implements TextMateTokenizer {
     /**
      * Enregistre (ou remplace) la grammaire d'une clé de langage.
      * Lève une {@link TextMateGrammar.GrammarException} sur source
-     * invalide — au moment de l'enregistrement, jamais en coloration.
+     * illisible — au moment de l'enregistrement, jamais en coloration.
+     * Le parse est INDULGENT (C3-bis) : une règle au dialecte
+     * Oniguruma intraduisible est ignorée avec un avertissement sur
+     * stderr (le gras du markdown de sora-editor, qui appelle des
+     * sous-expressions) — la grammaire charge et le reste colorea.
+     * Les sources plist XML (Kotlin de sora-editor) sont acceptées :
+     * la détection de format est automatique.
      *
      * @param language clé de langage ({@code "csharp"}, {@code "mylang"}…)
-     * @param grammarSource source JSON/JSONC de la grammaire
+     * @param grammarSource source JSON/JSONC ou plist XML de la grammaire
      * @return cette instance (chaînage)
      */
     public TextMateTokenizerImpl registerGrammar(String language, String grammarSource) {
         if (language == null || language.isBlank()) {
             throw new IllegalArgumentException("language is blank");
         }
-        TextMateGrammar grammar = TextMateGrammar.parse(grammarSource);
+        TextMateGrammar grammar = TextMateGrammar.parse(grammarSource, true);
+        for (String warning : grammar.warnings) {
+            System.err.println("cel-textmate: grammaire " + language
+                    + " — règle ignorée : " + warning);
+        }
         synchronized (grammars) {
             grammars.put(normalize(language), grammar);
         }
@@ -160,7 +173,49 @@ public final class TextMateTokenizerImpl implements TextMateTokenizer {
                 engines.put(grammar, engine);
             }
         }
-        return engine.tokenize(grammar, line == null ? "" : line, entryState);
+        // Registre des grammaires externes (C3-bis) : les includes
+        // source.xxx de la grammaire se résolvent vers les AUTRES
+        // grammaires enregistrées — l'hôte qui embarque html ET css
+        // obtient l'imbrication ; une référence absente dégrade (règle
+        // muette) et est signalée UNE fois sur stderr.
+        Map<String, TextMateGrammar> externals = new HashMap<>();
+        synchronized (grammars) {
+            for (TextMateGrammar g : grammars.values()) {
+                externals.put(g.scopeName, g);
+            }
+        }
+        warnUnresolved(grammar, externals);
+        return engine.tokenize(grammar, line == null ? "" : line, entryState,
+                externals);
+    }
+
+    /** Signale une seule fois les références externes non résolues —
+     * une LIGNE par grammaire (les grammaires à blocs de code,
+     * markdown, référencent des dizaines de langages). */
+    private void warnUnresolved(TextMateGrammar grammar,
+            Map<String, TextMateGrammar> externals) {
+        java.util.List<String> missing = new java.util.ArrayList<>();
+        for (String ref : grammar.externalRefs) {
+            if (!externals.containsKey(ref) && warnedExternals.add(ref)) {
+                missing.add(ref);
+            }
+        }
+        if (missing.isEmpty()) return;
+        StringBuilder sb = new StringBuilder("cel-textmate: ");
+        sb.append(missing.size()).append(" include(s) externe(s) non résolue(s)");
+        if (grammar.name != null) {
+            sb.append(" — grammaire ").append(grammar.name);
+        }
+        sb.append(" : ");
+        for (int i = 0; i < missing.size() && i < 5; i++) {
+            if (i > 0) sb.append(", ");
+            sb.append(missing.get(i));
+        }
+        if (missing.size() > 5) {
+            sb.append(", … (").append(missing.size() - 5).append(" autres)");
+        }
+        sb.append(" — les règles concernées ne colorea rien");
+        System.err.println(sb);
     }
 
     private static String normalize(String language) {

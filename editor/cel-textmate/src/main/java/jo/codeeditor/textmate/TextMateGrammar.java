@@ -1,11 +1,14 @@
 package jo.codeeditor.textmate;
 
 import jo.codeeditor.textmate.internal.JsonLite;
+import jo.codeeditor.textmate.internal.PlistParser;
+import jo.codeeditor.textmate.internal.RegexCompat;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeSet;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
@@ -58,43 +61,93 @@ public final class TextMateGrammar {
     public final List<Rule> patterns;
     /** Règles nommées du repository, adressées par {@code include "#…"}. */
     public final Map<String, Rule> repository;
+    /** Références includes externes ({@code source.css}…) collectées au
+     * parse (C3-bis, compatibilité sora-editor) — triées, sans
+     * doublon : le registre de l'hôte y répond, ou la règle dégrade
+     * silencieusement. */
+    public final List<String> externalRefs;
+    /** Avertissements du mode indulgent (règle au dialecte
+     * intraduisible — ex. {@code \g<n>}, appel de sous-expression
+     * Oniguruma) : la règle est ignorée, la grammaire charge. Vide en
+     * mode strict (une règle intraduisible lève). */
+    public final List<String> warnings;
 
     private TextMateGrammar(String scopeName, String name,
-            List<Rule> patterns, Map<String, Rule> repository) {
+            List<Rule> patterns, Map<String, Rule> repository,
+            List<String> externalRefs, List<String> warnings) {
         this.scopeName = scopeName;
         this.name = name;
         this.patterns = List.copyOf(patterns);
         this.repository = Map.copyOf(repository);
+        this.externalRefs = List.copyOf(externalRefs);
+        this.warnings = List.copyOf(warnings);
     }
 
     /**
-     * Parse une source de grammaire JSON/JSONC. Leve une
+     * Parse une source de grammaire JSON/JSONC <b>ou plist XML</b>
+     * (détection automatique — les grammaires TextMate historiques
+     * comme le {@code Kotlin.tmLanguage} de sora-editor). Leve une
      * {@link GrammarException} (avec position) sur grammaire invalide
      * ou regex incompilable — au chargement, jamais en coloration.
      */
     public static TextMateGrammar parse(String source) {
+        return parse(source, false);
+    }
+
+    /**
+     * Parse en mode indulgent (C3-bis, compatibilité sora-editor) :
+     * une règle au dialecte Oniguruma intraduisible en
+     * java.util.regex (ex. {@code \g<n>}, appel de sous-expression —
+     * le gras du markdown de sora-editor) est IGNORÉE avec un
+     * avertissement ({@link #warnings}) au lieu d'échouer — la
+     * grammaire charge et la construction n'est simplement pas
+     * colorée. Le mode STRICT (faux) lève : les grammaires du dépôt
+     * doivent être intégralement traduisibles.
+     */
+    public static TextMateGrammar parse(String source, boolean lenient) {
         Map<String, Object> root;
         try {
-            root = JsonLite.parseObject(source);
+            if (PlistParser.looksLikeXml(source)) {
+                root = PlistParser.parseObject(source);
+            } else {
+                root = JsonLite.parseObject(source);
+            }
         } catch (JsonLite.JsonLiteException e) {
             throw new GrammarException("grammaire illisible : " + e.getMessage(), e);
+        } catch (IllegalArgumentException e) {
+            throw new GrammarException("grammaire plist illisible : " + e.getMessage(), e);
         }
         String scopeName = JsonLite.str(root.get("scopeName"));
         if (scopeName == null || scopeName.isBlank()) {
             throw new GrammarException("scopeName manquant");
         }
         String name = JsonLite.str(root.get("name"));
+        List<String> warnings = new ArrayList<>();
         Map<String, Rule> repository = new LinkedHashMap<>();
         Map<String, Object> repo = JsonLite.obj(root.get("repository"));
         for (Map.Entry<String, Object> e : repo.entrySet()) {
-            repository.put(e.getKey(),
-                    new RuleParser(JsonLite.obj(e.getValue()), e.getKey()).parse());
+            repository.put(e.getKey(), new RuleParser(
+                    JsonLite.obj(e.getValue()), e.getKey(), lenient, warnings).parse());
         }
         List<Rule> patterns = new ArrayList<>();
         for (Object o : JsonLite.list(root.get("patterns"))) {
-            patterns.add(new RuleParser(JsonLite.obj(o), null).parse());
+            patterns.add(new RuleParser(JsonLite.obj(o), null, lenient, warnings).parse());
         }
-        return new TextMateGrammar(scopeName, name, patterns, repository);
+        // Collecte des références externes (C3-bis) — règles racine et
+        // repository comprises.
+        TreeSet<String> refs = new TreeSet<>();
+        for (Rule r : patterns) collectExternals(r, refs);
+        for (Rule r : repository.values()) collectExternals(r, refs);
+        return new TextMateGrammar(scopeName, name, patterns, repository,
+                new ArrayList<>(refs), warnings);
+    }
+
+    private static void collectExternals(Rule r, TreeSet<String> refs) {
+        if (r.include != null && !r.include.startsWith("#")
+                && !"$self".equals(r.include) && !"$base".equals(r.include)) {
+            refs.add(r.include);
+        }
+        for (Rule sub : r.patterns) collectExternals(sub, refs);
     }
 
     /** Échec de chargement d'une grammaire (source ou regex invalide). */
@@ -175,30 +228,56 @@ public final class TextMateGrammar {
     private static final class RuleParser {
         private final Map<String, Object> src;
         private final String ruleName;
+        private final boolean lenient;
+        private final List<String> warnings;
 
-        RuleParser(Map<String, Object> src, String ruleName) {
+        RuleParser(Map<String, Object> src, String ruleName, boolean lenient,
+                List<String> warnings) {
             this.src = src;
             this.ruleName = ruleName;
+            this.lenient = lenient;
+            this.warnings = warnings;
         }
 
         Rule parse() {
+            try {
+                return parseStrictement();
+            } catch (GrammarException e) {
+                if (!lenient) throw e;
+                // Mode indulgent : la règle au dialecte intraduisible
+                // devient muette (conteneur sans enfants — ne matche
+                // jamais), l'avertissement est collecté.
+                warnings.add(e.getMessage());
+                return new Rule(ruleName, null, null, null, null, null,
+                        Map.of(), Map.of(), Map.of(), List.of(), null);
+            }
+        }
+
+        private Rule parseStrictement() {
             String include = JsonLite.str(src.get("include"));
             if (include != null) {
-                // Inclusion externe non supportée (source.xxx autre
-                // grammaire) : signalée au chargement, pas ignorée en
-                // silence (une grammaire qui compte dessus produirait
-                // une coloration fausse).
-                if (include.startsWith("#") || "$self".equals(include)
-                        || "$base".equals(include)) {
-                    return new Rule(ruleName, null, null, null, null, null,
-                            Map.of(), Map.of(), Map.of(), List.of(), include);
-                }
-                throw new GrammarException("include externe non supporté ("
-                        + include + ") — règle " + ruleName);
+                // Include externe (C3-bis, compatibilité sora-editor) :
+                // source.css, source.js… — CONSERVÉ (plus d'échec au
+                // chargement), la référence est collectée dans
+                // externalRefs de la grammaire ; la résolution a lieu
+                // à la tokénisation via le registre de l'hôte —
+                // absente, la règle ne matche rien (dégradation
+                // documentée, la grammaire charge quand même).
+                return new Rule(ruleName, null, null, null, null, null,
+                        Map.of(), Map.of(), Map.of(), List.of(), include);
             }
             String match = JsonLite.str(src.get("match"));
             String begin = JsonLite.str(src.get("begin"));
             String end = JsonLite.str(src.get("end"));
+            // Clause while (C3-bis) : les blocs continus des grammaires
+            // modernes (markdown de sora-editor) — acceptée comme
+            // fermante. Simplification documentée : le bloc se referme
+            // sur la ligne de continuation et se rouvre par sa propre
+            // begin — rendu équivalent pour les blocs continus.
+            String whileClause = JsonLite.str(src.get("while"));
+            if (end == null && whileClause != null) {
+                end = whileClause;
+            }
             String name = JsonLite.str(src.get("name"));
             String contentName = JsonLite.str(src.get("contentName"));
             if (match != null) {
@@ -213,7 +292,8 @@ public final class TextMateGrammar {
                 }
                 List<Rule> sub = new ArrayList<>();
                 for (Object o : JsonLite.list(src.get("patterns"))) {
-                    sub.add(new RuleParser(JsonLite.obj(o), ruleName + ".patterns").parse());
+                    sub.add(new RuleParser(JsonLite.obj(o), ruleName + ".patterns",
+                            lenient, warnings).parse());
                 }
                 return new Rule(ruleName, null, compile(begin, ruleName), end, name,
                         contentName, Map.of(),
@@ -224,7 +304,8 @@ public final class TextMateGrammar {
             // Groupe de patterns sans match (règle conteneur).
             List<Rule> sub = new ArrayList<>();
             for (Object o : JsonLite.list(src.get("patterns"))) {
-                sub.add(new RuleParser(JsonLite.obj(o), ruleName + ".patterns").parse());
+                sub.add(new RuleParser(JsonLite.obj(o), ruleName + ".patterns",
+                        lenient, warnings).parse());
             }
             return new Rule(ruleName, null, null, null, name, null,
                     Map.of(), Map.of(), Map.of(), sub, null);
@@ -232,7 +313,10 @@ public final class TextMateGrammar {
 
         private static Pattern compile(String regex, String ruleName) {
             try {
-                return Pattern.compile(regex);
+                // Traduction du dialecte Oniguruma (C3-bis) : (?#…)
+                // retirés, accolades seules échappées — les grammaires
+                // java/python/javascript de sora-editor chargent.
+                return Pattern.compile(RegexCompat.translate(regex));
             } catch (PatternSyntaxException e) {
                 throw new GrammarException("regex invalide dans la règle " + ruleName
                         + " : « " + regex + " » (" + e.getMessage() + ")", e);

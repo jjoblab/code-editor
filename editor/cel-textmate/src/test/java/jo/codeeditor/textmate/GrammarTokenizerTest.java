@@ -215,4 +215,46 @@ class GrammarTokenizerTest {
         assertEquals(TokenType.FUNC, type(l, line, "foo"));
         assertEquals(TokenType.NUMBER, type(l, line, "1"));
     }
+
+    // ── C3-bis : includes externes (compatibilité sora-editor) ───
+
+    /**
+     * Grammaire hôte : une règle locale (mot-clé) + un include
+     * EXTERNE {@code source.embed} — comme html incluant source.css.
+     */
+    private static final TextMateGrammar HOST = TextMateGrammar.parse(
+            "{\"scopeName\": \"source.host\", \"patterns\": ["
+                    + "{\"match\": \"\\\\bfor\\\\b\", \"name\": \"keyword.control.host\"},"
+                    + "{\"include\": \"source.embed\"}]}");
+
+    /**
+     * Grammaire invitée : les identifiants en entity.name.function
+     * (FUNC).
+     */
+    private static final TextMateGrammar EMBED = TextMateGrammar.parse(
+            "{\"scopeName\": \"source.embed\", \"patterns\": ["
+                    + "{\"match\": \"[a-z]+\", \"name\": \"entity.name.function.embed\"}]}" );
+
+    @Test
+    void includeExterne_résolueParLeRegistre() {
+        // Registre {scopeName → grammaire} : la règle de l'invitée
+        // colorea la zone déléguée.
+        java.util.Map<String, TextMateGrammar> externals =
+                java.util.Map.of("source.embed", EMBED);
+        StyledLine l = engine.tokenize(HOST, "for count", 0, externals);
+        assertEquals(TokenType.KEYWORD_CONTROL, l.spans.get(0).type, "for → local");
+        assertEquals(TokenType.FUNC, type(l, "for count", "count"),
+                "count → règle de la grammaire invitée");
+    }
+
+    @Test
+    void includeExterne_absente_dégradationSansÉchec() {
+        // Registre vide : la règle incluse ne matche RIEN — le texte
+        // délégué retombe dans le PLAIN de repli du moteur (html sans
+        // css : les balises restent colorées, pas le contenu).
+        StyledLine l = engine.tokenize(HOST, "for count", 0, java.util.Map.of());
+        assertEquals(TokenType.KEYWORD_CONTROL, l.spans.get(0).type);
+        assertEquals(2, l.spans.size());
+        assertEquals(TokenType.PLAIN, l.spans.get(1).type, "count reste PLAIN");
+    }
 }
