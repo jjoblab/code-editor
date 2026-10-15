@@ -76,22 +76,7 @@ public class InlayClickCommandTest {
     }
 
     private static void injectMetrics(EditorView view, float lineHeight, float charWidth) {
-        try {
-            setFloat(view.metrics, "lineHeight", lineHeight);
-            setFloat(view.metrics, "charWidth", charWidth);
-            setFloat(view.metrics, "padTop", lineHeight * 0.5f);
-            setFloat(view.metrics, "padLeft", charWidth * 0.5f);
-            setFloat(view.metrics, "gutterWidth", charWidth * 7f);
-            setFloat(view.metrics, "foldStripWidth", charWidth * 2f);
-        } catch (Exception e) {
-            throw new IllegalStateException(e);
-        }
-    }
-
-    private static void setFloat(Object target, String field, float value) throws Exception {
-        Field f = target.getClass().getDeclaredField(field);
-        f.setAccessible(true);
-        f.setFloat(target, value);
+        TestMetrics.injecter(view, lineHeight, charWidth);
     }
 
     /** Installe un hint « ⋯ » à command à l'offset donné. */
@@ -107,7 +92,7 @@ public class InlayClickCommandTest {
         float charWidth = view.metrics.getCharWidth();
         float textAreaLeft = view.metrics.getGutterWidth() + view.metrics.getPadLeft();
         float x = textAreaLeft + (visStart + len * 0.5f) * charWidth;
-        float y = view.docLineToY(line) - view.vOffset + LINE_H * 0.5f;
+        float y = view.docLineToY(line) - view.scroll.vOffset + LINE_H * 0.5f;
         long down = SystemClock.uptimeMillis();
         MotionEvent d = MotionEvent.obtain(down, down, MotionEvent.ACTION_DOWN, x, y, 0);
         view.onTouchEvent(d);

@@ -41,9 +41,9 @@ class LspSuperDefinitionProvider implements SuperDefinitionProvider {
                         editor.getTextDocumentIdentifier(), editor.offsetToPosition(offset));
         log("superDefinition: requesting at offset=" + offset);
         try {
-            List<CodeIdeLanguageServer.SuperNavTarget> hits = ext
-                    .superDefinition(params)
-                    .get(8, TimeUnit.SECONDS);
+            List<CodeIdeLanguageServer.SuperNavTarget> hits = LspRequestTimeouts.await(
+                    ext.superDefinition(params),
+                    wrapper.requestTimeouts().superDefinitionMs());
             if (hits == null || hits.isEmpty()) {
                 log("superDefinition: no results");
                 return Collections.emptyList();
@@ -68,7 +68,7 @@ class LspSuperDefinitionProvider implements SuperDefinitionProvider {
     }
 
     private void log(String message) {
-        android.util.Log.i("LspSuper", message);
+        jo.codeeditor.util.EditorLog.info("LspSuper", message);
         if (logSink != null) logSink.log(message);
     }
 }

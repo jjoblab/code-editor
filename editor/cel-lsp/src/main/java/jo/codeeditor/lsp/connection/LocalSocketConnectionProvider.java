@@ -13,6 +13,11 @@ import java.io.OutputStream;
  * Utile quand le serveur est une implémentation LSP en Java pur exécutée
  * dans un {@code Service} Android.
  *
+ * <p><b>Transport en clair</b> : le socket domaine Unix reste confiné à
+ * l'appareil (pas de transit réseau) — le partager avec un autre UID
+ * expose néanmoins le trafic LSP en clair à ce tiers : réserver le nom
+ * de socket à l'app et à ses propres composants.</p>
+ *
  * <p>Exemple :
  * <pre>{@code
  * new LocalSocketConnectionProvider("lua-lsp")
@@ -37,7 +42,11 @@ public class LocalSocketConnectionProvider implements StreamConnectionProvider {
             socket.connect(new LocalSocketAddress(socketName, LocalSocketAddress.Namespace.ABSTRACT));
             return new StreamPair(socket.getInputStream(), socket.getOutputStream());
         } catch (IOException e) {
-            throw new RuntimeException("Failed to connect to LocalSocket: " + socketName, e);
+            // D-06 : exception typée (symétrique du Socket et du
+            // ProcessBuilder), message français, cause conservée.
+            throw new LspStartException(
+                    "Impossible de se connecter au socket local « "
+                            + socketName + " » (le serveur de langage est-il démarré ?)", e);
         }
     }
 

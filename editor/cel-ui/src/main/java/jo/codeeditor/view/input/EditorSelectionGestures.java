@@ -130,15 +130,15 @@ public class EditorSelectionGestures {
             float speedX = (EDGE_MIN_SPEED_DP
                     + (EDGE_MAX_SPEED_DP - EDGE_MIN_SPEED_DP) * penX) * density;
 
-            float beforeV = view.vOffset;
-            float beforeH = view.hOffset;
+            float beforeV = view.scroll.vOffset;
+            float beforeH = view.scroll.hOffset;
             if (penY > 0f) {
                 view.scrollManager.scrollBy(lastDragY < edge ? -speedY : speedY);
             }
             if (penX > 0f) {
                 view.scrollManager.scrollHorizontallyBy(lastDragX < edge ? -speedX : speedX);
             }
-            if (view.vOffset == beforeV && view.hOffset == beforeH) {
+            if (view.scroll.vOffset == beforeV && view.scroll.hOffset == beforeH) {
                 return; // borné sur les DEUX axes (début/fin/gauche/droite) — stop
             }
             // Le contenu a défilé sous le doigt : ré-applique la
@@ -660,7 +660,13 @@ public class EditorSelectionGestures {
         // showQuickDocRaw à l'arrivée).
         final int fOffset = hint.offset;
         final String fText = hint.text;
-        final String docText = view.session.getText();
+        // P-06 (audit 3.69.0) : vue de ROPE immuable — l'ancien chemin
+        // matérialisait le document ENTIER (getText) sur le thread UI
+        // juste pour la résolution différée. La rope d'une révision est
+        // un instantané cohérent pour toujours (les éditions substituent
+        // la rope, jamais elles ne la mutent) : le thread « features »
+        // peut la lire telle quelle, zéro copie.
+        final CharSequence docText = view.session.getDocument().charSequence();
         jo.codeeditor.view.EditorTaskLanes.submitFeature(() -> {
             String tooltip = null;
             try {
@@ -698,7 +704,7 @@ public class EditorSelectionGestures {
         // Colonne VISUELLE du doigt (même formule que offsetAt hors wrap).
         float charWidth = view.metrics.getCharWidth();
         float textAreaLeft = view.metrics.getGutterWidth() + view.metrics.getPadLeft();
-        int visCol = (int) ((x - (textAreaLeft - view.hOffset)) / charWidth + 0.5f);
+        int visCol = (int) ((x - (textAreaLeft - view.scroll.hOffset)) / charWidth + 0.5f);
         int lineStart = doc.lineStart(line);
         for (jo.codeeditor.cache.LineRenderCache.InlayPiece p : entry.inlays) {
             int hintStart = entry.rawToVisual[Math.min(p.col,

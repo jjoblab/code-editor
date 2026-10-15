@@ -49,8 +49,9 @@ class LspRenameProvider implements RenameProvider {
             org.eclipse.lsp4j.jsonrpc.messages.Either3<
                     org.eclipse.lsp4j.Range, org.eclipse.lsp4j.PrepareRenameResult,
                     org.eclipse.lsp4j.PrepareRenameDefaultBehavior> result =
-                    server.getTextDocumentService().prepareRename(params)
-                        .get(3, TimeUnit.SECONDS);
+                    LspRequestTimeouts.await(
+                            server.getTextDocumentService().prepareRename(params),
+                            wrapper.requestTimeouts().prepareRenameMs());
             if (result == null) {
                 log("prepareRename: null — symbole non renommable");
                 return null;
@@ -103,7 +104,8 @@ class LspRenameProvider implements RenameProvider {
         try {
             CompletableFuture<org.eclipse.lsp4j.WorkspaceEdit> future =
                 server.getTextDocumentService().rename(params);
-            org.eclipse.lsp4j.WorkspaceEdit edit = future.get(10, TimeUnit.SECONDS);
+            org.eclipse.lsp4j.WorkspaceEdit edit =
+                        LspRequestTimeouts.await(future, wrapper.requestTimeouts().renameMs());
             if (edit == null
                     || (edit.getChanges() == null || edit.getChanges().isEmpty())
                     && (edit.getDocumentChanges() == null || edit.getDocumentChanges().isEmpty())) {
@@ -211,7 +213,7 @@ class LspRenameProvider implements RenameProvider {
     }
 
     private void log(String message) {
-        android.util.Log.i("LspRename", message);
+        jo.codeeditor.util.EditorLog.info("LspRename", message);
         if (logSink != null) logSink.log(message);
     }
 }

@@ -1,5 +1,8 @@
 package jo.codeeditor.lang.model;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+
 import jo.codeeditor.lang.provider.HoverProvider;
 
 /**
@@ -12,13 +15,13 @@ import jo.codeeditor.lang.provider.HoverProvider;
 public final class HoverContent {
 
     /** La signature du symbole (ex. « public void myMethod(int x) »). */
-    public final String signature;
+    @NonNull public final String signature;
     /** Le conteneur déclarant (ex. « MyClass »). Peut être vide. */
-    public final String container;
+    @Nullable public final String container;
     /** La documentation Markdown brute. Peut être vide. */
-    public final String markdown;
+    @Nullable public final String markdown;
 
-    public HoverContent(String signature, String container, String markdown) {
+    public HoverContent(@NonNull String signature, @Nullable String container, @Nullable String markdown) {
         this.signature = signature != null ? signature : "";
         this.container = container != null ? container : "";
         this.markdown = markdown != null ? markdown : "";

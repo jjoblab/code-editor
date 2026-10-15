@@ -15,9 +15,11 @@ import static org.junit.jupiter.api.Assertions.*;
  * re-planification du restyle asynchrone.
  *
  * <p>Chaque test épingle un correctif pour qu'un changement futur ne
- * puisse pas faire revenir le bug silencieusement.</p>
+ * puisse pas faire revenir le bug silencieusement. A-06 (audit
+ * 3.69.0) : renommé par SUJET (l'ancien nom datait le test d'une
+ * version, sans dire ce qu'il protège).</p>
  */
-class V3340RegressionTest {
+class RestyleLifecycleRegressionTest {
 
     // ── dispose() : libère l'exécuteur de restyle ───────────────
 
@@ -153,11 +155,8 @@ class V3340RegressionTest {
         s.setSelection(end - 1);
         s.commitText("y");
         // Attendre que tous les restyles pending (et re-planifiés) se soient
-        // vidés.
-        long deadline = System.currentTimeMillis() + 10_000;
-        while (s.isAsyncRestylePending() && System.currentTimeMillis() < deadline) {
-            Thread.sleep(10);
-        }
+        // vidés (A-06 : attente bornée).
+        jo.codeeditor.AttenteBornee.jusquA(10_000, 10L, () -> !s.isAsyncRestylePending());
         s.awaitPendingRestyle();
         // Les styledLines finaux doivent être tokenisés dans le NOUVEAU
         // langage pour CHAQUE ligne — contrôle par sondage de la cohérence

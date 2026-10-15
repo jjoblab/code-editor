@@ -43,6 +43,13 @@ public class SnippetSession {
 
     private final List<TabStop> stops;
     private int currentIndex;
+    /**
+     * Le texte du snippet SANS les marqueurs de tab stops ($1, ${1:ph}…)
+     * — celui à insérer dans le document. Renseigné par
+     * {@link #parse(String, int)} ; vide pour une session construite
+     * manuellement.
+     */
+    private final String plainText;
 
     /**
      * Crée une session de snippet à partir d'une liste de tab stops.
@@ -50,10 +57,36 @@ public class SnippetSession {
      * comme arrêt final.
      */
     public SnippetSession(List<TabStop> stops) {
+        this(stops, "");
+    }
+
+    private SnippetSession(List<TabStop> stops, String plainText) {
         this.stops = new ArrayList<>(stops);
-        // Tri par index décroissant pour visiter d'abord les arrêts au numéro le plus élevé
-        this.stops.sort((a, b) -> Integer.compare(b.index, a.index));
+        // Ordre de NAVIGATION : index croissant, $0 (position finale)
+        // visité en dernier — convention LSP des snippets ($1, $2, …
+        // puis $0). L'ancien tri décroissant visitait $2 avant $1 :
+        // invisible tant que la classe n'était pas câblée (D-01).
+        this.stops.sort((a, b) -> Integer.compare(orderKey(a.index), orderKey(b.index)));
         this.currentIndex = this.stops.isEmpty() ? 0 : this.stops.get(0).index;
+        this.plainText = plainText != null ? plainText : "";
+    }
+
+    /** Clé d'ordre de navigation : $0 (index 0) est traité en dernier. */
+    private static int orderKey(int index) {
+        return index == 0 ? Integer.MAX_VALUE : index;
+    }
+
+    /** Index réel correspondant à une clé d'ordre. */
+    private static int indexFromKey(int key) {
+        return key == Integer.MAX_VALUE ? 0 : key;
+    }
+
+    /**
+     * Le texte du snippet sans les marqueurs de tab stops — à insérer
+     * dans le document à la plage de remplacement.
+     */
+    public String plainText() {
+        return plainText;
     }
 
     /**
@@ -126,22 +159,25 @@ public class SnippetSession {
             grouped.computeIfAbsent(rs[0], k -> new ArrayList<>()).add(rs);
         }
 
-        // Construit les arrêts : la première occurrence est primaire, le reste est lié
+        // Construit les arrêts : la première occurrence (primaire) est
+        // ajoutée EN PREMIER — l'ordre stable du tri de navigation la
+        // garde en tête de son index, donc current() désigne bien le
+        // champ que le caret sélectionne (première occurrence dans le
+        // texte) ; le reste est lié (miroir).
         for (var entry : grouped.entrySet()) {
             int index = entry.getKey();
             List<int[]> group = entry.getValue();
             int[] primary = group.get(0);
-            List<Integer> linked = new ArrayList<>();
+            stops.add(new TabStop(primary[1], primary[2], index, "", Collections.emptyList()));
             for (int i = 1; i < group.size(); i++) {
-                // Crée les arrêts liés
+                // Arrêts liés (miroirs de la première occurrence).
                 int[] lnk = group.get(i);
                 stops.add(new TabStop(lnk[1], lnk[2], index, "", Collections.emptyList()));
             }
-            stops.add(new TabStop(primary[1], primary[2], index, "", linked));
         }
 
         if (stops.isEmpty()) return null;
-        return new SnippetSession(stops);
+        return new SnippetSession(stops, plain.toString());
     }
 
     /**
@@ -155,34 +191,49 @@ public class SnippetSession {
     }
 
     /**
-     * Passe au tab stop suivant. Renvoie le nouvel arrêt courant, ou
-     * null si terminé.
+     * Passe au tab stop suivant (ordre de navigation : index
+     * croissant, $0 en dernier). Renvoie le nouvel arrêt courant, ou
+     * null quand la navigation est épuisée (l'appelant termine la
+     * session — l'arrêt $0, s'il existe, EST retourné avant : c'est à
+     * lui que la session se clôt).
      */
     public TabStop next() {
-        // Trouve l'index le plus élevé inférieur au courant
-        int nextIndex = Integer.MAX_VALUE;
+        // Trouve l'index de clé d'ordre strictement supérieure le plus
+        // proche (le $0 a la clé la plus grande : il est le dernier).
+        int cur = orderKey(currentIndex);
+        int best = Integer.MAX_VALUE;
         for (TabStop s : stops) {
-            if (s.index < currentIndex && s.index < nextIndex) {
-                nextIndex = s.index;
+            int k = orderKey(s.index);
+            if (k > cur && k < best) best = k;
+        }
+        if (best == Integer.MAX_VALUE && cur != Integer.MAX_VALUE) {
+            // Le $0 existe-t-il ? (cur != MAX garantit qu'on ne l'a pas
+            // déjà atteint)
+            for (TabStop s : stops) {
+                if (s.index == 0) {
+                    currentIndex = 0;
+                    return s;
+                }
             }
         }
-        if (nextIndex == Integer.MAX_VALUE) return null;
-        currentIndex = nextIndex;
+        if (best == Integer.MAX_VALUE) return null;
+        currentIndex = indexFromKey(best);
         return current();
     }
 
     /**
-     * Passe au tab stop précédent.
+     * Passe au tab stop précédent (ordre de navigation inverse).
+     * Renvoie le nouvel arrêt courant, ou null au premier champ.
      */
     public TabStop prev() {
-        int prevIndex = -1;
+        int cur = orderKey(currentIndex);
+        int best = Integer.MIN_VALUE;
         for (TabStop s : stops) {
-            if (s.index > currentIndex && s.index > prevIndex) {
-                prevIndex = s.index;
-            }
+            int k = orderKey(s.index);
+            if (k < cur && k > best) best = k;
         }
-        if (prevIndex < 0) return null;
-        currentIndex = prevIndex;
+        if (best == Integer.MIN_VALUE) return null;
+        currentIndex = indexFromKey(best);
         return current();
     }
 

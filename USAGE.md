@@ -34,10 +34,10 @@ dependencyResolutionManagement {
 // app/build.gradle.kts
 dependencies {
     // Le module UI embarque transitivement cel-core et cel-lsp-api.
-    implementation("jo.codeeditor:cel-ui:3.49.2")
+    implementation("jo.codeeditor:cel-ui:3.71.0")
 
     // Optionnel — intégration Language Server Protocol (LSP4J).
-    implementation("jo.codeeditor:cel-lsp:3.49.2")
+    implementation("jo.codeeditor:cel-lsp:3.71.0")
 }
 ```
 
@@ -49,7 +49,7 @@ maven { url = uri("https://jitpack.io") }
 
 // app/build.gradle.kts
 dependencies {
-    implementation("com.github.jjoblab:cel-ui:v3.49.2")
+    implementation("com.github.jjoblab:cel-ui:v3.71.0")
 }
 ```
 
@@ -434,7 +434,7 @@ import jo.codeeditor.lsp.LspEditor;
 LspProject project = new LspProject("/path/to/workspace");
 project.addServerDefinition(myServerDefinition); // ex. un serveur Java, un serveur Lua…
 LspEditor editor = project.createEditor("file:///path/to/Foo.java");
-editor.setEditorView(editorView);
+editor.setHost(new jo.codeeditor.view.LspEditorViewHost(editorView));
 editor.connect();   // CompletableFuture — didOpen envoyé à la connexion
 // …
 project.shutdown(); // borné à 2 s par serveur
@@ -501,3 +501,13 @@ surchargez `EditorMetrics`, laissez cette marge intacte.
 - [`FEATURES.md`](FEATURES.md) — matrice complète des fonctionnalités.
 - [`ARCHITECTURE.md`](ARCHITECTURE.md) — organisation des modules et des packages.
 - [`CHANGELOG.md`](CHANGELOG.md) — historique des versions.
+
+## Droite-à-gauche (RTL)
+
+Non supporté (décision du propriétaire, consignée dans l'ADR-001 du
+plan d'audit 3.69.0). L'éditeur rend toujours ses métriques, sa
+gouttière et son texte de gauche à droite ; aucun comportement n'est
+garanti sous `layoutDirection = rtl` (rendu superposé, gouttière à
+droite non calibrée). Un plan d'implémentation complet — si le besoin
+surgit — est esquissé dans `docs/plans/05-accessibilite-i18n-rtl.md`.
+

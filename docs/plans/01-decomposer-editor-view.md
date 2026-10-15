@@ -11,7 +11,7 @@
 | Lignes | 3 335 |
 | Méthodes publiques | ≈ 223 |
 | Champs | ≈ 165 (dont la majorité `@RestrictTo(LIBRARY_GROUP)`, partagés avec les collaborateurs `popup`, `render`, `input`) |
-| Collaborateurs déjà extraits | `EditorPopupManager` (et ses 9 popups), `EditorLanguageBridge`, `EditorDocumentActions`, `EditorDiagnosticsPusher`, `EditorReferencesController`, `EditorBarTools`, `EditorCommands`, `preview/`, `render/`, `input/` |
+| Collaborateurs déjà extraits (EditorBarTools a été retiré au lot B15 — 3.69.0) | `EditorPopupManager` (et ses 9 popups), `EditorLanguageBridge`, `EditorDocumentActions`, `EditorDiagnosticsPusher`, `EditorReferencesController`, `EditorCommands`, `preview/`, `render/`, `input/` |
 
 Le schéma actuel : les collaborateurs lisent/écrivent directement les
 champs de la vue (ex. `EditorCompletionPopup` manipule

@@ -15,7 +15,7 @@ ce projet.
 |--------|------|-----------|
 | `:cel-core` | Moteur pur (sans Android UI) : Rope, EditorDocument, EditorSession, EditOps, FindReplace, DiagnosticShift, SnippetSession, FoldModel, WrapModel, LineRenderCache, SyntaxHighlighter, complétion, registre de langages | — |
 | `:cel-lsp-api` | SPI langage : `Language`, 17 interfaces de providers (completion, hover, diagnostics, definition, rename, format, inlay hints…) et 15 classes de données | `:cel-core` |
-| `:cel-lsp` | Intégration LSP4J : `LspProject`, `LspEditor`, serveurs in-process/socket/process | `:cel-core`, `:cel-lsp-api`, `:cel-ui` (compileOnly) |
+| `:cel-lsp` | Intégration LSP4J : `LspProject`, `LspEditor`, serveurs in-process/socket/process | `:cel-core`, `:cel-lsp-api` (compileOnly) — contrat `EditorHost` |
 | `:cel-ui` | Vues Android : `EditorView` (Canvas), renderer et painters, gutter, popups, IME bridge, bar tools, breadcrumb, minimap | `:cel-core`, `:cel-lsp-api` |
 
 ## Installation
@@ -23,7 +23,7 @@ ce projet.
 ### Via GitHub Packages (méthode principale)
 
 Les artefacts sont publiés sur `maven.pkg.github.com` avec les coordonnées
-`jo.codeeditor:<module>:<version>` (version courante : `3.49.2`).
+`jo.codeeditor:<module>:<version>` (version courante : `3.71.0`).
 
 1. Créez un jeton d'accès personnel GitHub avec le droit `read:packages`.
 2. Renseignez vos identifiants dans `~/.gradle/gradle.properties` :
@@ -57,12 +57,13 @@ dependencyResolutionManagement {
 // app/build.gradle.kts
 dependencies {
     // Le module UI embarque transitivement cel-core et cel-lsp-api.
-    implementation("jo.codeeditor:cel-ui:3.49.2")
+    implementation("jo.codeeditor:cel-ui:3.71.0")
 
     // Optionnel — intégration Language Server Protocol (LSP4J).
-    // Ses dépendances vers cel-core/cel-lsp-api/cel-ui sont compileOnly :
-    // gardez la ligne cel-ui ci-dessus.
-    implementation("jo.codeeditor:cel-lsp:3.49.2")
+    // Ses dépendances vers cel-core/cel-lsp-api sont compileOnly :
+    // gardez la ligne cel-ui ci-dessus (l'adaptateur LspEditorViewHost
+    // du pont LSP y vit — plan 03 : le client LSP ne dépend plus de la vue).
+    implementation("jo.codeeditor:cel-lsp:3.71.0")
 }
 ```
 
@@ -78,8 +79,8 @@ maven { url = uri("https://jitpack.io") }
 
 ```kotlin
 dependencies {
-    implementation("com.github.jjoblab:cel-ui:v3.49.2")
-    implementation("com.github.jjoblab:cel-lsp:v3.49.2") // optionnel
+    implementation("com.github.jjoblab:cel-ui:v3.71.0")
+    implementation("com.github.jjoblab:cel-lsp:v3.71.0") // optionnel
 }
 ```
 
@@ -199,7 +200,7 @@ OpenTabDiagnosticsSweep.start(openEditorViews);
 LspProject project = new LspProject("/path/to/workspace");
 project.addServerDefinition(myServerDefinition); // ex. un serveur Java, un serveur Lua…
 LspEditor editor = project.createEditor("file:///path/to/Foo.java");
-editor.setEditorView(editorView);
+editor.setHost(new jo.codeeditor.view.LspEditorViewHost(editorView));
 editor.connect();
 // …
 project.shutdown(); // borné à 2 s par serveur
@@ -212,8 +213,8 @@ figure dans [`USAGE.md`](USAGE.md).
 
 ```bash
 ./gradlew test
-# 1 776 tests, 0 failure :
-#   cel-core 926 · cel-lsp-api 28 · cel-lsp 142 · cel-ui 649 · demo 27
+# 1 897 tests, 0 failure :
+#   cel-core 961 · cel-lsp-api 32 · cel-lsp 180 · cel-ui 671 · demo 27
 # (contrôle d'écart : scripts/check-doc-figures.sh, exécuté en CI)
 ```
 
@@ -268,4 +269,5 @@ tests avant publication — voir [`BUILD.md`](BUILD.md)).
 
 ## Licence
 
-MIT
+Apache License 2.0 — texte complet dans [`LICENSE`](LICENSE),
+attributions embarquées dans [`NOTICE`](NOTICE).

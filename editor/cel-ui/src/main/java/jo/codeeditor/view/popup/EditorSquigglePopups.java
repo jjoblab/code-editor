@@ -110,7 +110,7 @@ public class EditorSquigglePopups {
 
     /** Fermeture croisée des popups exclusifs (le popup ancré est léger). */
     private void closeOthers() {
-        if (view.completionVisible) popups.dismissCompletion();
+        if (view.completion.visible) popups.dismissCompletion();
         if (view.quickDocVisible) popups.dismissQuickDoc();
         if (view.signatureHelpVisible) popups.dismissSignatureHelp();
         if (view.codeActionsPopupVisible) popups.dismissCodeActions();

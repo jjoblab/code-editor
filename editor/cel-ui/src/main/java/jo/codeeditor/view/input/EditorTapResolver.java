@@ -174,10 +174,10 @@ public class EditorTapResolver {
         }
 
         // Test de touche du popup de complétion.
-        if (view.completionVisible) {
+        if (view.completion.visible) {
             int hitRow = hitTester.hitTestCompletionPopup(x, y);
             if (hitRow >= 0) {
-                view.completionSelected = hitRow;
+                view.completion.selected = hitRow;
                 view.invalidate();
                 view.completionAccept();
                 return;
@@ -420,7 +420,7 @@ public class EditorTapResolver {
                 int prefixEndCol = fold.start - view.session.getDocument().lineStart(startLine);
                 float prefixW = prefixEndCol * charWidth;
                 float placeW = fold.placeholder.length() * charWidth;
-                float chipX1 = textAreaLeft - view.hOffset + prefixW;
+                float chipX1 = textAreaLeft - view.scroll.hOffset + prefixW;
                 float chipX2 = chipX1 + placeW;
                 if (x >= chipX1 && x <= chipX2) {
                     // Tap sur la chip {...} — étend le fold.

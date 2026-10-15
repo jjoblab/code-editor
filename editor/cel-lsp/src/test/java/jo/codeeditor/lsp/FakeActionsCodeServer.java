@@ -72,6 +72,9 @@ public class FakeActionsCodeServer implements LanguageServer {
     public volatile int prepareRenameRequests;
 
     /** Résolutions par TITRE (l'objet résolu arrive désérialisé — l'identité objet est perdue). */
+    /** D-07 : résolution échoue (future rompue) quand vrai. */
+    public volatile boolean resolveFail;
+
     public final Map<String, org.eclipse.lsp4j.CodeAction> resolveByTitle =
             new LinkedHashMap<>();
 
@@ -206,6 +209,13 @@ public class FakeActionsCodeServer implements LanguageServer {
             public CompletableFuture<org.eclipse.lsp4j.CodeAction> resolveCodeAction(
                     org.eclipse.lsp4j.CodeAction unresolved) {
                 resolveRequests++;
+                if (resolveFail) {
+                    CompletableFuture<org.eclipse.lsp4j.CodeAction> rompue =
+                            new CompletableFuture<>();
+                    rompue.completeExceptionally(
+                            new RuntimeException("réponse malformée simulée"));
+                    return rompue;
+                }
                 org.eclipse.lsp4j.CodeAction resolved = unresolved != null
                         ? resolveByTitle.get(unresolved.getTitle()) : null;
                 return CompletableFuture.completedFuture(

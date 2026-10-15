@@ -103,9 +103,9 @@ public class InProcessStreamConnectionProvider implements StreamConnectionProvid
             // pas de notifications.
         } catch (java.lang.reflect.InvocationTargetException e) {
             // Journalise la cause pour que les échecs de connect() remontent.
-            android.util.Log.e("InProcessLSP", "connect() threw", e.getCause());
+            jo.codeeditor.util.EditorLog.error("InProcessLSP", "connect() threw", e.getCause());
         } catch (IllegalAccessException e) {
-            android.util.Log.e("InProcessLSP", "connect() access denied", e);
+            jo.codeeditor.util.EditorLog.error("InProcessLSP", "connect() access denied", e);
         }
 
         // Démarre l'écoute sur un thread daemon.
@@ -114,7 +114,7 @@ public class InProcessStreamConnectionProvider implements StreamConnectionProvid
                 launcher.startListening();
             } catch (Exception e) {
                 if (!stopped) {
-                    android.util.Log.e("InProcessLSP", "Server listener crashed", e);
+                    jo.codeeditor.util.EditorLog.error("InProcessLSP", "Server listener crashed", e);
                 }
             }
         }, "in-process-lsp-listener");

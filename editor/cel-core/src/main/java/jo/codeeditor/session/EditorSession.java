@@ -120,10 +120,33 @@ public class EditorSession {
      * retire tous les listeners existants puis ajoute le nouveau.
      */
     private final java.util.List<OnTextEditListener> onTextEditListeners = new java.util.concurrent.CopyOnWriteArrayList<>();
-    private OnSnippetEditListener onSnippetEditListener;
+
+    /**
+     * Contrôleur de session de snippet (L1/D-01) — collaborateur sur
+     * le modèle de {@code RestyleEngine} : application des snippets à
+     * l'acceptation de complétion, navigation des champs (Tab /
+     * Shift+Tab), ré-ancrage sur édition, miroirs, arrêt final $0.
+     * Champ public final (référence stable) : l'API de navigation
+     * vit sur le contrôleur, le plafond de méthodes publiques de la
+     * session reste intact (cliquet A-01).
+     */
+    public final SnippetController snippets;
 
     public interface OnTextEditListener {
         void onTextEdit(int start, int end, String inserted);
+
+        /**
+         * Variante ENRICHIE (P-02, audit 3.69.0) : porte en plus le texte
+         * RETIRÉ par l'édition — nécessaire aux ponts qui calculent des
+         * positions dans l'état PRÉ-édition (p. ex. sync incrémentale LSP),
+         * le document ayant déjà muté à la notification. Délègue par défaut
+         * à la variante 3-arg (compatibilité, y compris lambdas).
+         *
+         * @param removed texte qui occupait la plage (vide si insertion pure)
+         */
+        default void onTextEdit(int start, int end, String inserted, String removed) {
+            onTextEdit(start, end, inserted);
+        }
     }
 
     public interface OnSnippetEditListener {
@@ -175,6 +198,7 @@ public class EditorSession {
         this.selection = Selection.cursor(0);
         this.recorder = new UndoRecorder(MAX_UNDO_STEPS);
         this.restyle = new RestyleEngine(this);
+        this.snippets = new SnippetController(this);
         restyle.restyleAll();
     }
 
@@ -317,7 +341,7 @@ public class EditorSession {
     }
 
     public void setOnSnippetEditListener(OnSnippetEditListener listener) {
-        this.onSnippetEditListener = listener;
+        snippets.setOnSnippetEditListener(listener);
     }
 
     /**
@@ -587,12 +611,20 @@ public class EditorSession {
         // garde son propre tampon de composition (le préfixe pré-acceptation)
         // et la frappe suivante le réinsérerait sans restart.
         boolean wasComposing = ime.isComposing();
+        // P-02 : texte retiré, capturé AVANT l'épissure (le document
+        // substitue sa rope — l'arrière-garde n'est plus lisible après).
+        // Bornes miroir de doReplaceRange (bornage au document) : la
+        // plage notifiée est exactement celle que l'épissure appliquera.
+        int boundedStart = Math.max(0, Math.min(start, doc.length()));
+        int boundedEnd = Math.max(boundedStart, Math.min(end, doc.length()));
+        String removedText = (boundedEnd > boundedStart)
+                ? doc.subText(boundedStart, boundedEnd) : "";
         EditSpan span = doReplaceRange(start, end, insertion, caretAfter);
         // Notifier tous les listeners chaînés.
         if (!onTextEditListeners.isEmpty()) {
             int s = span.start, e = span.start + span.removed;
             for (OnTextEditListener l : onTextEditListeners) {
-                l.onTextEdit(s, e, insertion);
+                l.onTextEdit(s, e, insertion, removedText);
             }
         }
         if (ime.listener() != null) {
@@ -684,6 +716,11 @@ public class EditorSession {
         annotations.shift(span);
         folds.shift(span);
 
+        // Session de snippet active (L1/D-01) : ré-ancrage des champs,
+        // synchronisation des miroirs quand l'édition a eu lieu DANS le
+        // champ courant, notification du listener de champ.
+        snippets.onEdit(span, insertion);
+
         // Décaler aussi la région de composition (gravité gauche — cf.
         // ImeBridge.shiftComposingRegion).
         ime.shiftComposingRegion(span);
@@ -707,6 +744,14 @@ public class EditorSession {
      */
     void restyleAllAsync() {
         restyle.restyleAsync();
+    }
+
+    /**
+     * Rabat la durée de vie du thread de restyle inactif (30 s en
+     * production) — réservé aux tests de la borne de fuite D-02.
+     */
+    void setRestyleThreadKeepAliveMs(long ms) {
+        restyle.setThreadKeepAliveMs(ms);
     }
 
     /**
@@ -740,22 +785,30 @@ public class EditorSession {
         // Postfix completion : si le texte inséré complète un postfix
         // (.if, .for, .notnull, .return, .var, .while, .try, .else),
         // déclencher la complétion postfix au lieu de l'insertion
-        // simple.
+        // simple. D-04 : le résultat immuable voyage par appel — plus
+        // d'état statique partagé entre sessions.
         if (text.length() >= 2) {
             CharSequence docChars = doc.charSequence();
             int pos = selection.start;
-            // Simuler le texte après insertion.
-            String simulated = docChars.subSequence(0, pos).toString()
-                    + text;
+            // P-01 (audit 3.69.0) : simuler le texte après insertion en
+            // VUE PARESSEUSE — l'ancien chemin matérialisait le préfixe
+            // entier du document (O(pos), ~1 Mo par frappe sur un document
+            // d'un million de caractères) alors que la complétion postfix
+            // ne lit que l'arrière-garde (postfix ≤ 8 c., expression,
+            // retrait de ligne). La rope sert les lectures en O(log n) par
+            // caractère, aucune copie tant que l'analyse ne demande pas
+            // de tranche.
+            CharSequence simulated = jo.codeeditor.edit.EditOps.simulatedInsert(
+                    docChars.subSequence(0, pos), text);
             int simulatedPos = pos + text.length();
-            int[] pc = jo.codeeditor.edit.EditOps.tryPostfixCompletion(
-                    simulated, simulatedPos, language);
+            jo.codeeditor.edit.EditOps.PostfixResult pc =
+                    jo.codeeditor.edit.EditOps.tryPostfix(
+                            simulated, simulatedPos, language);
             if (pc != null) {
-                String insertText = jo.codeeditor.edit.EditOps.getPostfixInsertText();
-                int realStart = pc[0];
-                int realEnd = Math.min(pc[1], pos + text.length());
+                int realStart = pc.start;
+                int realEnd = Math.min(pc.end, pos + text.length());
                 replaceRangeWithCaret(realStart, realEnd,
-                        insertText, pc[2]);
+                        pc.insertText, pc.caret);
                 return;
             }
         }
@@ -1204,76 +1257,19 @@ public class EditorSession {
     }
 
     // ── Déplacement du curseur ─────────────────────────────────
+    // Plan 02 : implémentations dans CursorMoves (collaborateur statique
+    // package-privé) — la session garde de fins relais publics (zéro
+    // rupture d'API), son plafond de lignes tient.
 
-    public void moveHorizontal(int delta, boolean selecting) {
-        int newPos = Math.max(0, Math.min(doc.length(), selection.start + delta));
-        if (selecting) {
-            int anchor = selection.isCursor() ? selection.start : (delta > 0 ? selection.start : selection.end);
-            setSelection(Selection.range(Math.min(anchor, newPos), Math.max(anchor, newPos)));
-        } else {
-            setSelection(Selection.cursor(newPos));
-        }
-    }
+    public void moveHorizontal(int delta, boolean selecting) { CursorMoves.moveHorizontal(this, delta, selecting); }
 
-    public void moveVertical(int lines, boolean selecting) {
-        int currentLine = doc.lineForOffset(selection.start);
-        int currentCol = selection.start - doc.lineStart(currentLine);
-        int targetLine = Math.max(0, Math.min(doc.lineCount() - 1, currentLine + lines));
-        int targetLineStart = doc.lineStart(targetLine);
-        int targetLineEnd = doc.lineEnd(targetLine);
-        int newPos = Math.min(targetLineStart + currentCol, targetLineEnd);
+    public void moveVertical(int lines, boolean selecting) { CursorMoves.moveVertical(this, lines, selecting); }
 
-        if (selecting) {
-            int anchor = selection.start;
-            setSelection(Selection.range(Math.min(anchor, newPos), Math.max(anchor, newPos)));
-        } else {
-            setSelection(Selection.cursor(newPos));
-        }
-    }
+    public void moveLineStart(boolean selecting) { CursorMoves.moveLineStart(this, selecting); }
 
-    public void moveLineStart(boolean selecting) {
-        int line = doc.lineForOffset(selection.start);
-        int lineStart = doc.lineStart(line);
-        String lineText = doc.lineText(line);
-        // Début de ligne intelligent : aller au premier non-blanc, ou au début
-        // de ligne si on y est déjà
-        int firstNonWs = lineStart;
-        for (int i = 0; i < lineText.length(); i++) {
-            if (!Character.isWhitespace(lineText.charAt(i))) {
-                firstNonWs = lineStart + i;
-                break;
-            }
-        }
-        int newPos = (selection.start == firstNonWs) ? lineStart : firstNonWs;
+    public void moveLineEnd(boolean selecting) { CursorMoves.moveLineEnd(this, selecting); }
 
-        if (selecting) {
-            int anchor = selection.start;
-            setSelection(Selection.range(Math.min(anchor, newPos), Math.max(anchor, newPos)));
-        } else {
-            setSelection(Selection.cursor(newPos));
-        }
-    }
-
-    public void moveLineEnd(boolean selecting) {
-        int line = doc.lineForOffset(selection.start);
-        int newPos = doc.lineEnd(line);
-        if (selecting) {
-            int anchor = selection.start;
-            setSelection(Selection.range(Math.min(anchor, newPos), Math.max(anchor, newPos)));
-        } else {
-            setSelection(Selection.cursor(newPos));
-        }
-    }
-
-    public void moveDocBoundary(boolean toEnd, boolean selecting) {
-        int newPos = toEnd ? doc.length() : 0;
-        if (selecting) {
-            int anchor = selection.start;
-            setSelection(Selection.range(Math.min(anchor, newPos), Math.max(anchor, newPos)));
-        } else {
-            setSelection(Selection.cursor(newPos));
-        }
-    }
+    public void moveDocBoundary(boolean toEnd, boolean selecting) { CursorMoves.moveDocBoundary(this, toEnd, selecting); }
 
     // ── Opérations sur les lignes ───────────────────────────────
     // Plan 01/02 : implémentations dans LineOperations (collaborateur
@@ -1377,6 +1373,9 @@ public class EditorSession {
         // Lecture-seule : l'annulation ne doit RIEN modifier (et ne pas
         // consommer la pile — l'étape reste disponible si l'hôte déverrouille).
         if (readOnly) return false;
+        // Le snippet actif ne survit pas à l'annulation : les offsets de
+        // ses champs ne sont plus fiables (aucun mapping inverse).
+        snippets.end();
         UndoStep step = recorder.manager().undo();
         if (step == null) return false;
         boolean wasComposing = ime.isComposing();
@@ -1391,7 +1390,7 @@ public class EditorSession {
             EditOp op = step.edits.get(i).inverse();
             EditSpan span = doReplaceRange(op.start, op.start + op.removed.length(),
                     op.inserted, op.start + op.inserted.length(), false);
-            notifyTextEditListeners(span, op.inserted);
+            notifyTextEditListeners(span, op.inserted, op.removed);
         }
         selection = Selection.cursor(step.selBefore);
         restyleAllAsync();
@@ -1402,6 +1401,8 @@ public class EditorSession {
     public boolean redo() {
         // Lecture-seule : symétrique d'undo.
         if (readOnly) return false;
+        // Symétrique d'undo : la session de snippet ne survit pas.
+        snippets.end();
         UndoStep step = recorder.manager().redo();
         if (step == null) return false;
         boolean wasComposing = ime.isComposing();
@@ -1410,7 +1411,7 @@ public class EditorSession {
         for (EditOp op : step.edits) {
             EditSpan span = doReplaceRange(op.start, op.start + op.removed.length(),
                     op.inserted, op.start + op.inserted.length(), false);
-            notifyTextEditListeners(span, op.inserted);
+            notifyTextEditListeners(span, op.inserted, op.removed);
         }
         selection = Selection.cursor(step.selAfter);
         restyleAllAsync();
@@ -1419,12 +1420,13 @@ public class EditorSession {
     }
 
     /** Notifie les listeners d'édition chaînés (pont LSP) d'une édition
-     *  appliquée par undo/redo. */
-    private void notifyTextEditListeners(EditSpan span, String insertion) {
+     *  appliquée par undo/redo — le texte retiré (pré-état) est porté par
+     *  l'EditOp inversée (P-02). */
+    private void notifyTextEditListeners(EditSpan span, String insertion, String removed) {
         if (onTextEditListeners.isEmpty()) return;
         int s = span.start, e = span.start + span.removed;
         for (OnTextEditListener l : onTextEditListeners) {
-            l.onTextEdit(s, e, insertion);
+            l.onTextEdit(s, e, insertion, removed);
         }
     }
 
@@ -1561,23 +1563,25 @@ public class EditorSession {
     /**
      * Libère les ressources d'arrière-plan de la session.
      *
-     * <p>Sans cet appel, l'exécuteur mono-thread
-     * ({@link #restyleExecutor}) n'est jamais arrêté : une app ouvrant un
-     * éditeur par onglet fuirait un thread (et sa file de tâches en attente)
-     * par session pendant toute la vie du process. Les threads sont des
-     * démons donc la JVM sort quand même, mais sur Android chaque thread
-     * fui garde le rope du document de sa session fortement référençable —
-     * une fuite mémoire lente et invisible pour les longues sessions d'édition.
+     * <p>Sans cet appel, le thread de restyle vivait autrefois aussi
+     * longtemps que le process — une app ouvrant un éditeur par onglet
+     * fuirait un thread (et sa file de tâches en attente) par session.
+     * Depuis le correctif D-02 (audit 3.69.0), le thread expire de lui-
+     * même après ~30 s d'inactivité (cœur expirable) : la fuite à vie
+     * est impossible même si l'hôte oublie dispose(). L'appel reste le
+     * moyen propre et immédiat d'arrêter : annulation du restyle en
+     * vol, arrêt de l'exécuteur.
      *
-     * <p>Appeler quand l'éditeur est détruit définitivement (typiquement
-     * depuis {@code EditorView.onDetachedFromWindow} après un
-     * {@code onAttachStateChangeListener#onViewDetachedFromWindow} non suivi
-     * d'un re-attach — l'{@code EditorView} intégré l'appelle pour vous).
-     * Après {@code dispose()} : les restyles asynchrones en attente sont
-     * annulés, l'exécuteur est arrêté, et tout {@code setLanguage}/undo/redo
-     * ultérieur retombe sur le chemin SYNCHRONE {@code restyleAll()} du
-     * moteur (correct, simplement bloquant). Les éditions de texte restent
-     * pleinement fonctionnelles.
+     * <p><b>La libération est à la charge de l'HÔTE</b> — l'{@code EditorView}
+     * NE l'appelle PAS pour vous (le détachement de vue est réversible,
+     * une session survit à plusieurs attachements) ; le moment juste est
+     * la destruction définitive de l'éditeur (p. ex. {@code onDestroy}
+     * de l'activité, voir USAGE.md §5). Après {@code dispose()} : les
+     * restyles asynchrones en attente sont annulés, l'exécuteur est
+     * arrêté, et tout {@code setLanguage}/undo/redo ultérieur retombe sur
+     * le chemin SYNCHRONE {@code restyleAll()} du moteur (correct,
+     * simplement bloquant). Les éditions de texte restent pleinement
+     * fonctionnelles.
      */
     public void dispose() {
         restyle.dispose();

@@ -107,6 +107,9 @@ public class SymbolBarView extends LinearLayout {
             int minW = (int) (36 * density);
             setMinimumWidth(minW);
             setLayoutParams(new LayoutParams(minW, LayoutParams.MATCH_PARENT));
+            // A-05 : nœud d'accessibilité minimal — TalkBack annonce la
+            // touche (symbole/action) au focus.
+            setContentDescription(label);
         }
 
         @Override
@@ -135,15 +138,11 @@ public class SymbolBarView extends LinearLayout {
                 case MotionEvent.ACTION_UP:
                     pressed = false;
                     invalidate();
-                    // performClick pour l'accessibilité (talkback) + lint.
+                    // A-05 : le dispatch de l'action vit DANS performClick —
+                    // les services d'accessibilité (TalkBack) déclenchent la
+                    // même action que le toucher, et lint
+                    // ClickableViewAccessibility est satisfait réellement.
                     performClick();
-                    if (listener != null) {
-                        if (pinned) {
-                            listener.onAction(action);
-                        } else {
-                            listener.onSymbol(action);
-                        }
-                    }
                     return true;
                 case MotionEvent.ACTION_CANCEL:
                     pressed = false;
@@ -151,6 +150,22 @@ public class SymbolBarView extends LinearLayout {
                     return true;
             }
             return false;
+        }
+
+        @Override
+        public boolean performClick() {
+            super.performClick();
+            // A-05 (audit 3.69.0) : l'action se déclenche ICI — chemin
+            // tactile (via performClick ci-dessus) et chemin accessibilité
+            // (TalkBack active le clic) suivent le même code.
+            if (listener != null) {
+                if (pinned) {
+                    listener.onAction(action);
+                } else {
+                    listener.onSymbol(action);
+                }
+            }
+            return true;
         }
     }
 }

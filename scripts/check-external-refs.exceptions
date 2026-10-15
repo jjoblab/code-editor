@@ -9,3 +9,9 @@
 # Le garde-fou et ses tests citent inévitablement les motifs qu'ils vérifient.
 ^scripts/check-external-refs\.sh:.*
 ^scripts/check-external-refs-test\.sh:.*
+
+# LICENSE est le texte canonique Apache 2.0, verbatim et inchangé par
+# construction : sa définition légale de « Derivative Works » contient
+# « derived from » — texte juridique à ne pas reformuler, pas un usage de
+# comparaison de ce projet.
+^LICENSE:.*

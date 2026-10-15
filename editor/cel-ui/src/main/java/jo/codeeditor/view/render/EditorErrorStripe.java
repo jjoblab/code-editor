@@ -193,7 +193,7 @@ public class EditorErrorStripe {
         // que les marqueurs.
         if (maxV > 0f) {
             float rectH = Math.min(viewH, viewH * viewH / contentH);
-            float rectTop = (viewH - rectH) * (view.vOffset / maxV);
+            float rectTop = (viewH - rectH) * (view.scroll.vOffset / maxV);
             paint.setStyle(Paint.Style.FILL);
             paint.setColor(EditorView.applyAlphaToColor(view.theme.selection, 0.22f));
             canvas.drawRect(left, rectTop, view.getWidth(), rectTop + rectH, paint);

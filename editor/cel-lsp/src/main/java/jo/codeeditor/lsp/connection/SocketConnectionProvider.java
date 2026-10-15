@@ -11,6 +11,11 @@ import java.net.Socket;
  * distant via TCP. Utile quand le serveur s'exécute sur une machine de
  * développement ou une instance cloud.
  *
+ * <p><b>Transport en clair</b> : le TCP seul ne chiffre rien — réserver
+ * cette connexion à la boucle locale ou à un réseau de confiance ; sur
+ * un réseau ouvert, le trafic LSP (contenu des documents inclus) est
+ * lisible en transit.</p>
+ *
  * <p>Exemple :
  * <pre>{@code
  * new SocketConnectionProvider("192.168.1.100", 5007)
@@ -38,7 +43,13 @@ public class SocketConnectionProvider implements StreamConnectionProvider {
             socket.connect(new InetSocketAddress(host, port), 10_000); // délai d'attente de 10 s
             return new StreamPair(socket.getInputStream(), socket.getOutputStream());
         } catch (IOException e) {
-            throw new RuntimeException("Failed to connect to LSP server at " + host + ":" + port, e);
+            // D-06 : exception typée (symétrique du ProcessBuilder),
+            // message français, cause conservée — l'ancienne
+            // RuntimeException générique à message anglais ne se
+            // distinguait pas d'un bug interne du client.
+            throw new LspStartException(
+                    "Impossible de se connecter au serveur de langage "
+                            + host + ":" + port, e);
         }
     }
 

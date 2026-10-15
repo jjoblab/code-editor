@@ -1,28 +1,44 @@
 package jo.codeeditor.lsp;
-import jo.codeeditor.view.popup.*;
 
-import jo.codeeditor.shift.DiagnosticShift;
-import jo.codeeditor.shift.EditSpan;
-import jo.codeeditor.view.EditorView;
+import jo.codeeditor.lang.host.EditorHost;
 
 import org.eclipse.lsp4j.DidChangeTextDocumentParams;
 import org.eclipse.lsp4j.DidOpenTextDocumentParams;
-import org.eclipse.lsp4j.Position;
-import org.eclipse.lsp4j.Range;
 import org.eclipse.lsp4j.TextDocumentContentChangeEvent;
 import org.eclipse.lsp4j.TextDocumentIdentifier;
 import org.eclipse.lsp4j.TextDocumentItem;
 import org.eclipse.lsp4j.VersionedTextDocumentIdentifier;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 
 /**
  * Synchronisation du document ouvert avec le serveur LSP pour un
  * {@link LspEditor} : notifications didOpen/didChange/didSave/didClose,
- * débounce des envois, sync incrémentale (diff préfixe/suffixe contre la
- * dernière base connue du serveur) et versionnement du document. Extrait de
- * {@link LspEditor} pour isoler cette responsabilité du reste du pont
- * éditeur↔serveur.
+ * débounce des envois, sync incrémentale et versionnement du document.
+ * Extrait de {@link LspEditor} pour isoler cette responsabilité du reste
+ * du pont éditeur↔serveur.
+ *
+ * <p><b>P-02 (audit 3.69.0) — sync incrémentale pilotée par les éditions
+ * suivies.</b> L'ancien chemin matérialisait le texte complet à CHAQUE
+ * frappe côté éditeur (le pont LSP appelait {@code getText()} dans le
+ * listener d'édition), puis au moment de l'envoi recalculait un diff
+ * préfixe/suffixe sur les textes entiers (O(n) bornes) et RECONSTRUISAIT
+ * le document en trois concaténations pour VÉRIFIER le diff (trois copies
+ * O(n) de plus, par envoi). Le nouveau chemin ne copie plus rien sur le
+ * chemin de frappe : chaque édition suivie par la session est enregistrée
+ * avec ses positions LSP calculées au moment de l'édition (O(log n) via
+ * l'index de lignes du document) et une vue immuable de la rope après
+ * l'édition (capture O(1)). À l'envoi, les événements sont émis TELS
+ * QUELS en événements de contenu séquentiels (sémantique LSP : chaque
+ * plage se rapporte à l'état après les événements précédents —
+ * exactement les coordonnées dans lesquelles ils ont été enregistrés).
+ * Deux invariants O(1) remplacent la reconstruction de vérification :
+ * consécutivité des révisions du document (toute mutation non suivie,
+ * même à longueur constante, rompt la chaîne) et longueur finale attendue.
+ * Tout écart, tout serveur sans sync incrémentale, toute anomalie →
+ * repli plein texte (universellement accepté).</p>
  */
 class LspDocumentSynchronizer {
 
@@ -33,14 +49,59 @@ class LspDocumentSynchronizer {
     }
 
     /**
-     * ★ R1 : base textuelle KNOWN-SYNCED au serveur.
-     * Chaque didOpen/didChange réussi met à jour cette copie ; le prochain
-     * didChange calcule un diff préfixe/suffixe contre CETTE base (jamais
-     * contre le buffer live qui peut avoir divergé par des éditions
-     * programmatiques — auto-imports, quick-fixes) et n'envoie que le
-     * Range modifié. null tant que non connecté → premier envoi full.
+     * ★ P-02 : une édition suivie, en attente d'envoi. Les positions LSP
+     * sont FIGÉES au moment de l'enregistrement, dans les coordonnées du
+     * document après les éditions précédentes — soit exactement l'état
+     * que le serveur reconstruit en appliquant les événements précédents
+     * dans l'ordre. {@code revision} est la révision du document APRÈS
+     * cette édition (chaque épissure incrémente la révision d'exactement
+     * un : la consécutivité des révisions prouve qu'aucune mutation non
+     * suivie ne s'est glissée entre deux événements).
      */
-    private volatile String lastSyncedText = null;
+    static final class TrackedEdit {
+        final int startLine;
+        final int startChar;
+        final int endLine;
+        final int endChar;
+        final String text;
+        /** Variation nette de la longueur du document (inséré − retiré). */
+        final int delta;
+        /** Révision du document APRÈS l'édition. */
+        final int revision;
+
+        TrackedEdit(int startLine, int startChar, int endLine, int endChar,
+                String text, int delta, int revision) {
+            this.startLine = startLine;
+            this.startChar = startChar;
+            this.endLine = endLine;
+            this.endChar = endChar;
+            this.text = text;
+            this.delta = delta;
+            this.revision = revision;
+        }
+    }
+
+    /**
+     * ★ P-02 : état du document CÔTÉ SERVEUR — vue immuable (rope d'une
+     * révision), jamais copiée. Anciennement une copie {@code String}
+     * complète retenue par document. La vue partage les feuilles de la
+     * rope : sa longueur (invariant de cohérence) se lit en O(1).
+     */
+    private volatile CharSequence lastSynced;
+
+    /** Révision du document au moment où {@link #lastSynced} a été synchronisé. */
+    private volatile int lastSyncedRevision = -1;
+
+    /**
+     * Éditions suivies en attente d'envoi. Accès synchronisé sur la
+     * liste : enregistrement sur le thread de la session (frappe),
+     * captation sur le thread du débounceur ou du flush — jamais
+     * simultanément.
+     */
+    private final List<TrackedEdit> pending = new ArrayList<>();
+
+    /** Dernière vue du document après la dernière édition suivie (pour le repli). */
+    private volatile CharSequence lastTracked;
 
     /**
      * Version du document LSP — strictement croissante, thread-safe :
@@ -53,15 +114,6 @@ class LspDocumentSynchronizer {
 
     private static final long DID_CHANGE_DEBOUNCE_MS = 300;
 
-    /**
-     * Le texte en attente d'envoi via didChange — RÉFÉRENCE (pas de
-     * copie) : le EditorDocument est immuable par révision, la chaîne
-     * n'est matérialisée qu'AU MOMENT DE L'ENVOI, sur le thread du
-     * débounceur (plus de copie complète du document à chaque frappe sur
-     * le thread appelant).
-     */
-    private volatile CharSequence pendingText = null;
-
     private static final long DID_SAVE_DEBOUNCE_MS = 800;
 
     /** Débounce didChange/didSave : exécuteur mono-thread daemon. */
@@ -71,40 +123,64 @@ class LspDocumentSynchronizer {
             new LspDebouncer("didsave-debounce", DID_SAVE_DEBOUNCE_MS);
 
     /**
-     * Appelé quand le texte de l'éditeur change. Envoie une notification
-     * didChange (sync complète ou incrémentale selon le serveur).
+     * ★ P-02 : enregistre une édition suivie par la session (le pont
+     * LspEditor relaie le listener 4-arg de {@code OnTextEditListener}).
+     * Coût par frappe : deux recherches binaires O(log n) pour les
+     * positions, une capture O(1) de la rope, un petit objet — PLUS
+     * AUCUNE matérialisation du document.
      *
-     * <p>Débounce de 300 ms + envoi sur un thread de fond pour ne pas
-     * bloquer le thread UI. Le didChange est envoyé via l'exécuteur LSP4J
-     * (asynchrone) — le serveur le traite sur son propre thread et pousse
-     * les diagnostics en retour via publishDiagnostics (asynchrone aussi).</p>
+     * <p>Position de DÉBUT : lisible directement sur le document
+     * post-édition — le préfixe [0, start) est inchangé par l'édition,
+     * donc ligne/caractère y sont identiques. Position de FIN : bornes
+     * pré-édition (l'état que le serveur doit remplacer), reconstruites
+     * depuis le début + la structure du texte retiré (comptage des
+     * sauts de ligne) — le document ayant déjà muté, l'arrière-garde
+     * n'y est plus lisible directement.</p>
      */
-    void onTextChanged(CharSequence text) {
-        if (!editor.isConnected()) return;
-        LanguageServerWrapper wrapper = editor.currentWrapper();
-        if (wrapper == null || wrapper.getServer() == null) return;
-        // Débounce — stocke le dernier texte et programme un didChange
-        // après DID_CHANGE_DEBOUNCE_MS. Une frappe rapide (10+ touches/s)
-        // ne spammera pas le serveur d'un didChange par frappe.
-        pendingText = text;
+    void onTextEdit(jo.codeeditor.session.EditorSession session,
+            int start, int end, String inserted, String removed) {
+        if (!editor.isConnected()) return; // didOpen resynchronisera à la reconnexion.
+        if (start == end && (inserted == null || inserted.isEmpty())) {
+            return; // no-op de caret pur — rien à suivre, aucune révision consommée.
+        }
+        if (inserted == null) inserted = "";
+        jo.codeeditor.document.EditorDocument doc = session.getDocument();
+        int revision = doc.getRevision();
+        int startLine = doc.lineForOffset(start);
+        int startChar = start - doc.lineStart(startLine);
+        int endLine, endChar;
+        if (removed == null || removed.isEmpty()) {
+            endLine = startLine;
+            endChar = startChar;
+        } else {
+            int newlines = 0;
+            int lastNewline = -1;
+            for (int i = 0; i < removed.length(); i++) {
+                if (removed.charAt(i) == '\n') { newlines++; lastNewline = i; }
+            }
+            endLine = startLine + newlines;
+            endChar = (newlines == 0)
+                    ? startChar + removed.length()
+                    : removed.length() - lastNewline - 1;
+        }
+        synchronized (pending) {
+            pending.add(new TrackedEdit(startLine, startChar, endLine, endChar,
+                    inserted, inserted.length() - (end - start), revision));
+            lastTracked = doc.charSequence();
+        }
         scheduleDebouncedDidChange();
     }
 
     /**
      * Programme un didChange débouncé. Se déclenche
      * DID_CHANGE_DEBOUNCE_MS après le dernier appel à
-     * onTextChanged — reprogrammation par {@link LspDebouncer}
+     * {@link #onTextEdit} — reprogrammation par {@link LspDebouncer}
      * (un seul exécuteur daemon, jamais de thread par frappe, jamais
-     * d'interruption d'un envoi en cours). La tâche RELIT le texte en
-     * attente à l'exécution : la valeur la plus récente gagne toujours.
+     * d'interruption d'un envoi en cours). La tâche CAPTE les événements
+     * en attente à l'exécution : la salve la plus récente gagne toujours.
      */
     private void scheduleDebouncedDidChange() {
-        didChangeDebouncer.debounce(() -> {
-            CharSequence text = pendingText;
-            if (text == null) return; // déjà flushed
-            pendingText = null;
-            sendDidChange(text);
-        });
+        didChangeDebouncer.debounce(this::drainAndSend);
     }
 
     /**
@@ -115,29 +191,18 @@ class LspDocumentSynchronizer {
      * codeAction, references, rename…), pour garantir que le serveur
      * voit la version la plus récente du texte.</p>
      *
-     * <p><b>Contexte du bug</b> : le debounce didChange
+     * <p><b>Contexte du bug historique</b> : le debounce didChange
      * ({@link #DID_CHANGE_DEBOUNCE_MS} = 300 ms) est PLUS LONG que le
      * debounce completion ({@code COMPLETION_DEBOUNCE_MS} = 120 ms dans
-     * {@code EditorPopupManager}). Sans ce flush, une frappe déclenche
+     * popup de complétion). Sans ce flush, une frappe déclenche
      * une requête completion à T+120 ms sur un serveur qui n'a PAS
-     * encore reçu le didChange (prévu à T+300 ms). Le serveur lit
-     * {@code openDocuments} STALE → {@code analyzeContext} ne détecte
-     * pas le contexte {@code IMPORT_REFERENCE} (l'instruction import
-     * n'est pas encore dans le texte serveur) → repli sur
-     * {@code NAME_REFERENCE} → retourne des MOTS-CLÉS à la place des
-     * sous-paquets (repro user : « import android. → keywords »).</p>
+     * encore reçu le didChange (prévu à T+300 ms) → analyse de contexte
+     * périmée côté serveur. La notification didChange est SÉRIALISÉE et
+     * mise dans la file LSP4J AVANT le retour de cette méthode : la
+     * requête completion qui suit est enfilée APRÈS le didChange dans
+     * la même file FIFO.</p>
      *
-     * <p><b>Mécanisme</b> : interrompt le thread debounce en cours (le
-     * didChange différé ne sera PAS envoyé en double), puis appelle
-     * {@link #sendDidChange(String)} SYNCHRONEMENT sur le thread
-     * appelant (typiquement la voie complétion de l'hôte). La notification
-     * didChange est SÉRIALISÉE et mise dans la file LSP4J AVANT le
-     * retour de cette méthode. La requête completion qui suit est mise
-     * dans la même file APRÈS le didChange — le serveur traite donc
-     * didChange PUIS completion, et voit le texte à jour.</p>
-     *
-     * <p>Idempotent : si {@link #pendingText} est null (rien en attente,
-     * ou déjà flushed), ne fait rien.</p>
+     * <p>Idempotent : plus rien en attente → ne fait rien.</p>
      */
     void flushPendingChange() {
         if (!editor.isConnected()) return;
@@ -145,17 +210,114 @@ class LspDocumentSynchronizer {
         if (wrapper == null || wrapper.getServer() == null) return;
         // ★ Annule le debounce différé : son envoi serait en double du
         // nôtre. cancel(false) n'interrompt JAMAIS une tâche démarrée :
-        // celle-ci relit pendingText (null après notre flush) et rendra
-        // la main sans rien envoyer.
+        // celle-ci trouvera la file d'événements vide et rendra la main.
         didChangeDebouncer.cancel();
-        CharSequence pending = pendingText;
-        if (pending == null) return;
-        pendingText = null;
-        // ★ Envoi SYNCHRONE sur le thread appelant : la notification
-        // didChange est SERIELISEE dans la file LSP4J avant le retour.
-        // La requête completion qui suit est enfilée APRÈS le didChange
-        // dans la même file FIFO → le serveur voit le texte à jour.
-        sendDidChange(pending);
+        drainAndSend();
+    }
+
+    /** Capte la salve d'événements en attente et l'envoie. */
+    private void drainAndSend() {
+        List<TrackedEdit> batch;
+        CharSequence docState;
+        synchronized (pending) {
+            if (pending.isEmpty()) return;
+            batch = new ArrayList<>(pending);
+            pending.clear();
+            docState = lastTracked;
+        }
+        sendTrackedDidChange(batch, docState);
+    }
+
+    /**
+     * ★ P-02 : invariant de cohérence de la salve, en O(1) par événement
+     * — le remplaçant ÉCONOMIQUE de l'ancienne reconstruction de
+     * vérification (trois copies O(n) + comparaison O(n) par envoi).
+     *
+     * <p>Renvoie la révision finale si la salve est une continuation
+     * EXACTE de l'état synchronisé (chaque événement consomme
+     * exactement une révision depuis la base — toute mutation non
+     * suivie, même à longueur constante, rompt la chaîne — et la
+     * longueur reconstruite correspond à l'état capturé), sinon
+     * {@code null} → repli plein texte.</p>
+     */
+    static Integer coherentRevision(List<TrackedEdit> batch,
+            int baseRevision, long baseLength, int docStateLength) {
+        long length = baseLength;
+        int revision = baseRevision;
+        for (TrackedEdit e : batch) {
+            if (e.revision != revision + 1) return null;
+            revision = e.revision;
+            length += e.delta;
+        }
+        if (length != docStateLength) return null;
+        return revision;
+    }
+
+    /**
+     * ★ P-02 : envoie le didChange construit depuis la salve d'événements
+     * suivis. Serveur incrémental + salve cohérente → événements de
+     * contenu séquentiels PORTeurs de plage (charge utile O(édition), ne
+     * touche plus au document entier). Sinon → repli plein texte sur la
+     * dernière vue captée (correct pour tout serveur).
+     */
+    private void sendTrackedDidChange(List<TrackedEdit> batch, CharSequence docState) {
+        DidChangeTextDocumentParams params = new DidChangeTextDocumentParams();
+        VersionedTextDocumentIdentifier id = new VersionedTextDocumentIdentifier();
+        id.setUri(editor.getFileUri());
+        int v = documentVersion.next();
+        id.setVersion(v);
+        params.setTextDocument(id);
+        List<TextDocumentContentChangeEvent> changes = new ArrayList<>(batch.size());
+        CharSequence base = lastSynced;
+        Integer finalRevision = (base != null && serverSupportsIncremental())
+                ? coherentRevision(batch, lastSyncedRevision, base.length(), docState.length())
+                : null;
+        if (finalRevision != null) {
+            for (TrackedEdit e : batch) {
+                TextDocumentContentChangeEvent change = new TextDocumentContentChangeEvent();
+                change.setRange(new org.eclipse.lsp4j.Range(
+                        new org.eclipse.lsp4j.Position(e.startLine, e.startChar),
+                        new org.eclipse.lsp4j.Position(e.endLine, e.endChar)));
+                change.setText(e.text);
+                changes.add(change);
+            }
+        } else {
+            // Repli plein texte : événement manquant, serveur non
+            // incrémental, ou base inconnue — que tout serveur accepte.
+            TextDocumentContentChangeEvent change = new TextDocumentContentChangeEvent();
+            change.setText(docState.toString());
+            changes.add(change);
+            // La salve ne reprend pas depuis la base : la révision finale
+            // est celle du dernier événement suivi de la salve.
+            finalRevision = batch.get(batch.size() - 1).revision;
+        }
+        params.setContentChanges(changes);
+        try {
+            editor.currentWrapper().getServer().getTextDocumentService().didChange(params);
+            // ★ P-02 : la nouvelle base devient la vue captée (aucune copie).
+            lastSynced = docState;
+            lastSyncedRevision = finalRevision;
+            // D-08 : pas de journal par frappe — le récepteur de journal
+            // (panneau de la démo) reste informé, lui, sur demande
+            // explicite de l'utilisateur.
+            final LspLogSink sink = editor.getProject().getLogSink();
+            if (sink != null) {
+                sink.log("didChange v" + v + " (" + changes.size()
+                        + (finalRevision != null && !changes.isEmpty()
+                                ? " événement(s), " : " plein, ")
+                        + docState.length() + " ch)");
+            }
+        } catch (Exception e) {
+            jo.codeeditor.util.EditorLog.error("LspEditor", "didChange FAILED: " + e.getMessage(), e);
+            final LspLogSink sink = editor.getProject().getLogSink();
+            if (sink != null) sink.log("didChange FAILED: " + e.getMessage());
+        }
+        // Ne programme un didSave débouncé que si le serveur a réellement
+        // annoncé un SaveProvider dans ses capabilities (sinon aller-retour
+        // gaspillé).
+        if (serverSupportsSave()) {
+            scheduleDebouncedDidSave();
+        }
     }
 
     /**
@@ -180,115 +342,19 @@ class LspDocumentSynchronizer {
     }
 
     /**
-     * ★ R1 : convertit un offset en Position LSP SUR LE TEXTE DONNÉ —
-     * contrairement à {@link LspEditor#offsetToPosition(int)} qui lit le buffer LIVE
-     * de l'éditeur, cette version travaille sur la BASE synced figée utilisée
-     * pour calculer le diff (les deux peuvent avoir divergé entre-temps).
-     */
-    private static Position positionOfIn(String text, int offset) {
-        int line = 0, character = 0;
-        int end = Math.min(offset, text.length());
-        for (int i = 0; i < end; i++) {
-            if (text.charAt(i) == '\n') { line++; character = 0; }
-            else { character++; }
-        }
-        return new Position(line, character);
-    }
-
-    /** ★ R1 : hint de log (taille édition vs taille fichier). */
-    private static String editDeltaHint(String baseline, String text) {
-        if (baseline == null) return "full";
-        EditSpan e = DiagnosticShift.diffEdit(baseline, text);
-        return (e.removed + e.added) + " ch / " + text.length();
-    }
-
-    /**
-     * Envoie textDocument/didChange sur un thread de fond. Le launcher
-     * LSP4J le distribue de manière asynchrone au serveur.
-     *
-     * <p>★ R1 : si le serveur annonce une sync
-     * INCRÉMENTALE (capabilities.textDocumentSync), on envoie un unique
-     * ContentChangeEvent PORTEUR DE RANGE = {préfixe commun .. suffixe
-     * commun} calculé entre la DERNIÈRE BASE synced ({@link #lastSyncedText})
-     * et le texte courant — payload réduit de O(fichier) à O(édition).
-     * Toute anomalie (base inconnue, bornes incohérentes) retombe sur un
-     * event complet SANS RANGE, que tout serveur LSP accepte.
-     */
-    private void sendDidChange(CharSequence raw) {
-        // Matérialisation UNIQUE, sur le thread de l'envoi (débouncer ou
-        // flush) : jamais sur le thread UI.
-        final String text = raw.toString();
-        DidChangeTextDocumentParams params = new DidChangeTextDocumentParams();
-        VersionedTextDocumentIdentifier id = new VersionedTextDocumentIdentifier();
-        id.setUri(editor.getFileUri());
-        int v = documentVersion.next();
-        id.setVersion(v);
-        params.setTextDocument(id);
-        TextDocumentContentChangeEvent change = new TextDocumentContentChangeEvent();
-        String baseline = lastSyncedText;
-        if (baseline != null && serverSupportsIncremental()) {
-            try {
-                EditSpan edit = DiagnosticShift.diffEdit(baseline, text);
-                // Invariant fondamental du diff préfixe/suffixe : reconstruire
-                // la base [0,start)+insertion+[end..)= le texte courant. En cas
-                // d'écart (textes mutés entre-temps), repli FULL sans range.
-                String insertion = text.substring(edit.start,
-                        Math.min(edit.start + edit.added, text.length()));
-                String rebuilt = baseline.substring(0, edit.start)
-                        + insertion
-                        + baseline.substring(edit.end());
-                if (!rebuilt.equals(text)) throw new IllegalStateException("diff incohérent");
-                change.setRange(new Range(positionOfIn(baseline, edit.start),
-                        positionOfIn(baseline, edit.end())));
-                change.setText(insertion);
-            } catch (Exception t) {
-                // Diff incohérent (textes divergés) — repli universel
-                // texte complet, que tout serveur accepte.
-                change.setRange(null);
-                change.setText(text);
-            }
-        } else {
-            change.setText(text);
-        }
-        params.setContentChanges(Collections.singletonList(change));
-        try {
-            editor.currentWrapper().getServer().getTextDocumentService().didChange(params);
-            lastSyncedText = text;  // ★ R1 : la nouvelle base devient synced.
-            android.util.Log.i("LspEditor", "didChange v" + v + " ("
-                    + (change.getRange() != null ? "range " + editDeltaHint(baseline, text) : text.length() + " chars") + ")");
-            final LspLogSink sink = editor.getProject().getLogSink();
-            if (sink != null) sink.log("didChange v" + v + " (" + text.length() + " chars)");
-        } catch (Exception e) {
-            android.util.Log.e("LspEditor", "didChange FAILED: " + e.getMessage(), e);
-            final LspLogSink sink = editor.getProject().getLogSink();
-            if (sink != null) sink.log("didChange FAILED: " + e.getMessage());
-        }
-        // Ne programme un didSave débouncé que si le serveur a réellement
-        // annoncé un SaveProvider dans ses capabilities. Un didSave
-        // systématique après chaque didChange est nécessaire pour certains
-        // serveurs (qui relancent l'inspection sur didSave) mais une no-op
-        // pour d'autres (le LSP Java republie déjà les diagnostics sur
-        // didChange) — le gaspillage allait jusqu'à ~1 thread daemon orphelin
-        // par salve de frappe.
-        if (serverSupportsSave()) {
-            scheduleDebouncedDidSave();
-        }
-    }
-
-    /**
      * Retourne true si le serveur a annoncé la prise en charge de
      * {@code textDocument.save} dans ses capabilities. Certains serveurs
      * ne republient les diagnostics que sur didSave — pour eux,
      * un didSave débouncé est programmé après chaque didChange. D'autres
-     * (LSP Java) publient directement sur didChange — pour eux, le didSave
+     * publient directement sur didChange — pour eux, le didSave
      * est un aller-retour gaspillé.
      *
      * <p>En LSP, la capacité save est exposée via
      * {@code ServerCapabilities.textDocumentSync} quand celui-ci vaut une
      * structure {@link org.eclipse.lsp4j.TextDocumentSyncOptions} (plutôt
      * qu'un {@link org.eclipse.lsp4j.TextDocumentSyncKind} nu). Les serveurs
-     * qui utilisent le kind nu (comme le LSP Java ici) se désinscrivent
-     * implicitement des notifications save.</p>
+     * qui utilisent le kind nu se désinscrivent implicitement des
+     * notifications save.</p>
      */
     private boolean serverSupportsSave() {
         LanguageServerWrapper wrapper = editor.currentWrapper();
@@ -309,18 +375,13 @@ class LspDocumentSynchronizer {
 
     /** didSave débouncé — se déclenche 800 ms après le dernier didChange. */
     private void scheduleDebouncedDidSave() {
-        // Thread daemon (l'ancien new Thread non daemon sans référence
-        // conservée retardait l'arrêt du processus), reprogrammé et
-        // annulable comme le didChange.
         didSaveDebouncer.debounce(this::sendDidSave);
     }
 
     /**
      * Envoie textDocument/didSave au serveur. Certains serveurs relancent
      * sa passe d'inspection et publie des diagnostics frais à la réception
-     * de cette notification (comme didOpen). C'est le SEUL moyen d'obtenir
-     * des diagnostics vivants sur les changements de texte — didChange seul
-     * ne déclenche pas la ré-inspection.
+     * de cette notification (comme didOpen).
      */
     void sendDidSave() {
         if (!editor.isConnected()) return;
@@ -332,40 +393,53 @@ class LspDocumentSynchronizer {
             params.setTextDocument(editor.getTextDocumentIdentifier());
             // Inclut le texte complet — certains serveurs l'exigent quand
             // textDocumentSync.save.includeText est true.
-            if (editor.getEditorView() != null && editor.getEditorView().getSession() != null) {
-                params.setText(editor.getEditorView().getSession().getText().toString());
+            if (editor.getHost() != null && editor.getHost().session() != null) {
+                params.setText(editor.getHost().session().getText().toString());
             }
             wrapper.getServer().getTextDocumentService().didSave(params);
-            android.util.Log.i("LspEditor", "didSave sent (triggers diagnostics re-inspection)");
+            jo.codeeditor.util.EditorLog.info("LspEditor", "didSave sent (triggers diagnostics re-inspection)");
             final LspLogSink sink = editor.getProject().getLogSink();
             if (sink != null) sink.log("didSave sent (triggers diagnostics re-inspection)");
         } catch (Exception e) {
-            android.util.Log.e("LspEditor", "didSave FAILED: " + e.getMessage(), e);
+            jo.codeeditor.util.EditorLog.error("LspEditor", "didSave FAILED: " + e.getMessage(), e);
             final LspLogSink sink = editor.getProject().getLogSink();
             if (sink != null) sink.log("didSave FAILED: " + e.getMessage());
         }
     }
 
-    /** Envoie didOpen avec le texte courant. */
+    /**
+     * ★ P-02 : envoie didOpen et ANCRE la traçabilité : la base devient la
+     * vue du document envoyé (capture cohérente : le texte PART du même
+     * instant que l'ancrage), la révision de base celle du document. Les
+     * éditions antérieures à l'installation du listener (fenêtre entre
+     * didOpen et pose du pont, sur vue attachée) rompent la consécutivité
+     * au premier événement → repli plein texte → convergence garantie.
+     */
     void sendDidOpen() {
-        EditorView editorView = editor.getEditorView();
+        EditorHost host = editor.getHost();
         LanguageServerWrapper wrapper = editor.currentWrapper();
-        if (editorView == null || wrapper == null || wrapper.getServer() == null) return;
+        if (host == null || wrapper == null || wrapper.getServer() == null) return;
+        jo.codeeditor.document.EditorDocument doc = host.session().getDocument();
+        CharSequence rope = doc.charSequence();
         DidOpenTextDocumentParams params = new DidOpenTextDocumentParams();
         TextDocumentItem item = new TextDocumentItem();
         item.setUri(editor.getFileUri());
         item.setLanguageId(editor.extension());
         item.setVersion(documentVersion.get());
-        item.setText(editorView.getSession().getText());
+        item.setText(rope.toString());
         params.setTextDocument(item);
         try {
             wrapper.getServer().getTextDocumentService().didOpen(params);
-            // ★ R1 : enregistre la base synced pour les diffs incrémentaux.
-            lastSyncedText = item.getText();
-            android.util.Log.i("LspEditor", "didOpen sent: " + editor.getFileUri()
+            // ★ P-02 : ancre la base de traçabilité sur l'état envoyé.
+            lastSynced = rope;
+            lastSyncedRevision = doc.getRevision();
+            synchronized (pending) {
+                pending.clear();
+            }
+            jo.codeeditor.util.EditorLog.info("LspEditor", "didOpen sent: " + editor.getFileUri()
                 + " (" + item.getText().length() + " chars, lang=" + editor.extension() + ")");
         } catch (Exception e) {
-            android.util.Log.e("LspEditor", "didOpen FAILED: " + e.getMessage(), e);
+            jo.codeeditor.util.EditorLog.error("LspEditor", "didOpen FAILED: " + e.getMessage(), e);
         }
     }
 
@@ -376,10 +450,14 @@ class LspDocumentSynchronizer {
     void sendDidClose() {
         // Arrête les débounceurs : plus AUCUN thread « lsp-* » vivant
         // après la déconnexion (test de non-fuite), plus d'écriture dans
-        // un pipe fermé → « Write end dead ».
+        // un pipe fermé.
         didChangeDebouncer.shutdown();
         didSaveDebouncer.shutdown();
-        pendingText = null;
+        synchronized (pending) {
+            pending.clear();
+        }
+        lastSynced = null;
+        lastSyncedRevision = -1;
         try {
             LanguageServerWrapper wrapper = editor.currentWrapper();
             if (wrapper != null && wrapper.getServer() != null) {
@@ -394,7 +472,54 @@ class LspDocumentSynchronizer {
         }
     }
 
-    /** La version courante du document (incrémentée à chaque didChange). */
+    /**
+     * Resynchronisation PLEIN TEXTE forcée avec le texte fourni (didChange
+     * sans plage) — ancre l'état serveur dessus. Sert au point d'entrée
+     * hérité {@link LspEditor#onTextChanged(CharSequence)} (déprécié) :
+     * le suivi automatique des éditions (P-02) rend ce pousser de texte
+     * complet inutile en usage normal.
+     */
+    void resyncFull(CharSequence text) {
+        if (!editor.isConnected()) return;
+        LanguageServerWrapper wrapper = editor.currentWrapper();
+        if (wrapper == null || wrapper.getServer() == null) return;
+        DidChangeTextDocumentParams params = new DidChangeTextDocumentParams();
+        VersionedTextDocumentIdentifier id = new VersionedTextDocumentIdentifier();
+        id.setUri(editor.getFileUri());
+        int v = documentVersion.next();
+        id.setVersion(v);
+        params.setTextDocument(id);
+        TextDocumentContentChangeEvent change = new TextDocumentContentChangeEvent();
+        change.setText(text.toString());
+        params.setContentChanges(Collections.singletonList(change));
+        try {
+            wrapper.getServer().getTextDocumentService().didChange(params);
+            lastSynced = text;
+            // Ancrage de révision au mieux : si le texte fourni décrit le
+            // document courant (même longueur), la traçabilité reprend ;
+            // sinon la consécutivité rompra au prochain événement suivi →
+            // repli plein texte (convergence garantie).
+            lastSyncedRevision = revisionOfCurrentDocIfLengthMatches(text.length());
+            final LspLogSink sink = editor.getProject().getLogSink();
+            if (sink != null) sink.log("didChange v" + v + " (resync plein, " + text.length() + " ch)");
+        } catch (Exception e) {
+            jo.codeeditor.util.EditorLog.error("LspEditor", "didChange FAILED: " + e.getMessage(), e);
+        }
+    }
+
+    /** Révision du document courant si sa longueur correspond, sinon sentinelle. */
+    private int revisionOfCurrentDocIfLengthMatches(int length) {
+        if (editor.getHost() != null && editor.getHost().session() != null) {
+            jo.codeeditor.document.EditorDocument doc =
+                    editor.getHost().session().getDocument();
+            if (doc.length() == length) return doc.getRevision();
+        }
+        return Integer.MIN_VALUE;
+    }
+
+    /**
+     * La version courante du document (incrémentée à chaque didChange).
+     */
     int getDocumentVersion() {
         return documentVersion.get();
     }

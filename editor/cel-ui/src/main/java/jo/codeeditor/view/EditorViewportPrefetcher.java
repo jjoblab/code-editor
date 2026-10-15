@@ -79,9 +79,9 @@ final class EditorViewportPrefetcher {
         if (lineCount == 0) return;
         float lineHeight = view.metrics.getLineHeight();
         if (lineHeight <= 0) return;
-        int first = Math.max(0, (int) (view.vOffset / lineHeight) - 1);
+        int first = Math.max(0, (int) (view.scroll.vOffset / lineHeight) - 1);
         int last = Math.min(lineCount - 1,
-                (int) ((view.vOffset + view.getHeight()) / lineHeight) + 1);
+                (int) ((view.scroll.vOffset + view.getHeight()) / lineHeight) + 1);
         int span = Math.max(1, last - first);
         // Périmètre : un viewport en dessous + un au-dessus (jeu de travail
         // ≈ 3 viewports, ne peut jamais évicter les entrées à l'écran de la
@@ -99,7 +99,7 @@ final class EditorViewportPrefetcher {
         while (moreBelow || moreAbove) {
             // Point d'annulation : viewport bougé → stop (ré-armé par le
             // scroll lui-même). Lire vOffset ici est sûr — même thread.
-            int nowFirst = Math.max(0, (int) (view.vOffset / lineHeight) - 1);
+            int nowFirst = Math.max(0, (int) (view.scroll.vOffset / lineHeight) - 1);
             if (Math.abs(nowFirst - first) > span / 2) return;
 
             if (moreBelow) {

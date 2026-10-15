@@ -86,22 +86,7 @@ public class GutterPreviewActionTest {
     }
 
     private static void injectMetrics(EditorView view, float lineHeight, float charWidth) {
-        try {
-            setFloat(view.metrics, "lineHeight", lineHeight);
-            setFloat(view.metrics, "charWidth", charWidth);
-            setFloat(view.metrics, "padTop", lineHeight * 0.5f);
-            setFloat(view.metrics, "padLeft", charWidth * 0.5f);
-            setFloat(view.metrics, "gutterWidth", charWidth * 7f);
-            setFloat(view.metrics, "foldStripWidth", charWidth * 2f);
-        } catch (Exception e) {
-            throw new IllegalStateException(e);
-        }
-    }
-
-    private static void setFloat(Object target, String field, float value) throws Exception {
-        Field f = target.getClass().getDeclaredField(field);
-        f.setAccessible(true);
-        f.setFloat(target, value);
+        TestMetrics.injecter(view, lineHeight, charWidth);
     }
 
     private static void send(EditorView view, int action, long down, long when,
@@ -142,7 +127,7 @@ public class GutterPreviewActionTest {
         EditorView view = newView("exemple.md");
         view.getSession().setSelection(DOC.indexOf("paragraphe")); // ligne 1
         int caretLine = 1;
-        float rowTop = view.docLineToY(caretLine) - view.vOffset;
+        float rowTop = view.docLineToY(caretLine) - view.scroll.vOffset;
         float cx = (view.metrics.getGutterWidth()
                 - view.metrics.getFoldStripWidth()) * 0.5f;
         float cy = rowTop + LINE_H * 0.5f;
@@ -163,7 +148,7 @@ public class GutterPreviewActionTest {
         EditorView view = newView("Main.java");
         view.getSession().setSelection(DOC.indexOf("paragraphe"));
         int caretLine = 1;
-        float rowTop = view.docLineToY(caretLine) - view.vOffset;
+        float rowTop = view.docLineToY(caretLine) - view.scroll.vOffset;
         float cx = (view.metrics.getGutterWidth()
                 - view.metrics.getFoldStripWidth()) * 0.5f;
         assertFalse("pas de zone tactile pour un fichier non prévisualisable",
@@ -175,7 +160,7 @@ public class GutterPreviewActionTest {
         EditorView view = newView("exemple.md");
         view.getSession().setSelection(DOC.indexOf("paragraphe"));
         // Défile la rangée du caret hors écran (au-dessus du viewport).
-        view.vOffset = 4000f;
+        view.scroll.vOffset = 4000f;
         float cx = (view.metrics.getGutterWidth()
                 - view.metrics.getFoldStripWidth()) * 0.5f;
         assertFalse("pas de zone tactile quand la rangée du caret est hors écran",
@@ -192,7 +177,7 @@ public class GutterPreviewActionTest {
         Selection selBefore = view.getSession().getSelection();
 
         int caretLine = 1;
-        float rowTop = view.docLineToY(caretLine) - view.vOffset;
+        float rowTop = view.docLineToY(caretLine) - view.scroll.vOffset;
         float cx = (view.metrics.getGutterWidth()
                 - view.metrics.getFoldStripWidth()) * 0.5f;
         float cy = rowTop + LINE_H * 0.5f;

@@ -51,7 +51,7 @@ public class EditorDiagnosticPopups {
         // Ouvrir le popup de détail depuis la fiche de liste groupée ferme
         // cette fiche (chaîne chip → liste → détail).
         view.diagnosticListSheetLine = -1;
-        if (view.completionVisible) popups.dismissCompletion();
+        if (view.completion.visible) popups.dismissCompletion();
         if (view.quickDocVisible) popups.dismissQuickDoc();
         if (view.signatureHelpVisible) popups.dismissSignatureHelp();
         if (view.codeActionsPopupVisible) popups.dismissCodeActions();
@@ -96,7 +96,7 @@ public class EditorDiagnosticPopups {
             return;
         }
         view.diagnosticListSheetLine = line;
-        if (view.completionVisible) popups.dismissCompletion();
+        if (view.completion.visible) popups.dismissCompletion();
         if (view.quickDocVisible) popups.dismissQuickDoc();
         if (view.signatureHelpVisible) popups.dismissSignatureHelp();
         if (view.codeActionsPopupVisible) popups.dismissCodeActions();

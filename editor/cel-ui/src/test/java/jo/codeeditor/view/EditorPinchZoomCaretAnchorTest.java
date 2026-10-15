@@ -153,7 +153,7 @@ public class EditorPinchZoomCaretAnchorTest {
 
         // Pré-scrolle horizontalement pour que hOffset > 0 — sinon le test
         // passe trivialement car hOffset reste clampe à 0.
-        view.hOffset = 100f;
+        view.scroll.hOffset = 100f;
 
         float[] before = view.caretScreenPos(caretOffset);
         float cxBefore = before[0];
@@ -191,11 +191,11 @@ public class EditorPinchZoomCaretAnchorTest {
         // Pré-scroll au milieu du document. Avec 500 lignes × ~31px de lh
         // à l'échelle 1.5, maxV ≈ 15600 - 1920 = 13680. vOffset=5000 est
         // donc bien dans les bornes avant et après le pinch.
-        view.vOffset = 5000f;
+        view.scroll.vOffset = 5000f;
         // Pré-scroll horizontal. Avec 200 caractères × ~18.9px de cw à
         // l'échelle 1.5, maxH ≈ 3780 - 1080 = 2700. hOffset=500 est donc
         // bien dans les bornes avant et après le pinch.
-        view.hOffset = 500f;
+        view.scroll.hOffset = 500f;
 
         String text = view.session.getText();
         int caretOffset = nthLineStart(text, 250) + 30;

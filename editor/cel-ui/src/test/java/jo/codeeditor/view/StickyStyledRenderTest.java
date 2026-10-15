@@ -92,27 +92,12 @@ public class StickyStyledRenderTest {
         injectMetrics(view, LINE_H, CHAR_W);
         // Les lignes 0-1 (sticky) passent au-dessus du padding haut :
         // la ligne 0 n'est plus rendue que par la passe sticky.
-        view.vOffset = 8f * LINE_H;
+        view.scroll.vOffset = 8f * LINE_H;
         return view;
     }
 
     private static void injectMetrics(EditorView view, float lineHeight, float charWidth) {
-        try {
-            setFloat(view.metrics, "lineHeight", lineHeight);
-            setFloat(view.metrics, "charWidth", charWidth);
-            setFloat(view.metrics, "padTop", lineHeight * 0.5f);
-            setFloat(view.metrics, "padLeft", charWidth * 0.5f);
-            setFloat(view.metrics, "gutterWidth", charWidth * 7f);
-            setFloat(view.metrics, "foldStripWidth", charWidth * 2f);
-        } catch (Exception e) {
-            throw new IllegalStateException(e);
-        }
-    }
-
-    private static void setFloat(Object target, String field, float value) throws Exception {
-        Field f = target.getClass().getDeclaredField(field);
-        f.setAccessible(true);
-        f.setFloat(target, value);
+        TestMetrics.injecter(view, lineHeight, charWidth);
     }
 
     /** Événement texte d'un rendu : texte dessiné + couleur du paint À
@@ -170,7 +155,7 @@ public class StickyStyledRenderTest {
         // Sanity : la ligne 0 est bien hors écran — rendue par le
         // sticky uniquement.
         assertTrue("la ligne 0 doit être scrollée au-dessus du viewport",
-                view.docLineToY(0) - view.vOffset < LINE_H * 0.5f);
+                view.docLineToY(0) - view.scroll.vOffset < LINE_H * 0.5f);
 
         List<TextEvent> events = drawnTexts(view);
         // « class » est un span KEYWORD franc (colorForToken(KEYWORD) =

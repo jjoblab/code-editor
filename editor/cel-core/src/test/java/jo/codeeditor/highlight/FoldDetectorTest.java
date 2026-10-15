@@ -194,4 +194,49 @@ class FoldDetectorTest {
             assertFalse(r.collapsed, "fold should start uncollapsed");
         }
     }
+
+    /**
+     * P-03 (audit 3.69.0) — cohérence du découpage PARTAGÉ : detect()
+     * ne découpe le texte qu'une fois et distribue le tableau aux
+     * détecteurs composés (imports + accolades + régions nommées).
+     * Le résultat doit être EXACTEMENT l'union des entrées publiques
+     * mono-détecteur (mêmes plis, même ordre) — le partage ne doit
+     * changer aucun comportement.
+     */
+    @Test
+    void p03_découpagePartagé_résultatIdentiqueAuxEntréesPubliques() {
+        String text = "import a.A;\nimport b.B;\nimport c.C;\n"
+            + "class Foo {\n"
+            + "    void m() {\n"
+            + "        if (x) {\n"
+            + "            y();\n"
+            + "        }\n"
+            + "    }\n"
+            + "}\n"
+            + "// region Métier\n"
+            + "int a = 1;\nint b = 2;\n"
+            + "// endregion\n";
+        List<jo.codeeditor.shift.DiagnosticShift.FoldRegion> viaDetect =
+            FoldDetector.detect(text, "java");
+        List<jo.codeeditor.shift.DiagnosticShift.FoldRegion> viaPubliques =
+            new java.util.ArrayList<>();
+        viaPubliques.addAll(FoldDetector.detectImportFolds(text));
+        viaPubliques.addAll(FoldDetector.detectBraceFolds(text));
+        viaPubliques.addAll(FoldDetector.detectNamedRegions(text));
+        assertEquals(viaPubliques.size(), viaDetect.size(),
+            "le découpage partagé de detect() doit donner l'union exacte "
+            + "des détecteurs mono-détecteur (même nombre de plis)");
+        for (int i = 0; i < viaPubliques.size(); i++) {
+            jo.codeeditor.shift.DiagnosticShift.FoldRegion a = viaPubliques.get(i);
+            jo.codeeditor.shift.DiagnosticShift.FoldRegion b = viaDetect.get(i);
+            assertEquals(a.start, b.start, "pli " + i + " : start");
+            assertEquals(a.end, b.end, "pli " + i + " : end");
+            assertEquals(a.placeholder, b.placeholder, "pli " + i + " : placeholder");
+            assertEquals(a.kind, b.kind, "pli " + i + " : kind");
+            assertEquals(a.collapsed, b.collapsed, "pli " + i + " : collapsed");
+        }
+        // Le texte couvre bien les trois familles (sinon le test est vide).
+        assertTrue(viaDetect.size() >= 3, "imports + accolades + région nommée attendus : "
+            + viaDetect.size());
+    }
 }

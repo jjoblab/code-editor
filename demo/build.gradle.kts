@@ -51,14 +51,14 @@ dependencies {
     // (moteur) et cel-lsp-api (SPI langage).
     implementation(project(":cel-ui"))
 
-    implementation("androidx.appcompat:appcompat:1.7.0")
-    implementation("com.google.android.material:material:1.12.0")
+    implementation(libs.androidx.appcompat)
+    implementation(libs.material)
 
     // Test de fumée Robolectric : lancement réel de MainActivity.
-    testImplementation("junit:junit:4.13.2")
-    testImplementation("org.robolectric:robolectric:4.13")
-    testImplementation("androidx.test:core:1.6.1")
-    testImplementation("androidx.test.ext:junit:1.2.1")
+    testImplementation(libs.junit4)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.test.core)
+    testImplementation(libs.androidx.test.ext.junit)
 }
 
 tasks.withType<JavaCompile>().configureEach {

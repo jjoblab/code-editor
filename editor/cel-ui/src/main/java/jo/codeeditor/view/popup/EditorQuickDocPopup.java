@@ -37,7 +37,7 @@ public class EditorQuickDocPopup {
         if (view.session == null || view.quickDocResolver == null) return;
         // Pas de hover quand la complétion est
         // ouverte (le tooltip ne vole pas le focus à la popup).
-        if (view.completionVisible) return;
+        if (view.completion.visible) return;
         final String text = view.session.getText();
         final int gen = ++quickDocGeneration;
         final int fOffset = offset;
@@ -75,7 +75,7 @@ public class EditorQuickDocPopup {
      */
     void applyQuickDoc(int offset, int gen, String raw) {
         if (view.session == null) return;
-        if (view.completionVisible) return;
+        if (view.completion.visible) return;
         final jo.codeeditor.doc.QuickDoc.QuickDocContent content =
                 (raw == null || raw.isEmpty())
                         ? null

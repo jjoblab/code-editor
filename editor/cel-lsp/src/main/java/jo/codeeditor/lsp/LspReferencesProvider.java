@@ -49,7 +49,8 @@ class LspReferencesProvider implements ReferencesProvider {
                 server.getTextDocumentService().references(params);
             // ★ 15 s : les références multi-fichiers balayent les racines
             // sources côté serveur (chacune résolue par ecj).
-            List<? extends org.eclipse.lsp4j.Location> locations = future.get(15, TimeUnit.SECONDS);
+            List<? extends org.eclipse.lsp4j.Location> locations =
+                    LspRequestTimeouts.await(future, wrapper.requestTimeouts().referencesMs());
             if (locations == null || locations.isEmpty()) {
                 log("references: no results");
                 return Collections.emptyList();
@@ -105,7 +106,7 @@ class LspReferencesProvider implements ReferencesProvider {
     }
 
     private void log(String message) {
-        android.util.Log.i("LspRef", message);
+        jo.codeeditor.util.EditorLog.info("LspRef", message);
         if (logSink != null) logSink.log(message);
     }
 }

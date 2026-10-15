@@ -59,3 +59,41 @@ if [ "$ecart" -gt "$ecart_max" ]; then
 fi
 
 echo "check-doc-figures: conforme."
+
+# ── 4. Versions documentées vs build.gradle.kts (D-09, audit 3.69.0) ──
+# La « version courante » annoncée par README.md et les coordonnées Maven
+# citées par USAGE.md/BUILD.md dérivent de la version du build — une
+# dérive silencieuse est exactement le défaut D-09 (3.49.2/3.54.0 annoncés
+# alors que la réalité était 3.69.0). Le contrôle verrouille l'égalité.
+version_build=$(sed -n 's/^version *= *"\([^"]*\)".*/\1/p' build.gradle.kts | head -1)
+if [ -z "$version_build" ]; then
+    echo "check-doc-figures: version introuvable dans build.gradle.kts." >&2
+    exit 1
+fi
+
+version_lue=$(grep -m1 -o 'version courante[ :`]*[0-9.]\+' README.md \
+    | grep -o '[0-9][0-9.]*' || true)
+if [ -z "$version_lue" ]; then
+    echo "check-doc-figures: README.md n'annonce aucune « version courante »." >&2
+    exit 1
+fi
+if [ "$version_lue" != "$version_build" ]; then
+    echo "check-doc-figures: version annoncée README.md=$version_lue " \
+         "≠ build=$version_build — D-09 : resynchronisez README/USAGE/BUILD." >&2
+    exit 1
+fi
+
+# Coordonnées Maven citées dans USAGE.md / BUILD.md : le numéro cité doit
+# être la version du build (toute occurrence d'un autre « cel-*:X.Y.Z »
+# ou « :X.Y.Z » sur une ligne de coordonnées est un écart).
+for doc in USAGE.md BUILD.md; do
+    mauvaise=$(grep -o 'cel-[a-z-]*:[0-9][0-9.]*' "$doc" \
+        | grep -v ":$version_build" | sort -u || true)
+    if [ -n "$mauvaise" ]; then
+        echo "check-doc-figures: $doc cite des coordonnées Maven périmées " \
+             "(build=$version_build) : $mauvaise" >&2
+        exit 1
+    fi
+done
+
+echo "check-doc-figures: versions documentées conformes (build $version_build)."

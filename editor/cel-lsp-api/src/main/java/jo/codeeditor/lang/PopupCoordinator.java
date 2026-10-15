@@ -11,7 +11,7 @@ import java.util.List;
  * supérieure referme tous les popups de priorité inférieure — deux popups
  * ne se recouvrent donc jamais.</p>
  *
- * <p>Le {@link jo.codeeditor.view.EditorView} possède une instance unique,
+ * <p>L'éditeur ({@code EditorView}) possède une instance unique,
  * exposée à l'hôte via {@code getPopupCoordinator()} ; les méthodes
  * {@link #onPopupShown} / {@link #onPopupDismissed} sont à appeler à chaque
  * changement de visibilité d'un popup.</p>

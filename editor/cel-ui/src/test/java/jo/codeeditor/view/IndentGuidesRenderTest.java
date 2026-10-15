@@ -136,7 +136,7 @@ public class IndentGuidesRenderTest {
         // La ligne 1 (« "a": 1 » à 4 colonnes) doit avoir un guide
         // à X = textAreaLeft + 4*charWidth - hOffset.
         float textAreaLeft = view.metrics.getGutterWidth() + view.metrics.getPadLeft();
-        float expectedX = textAreaLeft + 4 * CHAR_W - view.hOffset;
+        float expectedX = textAreaLeft + 4 * CHAR_W - view.scroll.hOffset;
 
         boolean foundAt4 = false;
         for (float[] l : lines) {
@@ -167,7 +167,7 @@ public class IndentGuidesRenderTest {
 
         List<float[]> lines = linesOfColor(canvas, guideColor);
         float textAreaLeft = view.metrics.getGutterWidth() + view.metrics.getPadLeft();
-        float expectedX4 = textAreaLeft + 4 * CHAR_W - view.hOffset;
+        float expectedX4 = textAreaLeft + 4 * CHAR_W - view.scroll.hOffset;
 
         boolean foundAt4 = false;
         for (float[] l : lines) {
@@ -203,7 +203,7 @@ public class IndentGuidesRenderTest {
 
         List<float[]> lines = linesOfColor(canvas, guideColor);
         float textAreaLeft = view.metrics.getGutterWidth() + view.metrics.getPadLeft();
-        float expectedX2 = textAreaLeft + 2 * CHAR_W - view.hOffset;
+        float expectedX2 = textAreaLeft + 2 * CHAR_W - view.scroll.hOffset;
 
         boolean foundAt2 = false;
         for (float[] l : lines) {

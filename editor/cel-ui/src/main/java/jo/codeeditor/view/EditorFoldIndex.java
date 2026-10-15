@@ -3,6 +3,7 @@ package jo.codeeditor.view;
 import jo.codeeditor.document.EditorDocument;
 import jo.codeeditor.session.EditorSession;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -101,19 +102,23 @@ final class EditorFoldIndex {
             int[] ss = new int[m];
             int[] ee = new int[m];
             for (int i = 0; i < m; i++) { ss[i] = s[order[i]]; ee[i] = e[order[i]]; }
-            // Fusion des régions chevauchantes (union — même sémantique
-            // que FoldModel.mergeRegions).
-            int[] ms = new int[m];
-            int[] me = new int[m];
-            int k = 0;
+            // Fusion des régions chevauchantes (union) — M-02 : la
+            // fusion DÉLÈGUE à FoldModel.mergeRegions, l'unique
+            // implémentation de la sémantique (l'ancienne copie interne
+            // en tableaux parallèles est retirée : les bornes sont des
+            // intervalles abstraits, la fusion est la même).
+            List<jo.codeeditor.fold.FoldRegion> triées = new ArrayList<>(m);
             for (int i = 0; i < m; i++) {
-                if (k > 0 && ss[i] <= me[k - 1]) {
-                    if (ee[i] > me[k - 1]) me[k - 1] = ee[i];
-                } else {
-                    ms[k] = ss[i];
-                    me[k] = ee[i];
-                    k++;
-                }
+                triées.add(new jo.codeeditor.fold.FoldRegion(ss[i], ee[i], "", "", true));
+            }
+            List<jo.codeeditor.fold.FoldRegion> fondues =
+                    jo.codeeditor.fold.FoldModel.mergeRegions(triées);
+            int k = fondues.size();
+            int[] ms = new int[k];
+            int[] me = new int[k];
+            for (int i = 0; i < k; i++) {
+                ms[i] = fondues.get(i).start;
+                me[i] = fondues.get(i).end;
             }
             // Sommes préfixes : hiddenBefore[t] = Σ_{i<t} (me[i]-ms[i]) ;
             // startSum[t] = Σ_{i<t} ms[i].

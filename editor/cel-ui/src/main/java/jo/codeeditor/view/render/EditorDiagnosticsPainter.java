@@ -33,9 +33,12 @@ import java.util.List;
 public class EditorDiagnosticsPainter {
     private final EditorView view;
 
-    // Objet de travail réutilisable — évite les allocations par frame.
+    // Objets de travail réutilisables — évitent les allocations par frame.
     // Usage mono-thread (uniquement depuis onDraw sur le thread UI).
+    // P-05 (audit 3.69.0) : le RectF s'ajoute au Path — chaque pilule,
+    // feuille et carte allouait un RectF par draw.
     private final Path scratchPath = new Path();
+    private final RectF scratchRect = new RectF();
 
     // Soulignement ondulé de diagnostic
     static final float SQUIGGLE_PERIOD = 6f;
@@ -71,13 +74,13 @@ public class EditorDiagnosticsPainter {
             int startCol = EditorView.clamp(d.start - lineStart, 0, lineEnd - lineStart);
             int endCol = EditorView.clamp(d.end - lineStart, 0, lineEnd - lineStart);
             if (endCol <= startCol) endCol = startCol + 1;
-            float y = view.docLineToY(line) - view.vOffset; // Y sensible aux plis
+            float y = view.docLineToY(line) - view.scroll.vOffset; // Y sensible aux plis
             float baseY = y + lineHeight - 2;
             // Colonnes visuelles sensibles aux inlays — le soulignement
             // couvre la même plage écran que le texte (décalé) qu'il
             // souligne.
-            float x1 = textAreaLeft + view.visualColFor(line, startCol) * charWidth - view.hOffset;
-            float x2 = textAreaLeft + view.visualColFor(line, endCol) * charWidth - view.hOffset;
+            float x1 = textAreaLeft + view.visualColFor(line, startCol) * charWidth - view.scroll.hOffset;
+            float x2 = textAreaLeft + view.visualColFor(line, endCol) * charWidth - view.scroll.hOffset;
             // Tag Unnecessary (code inutilisé) : peinture ESTOMPÉE de la
             // plage (voile gris, texte atténué — le grisé Android Studio
             // des imports morts) AU LIEU du soulignement de sévérité :
@@ -167,7 +170,8 @@ public class EditorDiagnosticsPainter {
             float x = m[0], y = m[1], w = m[2], h = m[3], iconR = m[4],
                     iconGap = m[5], padX = m[6], badgeD = m[7], badgeGap = m[8];
             int color = getSquiggleColor(d.severity);
-            RectF rect = new RectF(x, y, x + w, y + h);
+            RectF rect = scratchRect;
+            rect.set(x, y, x + w, y + h);
             // Fond de pilule : couleur de sévérité à 16 % d'alpha.
             view.bgPaint.setColor(color);
             view.bgPaint.setAlpha(41); // 0.16 × 255
@@ -215,7 +219,7 @@ public class EditorDiagnosticsPainter {
             // ★ Étendue CONTENU (hors gouttière, indépendante du scroll :
             // +hOffset annule la soustraction écran) de la chip — maxH()
             // l'utilise pour rendre scrollable le débordement.
-            float extent = x - view.metrics.getGutterWidth() + view.hOffset
+            float extent = x - view.metrics.getGutterWidth() + view.scroll.hOffset
                     + padX + iconR * 2 + iconGap + textW
                     + (badgeD > 0 ? badgeGap + badgeD : 0f) + padX;
             if (extent > view.chipExtentContentX) {
@@ -379,7 +383,8 @@ public class EditorDiagnosticsPainter {
         float width = view.getWidth();
         float anchorX = 0;
         float anchorY = view.getHeight() - sheetH;
-        RectF rect = new RectF(anchorX, anchorY, anchorX + width, anchorY + sheetH);
+        RectF rect = scratchRect;
+        rect.set(anchorX, anchorY, anchorX + width, anchorY + sheetH);
         view.bgPaint.setColor(view.theme.glassBg);
         canvas.drawRect(rect, view.bgPaint);
         view.caretPaint.setStyle(Paint.Style.STROKE);
@@ -553,7 +558,8 @@ public class EditorDiagnosticsPainter {
         float dotX = m.contentLeft + 3.2f * density;
 
         // 1. Carte glass (sans scrim — non modal).
-        RectF rect = new RectF(m.x, m.y, m.x + m.w, m.y + m.h);
+        RectF rect = scratchRect;
+        rect.set(m.x, m.y, m.x + m.w, m.y + m.h);
         view.bgPaint.setStyle(Paint.Style.FILL);
         view.bgPaint.setColor(view.theme.glassBg);
         canvas.drawRoundRect(rect, radius, radius, view.bgPaint);

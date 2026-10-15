@@ -73,22 +73,7 @@ public class SelectionColorAfterMagnifierTest {
     }
 
     private static void injectMetrics(EditorView view, float lineHeight, float charWidth) {
-        try {
-            setFloat(view.metrics, "lineHeight", lineHeight);
-            setFloat(view.metrics, "charWidth", charWidth);
-            setFloat(view.metrics, "padTop", lineHeight * 0.5f);
-            setFloat(view.metrics, "padLeft", charWidth * 0.5f);
-            setFloat(view.metrics, "gutterWidth", charWidth * 7f);
-            setFloat(view.metrics, "foldStripWidth", charWidth * 2f);
-        } catch (Exception e) {
-            throw new IllegalStateException(e);
-        }
-    }
-
-    private static void setFloat(Object target, String field, float value) throws Exception {
-        Field f = target.getClass().getDeclaredField(field);
-        f.setAccessible(true);
-        f.setFloat(target, value);
+        TestMetrics.injecter(view, lineHeight, charWidth);
     }
 
     /** Rect écran de la bande de sélection du mot « name » (ligne 2). */
@@ -228,7 +213,7 @@ public class SelectionColorAfterMagnifierTest {
         selectName(view);
         EditorDocument doc = view.getSession().getDocument();
         int wordStart = doc.lineStart(2) + doc.lineText(2).indexOf("name");
-        view.findHighlights.add(new jo.codeeditor.find.Match(wordStart, wordStart + 4));
+        view.find.highlights.add(new jo.codeeditor.find.Match(wordStart, wordStart + 4));
 
         // Référence : l'occurrence est visible sans loupe.
         Bitmap ref = Bitmap.createBitmap(W, H, Bitmap.Config.ARGB_8888);

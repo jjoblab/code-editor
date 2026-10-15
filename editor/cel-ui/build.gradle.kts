@@ -14,7 +14,13 @@ android {
 
     buildTypes {
         release { isMinifyEnabled = false }
-        debug { isMinifyEnabled = false }
+        debug {
+            isMinifyEnabled = false
+            // A-06 (audit 3.69.0) : couverture en mode RAPPORT — les
+            // rapports Jacoco des tests unitaires sont générés pour la CI
+            // (téléversés, jamais bloquants : aucun seuil).
+            enableUnitTestCoverage = true
+        }
     }
 
     // Publie la variante release (requis pour que components["release"] de
@@ -56,13 +62,13 @@ dependencies {
     api(project(":cel-lsp-api"))
 
     // Tests Robolectric pour le cycle de vie d'EditorView.
-    testImplementation("org.robolectric:robolectric:4.13")
-    testImplementation("androidx.test:core:1.6.1")
-    testImplementation("androidx.test.ext:junit:1.2.1")
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.test.core)
+    testImplementation(libs.androidx.test.ext.junit)
 
     // Marquage @RestrictTo des scells internes partagés avec les
     // sous-packages de view/ (compileOnly : annotation absente du POM publié).
-    compileOnly("androidx.annotation:annotation:1.8.0")
+    compileOnly(libs.androidx.annotation)
 }
 
 tasks.withType<JavaCompile>().configureEach {
@@ -91,6 +97,17 @@ afterEvaluate {
                 groupId = project.group.toString()
                 artifactId = "cel-ui"
                 version = project.version.toString()
+                // Licence du projet (migration Apache 2.0) : consignée dans le
+                // POM pour que les consommateurs la voient d'un coup d'œil
+                // (affichage Gradle, scans de conformité).
+                pom {
+                    licenses {
+                        license {
+                            name = "Apache-2.0"
+                            url = "https://www.apache.org/licenses/LICENSE-2.0.txt"
+                        }
+                    }
+                }
             }
         }
         // Dépôt GitHub Packages — activé par les propriétés gpr.user /

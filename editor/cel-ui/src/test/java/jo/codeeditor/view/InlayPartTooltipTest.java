@@ -76,22 +76,7 @@ public class InlayPartTooltipTest {
     }
 
     private static void injectMetrics(EditorView view, float lineHeight, float charWidth) {
-        try {
-            setFloat(view.metrics, "lineHeight", lineHeight);
-            setFloat(view.metrics, "charWidth", charWidth);
-            setFloat(view.metrics, "padTop", lineHeight * 0.5f);
-            setFloat(view.metrics, "padLeft", charWidth * 0.5f);
-            setFloat(view.metrics, "gutterWidth", charWidth * 7f);
-            setFloat(view.metrics, "foldStripWidth", charWidth * 2f);
-        } catch (Exception e) {
-            throw new IllegalStateException(e);
-        }
-    }
-
-    private static void setFloat(Object target, String field, float value) throws Exception {
-        Field f = target.getClass().getDeclaredField(field);
-        f.setAccessible(true);
-        f.setFloat(target, value);
+        TestMetrics.injecter(view, lineHeight, charWidth);
     }
 
     private void installerHintStructuré(EditorView view, String tooltipHint) {
@@ -111,7 +96,7 @@ public class InlayPartTooltipTest {
         float charWidth = view.metrics.getCharWidth();
         float textAreaLeft = view.metrics.getGutterWidth() + view.metrics.getPadLeft();
         float x = textAreaLeft + (visStart + (from + to) * 0.5f) * charWidth;
-        float y = view.docLineToY(line) - view.vOffset + LINE_H * 0.5f;
+        float y = view.docLineToY(line) - view.scroll.vOffset + LINE_H * 0.5f;
         long down = SystemClock.uptimeMillis();
         MotionEvent d = MotionEvent.obtain(down, down, MotionEvent.ACTION_DOWN, x, y, 0);
         view.onTouchEvent(d);
@@ -120,15 +105,10 @@ public class InlayPartTooltipTest {
         Shadows.shadowOf(Looper.getMainLooper()).idle();
     }
 
-    private static boolean awaitQuickDoc(EditorView view, long timeoutMs)
-            throws InterruptedException {
-        long deadline = System.currentTimeMillis() + timeoutMs;
-        while (System.currentTimeMillis() < deadline) {
-            if (view.quickDocVisible) return true;
-            Shadows.shadowOf(Looper.getMainLooper()).idle();
-            Thread.sleep(20);
-        }
-        return view.quickDocVisible;
+    private static boolean awaitQuickDoc(EditorView view, long timeoutMs) {
+        // A-06 : attente bornée, le looper Robolectric avancé entre passes.
+        return jo.codeeditor.AttenteBornee.jusquA(timeoutMs, 20L, () -> view.quickDocVisible,
+                () -> Shadows.shadowOf(Looper.getMainLooper()).idle());
     }
 
     @Test

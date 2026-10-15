@@ -69,7 +69,7 @@ class EditorHitMapper {
                 visibleLine = doc.lineForOffset(fold.start);
             }
         }
-        float y = view.docLineToY(visibleLine) - view.vOffset;
+        float y = view.docLineToY(visibleLine) - view.scroll.vOffset;
         if (view.wordWrap && view.wrapModel != null) {
             // Mapping rangée/colonne via wrapRowsFor (les rangées de
             // continuation sont PLUS ÉTROITES que la première — un simple
@@ -106,7 +106,7 @@ class EditorHitMapper {
             // VISUELLE (tissée), c.-à-d. juste AVANT un hint ancré à sa
             // colonne brute (sémantique rawToVisual).
             x = view.metrics.getGutterWidth() + view.metrics.getPadLeft()
-                + view.visualColFor(line, col) * charWidth - view.hOffset;
+                + view.visualColFor(line, col) * charWidth - view.scroll.hOffset;
 
             // Ligne de début de pli : un caret au-delà du préfixe s'aligne
             // sur le bord droit du préfixe (juste avant la chip {...}) pour
@@ -117,7 +117,7 @@ class EditorHitMapper {
                 int prefixEndCol = fold.start - doc.lineStart(startLine);
                 if (col > prefixEndCol) {
                     x = view.metrics.getGutterWidth() + view.metrics.getPadLeft()
-                        + prefixEndCol * charWidth - view.hOffset;
+                        + prefixEndCol * charWidth - view.scroll.hOffset;
                 }
             } else if (view.session != null) {
                 // Ligne de fin de pli : si col est dans la zone du suffixe,
@@ -137,7 +137,7 @@ class EditorHitMapper {
                     if (col >= suffixStart && col <= suffixStart + suffixLen) {
                         int colInSuffix = col - suffixStart;
                         x = view.metrics.getGutterWidth() + view.metrics.getPadLeft()
-                            + (prefixEnd + r.placeholder.length() + colInSuffix) * charWidth - view.hOffset;
+                            + (prefixEnd + r.placeholder.length() + colInSuffix) * charWidth - view.scroll.hOffset;
                     }
                     break; // Un seul pli peut se terminer sur une ligne donnée.
                 }
@@ -205,7 +205,7 @@ class EditorHitMapper {
             float lineTopY = view.docLineToY(line);
             int lineLen = doc.lineEnd(line) - doc.lineStart(line);
             EditorView.WrapRows wr = view.wrapRowsFor(line, lineLen);
-            int rowInLine = (int) ((y + view.vOffset - lineTopY) / view.metrics.getLineHeight());
+            int rowInLine = (int) ((y + view.scroll.vOffset - lineTopY) / view.metrics.getLineHeight());
             rowInLine = EditorView.clamp(rowInLine, 0, wr.rows - 1);
             // ★ Inversion fidèle de la géométrie de pliage — la rangée de
             // continuation est indentée et plus étroite ; le tap y atterrit
@@ -231,7 +231,7 @@ class EditorHitMapper {
             // Colonne depuis le X relatif à la zone de texte (tient compte du
             // défilement horizontal). textAreaLeft est l'endroit où la col 0
             // est dessinée à l'écran (moins hOffset).
-            float colScreenX = textAreaLeft - view.hOffset;
+            float colScreenX = textAreaLeft - view.scroll.hOffset;
             int visualCol = (int) ((x - colScreenX) / charWidth + 0.5f);
             // Conscient des inlays — remappe la colonne VISUELLE tapée vers
             // la colonne brute du document ; un toucher dans un hint s'aligne

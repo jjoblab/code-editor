@@ -1,6 +1,7 @@
 package jo.codeeditor.view.render;
 
 import jo.codeeditor.view.EditorView;
+import jo.codeeditor.view.state.CompletionState;
 
 import androidx.annotation.RestrictTo;
 
@@ -38,6 +39,10 @@ public class EditorAssistPopupPainter {
     // Objets de travail réutilisables — évite les allocations par frame.
     // Usage mono-thread (uniquement depuis onDraw sur le thread UI).
     private final Path scratchPath = new Path();
+    // P-05 (audit 3.69.0) : RectF de travail réutilisé — chaque popup,
+    // culot et badge allouait un RectF par draw. Usage mono-thread (onDraw,
+    // thread UI) ; chaque site fait set → draws immédiats séquentiels.
+    private final RectF scratchRect = new RectF();
 
     /** Rayons par coin du popup de complétion (réutilisé chaque frame). */
     private final float[] completionCornerRadii = new float[8];
@@ -145,8 +150,8 @@ public class EditorAssistPopupPainter {
         int line = EditorView.clamp(doc.lineForOffset(sel.start), 0, doc.lineCount() - 1);
         int col = sel.start - doc.lineStart(line);
         float anchorX = view.metrics.getGutterWidth() + view.metrics.getPadLeft()
-            + view.visualColFor(line, col) * view.metrics.getCharWidth() - view.hOffset;
-        float caretY = view.docLineToY(line) - view.vOffset;
+            + view.visualColFor(line, col) * view.metrics.getCharWidth() - view.scroll.hOffset;
+        float caretY = view.docLineToY(line) - view.scroll.vOffset;
         // Par défaut : le popup se place AU-DESSUS de la ligne du curseur.
         float anchorY = caretY - 4 - popupH;
         // S'il ne tient pas au-dessus, basculer en dessous.
@@ -164,7 +169,8 @@ public class EditorAssistPopupPainter {
         }
 
         // Fond + bordure
-        RectF rect = new RectF(anchorX, anchorY, anchorX + width, anchorY + popupH);
+        RectF rect = scratchRect;
+        rect.set(anchorX, anchorY, anchorX + width, anchorY + popupH);
         view.bgPaint.setColor(view.theme.glassBg);
         canvas.drawRoundRect(rect, radius, radius, view.bgPaint);
         view.caretPaint.setStyle(Paint.Style.STROKE);
@@ -378,8 +384,8 @@ public class EditorAssistPopupPainter {
         int col = safeOffset - doc.lineStart(line);
         float charX = view.metrics.getGutterWidth() + view.metrics.getPadLeft()
                 + (view.visualColFor(line, col) + 0.5f) * view.metrics.getCharWidth()
-                - view.hOffset;
-        float lineTopY = view.docLineToY(line) - view.vOffset;
+                - view.scroll.hOffset;
+        float lineTopY = view.docLineToY(line) - view.scroll.vOffset;
         float lineBottomY = lineTopY + view.rowsForDocLine(line)
                 * view.metrics.getLineHeight();
         // L'ancre sort du viewport → le popup ne se dessine pas (il
@@ -434,7 +440,8 @@ public class EditorAssistPopupPainter {
         List<DocRow> rows = buildQuickDocRows(popupW - 2 * padX, view.textPaint);
 
         // Fond + bordure
-        RectF rect = new RectF(anchorX, anchorY, anchorX + popupW, anchorY + popupH);
+        RectF rect = scratchRect;
+        rect.set(anchorX, anchorY, anchorX + popupW, anchorY + popupH);
         view.bgPaint.setColor(view.theme.glassBg);
         canvas.drawRoundRect(rect, radius, radius, view.bgPaint);
         view.caretPaint.setStyle(Paint.Style.STROKE);
@@ -592,7 +599,7 @@ public class EditorAssistPopupPainter {
             if (line < firstVisible || line > lastVisible) continue;
             // Sauter l'ampoule des lignes cachées (repliées) + Y sensible aux plis.
             if (view.isLineFoldedCached(line)) continue;
-            float cy = view.docLineToY(line) - view.vOffset + lineHeight * 0.5f; // sensible aux plis
+            float cy = view.docLineToY(line) - view.scroll.vOffset + lineHeight * 0.5f; // sensible aux plis
             // Dessiner le glyphe d'ampoule : cercle rempli (l'ampoule) + petit
             // rectangle de base (le culot) en ambre.
             view.selPaint.setColor(android.graphics.Color.rgb(255, 193, 7)); // ambre 500
@@ -600,8 +607,8 @@ public class EditorAssistPopupPainter {
             // Culot : petit rectangle arrondi sous l'ampoule.
             float socketW = bulbR * 0.8f;
             float socketH = bulbR * 0.5f;
-            android.graphics.RectF socket = new android.graphics.RectF(
-                bulbX - socketW * 0.5f, cy + bulbR * 0.6f,
+            android.graphics.RectF socket = scratchRect;
+            socket.set(bulbX - socketW * 0.5f, cy + bulbR * 0.6f,
                 bulbX + socketW * 0.5f, cy + bulbR * 0.6f + socketH);
             view.selPaint.setColor(android.graphics.Color.rgb(120, 90, 0));
             canvas.drawRoundRect(socket, bulbR * 0.15f, bulbR * 0.15f, view.selPaint);
@@ -635,11 +642,12 @@ public class EditorAssistPopupPainter {
         float lineHeight = view.metrics.getLineHeight();
         float paddingTop = view.metrics.getPadTop();
         float anchorX = view.metrics.getGutterWidth() + 4 * density;
-        float anchorY = view.docLineToY(view.codeActionsPopupLine) - view.vOffset; // sensible aux plis
+        float anchorY = view.docLineToY(view.codeActionsPopupLine) - view.scroll.vOffset; // sensible aux plis
         if (anchorY + popupH > view.getHeight()) {
             anchorY = Math.max(0, anchorY - popupH + lineHeight);
         }
-        RectF rect = new RectF(anchorX, anchorY, anchorX + width, anchorY + popupH);
+        RectF rect = scratchRect;
+        rect.set(anchorX, anchorY, anchorX + width, anchorY + popupH);
         view.bgPaint.setColor(view.theme.glassBg);
         canvas.drawRoundRect(rect, radius, radius, view.bgPaint);
         view.caretPaint.setStyle(Paint.Style.STROKE);
@@ -688,7 +696,8 @@ public class EditorAssistPopupPainter {
         // Centré en haut.
         float anchorX = (view.getWidth() - width) * 0.5f;
         float anchorY = 8 * density;
-        RectF rect = new RectF(anchorX, anchorY, anchorX + width, anchorY + popupH);
+        RectF rect = scratchRect;
+        rect.set(anchorX, anchorY, anchorX + width, anchorY + popupH);
         view.bgPaint.setColor(view.theme.glassBg);
         canvas.drawRoundRect(rect, radius, radius, view.bgPaint);
         view.caretPaint.setStyle(Paint.Style.STROKE);
@@ -755,11 +764,11 @@ public class EditorAssistPopupPainter {
      * à droite.</p>
      */
     void drawCompletionPopup(Canvas canvas) {
-        if (!view.completionVisible || view.completionItems.isEmpty()) return;
+        if (!view.completion.visible || view.completion.items.isEmpty()) return;
         float[] anchor = view.completionPopupAnchor();
         float density = view.getResources().getDisplayMetrics().density;
-        float rowH = view.COMPLETION_ROW_HEIGHT_DP * density;
-        float width = view.COMPLETION_WIDTH_DP * density;
+        float rowH = CompletionState.ROW_HEIGHT_DP * density;
+        float width = CompletionState.WIDTH_DP * density;
         float radius = COMPLETION_BORDER_RADIUS_DP * density;
         // L'ancre est la SOURCE UNIQUE — le nombre de rangées dérive de sa
         // hauteur (elle réduit les rangées quand le viewport est petit,
@@ -772,7 +781,8 @@ public class EditorAssistPopupPainter {
         // Fond + bordure — coins TOP-LEFT/TOP-RIGHT arrondis uniquement
         // (le haut du popup « s'attache » à la ligne du curseur, motif
         // bottom-docked de la diagnostic sheet inversé).
-        RectF rect = new RectF(anchorX, anchorY, anchorX + width, anchorY + popupH);
+        RectF rect = scratchRect;
+        rect.set(anchorX, anchorY, anchorX + width, anchorY + popupH);
         float[] radii = completionCornerRadii;
         radii[0] = radius; radii[1] = radius;   // haut-gauche
         radii[2] = radius; radii[3] = radius;   // haut-droite
@@ -799,24 +809,24 @@ public class EditorAssistPopupPainter {
         // ★ Thème sombre ? (pour assombrir la palette badge sur glass clair)
         boolean darkTheme = (view.theme.editorBg & 0xFFFFFF) < 0x808080;
         for (int i = 0; i < rowsToShow; i++) {
-            int idx = view.completionScrollOffset + i;
-            if (idx >= view.completionItems.size()) break;
+            int idx = view.completion.scrollOffset + i;
+            if (idx >= view.completion.items.size()) break;
             float y = anchorY + i * rowH;
             // Surligner la rangée sélectionnée
-            if (idx == view.completionSelected) {
+            if (idx == view.completion.selected) {
                 view.selPaint.setColor(view.theme.selection);
                 canvas.drawRect(anchorX + 1, y, anchorX + width - 1, y + rowH, view.selPaint);
             }
-            jo.codeeditor.completion.CompletionSession.Item item = view.completionItems.get(idx);
+            jo.codeeditor.completion.CompletionSession.Item item = view.completion.items.get(idx);
             drawCompletionRow(canvas, item, anchorX, y, width, rowH, padX, density, darkTheme);
         }
         // Réinitialiser la taille du paint de texte
         view.textPaint.setTextSize(view.metrics.getTextSize());
         // Scrollbar s'il y a plus d'éléments que de visibles
-        if (view.completionItems.size() > rowsToShow) {
+        if (view.completion.items.size() > rowsToShow) {
             float sbX = anchorX + width - 3 * density;
-            float sbH = popupH * rowsToShow / (float) view.completionItems.size();
-            float sbY = anchorY + (popupH - sbH) * (view.completionScrollOffset / (float)(view.completionItems.size() - rowsToShow));
+            float sbH = popupH * rowsToShow / (float) view.completion.items.size();
+            float sbY = anchorY + (popupH - sbH) * (view.completion.scrollOffset / (float)(view.completion.items.size() - rowsToShow));
             view.selPaint.setColor(view.theme.gutterBorder);
             canvas.drawRect(sbX, sbY, sbX + 2 * density, sbY + sbH, view.selPaint);
         }
@@ -843,7 +853,8 @@ public class EditorAssistPopupPainter {
         float badgeSize = rowH - 10 * density;   // rangée 28 dp → badge 18 dp
         float badgeLeft = anchorX + padX;
         float badgeTop = y + (rowH - badgeSize) * 0.5f;
-        RectF badgeRect = new RectF(badgeLeft, badgeTop, badgeLeft + badgeSize,
+        RectF badgeRect = scratchRect;
+        badgeRect.set(badgeLeft, badgeTop, badgeLeft + badgeSize,
                 badgeTop + badgeSize);
 
         // Fond : teinte du kind à 20 % d'alpha.
@@ -888,7 +899,7 @@ public class EditorAssistPopupPainter {
             return;
         }
 
-        String prefix = view.completionPrefix != null ? view.completionPrefix : "";
+        String prefix = view.completion.prefix != null ? view.completion.prefix : "";
         java.util.List<Integer> matched = (prefix.isEmpty())
                 ? java.util.Collections.emptyList()
                 : jo.codeeditor.completion.CompletionSession.matchPositions(label, prefix);

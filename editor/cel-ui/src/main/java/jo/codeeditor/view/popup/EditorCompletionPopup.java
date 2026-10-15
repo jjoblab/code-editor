@@ -1,6 +1,7 @@
 package jo.codeeditor.view.popup;
 
 import jo.codeeditor.view.EditorView;
+import jo.codeeditor.view.state.CompletionState;
 
 import androidx.annotation.RestrictTo;
 
@@ -33,31 +34,22 @@ public class EditorCompletionPopup {
 
     void setCompletionItems(List<jo.codeeditor.completion.CompletionSession.Item> items,
                             int tokenStart, String prefix) {
-        view.completionItems.clear();
-        if (items != null) view.completionItems.addAll(items);
-        view.completionTokenStart = tokenStart;
-        view.completionPrefix = prefix == null ? "" : prefix;
-        view.completionSelected = 0;
-        view.completionScrollOffset = 0;
-        view.completionVisible = !view.completionItems.isEmpty();
+        view.completion.reset(items, tokenStart, prefix);
         view.invalidate();
     }
 
-    boolean isCompletionVisible() { return view.completionVisible; }
+    boolean isCompletionVisible() { return view.completion.visible; }
 
     void dismissCompletion() {
         // Annule TOUTE livraison en vol / débouncée — sans ça une
         // réponse périmée pouvait rouvrir le popup juste après un Échap.
         completionGeneration.incrementAndGet();
         cancelPendingFetch();
-        if (view.completionVisible) {
+        if (view.completion.visible) {
             // B7 : photographie le popup AVANT de nettoyer son état — le
             // fantôme s'efface en 110 ms par-dessus le contenu.
             view.popupFade.snuff(jo.codeeditor.view.popup.EditorPopupFade.Kind.COMPLETION);
-            view.completionVisible = false;
-            view.completionItems.clear();
-            view.completionBaseItems.clear();
-            view.completionBaseTokenStart = -1;
+            view.completion.clear();
             view.invalidate();
         }
     }
@@ -115,33 +107,12 @@ public class EditorCompletionPopup {
         return tokenStart;
     }
 
-    /** Préserve l'item sélectionné par label au remplacement de liste. */
+    /** Refiltrage local : délègue à l'état (préservation du libellé
+     *  sélectionné + fenêtre de scroll solidaire — invariants possédés
+     *  par CompletionState). */
     private void applyFilteredItems(java.util.List<jo.codeeditor.completion.CompletionSession.Item> filtered,
                                     int tokenStart, String prefix) {
-        String prevSelectedLabel = (view.completionSelected >= 0
-            && view.completionSelected < view.completionItems.size())
-            ? view.completionItems.get(view.completionSelected).label : null;
-        view.completionItems.clear();
-        view.completionItems.addAll(filtered);
-        view.completionTokenStart = tokenStart;
-        view.completionPrefix = prefix;
-        int newSel = 0;
-        if (prevSelectedLabel != null) {
-            for (int i = 0; i < view.completionItems.size(); i++) {
-                if (view.completionItems.get(i).label.equals(prevSelectedLabel)) {
-                    newSel = i;
-                    break;
-                }
-            }
-        }
-        view.completionSelected = newSel;
-        int rowsVisible = completionRowsVisible();
-        if (view.completionSelected < view.completionScrollOffset) {
-            view.completionScrollOffset = view.completionSelected;
-        } else if (view.completionSelected >= view.completionScrollOffset + rowsVisible) {
-            view.completionScrollOffset = view.completionSelected - rowsVisible + 1;
-        }
-        view.completionVisible = true;
+        view.completion.refilter(filtered, tokenStart, prefix, completionRowsVisible());
         // La complétion qui s'ouvre referme le hover
         // (exclusion mutuelle — le tooltip est refermé quand la complétion
         // s'ouvre, et le hover est refusé tant qu'elle est ouverte).
@@ -150,43 +121,34 @@ public class EditorCompletionPopup {
     }
 
     boolean completionSelectUp() {
-        if (!view.completionVisible) return false;
-        if (view.completionSelected > 0) {
-            view.completionSelected--;
-            if (view.completionSelected < view.completionScrollOffset) {
-                view.completionScrollOffset = view.completionSelected;
-            }
+        if (!view.completion.visible) return false;
+        if (view.completion.select(-1, completionRowsVisible())) {
             view.invalidate();
         }
         return true;
     }
 
     boolean completionSelectDown() {
-        if (!view.completionVisible) return false;
-        if (view.completionSelected < view.completionItems.size() - 1) {
-            view.completionSelected++;
-            int rowsVisible = completionRowsVisible();
-            if (view.completionSelected >= view.completionScrollOffset + rowsVisible) {
-                view.completionScrollOffset = view.completionSelected - rowsVisible + 1;
-            }
+        if (!view.completion.visible) return false;
+        if (view.completion.select(1, completionRowsVisible())) {
             view.invalidate();
         }
         return true;
     }
 
     boolean completionAccept() {
-        if (!view.completionVisible || view.completionSelected < 0
-            || view.completionSelected >= view.completionItems.size()
-            || view.completionTokenStart < 0) {
+        if (!view.completion.visible || view.completion.selected < 0
+            || view.completion.selected >= view.completion.items.size()
+            || view.completion.tokenStart < 0) {
             return false;
         }
-        jo.codeeditor.completion.CompletionSession.Item item = view.completionItems.get(view.completionSelected);
+        jo.codeeditor.completion.CompletionSession.Item item = view.completion.items.get(view.completion.selected);
         int caret = view.session.getSelection().start;
         // ★ B21b : garde de cohérence — si le caret a RECULÉ avant le début
         // du token (flèches, clic pendant le popup), l'insertion
         // [tokenStart, caret) écraserait une plage inversée AVANT le mot :
         // rejeter l'acceptation, le popup se referme sans muter le texte.
-        if (caret < view.completionTokenStart) {
+        if (caret < view.completion.tokenStart) {
             dismissCompletion();
             return false;
         }
@@ -196,7 +158,25 @@ public class EditorCompletionPopup {
                 view.imeBridge.listener.onRestartInput();
             }
         }
-        view.session.replaceRange(view.completionTokenStart, caret, item.insertText);
+        // L1/D-01 : plage de remplacement — le candidat peut transporter
+        // une édition (textEdit, sémantique remplacement) qui couvre tout
+        // le texte à écraser, y compris AVANT le token courant. Elle est
+        // appliquée EXACTEMENT (jamais le token ET la plage — c'est la
+        // double application qui produit « console.console.log »).
+        // Sans édition : sémantique historique du token.
+        int replaceStart = item.replaceStart >= 0
+                ? item.replaceStart : view.completion.tokenStart;
+        int replaceEnd = item.replaceEnd >= 0
+                ? item.replaceEnd : caret;
+        if (item.isSnippet) {
+            // Format snippet : expansion par la session de snippet —
+            // insertion du texte apuré (aucun marqueur $ résiduel),
+            // sélection du premier champ, navigation Tab/Shift+Tab,
+            // miroirs et listener de champ.
+            view.session.snippets.apply(replaceStart, replaceEnd, item.insertText);
+        } else {
+            view.session.replaceRange(replaceStart, replaceEnd, item.insertText);
+        }
         view.onTextChanged();
         dismissCompletion();
         // Action post-insertion transportée par le backend —
@@ -262,8 +242,8 @@ public class EditorCompletionPopup {
 
         // ── Étendre : même token, base en cache → filtrage local pur. ──
         if (!prefix.isEmpty()
-                && view.completionBaseTokenStart == tokenStart
-                && !view.completionBaseItems.isEmpty()) {
+                && view.completion.baseTokenStart == tokenStart
+                && !view.completion.baseItems.isEmpty()) {
             completionGeneration.incrementAndGet(); // jette toute réponse en vol pour ce token
             cancelPendingFetch();
             applyLocalFilter(tokenStart, prefix);
@@ -437,15 +417,15 @@ public class EditorCompletionPopup {
                 String curPrefix = view.session.getDocument().subText(safeTokenStart,
                         Math.min(cur.length(), curCaret));
                 if (fetched.isEmpty()) {
-                    view.completionBaseItems.clear();
-                    view.completionBaseTokenStart = safeTokenStart;
-                    if (view.completionVisible) dismissCompletionSoft();
+                    view.completion.baseItems.clear();
+                    view.completion.baseTokenStart = safeTokenStart;
+                    if (view.completion.visible) dismissCompletionSoft();
                     return;
                 }
                 // Anti-blink + remplacement « sous les yeux » : la base
                 // fraîche devient la référence du token courant.
-                view.completionBaseItems = new ArrayList<>(fetched);
-                view.completionBaseTokenStart = safeTokenStart;
+                view.completion.baseItems = new ArrayList<>(fetched);
+                view.completion.baseTokenStart = safeTokenStart;
                 applyFilteredItems(filterCompletionItems(fetched, curPrefix),
                         safeTokenStart, curPrefix);
             };
@@ -460,16 +440,16 @@ public class EditorCompletionPopup {
 
     /** Masque sans casser le cache base (utilisé par la livraison vide). */
     private void dismissCompletionSoft() {
-        view.completionVisible = false;
+        view.completion.softHide();
         view.invalidate();
     }
 
     /** Filtrage local synchrone du cache base (chemin rapide idem-token). */
     private void applyLocalFilter(int tokenStart, String prefix) {
         List<jo.codeeditor.completion.CompletionSession.Item> filtered =
-            filterCompletionItems(view.completionBaseItems, prefix);
+            filterCompletionItems(view.completion.baseItems, prefix);
         if (filtered.isEmpty()) {
-            view.completionVisible = false;
+            view.completion.softHide();
             view.invalidate();
             return;
         }
@@ -485,9 +465,9 @@ public class EditorCompletionPopup {
      */
     private float[] completionCaretBand() {
         EditorDocument doc = view.session.getDocument();
-        int line = EditorView.clamp(doc.lineForOffset(view.completionTokenStart),
+        int line = EditorView.clamp(doc.lineForOffset(view.completion.tokenStart),
                 0, doc.lineCount() - 1);
-        float top = view.docLineToY(line) - view.vOffset;
+        float top = view.docLineToY(line) - view.scroll.vOffset;
         float bottom = top + view.rowsForDocLine(line) * view.metrics.getLineHeight();
         return new float[]{top, bottom};
     }
@@ -501,12 +481,12 @@ public class EditorCompletionPopup {
      * de frappe.
      */
     int completionRowsVisible() {
-        int maxRows = Math.min(view.COMPLETION_MAX_ROWS, view.completionItems.size());
+        int maxRows = Math.min(CompletionState.MAX_ROWS, view.completion.items.size());
         if (maxRows <= 1 || view.getHeight() <= 0 || view.session == null) {
             return Math.max(1, maxRows);
         }
         float density = view.getResources().getDisplayMetrics().density;
-        float rowH = view.COMPLETION_ROW_HEIGHT_DP * density;
+        float rowH = CompletionState.ROW_HEIGHT_DP * density;
         float[] band = completionCaretBand();
         // Espaces disponibles SANS recouvrir la ligne du caret :
         float below = view.getHeight() - (band[1] + COMPLETION_ANCHOR_GAP_PX);
@@ -521,16 +501,16 @@ public class EditorCompletionPopup {
 
     float[] completionPopupAnchor() {
         float density = view.getResources().getDisplayMetrics().density;
-        float rowH = view.COMPLETION_ROW_HEIGHT_DP * density;
-        float width = view.COMPLETION_WIDTH_DP * density;
+        float rowH = CompletionState.ROW_HEIGHT_DP * density;
+        float width = CompletionState.WIDTH_DP * density;
         int rowsToShow = completionRowsVisible();
         float popupH = rowH * rowsToShow;
         EditorDocument doc = view.session.getDocument();
-        int line = EditorView.clamp(doc.lineForOffset(view.completionTokenStart), 0, doc.lineCount() - 1);
-        int col = view.completionTokenStart - doc.lineStart(line);
+        int line = EditorView.clamp(doc.lineForOffset(view.completion.tokenStart), 0, doc.lineCount() - 1);
+        int col = view.completion.tokenStart - doc.lineStart(line);
         // Ancrage tenant compte des inlays — le popup suit le X du caret tissé.
         float anchorX = view.metrics.getGutterWidth() + view.metrics.getPadLeft()
-            + view.visualColFor(line, col) * view.metrics.getCharWidth() - view.hOffset;
+            + view.visualColFor(line, col) * view.metrics.getCharWidth() - view.scroll.hOffset;
         // Bas/haut de la ligne fold+wrap-aware (l'ancienne formule brute
         // padTop + (line+1)*lineHeight plaçait l'ancre au-dessus de la
         // rangée visuelle réelle dès qu'une ligne précédente était wrappée
@@ -560,16 +540,24 @@ public class EditorCompletionPopup {
         List<jo.codeeditor.completion.CompletionSession.Item> prefixMatchCi = new ArrayList<>();
         List<jo.codeeditor.completion.CompletionSession.Item> fuzzy = new ArrayList<>();
         for (jo.codeeditor.completion.CompletionSession.Item item : items) {
-            String label = item.label;
-            if (label.equals(prefix)) {
+            // L1/D-01 : le filterText (posé par le pont LSP) sert de
+            // repli quand le label n'apparie nulle part — le candidat
+            // est classé selon la qualité du match sur son texte de
+            // filtrage.
+            String match = classifies(item.label, prefix, lowerPrefix)
+                    ? item.label
+                    : (item.filterText != null && !item.filterText.isEmpty()
+                            && classifies(item.filterText, prefix, lowerPrefix)
+                            ? item.filterText : item.label);
+            if (match.equals(prefix)) {
                 exact.add(item);
-            } else if (label.equalsIgnoreCase(prefix)) {
+            } else if (match.equalsIgnoreCase(prefix)) {
                 exactCi.add(item);
-            } else if (label.startsWith(prefix)) {
+            } else if (match.startsWith(prefix)) {
                 prefixMatch.add(item);
-            } else if (label.toLowerCase(java.util.Locale.ROOT).startsWith(lowerPrefix)) {
+            } else if (match.toLowerCase(java.util.Locale.ROOT).startsWith(lowerPrefix)) {
                 prefixMatchCi.add(item);
-            } else if (fuzzyMatches(label, prefix)) {
+            } else if (fuzzyMatches(match, prefix)) {
                 fuzzy.add(item);
             }
         }
@@ -580,6 +568,14 @@ public class EditorCompletionPopup {
         out.addAll(prefixMatchCi);
         out.addAll(fuzzy);
         return out;
+    }
+
+    /** Le candidat matche-t-il le préfixe sur l'un des 5 paliers ? */
+    private static boolean classifies(String candidate, String prefix, String lowerPrefix) {
+        return candidate.equals(prefix) || candidate.equalsIgnoreCase(prefix)
+                || candidate.startsWith(prefix)
+                || candidate.toLowerCase(java.util.Locale.ROOT).startsWith(lowerPrefix)
+                || fuzzyMatches(candidate, prefix);
     }
 
     private static boolean fuzzyMatches(String candidate, String query) {

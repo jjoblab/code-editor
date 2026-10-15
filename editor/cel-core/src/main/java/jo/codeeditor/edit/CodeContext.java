@@ -242,11 +242,20 @@ final class CodeContext {
         return inString;
     }
 
+    /**
+     * Motif de label de branchement (P-04, audit 3.69.0) — PRÉCOMPILÉ :
+     * {@code String.matches} recompilait l'expression à CHAQUE
+     * reconnaissance, sur le chemin de la touche Entrée (saut de ligne
+     * intelligent après un label case).
+     */
+    private static final java.util.regex.Pattern CASE_LABEL =
+            java.util.regex.Pattern.compile("case\\b.*:");
+
     static boolean isCaseLabel(CharSequence text, int pos) {
         // Chercher en remontant depuis pos "case " ou "default"
         int lineStart = EditTextUtils.lineStartForOffset(text, pos);
         String line = text.subSequence(lineStart, pos + 1).toString().trim();
-        return line.matches("case\\b.*:") || line.equals("default:");
+        return CASE_LABEL.matcher(line).matches() || line.equals("default:");
     }
 
     static boolean isAnnotationOnlyLine(CharSequence text, int lineStart) {

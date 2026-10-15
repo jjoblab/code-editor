@@ -65,22 +65,7 @@ public class SelectionColorDuringDragReproTest {
     }
 
     private static void injectMetrics(EditorView view, float lineHeight, float charWidth) {
-        try {
-            setFloat(view.metrics, "lineHeight", lineHeight);
-            setFloat(view.metrics, "charWidth", charWidth);
-            setFloat(view.metrics, "padTop", lineHeight * 0.5f);
-            setFloat(view.metrics, "padLeft", charWidth * 0.5f);
-            setFloat(view.metrics, "gutterWidth", charWidth * 7f);
-            setFloat(view.metrics, "foldStripWidth", charWidth * 2f);
-        } catch (Exception e) {
-            throw new IllegalStateException(e);
-        }
-    }
-
-    private static void setFloat(Object target, String field, float value) throws Exception {
-        Field f = target.getClass().getDeclaredField(field);
-        f.setAccessible(true);
-        f.setFloat(target, value);
+        TestMetrics.injecter(view, lineHeight, charWidth);
     }
 
     private static void send(EditorView view, int action, long down, long when,
@@ -314,7 +299,7 @@ public class SelectionColorDuringDragReproTest {
         int rows = view.rowsForDocLine(0);
         int totalRowsWithBand = 0;
         for (int r = 0; r < rows; r++) {
-            float rowY = view.docLineToY(0) - view.vOffset + r * LINE_H;
+            float rowY = view.docLineToY(0) - view.scroll.vOffset + r * LINE_H;
             if (rowY < 0 || rowY + LINE_H > H) continue;
             int n = countSelectionPixels(bmp, 0, (int) rowY, W,
                     (int) (rowY + LINE_H), view.theme.selection);

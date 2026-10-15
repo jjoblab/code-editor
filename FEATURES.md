@@ -135,11 +135,16 @@ par responsabilité.
 
 | Fonctionnalité | État | Fichier | Description |
 |----------------|------|---------|-------------|
-| Tab stops (`$1`, `$2`, `$0`) | ✅ | `snippet/SnippetSession.java` | Navigation next/prev |
-| Placeholders (`${1:défaut}`) | ✅ | `snippet/SnippetSession.java` | Texte par défaut |
-| Stops liés (mirroring) | ✅ | `snippet/SnippetSession.java` | Édition synchronisée |
+| Tab stops (`$1`, `$2`, `$0`) | ✅ | `snippet/SnippetSession.java` | Navigation next/prev en ordre LSP ($1 → $2 → … → $0 final) |
+| Placeholders (`${1:défaut}`) | ✅ | `snippet/SnippetSession.java` | Texte par défaut sélectionné à l'expansion |
+| Stops liés (mirroring) | ✅ | `snippet/SnippetSession.java` + `session/SnippetController.java` | Édition du champ primaire propagée aux miroirs |
 | Ré-ancrage sur édition | ✅ | `snippet/SnippetSession.java` | Survie aux modifications |
 | parse() | ✅ | `snippet/SnippetSession.java` | Parse `$1`, `${1:placeholder}` |
+| Expansion à l'acceptation de complétion | ✅ | `session/SnippetController.java` `apply` | Candidat `insertTextFormat=Snippet` : texte apuré inséré (aucun marqueur `$` résiduel), premier champ sélectionné |
+| Navigation clavier Tab/Shift+Tab, Échap | ✅ | `view/input/EditorKeyHandler.java` + `session/SnippetController.java` | Champs navigables, `$0` clôt la session, Échap la termine sans déplacer le caret |
+| Listener de champ | ✅ | `session/EditorSession.java` `OnSnippetEditListener` + `session/SnippetController.java` | Déclenché à chaque édition dans la session de snippet |
+| Plage de remplacement `textEdit` | ✅ | `lsp/LspCompletionProvider.java` + `view/popup/EditorCompletionPopup.java` | Sémantique remplacement : plage appliquée exactement (normalisée : bornée, réordonnée, rejetée après le caret) |
+| `filterText` / `sortText` | ✅ | `lsp/LspCompletionProvider.java` + `completion/CompletionSession.java` | Filtrage par texte de filtrage en repli, départage de tri par `sortText` |
 
 ---
 

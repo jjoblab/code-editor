@@ -48,12 +48,8 @@ class LspProjectLanesTest {
 
         project.shutdown();
 
-        // Les threads daemon s'éteignent de façon asynchrone — borne 5 s.
-        long fin = System.currentTimeMillis() + 5000;
-        while (threadLspVivant() && System.currentTimeMillis() < fin) {
-            Thread.sleep(20);
-        }
-        assertFalse(threadLspVivant(),
+        // Les threads daemon s'éteignent de façon asynchrone — borne 5 s (A-06).
+        assertTrue(jo.codeeditor.AttenteBornee.jusquA(5000, () -> !threadLspVivant()),
                 "aucun thread cel-lsp-* ne doit survivre à shutdown()");
     }
 

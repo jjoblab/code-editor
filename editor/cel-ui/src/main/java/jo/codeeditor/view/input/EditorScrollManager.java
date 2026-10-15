@@ -15,8 +15,10 @@ import jo.codeeditor.session.EditorSession;
  * <p>EditorView délègue à cette classe {@code scrollCaretIntoView},
  * {@code scrollToLine}, {@code scrollToOffset}, {@code scrollBy},
  * {@code scrollHorizontallyBy}, {@code maxV} et {@code maxH}. L'état du
- * défilement ({@code vOffset}, {@code hOffset}) reste dans EditorView
- * (package-privé) et est modifié directement par ce gestionnaire.
+ * défilement vit dans l'objet d'état extrait
+ * ({@code view.scroll} : {@code vOffset}/{@code hOffset}, plan 01
+ * étape 5) — ce gestionnaire en est le writer principal et maintient
+ * l'invariant de bornes via {@code clampTo}.
  */
 @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
 public class EditorScrollManager {
@@ -55,12 +57,12 @@ public class EditorScrollManager {
         }
         float viewH = view.getHeight();
         // Vertical — ne défile que si le caret est réellement hors du viewport.
-        if (caretY < view.vOffset) {
-            view.vOffset = Math.max(0, caretY - lineHeight);
-        } else if (caretY + lineHeight > view.vOffset + viewH) {
-            view.vOffset = caretY + lineHeight - viewH;
+        if (caretY < view.scroll.vOffset) {
+            view.scroll.vOffset = Math.max(0, caretY - lineHeight);
+        } else if (caretY + lineHeight > view.scroll.vOffset + viewH) {
+            view.scroll.vOffset = caretY + lineHeight - viewH;
         }
-        view.vOffset = EditorView.clamp(view.vOffset, 0, maxV());
+        view.scroll.vOffset = EditorView.clamp(view.scroll.vOffset, 0, maxV());
 
         // Horizontal — ignoré en mode repli automatique (chaque rangée est
         // entièrement visible). On utilise caretScreenPos() pour un X de caret
@@ -72,13 +74,13 @@ public class EditorScrollManager {
             float viewW = view.getWidth() - textLeft - view.metrics.getPadRight();
             float margin = charWidth * 3;
             if (caretScreenX < textLeft + margin) {
-                float visibleCol = (caretScreenX + view.hOffset - textLeft) / charWidth;
-                view.hOffset = Math.max(0, visibleCol * charWidth - margin);
+                float visibleCol = (caretScreenX + view.scroll.hOffset - textLeft) / charWidth;
+                view.scroll.hOffset = Math.max(0, visibleCol * charWidth - margin);
             } else if (caretScreenX > textLeft + viewW - margin) {
-                float visibleCol = (caretScreenX + view.hOffset - textLeft) / charWidth;
-                view.hOffset = visibleCol * charWidth - viewW + margin;
+                float visibleCol = (caretScreenX + view.scroll.hOffset - textLeft) / charWidth;
+                view.scroll.hOffset = visibleCol * charWidth - viewW + margin;
             }
-            view.hOffset = EditorView.clamp(view.hOffset, 0, maxH());
+            view.scroll.hOffset = EditorView.clamp(view.scroll.hOffset, 0, maxH());
         }
 
         view.invalidate();
@@ -88,12 +90,12 @@ public class EditorScrollManager {
         float lineHeight = view.metrics.getLineHeight();
         float y = view.docLineToY(line);
         float viewHeight = view.getHeight();
-        if (y < view.vOffset) {
-            view.vOffset = y;
-        } else if (y + lineHeight > view.vOffset + viewHeight) {
-            view.vOffset = y + lineHeight - viewHeight;
+        if (y < view.scroll.vOffset) {
+            view.scroll.vOffset = y;
+        } else if (y + lineHeight > view.scroll.vOffset + viewHeight) {
+            view.scroll.vOffset = y + lineHeight - viewHeight;
         }
-        view.vOffset = EditorView.clamp(view.vOffset, 0, maxV());
+        view.scroll.vOffset = EditorView.clamp(view.scroll.vOffset, 0, maxV());
         // ★ Notifie le sticky-bottom des consoles.
         view.notifyScrollPositionChanged();
         view.invalidate();
@@ -112,7 +114,7 @@ public class EditorScrollManager {
         float lineHeight = view.metrics.getLineHeight();
         float y = view.docLineToY(line);
         float viewHeight = view.getHeight();
-        view.vOffset = EditorView.clamp(
+        view.scroll.vOffset = EditorView.clamp(
                 y - (viewHeight - lineHeight) * 0.5f, 0, maxV());
         view.notifyScrollPositionChanged();
         view.invalidate();
@@ -127,9 +129,9 @@ public class EditorScrollManager {
     }
 
     public void scrollBy(float dy) {
-        float newV = EditorView.clamp(view.vOffset + dy, 0, maxV());
-        if (newV != view.vOffset) {
-            view.vOffset = newV;
+        float newV = EditorView.clamp(view.scroll.vOffset + dy, 0, maxV());
+        if (newV != view.scroll.vOffset) {
+            view.scroll.vOffset = newV;
             // ★ Notifie le sticky-bottom des consoles.
             view.notifyScrollPositionChanged();
             view.invalidate();
@@ -137,9 +139,9 @@ public class EditorScrollManager {
     }
 
     public void scrollHorizontallyBy(float dx) {
-        float newH = EditorView.clamp(view.hOffset + dx, 0, maxH());
-        if (newH != view.hOffset) {
-            view.hOffset = newH;
+        float newH = EditorView.clamp(view.scroll.hOffset + dx, 0, maxH());
+        if (newH != view.scroll.hOffset) {
+            view.scroll.hOffset = newH;
             view.invalidate();
         }
     }

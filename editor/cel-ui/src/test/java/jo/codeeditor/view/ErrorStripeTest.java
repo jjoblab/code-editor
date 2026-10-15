@@ -179,7 +179,7 @@ public class ErrorStripeTest {
         assertTrue("la fiche de détail du diagnostic est ouverte",
                 view.diagnosticPopupVisible);
         assertEquals("la ligne du marqueur est CENTRÉE dans le viewport",
-                expectedV, view.vOffset, 2f);
+                expectedV, view.scroll.vOffset, 2f);
     }
 
     // ── 3. Tap sans marqueur : geste consommé, rien derrière ───────
@@ -204,7 +204,7 @@ public class ErrorStripeTest {
         assertFalse("aucune liste groupée ouverte",
                 view.diagnosticListSheetLine >= 0);
         assertEquals("le viewport ne bouge pas",
-                0f, view.vOffset, 0.01f);
+                0f, view.scroll.vOffset, 0.01f);
         assertEquals("le caret n'est pas placé derrière la bande",
                 before, view.getSession().getSelection());
     }
@@ -232,14 +232,14 @@ public class ErrorStripeTest {
         assertTrue("le pouce du fast-scroller est actif pendant le drag de bande",
                 view.fastScroller.isActive());
         assertEquals("le drag de bande positionne le document en absolu",
-                expected, view.vOffset, 0.5f);
+                expected, view.scroll.vOffset, 0.5f);
 
         send(view, MotionEvent.ACTION_UP, down, down + 100, tapX(), y);
         idle();
         assertFalse("le pouce disparaît au relâchement",
                 view.fastScroller.isActive());
         assertEquals("la position absolue est conservée",
-                expected, view.vOffset, 0.5f);
+                expected, view.scroll.vOffset, 0.5f);
     }
 
     // ── 5. Setter public de bascule ────────────────────────────────

@@ -146,7 +146,7 @@ class EditorWrapGeometry {
      * par le tap-pour-positionner-le-caret et les calculs de scroll.
      */
     int docLineForScreenY(float screenY) {
-        float contentY = screenY + view.vOffset - view.metrics.getPadTop();
+        float contentY = screenY + view.scroll.vOffset - view.metrics.getPadTop();
         float lineHeight = view.metrics.getLineHeight();
         int visualRow = (int) (contentY / lineHeight);
         if (!view.wordWrap || view.wrapModel == null) {

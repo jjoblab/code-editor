@@ -45,6 +45,12 @@ public class EditorChromePainter {
     // Objet de travail réutilisable — évite les allocations par frame.
     // Usage mono-thread (uniquement depuis onDraw sur le thread UI).
     private final Path scratchPath = new Path();
+    // P-05 (audit 3.69.0) : RectF de travail réutilisé — cartes glass,
+    // rangées pressées, ampoule, ombre et pilules allouaient un RectF par
+    // draw, par frame. Usage mono-thread (onDraw, thread UI) ; chaque site
+    // fait set -> draws immédiats séquentiels (l'ombre est consommée avant
+    // que le fond ne reprenne le champ).
+    private final RectF scratchRect = new RectF();
 
     // Paint dédié aux icônes d'aperçu du coin (B6 — moteur EditorIcons).
     private final Paint iconPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -132,7 +138,7 @@ public class EditorChromePainter {
         // minimap. On rend ~height/rowH lignes en commençant par celle en haut
         // du viewport de l'éditeur.
         float editorLineHeight = view.metrics.getLineHeight();
-        int firstVisibleDocLine = Math.max(0, (int) (view.vOffset / editorLineHeight) - 5);
+        int firstVisibleDocLine = Math.max(0, (int) (view.scroll.vOffset / editorLineHeight) - 5);
         int visibleRows = (int) (height / rowH) + 10;
         int lastVisibleDocLine = Math.min(lineCount - 1, firstVisibleDocLine + visibleRows);
 
@@ -143,7 +149,7 @@ public class EditorChromePainter {
         float maxCharsPerRow = Math.max(1, minimapWidth / Math.max(1, charWidth));
 
         for (int i = firstVisibleDocLine; i <= lastVisibleDocLine; i++) {
-            float y = i * rowH - (view.vOffset / editorLineHeight) * rowH;
+            float y = i * rowH - (view.scroll.vOffset / editorLineHeight) * rowH;
             if (y < -rowH || y > height) continue;
             if (i >= styledLines.size()) break;
             jo.codeeditor.highlight.StyledLine sl = styledLines.get(i);
@@ -379,7 +385,7 @@ public class EditorChromePainter {
             magnifierPaint.setColor(view.theme.textColor);
             for (int i = firstLine; i <= lastLine; i++) {
                 if (view.isLineFoldedCached(i)) continue;
-                float lineY = view.docLineToY(i) - view.vOffset;
+                float lineY = view.docLineToY(i) - view.scroll.vOffset;
                 String lineText = doc.lineText(i);
                 jo.codeeditor.highlight.StyledLine styled = null;
                 java.util.List<jo.codeeditor.highlight.StyledLine> styledLines = view.session.getStyledLines();
@@ -388,12 +394,12 @@ public class EditorChromePainter {
                     // Chemin de la loupe — tisser aussi les inlays de la ligne
                     // pour que la vue zoomée corresponde au rendu réel.
                     LineRenderCache.LineCacheEntry layout = view.layoutForLine(i, lineText);
-                    text.drawStyledLine(canvas, styled, lineText, textAreaLeft - view.hOffset, lineY, magnifierPaint,
+                    text.drawStyledLine(canvas, styled, lineText, textAreaLeft - view.scroll.hOffset, lineY, magnifierPaint,
                         layout != null ? layout.inlays : null,
                         layout != null ? layout.rawToVisual : null);
                 } else {
                     magnifierPaint.setColor(view.theme.textColor);
-                    canvas.drawText(lineText, textAreaLeft - view.hOffset, lineY + lineHeight * 0.78f, magnifierPaint);
+                    canvas.drawText(lineText, textAreaLeft - view.scroll.hOffset, lineY + lineHeight * 0.78f, magnifierPaint);
                 }
             }
 
@@ -414,7 +420,7 @@ public class EditorChromePainter {
                 if (caretDocLine >= firstLine && caretDocLine <= lastLine
                         && !view.isLineFoldedCached(caretDocLine)) {
                     float[] caretPos = view.caretScreenPos(sel.start);
-                    float lineTop = view.docLineToY(caretDocLine) - view.vOffset;
+                    float lineTop = view.docLineToY(caretDocLine) - view.scroll.vOffset;
                     view.caretPaint.setColor(view.theme.caret);
                     view.caretPaint.setStyle(Paint.Style.STROKE);
                     view.caretPaint.setStrokeWidth(2f);
@@ -435,7 +441,7 @@ public class EditorChromePainter {
                 if (dropDocLine >= firstLine && dropDocLine <= lastLine
                         && !view.isLineFoldedCached(dropDocLine)) {
                     float[] dropPos = view.caretScreenPos(dropOff);
-                    float dropTop = view.docLineToY(dropDocLine) - view.vOffset;
+                    float dropTop = view.docLineToY(dropDocLine) - view.scroll.vOffset;
                     view.caretPaint.setColor(view.theme.caret);
                     view.caretPaint.setStyle(Paint.Style.STROKE);
                     view.caretPaint.setStrokeWidth(3f * density);
@@ -683,7 +689,7 @@ public class EditorChromePainter {
             int startLine = doc.lineForOffset(region.start);
             if (startLine < firstVisible || startLine > lastVisible) continue;
             if (!region.collapsed && startLine != caretLine) continue;
-            float y = view.docLineToY(startLine) - view.vOffset + lineHeight * 0.5f;
+            float y = view.docLineToY(startLine) - view.scroll.vOffset + lineHeight * 0.5f;
             // Appliquer un alpha de 0.8 à la couleur gutterText.
             int baseColor = view.theme.gutterText;
             view.caretPaint.setColor(applyAlpha(baseColor, 0.8f));
@@ -740,7 +746,8 @@ public class EditorChromePainter {
         float radius = 8 * density;
 
         // ── Carte glass (motif drawQuickDocPopup) ──────────────────
-        RectF rect = new RectF(x, y, x + w, y + h);
+        RectF rect = scratchRect;
+        rect.set(x, y, x + w, y + h);
         view.bgPaint.setStyle(Paint.Style.FILL);
         view.bgPaint.setColor(view.theme.glassBg);
         canvas.drawRoundRect(rect, radius, radius, view.bgPaint);
@@ -794,7 +801,8 @@ public class EditorChromePainter {
             if (pressed) {
                 view.bgPaint.setStyle(Paint.Style.FILL);
                 view.bgPaint.setColor(withAlpha(view.theme.caret, 0.22f));
-                canvas.drawRoundRect(new RectF(x + 1, rowTop, x + w - 1, rowBottom),
+                scratchRect.set(x + 1, rowTop, x + w - 1, rowBottom);
+                canvas.drawRoundRect(scratchRect,
                         6 * density, 6 * density, view.bgPaint);
             }
             int contentColor = pressed ? view.theme.caret : view.theme.textColor;
@@ -951,7 +959,8 @@ public class EditorChromePainter {
                     }
                 } else {
                     // Ampoule : dôme + base (2 traits).
-                    RectF bulb = new RectF(cx - 3.0f * s, cy - 5.2f * s,
+                    RectF bulb = scratchRect;
+                    bulb.set(cx - 3.0f * s, cy - 5.2f * s,
                             cx + 3.0f * s, cy + 1.2f * s);
                     canvas.drawArc(bulb, 180, 180, false, view.caretPaint);
                     canvas.drawLine(cx - 3.0f * s, cy - 2.0f * s,
@@ -1022,12 +1031,14 @@ public class EditorChromePainter {
         }
 
         // Ombre (rectangle arrondi légèrement plus grand, semi-transparent).
-        RectF shadowRect = new RectF(m.x + 1, m.y + 2, m.x + m.w + 1, m.y + m.h + 2);
+        RectF shadowRect = scratchRect;
+        shadowRect.set(m.x + 1, m.y + 2, m.x + m.w + 1, m.y + m.h + 2);
         view.bgPaint.setStyle(Paint.Style.FILL);
         view.bgPaint.setColor(withAlpha(0xFF000000, 0.24f * overallAlpha));
         canvas.drawRoundRect(shadowRect, m.radius, m.radius, view.bgPaint);
         // Fond de pilule glass.
-        RectF rect = new RectF(m.x, m.y, m.x + m.w, m.y + m.h);
+        RectF rect = scratchRect; // réutilisé après consommation de l'ombre
+        rect.set(m.x, m.y, m.x + m.w, m.y + m.h);
         view.bgPaint.setColor(withAlpha(view.theme.glassBg, overallAlpha));
         canvas.drawRoundRect(rect, m.radius, m.radius, view.bgPaint);
         // Bordure.
@@ -1061,7 +1072,8 @@ public class EditorChromePainter {
 
             if (pressed) {
                 // Feedback press : fond teinté accent, coins arrondis.
-                RectF pr = new RectF(m.itemX[i], m.y + 2 * density,
+                RectF pr = scratchRect;
+                pr.set(m.itemX[i], m.y + 2 * density,
                         m.itemX[i] + m.itemW[i], m.y + m.h - 2 * density);
                 view.bgPaint.setColor(withAlpha(view.theme.caret, 0.22f * itemAlpha));
                 canvas.drawRoundRect(pr, m.radius * 0.7f, m.radius * 0.7f, view.bgPaint);

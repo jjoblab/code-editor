@@ -46,14 +46,9 @@ public class EditorRenamePrepareTest {
     }
 
     /** Attends que la condition devienne vraie (voie features). */
-    private static boolean attends(long timeoutMs, java.util.function.BooleanSupplier cond)
-            throws InterruptedException {
-        long fin = System.currentTimeMillis() + timeoutMs;
-        while (System.currentTimeMillis() < fin) {
-            if (cond.getAsBoolean()) return true;
-            Thread.sleep(20);
-        }
-        return cond.getAsBoolean();
+    /** A-06 : attente bornée, déléguée au helper du module. */
+    private static boolean attends(long timeoutMs, java.util.function.BooleanSupplier cond) {
+        return jo.codeeditor.AttenteBornee.jusquA(timeoutMs, cond);
     }
 
     @Test

@@ -138,7 +138,7 @@ public class GutterWrapAlignmentTest {
         // gouttière ne doit dessiner AUCUN numéro au-dessus de la ligne
         // ~19 (l'ancien chemin itérait depuis la ligne 0 en comptant
         // toutes les lignes au-dessus du viewport).
-        view.vOffset = PAD_TOP + 40 * LINE_H;
+        view.scroll.vOffset = PAD_TOP + 40 * LINE_H;
         view.invalidate();
 
         java.util.List<String> texts = new java.util.ArrayList<>();
@@ -218,7 +218,7 @@ public class GutterWrapAlignmentTest {
         // Scroll de 16 lignes : vOffset = 16 * lineHeight = 640.
         // La première ligne visible (en haut du viewport) est la ligne
         // 0-indexée 16 (numéro « 17 »).
-        view.vOffset = 16 * LINE_H;
+        view.scroll.vOffset = 16 * LINE_H;
         view.invalidate();
 
         java.util.List<String> texts = new java.util.ArrayList<>();
@@ -302,7 +302,7 @@ public class GutterWrapAlignmentTest {
         view.setWordWrap(false);
 
         // Mi-document : vOffset = 40 * lineHeight = 1600 px.
-        view.vOffset = 40 * LINE_H;
+        view.scroll.vOffset = 40 * LINE_H;
         view.invalidate();
 
         java.util.List<String> texts = new java.util.ArrayList<>();

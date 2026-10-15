@@ -58,8 +58,8 @@ public class EditorHighlightPainter {
     void drawFindHighlights(Canvas canvas, EditorDocument doc,
                              float textAreaLeft, float lineHeight, float paddingTop,
                              int firstVisible, int lastVisible) {
-        for (int i = 0; i < view.findHighlights.size(); i++) {
-            Match m = view.findHighlights.get(i);
+        for (int i = 0; i < view.find.highlights.size(); i++) {
+            Match m = view.find.highlights.get(i);
             int line = doc.lineForOffset(m.start);
             if (line < firstVisible || line > lastVisible) continue;
             // Sauter les surlignages de recherche des lignes cachées (repliées).
@@ -68,7 +68,7 @@ public class EditorHighlightPainter {
             int startCol = EditorView.clamp(m.start - lineStart, 0, doc.lineEnd(line) - lineStart);
             int endCol = EditorView.clamp(m.end - lineStart, 0, doc.lineEnd(line) - lineStart);
             if (endCol <= startCol) endCol = startCol + 1;
-            view.selPaint.setColor(i == view.findCurrentIndex ? view.theme.findCurrent : view.theme.findMatch);
+            view.selPaint.setColor(i == view.find.currentIndex ? view.theme.findCurrent : view.theme.findMatch);
             // Bande consciente du wrap (une rect par rangée visuelle).
             drawColRangeBand(canvas, doc, line, startCol, endCol, textAreaLeft, lineHeight);
         }
@@ -137,8 +137,8 @@ public class EditorHighlightPainter {
             if (view.isLineFoldedCached(line)) continue;
             int lineStart = doc.lineStart(line);
             int col = EditorView.clamp(off - lineStart, 0, doc.lineEnd(line) - lineStart);
-            float y = view.docLineToY(line) - view.vOffset;
-            float x1 = textAreaLeft + view.visualColFor(line, col) * charWidth - view.hOffset;
+            float y = view.docLineToY(line) - view.scroll.vOffset;
+            float x1 = textAreaLeft + view.visualColFor(line, col) * charWidth - view.scroll.hOffset;
             float x2 = x1 + charWidth;
             // Sauter quand entièrement défilée hors de la plage de colonnes visibles.
             if (x2 <= view.metrics.getGutterWidth() || x1 >= canvas.getWidth()) continue;
@@ -189,11 +189,11 @@ public class EditorHighlightPainter {
             // rangées de continuation démarrent à wrapIndentCols).
             EditorView.WrapRows wr = view.wrapRowsFor(line, lineLen);
             float charWidth = view.metrics.getCharWidth();
-            float lineTop = view.docLineToY(line) - view.vOffset;
+            float lineTop = view.docLineToY(line) - view.scroll.vOffset;
             if (colStart >= colEnd) {
                 // Ligne vide couverte par une sélection multi-lignes :
                 // marqueur de traîne pour que la rangée reste visible.
-                float x = textAreaLeft - view.hOffset;
+                float x = textAreaLeft - view.scroll.hOffset;
                 canvas.drawRect(x, lineTop, x + charWidth * 0.6f,
                         lineTop + lineHeight, view.selPaint);
                 return;
@@ -206,8 +206,8 @@ public class EditorHighlightPainter {
                 if (e <= s) continue;
                 float rowX = textAreaLeft
                         + (r > 0 ? wr.wrapIndentCols * charWidth : 0);
-                float x1 = rowX + (s - rowStart) * charWidth - view.hOffset;
-                float x2 = rowX + (e - rowStart) * charWidth - view.hOffset;
+                float x1 = rowX + (s - rowStart) * charWidth - view.scroll.hOffset;
+                float x2 = rowX + (e - rowStart) * charWidth - view.scroll.hOffset;
                 float y = lineTop + r * lineHeight;
                 canvas.drawRect(x1, y, Math.max(x1 + 1, x2), y + lineHeight,
                         view.selPaint);
@@ -217,9 +217,9 @@ public class EditorHighlightPainter {
         // Hors wrap : bande unique, colonnes visuelles tissées d'inlays
         // (chemin historique, inchangé).
         float charWidth = view.metrics.getCharWidth();
-        float y = view.docLineToY(line) - view.vOffset;
-        float x1 = textAreaLeft + view.visualColFor(line, colStart) * charWidth - view.hOffset;
-        float x2 = textAreaLeft + view.visualColFor(line, colEnd) * charWidth - view.hOffset;
+        float y = view.docLineToY(line) - view.scroll.vOffset;
+        float x1 = textAreaLeft + view.visualColFor(line, colStart) * charWidth - view.scroll.hOffset;
+        float x2 = textAreaLeft + view.visualColFor(line, colEnd) * charWidth - view.scroll.hOffset;
         // Marqueur de traîne après la fin de ligne pour qu'une ligne
         // sélectionnée vide montre quand même une bande.
         float trailing = (colEnd == colStart) ? charWidth * 0.6f : 0;
@@ -430,7 +430,7 @@ public class EditorHighlightPainter {
             }
         }
 
-        float offsetX = textAreaLeft - view.hOffset;
+        float offsetX = textAreaLeft - view.scroll.hOffset;
 
         // Recherche binaire : premier bloc dont startLine >= firstVisible.
         // On balaye à partir de là — les blocs avant sont hors viewport.
@@ -459,12 +459,12 @@ public class EditorHighlightPainter {
             // Y : du BAS de la ligne d'ouverture au HAUT de la
             // ligne de fermeture (C_LIKE) ou au BAS de la dernière
             // ligne (non C_LIKE).
-            float top = view.docLineToY(startLine) - view.vOffset + lineHeight;
+            float top = view.docLineToY(startLine) - view.scroll.vOffset + lineHeight;
             float bottom;
             if (indentCountMode) {
-                bottom = view.docLineToY(endLine) - view.vOffset + lineHeight;
+                bottom = view.docLineToY(endLine) - view.scroll.vOffset + lineHeight;
             } else {
-                bottom = view.docLineToY(endLine) - view.vOffset;
+                bottom = view.docLineToY(endLine) - view.scroll.vOffset;
             }
             if (top >= bottom) continue;
 
@@ -565,7 +565,7 @@ public class EditorHighlightPainter {
         float segmentTop = top;
 
         for (int li = startLine + 1; li <= endLine; li++) {
-            float lineY = view.docLineToY(li) - view.vOffset;
+            float lineY = view.docLineToY(li) - view.scroll.vOffset;
             if (lineY > top && lineY < bottom) {
                 // Vérifier si cette ligne est une continuation de
                 // soft wrap (rangée > 0 de la ligne précédente).
@@ -627,24 +627,6 @@ public class EditorHighlightPainter {
     }
 
     /**
-     * Détermine si un bloc est actif (contient le caret).
-     */
-    private static boolean isBlockActive(boolean indentCountMode,
-            int caretDepth, int blockDepth, int[][] blocks, int idx) {
-        int[] block = blocks[idx];
-        // Pour C_LIKE : caretDepth = profondeur d'accolades.
-        // Le bloc est actif si caretDepth == blockDepth + 1.
-        // Pour non C_LIKE : caretDepth = niveau d'indentation.
-        // Le bloc est actif si caretDepth > block.startCol (le caret
-        // est plus profond que le bloc).
-        if (indentCountMode) {
-            return caretDepth >= 0 && caretDepth > block[1];
-        } else {
-            return caretDepth == blockDepth + 1;
-        }
-    }
-
-    /**
      * Largeur des espaces de tête en colonnes, ou -1 pour une ligne VIDE
      * (espaces seuls — aucun caractère visible). Cette sentinelle permet
      * à la couche des guides de faire le pont sur les lignes vides.
@@ -698,24 +680,6 @@ public class EditorHighlightPainter {
             }
         }
         return onlyWhitespace ? -1 : cols;
-    }
-
-    /**
-     * Lot B : calcule l'indentation de pontage d'une ligne vide
-     * (la moins profonde des plus proches voisines non vides,
-     * scan borné à 64 rangées de chaque côté).
-     */
-    private static int bridgeBlank(EditorDocument doc, CharSequence chars, int i) {
-        int up = i - 1, upCapped = 64;
-        while (up >= 0 && upCapped-- > 0 && leadingIndentOrBlank(doc, chars, up) < 0) up--;
-        int lineCount = doc.lineCount();
-        int dn = i + 1, dnCapped = 64;
-        while (dn < lineCount && dnCapped-- > 0 && leadingIndentOrBlank(doc, chars, dn) < 0) dn++;
-        int a = (up >= 0) ? leadingIndentOrBlank(doc, chars, up) : 0;
-        int b = (dn < lineCount) ? leadingIndentOrBlank(doc, chars, dn) : 0;
-        if (a < 0) a = 0;
-        if (b < 0) b = 0;
-        return Math.min(a, b);
     }
 
     /**

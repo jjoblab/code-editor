@@ -135,10 +135,12 @@ public class EditorView extends View {
     public final EditorBlockDragController blockDragCtl;
 
     // ── État de défilement ────────────────────────────────────────
+    // Objet d'état extrait (plan 01, étape 5) : l'invariant « offsets
+    // dans [0, max] » est possédé par ScrollState (clampTo après toute
+    // mutation non bornée).
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
-    public float vOffset = 0;
-    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
-    public float hOffset = 0;
+    public final jo.codeeditor.view.state.ScrollState scroll =
+            new jo.codeeditor.view.state.ScrollState();
 
     // ── Zoom ───────────────────────────────────────────────────────
     // L'état de zoom (fontScale + mutations d'échelle) vit dans
@@ -159,42 +161,23 @@ public class EditorView extends View {
     // ── Surlignages de recherche (décoration visuelle) ────────────
     // Renseignés par l'hôte (ex. barre Rechercher/Remplacer) — chaque
     // occurrence dans le viewport est teintée theme.findMatch, la
-    // courante theme.findCurrent.
+    // courante theme.findCurrent. Objet d'état extrait (plan 01,
+    // étape 3) : l'invariant « index courant dans les bornes » est
+    // possédé et testé par FindState.
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
-    public final List<Match> findHighlights = new ArrayList<>();
-    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
-    public int findCurrentIndex = -1;
+    public final jo.codeeditor.view.state.FindState find =
+            new jo.codeeditor.view.state.FindState();
 
     // ── Popup de complétion ────────────────────────────────────────
     // Complétion intégrée par mots-clés ; l'hôte peut piloter un
     // CompletionController externe via setCompletionItems(items,
-    // tokenStart, prefix).
+    // tokenStart, prefix). L'état affichable (liste, sélection, fenêtre
+    // de scroll, cache par token) vit dans l'objet d'état extrait —
+    // plan 01, étape 2 : les invariants de sélection/scroll sont
+    // possédés et testés là, la vue ne fait que l'héberger.
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
-    public final List<jo.codeeditor.completion.CompletionSession.Item> completionItems = new ArrayList<>();
-    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
-    public int completionSelected = 0;
-    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
-    public int completionScrollOffset = 0;
-    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
-    public int completionTokenStart = -1;
-    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
-    public String completionPrefix = "";
-    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
-    public boolean completionVisible = false;
-    // Cache de filtrage de complétion : le provider retourne un jeu de
-    // base pour un token ; les frappes suivantes du MÊME token filtrent
-    // en cache par préfixe (insensible casse + fuzzy) au lieu de
-    // re-requêter — réactif pendant qu'un serveur lent rattrape.
-    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
-    public List<jo.codeeditor.completion.CompletionSession.Item> completionBaseItems = new ArrayList<>();
-    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
-    public int completionBaseTokenStart = -1;
-    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
-    public static final int COMPLETION_MAX_ROWS = 8;
-    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
-    public static final float COMPLETION_ROW_HEIGHT_DP = 28f;
-    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
-    public static final float COMPLETION_WIDTH_DP = 280f;
+    public final jo.codeeditor.view.state.CompletionState completion =
+            new jo.codeeditor.view.state.CompletionState();
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
     public CompletionProvider completionProvider;
 
@@ -1263,8 +1246,7 @@ public class EditorView extends View {
         caretAnim.reset();
         // Réinitialise le scroll pour qu'un offset périmé du document
         // précédent ne laisse pas le viewport échoué.
-        vOffset = 0;
-        hOffset = 0;
+        scroll.reset();
         // ★ B8 (retour terrain n°5) : le modèle de wrap décrit l'ANCIEN
         // document — sans reconstruction, il survit au changement de
         // session et WrapModel.topRow() clampe toute ligne au-delà de
@@ -1283,8 +1265,7 @@ public class EditorView extends View {
         // contrôleur de recherche recalcule et repousse les siens via
         // sa méthode refresh ; sans purge, des bandes pouvaient rester
         // dessinées aux offsets hasardeux du fichier précédent).
-        findHighlights.clear();
-        findCurrentIndex = -1;
+        find.clear();
         // ★ B11 : les marqueurs de la bande d'erreurs décrivent
         // l'ANCIEN document (le pusher les repoussera aux diagnostics
         // de la nouvelle session) et le pouce du fast-scroller n'a plus
@@ -1482,7 +1463,7 @@ public class EditorView extends View {
         OnScrollPositionListener l = scrollPositionListener;
         if (l != null) {
             float max = maxV();
-            l.onScrollPosition(vOffset, max);
+            l.onScrollPosition(scroll.vOffset, max);
         }
         // Préfetch du viewport au repos — ré-armé à chaque scroll pour que
         // la tâche ne se déclenche qu'après 150 ms de scroll CALME (jamais
@@ -1518,8 +1499,8 @@ public class EditorView extends View {
     public EditorMetrics getMetrics() { return metrics; }
     public EditorTheme getTheme() { return theme; }
     public float getFontScale() { return zoom.fontScale; }
-    public float getVOffset() { return vOffset; }
-    public float getHOffset() { return hOffset; }
+    public float getVOffset() { return scroll.vOffset; }
+    public float getHOffset() { return scroll.hOffset; }
 
     @Override
     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
@@ -1528,8 +1509,7 @@ public class EditorView extends View {
         // au changement de taille.
         if (wordWrap) rebuildWrapModel();
         // Re-borne le scroll au nouveau max.
-        vOffset = clamp(vOffset, 0, maxV());
-        hOffset = clamp(hOffset, 0, maxH());
+        scroll.clampTo(maxV(), maxH());
         // Redimensionne la feuille d'aperçu pour correspondre aux nouvelles
         // bornes de l'éditeur. La feuille est ancrée à notre position de
         // fenêtre ; on lui demande de ré-évaluer sa taille en ré-appliquant
@@ -1674,9 +1654,7 @@ public class EditorView extends View {
      * avec {@code theme.findCurrent} au lieu de {@code theme.findMatch}.
      */
     public void setFindHighlights(List<Match> matches, int currentIndex) {
-        findHighlights.clear();
-        if (matches != null) findHighlights.addAll(matches);
-        findCurrentIndex = currentIndex;
+        find.set(matches, currentIndex);
         invalidate();
     }
 
@@ -1697,7 +1675,7 @@ public class EditorView extends View {
         if (this.wordWrap == enabled) return;
         this.wordWrap = enabled;
         if (enabled) {
-            this.hOffset = 0;
+            scroll.hOffset = 0;
             rebuildWrapModel();
         } else {
             this.wrapModel = null;
@@ -1946,7 +1924,7 @@ public class EditorView extends View {
         java.util.List<int[]> active = new java.util.ArrayList<>();
         for (int i = sticky.size() - 1; i >= 0; i--) {
             int[] pair = sticky.get(i);
-            float lineY = docLineToY(pair[0]) - vOffset;
+            float lineY = docLineToY(pair[0]) - scroll.vOffset;
             // Active = scrollée au-dessus de la zone de texte, non
             // repliée (même règle que le rendu, avant factorisation).
             if (lineY < paddingTop - 1f && !isLineFoldedCached(pair[0])) {
@@ -2173,7 +2151,7 @@ public class EditorView extends View {
         if (doc.lineCount() <= 0) return false;
         Selection sel = clampSelection(session.getSelection(), doc);
         int currentLine = clamp(doc.lineForOffset(sel.start), 0, doc.lineCount() - 1);
-        float rowTop = docLineToY(currentLine) - vOffset;
+        float rowTop = docLineToY(currentLine) - scroll.vOffset;
         float lineHeight = metrics.getLineHeight();
         // Rangée hors écran (repliée au-dessus ou en dessous du viewport) :
         // l'icône n'est pas visible — pas de zone tactile fantôme.
@@ -2871,9 +2849,9 @@ public class EditorView extends View {
     @Override
     protected Parcelable onSaveInstanceState() {
         Parcelable superState = super.onSaveInstanceState();
-        SavedState ss = new SavedState(superState);
-        ss.vOffset = vOffset;
-        ss.hOffset = hOffset;
+        EditorSavedState ss = new EditorSavedState(superState);
+        ss.vOffset = scroll.vOffset;
+        ss.hOffset = scroll.hOffset;
         ss.fontScale = zoom.fontScale;
         ss.wordWrap = wordWrap;
         return ss;
@@ -2881,11 +2859,11 @@ public class EditorView extends View {
 
     @Override
     protected void onRestoreInstanceState(Parcelable state) {
-        if (!(state instanceof SavedState)) {
+        if (!(state instanceof EditorSavedState)) {
             super.onRestoreInstanceState(state);
             return;
         }
-        SavedState ss = (SavedState) state;
+        EditorSavedState ss = (EditorSavedState) state;
         super.onRestoreInstanceState(ss.getSuperState());
         // Zoom d'abord : setFontScale reconstruit le modèle de wrap (B13).
         if (ss.fontScale != zoom.fontScale) zoom.setFontScale(ss.fontScale);
@@ -2896,56 +2874,13 @@ public class EditorView extends View {
         // encore posée, maxV()/maxH() valent 0 : garder les valeurs brutes
         // — elles seront bornées au premier usage (scroll/setSession).
         if (session != null) {
-            vOffset = clamp(ss.vOffset, 0, maxV());
-            hOffset = clamp(ss.hOffset, 0, maxH());
+            scroll.restore(ss.vOffset, ss.hOffset, maxV(), maxH());
         } else {
-            vOffset = ss.vOffset;
-            hOffset = ss.hOffset;
+            scroll.restoreUnclamped(ss.vOffset, ss.hOffset);
         }
         invalidate();
     }
 
-    /** État sauvegardé de la vue (scroll/zoom/wrap) — voir
-     *  {@link #onSaveInstanceState()}. */
-    static final class SavedState extends View.BaseSavedState {
-        float vOffset;
-        float hOffset;
-        float fontScale;
-        boolean wordWrap;
-
-        SavedState(Parcelable superState) {
-            super(superState);
-        }
-
-        SavedState(Parcel in) {
-            super(in);
-            vOffset = in.readFloat();
-            hOffset = in.readFloat();
-            fontScale = in.readFloat();
-            wordWrap = in.readByte() != 0;
-        }
-
-        @Override
-        public void writeToParcel(Parcel out, int flags) {
-            super.writeToParcel(out, flags);
-            out.writeFloat(vOffset);
-            out.writeFloat(hOffset);
-            out.writeFloat(fontScale);
-            out.writeByte((byte) (wordWrap ? 1 : 0));
-        }
-
-        public static final Parcelable.Creator<SavedState> CREATOR =
-                new Parcelable.Creator<SavedState>() {
-            @Override
-            public SavedState createFromParcel(Parcel in) {
-                return new SavedState(in);
-            }
-            @Override
-            public SavedState[] newArray(int size) {
-                return new SavedState[size];
-            }
-        };
-    }
 
     // ════════════════════════════════════════════════════════════════
     // Défilement — bornes
@@ -3169,16 +3104,6 @@ public class EditorView extends View {
         int start = clamp(sel.start, 0, doc.length());
         int end = clamp(sel.end, 0, doc.length());
         return new Selection(start, end);
-    }
-
-    static int countLeadingWhitespace(String s) {
-        int n = 0;
-        while (n < s.length()) {
-            char c = s.charAt(n);
-            if (c == ' ' || c == '\t') n++;
-            else break;
-        }
-        return n;
     }
 
     /** Listener optionnel pour que l'Activity hôte réagisse à Ctrl+F. */

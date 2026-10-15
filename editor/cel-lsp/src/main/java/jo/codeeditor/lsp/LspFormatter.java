@@ -41,7 +41,8 @@ class LspFormatter implements Formatter {
             CompletableFuture<List<org.eclipse.lsp4j.TextEdit>> future =
                 (CompletableFuture<List<org.eclipse.lsp4j.TextEdit>>) (CompletableFuture<?>)
                 server.getTextDocumentService().formatting(params);
-            List<org.eclipse.lsp4j.TextEdit> edits = future.get(5, TimeUnit.SECONDS);
+            List<org.eclipse.lsp4j.TextEdit> edits =
+                    LspRequestTimeouts.await(future, wrapper.requestTimeouts().formattingMs());
             if (edits == null || edits.isEmpty()) return text;
             // Applique les éditions en ordre inverse (offset décroissant).
             StringBuilder sb = new StringBuilder(text);

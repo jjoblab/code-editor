@@ -77,22 +77,7 @@ public class SquiggleTapOpensAnchoredPopupTest {
     }
 
     private static void injectMetrics(EditorView view, float lineHeight, float charWidth) {
-        try {
-            setFloat(view.metrics, "lineHeight", lineHeight);
-            setFloat(view.metrics, "charWidth", charWidth);
-            setFloat(view.metrics, "padTop", lineHeight * 0.5f);
-            setFloat(view.metrics, "padLeft", charWidth * 0.5f);
-            setFloat(view.metrics, "gutterWidth", charWidth * 7f);
-            setFloat(view.metrics, "foldStripWidth", charWidth * 2f);
-        } catch (Exception e) {
-            throw new IllegalStateException(e);
-        }
-    }
-
-    private static void setFloat(Object target, String field, float value) throws Exception {
-        Field f = target.getClass().getDeclaredField(field);
-        f.setAccessible(true);
-        f.setFloat(target, value);
+        TestMetrics.injecter(view, lineHeight, charWidth);
     }
 
     private static void tap(EditorView view, float x, float y) {
@@ -152,7 +137,7 @@ public class SquiggleTapOpensAnchoredPopupTest {
         assertNotNull("les métriques du popup doivent exister quand il est visible", m);
         assertEquals("l'item détaillé est le diagnostic tapé",
                 view.squigglePopupItem, m.item);
-        float line2Top = view.docLineToY(2) - view.vOffset;
+        float line2Top = view.docLineToY(2) - view.scroll.vOffset;
         assertTrue("ancré AU-DESSUS de la ligne (bas du popup ≤ haut de la ligne + 0.5px)",
                 m.y + m.h <= line2Top + 0.5f);
         assertTrue("largeur positive", m.w > 0);

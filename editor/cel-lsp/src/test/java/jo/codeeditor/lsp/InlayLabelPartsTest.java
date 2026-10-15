@@ -128,11 +128,8 @@ class InlayLabelPartsTest {
 
         // Le tap exécute le Runnable → workspace/executeCommand (ASYNCHRONE).
         multi.command.run();
-        long fin = System.currentTimeMillis() + 5000;
-        while (server.executeCommandRequests < 1
-                && System.currentTimeMillis() < fin) {
-            Thread.sleep(20);
-        }
+        // A-06 : attente bornée de la requête executeCommand asynchrone.
+        jo.codeeditor.AttenteBornee.jusquA(5000, () -> server.executeCommandRequests >= 1);
         assertEquals(1, server.executeCommandRequests,
                 "exactement UNE requête executeCommand au tap");
         assertEquals("demo.expandHint", server.lastExecuteCommand,

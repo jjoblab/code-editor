@@ -63,7 +63,7 @@ Le plan priorisé (§6) : **2 chantiers P0** (identité des diagnostics ;
 remplacement du scan par ligne par une demande au caret — quick fixes et
 refactoring en tête, conformément aux douleurs déclarées), **4 chantiers
 P1**, **5 chantiers P2**. Tout est additif — l'API que CodeIDE consomme
-(`LspProject.createEditor` / `setEditorView` / `connect` / `shutdown`) reste
+(`LspProject.createEditor` / `setHost` / `connect` / `shutdown`) reste
 strictement compatible.
 
 ---
@@ -308,7 +308,7 @@ inoffensive mais source de confusion.)*
 ### 4.3 Le point CodeIDE (contrainte de compatibilité)
 
 CodeIDE consomme exactement : `LspProject(root).addServerDefinition(…)`,
-`createEditor("file://…")`, `setEditorView(vue)`, `vue.setCurrentFilePath`,
+`createEditor("file://…")`, `setHost(hôte)`, `vue.setCurrentFilePath`,
 `connect()/disconnect()`, `shutdown()` (`CoordonnateurLsp.kt`,
 `SessionLsp.kt`). Toute l'intelligence passe par l'UI de code-editor. Les
 propositions ci-dessous sont donc **additives** : nouvelles méthodes avec

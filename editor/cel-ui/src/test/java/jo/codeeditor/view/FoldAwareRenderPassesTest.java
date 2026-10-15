@@ -83,22 +83,7 @@ public class FoldAwareRenderPassesTest {
     }
 
     private static void injectMetrics(EditorView view, float lineHeight, float charWidth) {
-        try {
-            setFloat(view.metrics, "lineHeight", lineHeight);
-            setFloat(view.metrics, "charWidth", charWidth);
-            setFloat(view.metrics, "padTop", lineHeight * 0.5f);
-            setFloat(view.metrics, "padLeft", charWidth * 0.5f);
-            setFloat(view.metrics, "gutterWidth", charWidth * 7f);
-            setFloat(view.metrics, "foldStripWidth", charWidth * 2f);
-        } catch (Exception e) {
-            throw new IllegalStateException(e);
-        }
-    }
-
-    private static void setFloat(Object target, String field, float value) throws Exception {
-        Field f = target.getClass().getDeclaredField(field);
-        f.setAccessible(true);
-        f.setFloat(target, value);
+        TestMetrics.injecter(view, lineHeight, charWidth);
     }
 
     @Test
@@ -106,7 +91,7 @@ public class FoldAwareRenderPassesTest {
         EditorView view = newView();
 
         // Sanity : la ligne 95 est bien visible à l'écran (rangée ~14).
-        float y95 = view.docLineToY(95) - view.vOffset;
+        float y95 = view.docLineToY(95) - view.scroll.vOffset;
         assertTrue("la ligne 95 doit être à l'écran (y=" + y95 + ")",
                 y95 >= 0 && y95 < 1920);
 

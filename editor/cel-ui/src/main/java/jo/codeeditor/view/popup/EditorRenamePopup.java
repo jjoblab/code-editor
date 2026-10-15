@@ -75,7 +75,7 @@ public class EditorRenamePopup {
         // gutterBg serait trop pauvre). Titre « Rename \"x\" » ; hint
         // « Enter to rename 'x', Esc to cancel » (parité EditorOverlays.kt).
         EditorGlassCards.GlassCard card = EditorGlassCards.build(view, ctx,
-                "Rename \"" + renameText + "\"",
+                ctx.getString(jo.codeeditor.ui.R.string.cel_rename_title, renameText),
                 renameText,
                 "Enter to rename '" + renameText + "', Esc to cancel",
                 InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);

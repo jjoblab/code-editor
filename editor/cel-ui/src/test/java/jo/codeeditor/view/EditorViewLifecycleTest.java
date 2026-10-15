@@ -81,8 +81,8 @@ public class EditorViewLifecycleTest {
     public void setSession_resetsScroll() {
         EditorView view = createEditor();
         // Simule un scroll
-        view.vOffset = 100;
-        view.hOffset = 50;
+        view.scroll.vOffset = 100;
+        view.scroll.hOffset = 50;
         EditorSession session = new EditorSession(EditorDocument.of("test"));
         view.setSession(session);
         assertEquals(0f, view.getVOffset(), 0.01f);
@@ -141,13 +141,13 @@ public class EditorViewLifecycleTest {
         java.util.List<jo.codeeditor.find.Match> matches = new java.util.ArrayList<>();
         matches.add(new jo.codeeditor.find.Match(0, 5));
         view.setFindHighlights(matches, 0);
-        assertEquals(1, view.findHighlights.size());
-        assertEquals(0, view.findCurrentIndex);
+        assertEquals(1, view.find.highlights.size());
+        assertEquals(0, view.find.currentIndex);
 
         // Nettoie
         view.setFindHighlights(null, -1);
-        assertTrue(view.findHighlights.isEmpty());
-        assertEquals(-1, view.findCurrentIndex);
+        assertTrue(view.find.highlights.isEmpty());
+        assertEquals(-1, view.find.currentIndex);
     }
 
     @Test

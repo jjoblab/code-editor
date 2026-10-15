@@ -265,7 +265,7 @@ public class FoldIndexTest {
             // Un point au MILIEU de la ligne, en coordonnée écran
             // (vOffset = 0 ici).
             float screenY = contentY + view.metrics.getLineHeight() / 2f
-                    - view.metrics.getPadTop() + view.vOffset;
+                    - view.metrics.getPadTop() + view.scroll.vOffset;
             assertEquals("ligne visible " + line, line,
                     view.docLineForScreenY(screenY));
         }

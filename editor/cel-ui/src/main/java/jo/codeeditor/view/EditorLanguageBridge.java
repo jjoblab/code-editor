@@ -404,9 +404,9 @@ final class EditorLanguageBridge {
                             && view.metrics.getLineHeight() > 0) {
                         float lineH = view.metrics.getLineHeight();
                         int visibleFirst = (int) Math.floor(
-                                view.vOffset / lineH);
+                                view.scroll.vOffset / lineH);
                         int visibleLast = (int) Math.floor(
-                                (view.vOffset + view.getHeight()) / lineH);
+                                (view.scroll.vOffset + view.getHeight()) / lineH);
                         first = Math.max(0, visibleFirst - INLAY_VIEWPORT_MARGIN);
                         last = Math.min(doc.lineCount() - 1,
                                 visibleLast + INLAY_VIEWPORT_MARGIN);
@@ -671,6 +671,9 @@ final class EditorLanguageBridge {
                 kindCode == 14,   // LSP Keyword
                 item.isSnippet,
                 item.kindTag,
+                // L1/D-01 : champs étendus transportés jusqu'au client.
+                item.filterText, item.sortText,
+                item.replaceStart, item.replaceEnd,
                 item.postApplyAction));
         }
 

@@ -126,8 +126,8 @@ public class EditorImeBridge {
         float charWidth = view.metrics.getCharWidth();
         float lineHeight = view.metrics.getLineHeight();
         float textAreaLeft = view.metrics.getGutterWidth() + view.metrics.getPadLeft();
-        float caretX = textAreaLeft + col * charWidth - view.hOffset;
-        float caretY = view.metrics.getPadTop() + line * lineHeight - view.vOffset;
+        float caretX = textAreaLeft + col * charWidth - view.scroll.hOffset;
+        float caretY = view.metrics.getPadTop() + line * lineHeight - view.scroll.vOffset;
         android.graphics.Matrix matrix = new android.graphics.Matrix();
         if (view.getMatrix() != null) matrix.set(view.getMatrix());
         android.view.inputmethod.CursorAnchorInfo.Builder builder =
@@ -274,7 +274,7 @@ public class EditorImeBridge {
             if (s == null) return false;
             if (text == null || text.length() == 0) return true;
             String t = text.toString();
-            if (t.indexOf('\n') >= 0 && view.completionVisible) {
+            if (t.indexOf('\n') >= 0 && view.completion.visible) {
                 if (view.completionAccept()) return true;
             }
             if (t.length() == 1 && newCursorPosition == 1) {
@@ -416,7 +416,7 @@ public class EditorImeBridge {
         public boolean performEditorAction(int editorAction) {
             EditorSession s = session();
             if (s == null) return false;
-            if (view.completionVisible) {
+            if (view.completion.visible) {
                 if (view.completionAccept()) return true;
             }
             s.commitText("\n");

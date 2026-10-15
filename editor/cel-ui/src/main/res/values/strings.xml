@@ -65,4 +65,10 @@
     <string name="cel_find_replace_one">Replace</string>
     <string name="cel_find_replace_all">All</string>
     <string name="cel_find_count">%1$d/%2$d</string>
+    <string name="cel_find_count_truncated">%1$d/%2$d+</string>
+    <string name="cel_find_too_costly">expression trop coûteuse</string>
+
+    <!-- A-05 (audit 3.69.0) : derniers libellés en dur des popups -->
+    <string name="cel_goto_line_title">Go to line</string>
+    <string name="cel_rename_title">Rename \"%1$s\"</string>
 </resources>

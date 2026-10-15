@@ -14,7 +14,13 @@ android {
 
     buildTypes {
         release { isMinifyEnabled = false }
-        debug { isMinifyEnabled = false }
+        debug {
+            isMinifyEnabled = false
+            // A-06 (audit 3.69.0) : couverture en mode RAPPORT — les
+            // rapports Jacoco des tests unitaires sont générés pour la CI
+            // (téléversés, jamais bloquants : aucun seuil).
+            enableUnitTestCoverage = true
+        }
     }
 
     // Publie la variante release (requis pour que components["release"] de
@@ -45,9 +51,13 @@ android {
 dependencies {
     // LSP API depends on core (for StyledLine, etc.)
     api(project(":cel-core"))
+    // A-07 (audit 3.69.0) : annotations de nullité du contrat SPI —
+    // compileOnly (rétention CLASS, invisibles au runtime, absentes du
+    // POM consommateur).
+    compileOnly(libs.androidx.annotation)
 
-    testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    testImplementation(libs.junit.jupiter)
+    testRuntimeOnly(libs.junit.platform.launcher)
 }
 
 tasks.withType<JavaCompile>().configureEach {
@@ -75,6 +85,17 @@ afterEvaluate {
                 groupId = project.group.toString()
                 artifactId = "cel-lsp-api"
                 version = project.version.toString()
+                // Licence du projet (migration Apache 2.0) : consignée dans le
+                // POM pour que les consommateurs la voient d'un coup d'œil
+                // (affichage Gradle, scans de conformité).
+                pom {
+                    licenses {
+                        license {
+                            name = "Apache-2.0"
+                            url = "https://www.apache.org/licenses/LICENSE-2.0.txt"
+                        }
+                    }
+                }
             }
         }
         // Dépôt GitHub Packages — activé par les propriétés gpr.user /

@@ -26,7 +26,7 @@ import static org.junit.Assert.*;
  * bonne abscisse. Bon X, mauvais Y.</p>
  *
  * <p>Cause identifiée : {@code EditorHitMapper.caretScreenPos} calcule
- * {@code y = view.docLineToY(line) - view.vOffset} où {@code line} est
+ * {@code y = view.docLineToY(line) - view.scroll.vOffset} où {@code line} est
  * la ligne de FIN du pli (puisque {@code offsetAt} retourne un offset
  * sur endLine pour la zone chip/suffixe). Et {@code docLineToY} d'une
  * ligne masquée retourne la rangée visuelle qui suit le pli.</p>
@@ -143,8 +143,8 @@ public class FoldedCaretPositionTest {
         // Y attendu : celui de la ligne de DÉBUT du pli (ligne 6), pas
         // celui de la ligne de fin (16, masquée).
         int foldStartLine = d.lineForOffset(fold.start);
-        float expectedY = view.docLineToY(foldStartLine) - view.vOffset;
-        float wrongY = view.docLineToY(d.lineForOffset(fold.end)) - view.vOffset;
+        float expectedY = view.docLineToY(foldStartLine) - view.scroll.vOffset;
+        float wrongY = view.docLineToY(d.lineForOffset(fold.end)) - view.scroll.vOffset;
 
         // Sanity : la ligne de début et la ligne de fin ne sont PAS à la
         // même rangée Y. La ligne de fin est masquée → docLineToY(ligne 16)
@@ -181,7 +181,7 @@ public class FoldedCaretPositionTest {
         float y = pos[1];
 
         int foldStartLine = d.lineForOffset(fold.start);
-        float expectedY = view.docLineToY(foldStartLine) - view.vOffset;
+        float expectedY = view.docLineToY(foldStartLine) - view.scroll.vOffset;
 
         assertEquals("Le caret dans le suffixe du pli doit avoir le Y de"
                 + " la ligne de début du pli, pas celui de la ligne de"
@@ -212,7 +212,7 @@ public class FoldedCaretPositionTest {
         float textAreaLeft = view.metrics.getGutterWidth() + view.metrics.getPadLeft();
         float expectedX = textAreaLeft
                 + (prefixEnd + fold.placeholder.length()) * CHAR_W
-                - view.hOffset;
+                - view.scroll.hOffset;
 
         assertEquals("Le X du caret après la chip doit être à la fin de"
                 + " la chip (prefixEnd + placeholder.length())",

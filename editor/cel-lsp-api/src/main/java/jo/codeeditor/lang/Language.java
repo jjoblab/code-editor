@@ -20,7 +20,7 @@ import jo.codeeditor.lang.provider.ViewZoneProvider;
 
 /**
  * Point d'entrée du SPI de langage (Service Provider Interface). Une instance
- * de {@code Language} est branchée sur un {@link jo.codeeditor.view.EditorView}
+ * de {@code Language} est branchée sur l'éditeur ({@code EditorView})
  * via {@code setLanguage(Language)} et fournit à l'éditeur l'ensemble des
  * fonctionnalités d'intelligence de langage : coloration syntaxique,
  * complétion, hover, aide de signature, diagnostics, actions de code, etc.

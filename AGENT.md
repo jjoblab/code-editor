@@ -15,8 +15,8 @@ n'est possible sans SDK, pas même les tests « purs Java ») :
 | Module | Rôle | Dépend de |
 |---|---|---|
 | `editor/cel-core` | moteur : rope, session, undo, styling, plis, wrap, complétion | — |
-| `editor/cel-lsp-api` | SPI langage (providers, modèles de données) | — |
-| `editor/cel-lsp` | client LSP4J | `cel-core`, `cel-lsp-api` |
+| `editor/cel-lsp-api` | SPI langage (providers, modèles de données) | `cel-core` (api) |
+| `editor/cel-lsp` | client LSP4J | `cel-core`, `cel-lsp-api` (compileOnly) — programme contre `EditorHost` (`cel-lsp-api`), ne connaît plus la vue |
 | `editor/cel-ui` | vues Android (rendu, gestes, popups) | `cel-core`, `cel-lsp-api` |
 
 Toolchain vérifiée : **JDK 17+ avec `javac`** (un JRE headless fait échouer
@@ -50,8 +50,8 @@ export ANDROID_HOME=<sdk>          # + local.properties : sdk.dir=<sdk>
 ./gradlew publishToMavenLocal      # publication locale (~/.m2)
 ```
 
-Base de référence constatée (3.70.0) : **1 776 tests verts, lint bloquant
-vert** — toute régression est la vôtre. Le nombre annoncé est contrôlé en
+Base de référence constatée (3.71.0) : **1 897 tests verts, lint
+bloquant vert** — toute régression est la vôtre. Le nombre annoncé est contrôlé en
 CI (`scripts/check-doc-figures.sh`, échoue si l'écart dépasse 5 %).
 
 ## Conventions

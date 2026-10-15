@@ -53,6 +53,27 @@ public class LanguageServerWrapper {
     }
 
     /**
+     * Timeouts de requêtes pour ce serveur (L1-bis) : surcharge de la
+     * définition si posée, sinon instance aux valeurs par défaut (les
+     * délais historiques des providers).
+     */
+    LspRequestTimeouts requestTimeouts() {
+        LspRequestTimeouts t = definition.getTimeouts();
+        return t != null ? t : DEFAULT_TIMEOUTS;
+    }
+
+    /**
+     * La définition de ce serveur — D-03 : consultation de la porte
+     * {@code disabledFeatures} AVANT l'installation des providers.
+     */
+    LanguageServerDefinition definition() {
+        return definition;
+    }
+
+    /** Timeouts par défaut (délais historiques des providers). */
+    private static final LspRequestTimeouts DEFAULT_TIMEOUTS = new LspRequestTimeouts();
+
+    /**
      * Démarre le serveur et effectue la poignée de main initialize LSP.
      * Retourne un futur complété quand le serveur est prêt.
      * <p>Envoie la notification {@code initialized} après la poignée de main
@@ -181,7 +202,44 @@ public class LanguageServerWrapper {
         if (definition.getInitializationOptions() != null) {
             params.setInitializationOptions(definition.getInitializationOptions());
         }
-        CompletableFuture<InitializeResult> initFuture = server.initialize(params);
+        CompletableFuture<org.eclipse.lsp4j.InitializeResult> initFuture = server.initialize(params);
+        // L1-bis : garde-fou sur la poignée de main — un serveur qui ne
+        // répond jamais à initialize ne suspend plus indéfinissement
+        // le démarrage (10 s par défaut, surchargeable par définition ;
+        // 0 = attente illimitée, comportement historique).
+        long initMs = requestTimeouts().initMs();
+        if (initMs > 0) {
+            // CompletableFuture.orTimeout n'existe qu'à partir de l'API
+            // 31 (min 24) : borne via un fil garde-fou démon qui
+            // complète exceptionnellement le futur relais si la poignée
+            // de main dépasse le délai. Le relais whenComplete propage
+            // le résultat réel dès qu'il arrive.
+            final CompletableFuture<org.eclipse.lsp4j.InitializeResult> relais =
+                    new CompletableFuture<>();
+            initFuture.whenComplete((result, erreur) -> {
+                if (erreur != null) relais.completeExceptionally(erreur);
+                else relais.complete(result);
+            });
+            Thread garde = new Thread("lsp-init-timeout") {
+                @Override
+                public void run() {
+                    try {
+                        Thread.sleep(initMs);
+                    } catch (InterruptedException e) {
+                        return; // la poignée de main a abouti — rien à faire
+                    }
+                    relais.completeExceptionally(new java.util.concurrent.TimeoutException(
+                            "initialize : pas de réponse du serveur en " + initMs + " ms"));
+                }
+            };
+            garde.setDaemon(true);
+            // Le fil meurt dès que la poignée de main aboutit (avant
+            // l'expiration) — pas de survie parasite après un démarrage
+            // réussi (doctrine : threads nommés, démons, bornés).
+            relais.whenComplete((r, e) -> garde.interrupt());
+            garde.start();
+            initFuture = relais;
+        }
         return initFuture.thenAccept(result -> {
             capabilities = result.getCapabilities();
             initialized = true;
@@ -194,7 +252,7 @@ public class LanguageServerWrapper {
             } catch (Exception e) {
                 // Certains serveurs n'en ont peut-être pas besoin — journaliser
                 // sans échouer.
-                android.util.Log.w("LspWrapper", "initialized notification failed: " + e.getMessage());
+                jo.codeeditor.util.EditorLog.warn("LspWrapper", "initialized notification failed: " + e.getMessage());
             }
         }).exceptionally(throwable -> {
             initialized = false;

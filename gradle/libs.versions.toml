@@ -1,0 +1,46 @@
+# Catalogue de versions centralisé (A-03, audit 3.69.0) — LA référence
+# unique des versions des dépendances externes des 4 modules. Le motif
+# « version en dur dans un build.gradle.kts » masquait le retard des
+# versions aux yeux de la CI (c'est l'origine des 9 entrées
+# NewerVersionAvailable + 9 GradleDependency de la lint-baseline).
+# Mise à jour : changer la version ICI, puis `./gradlew lint` — les
+# entrées NewerVersionAvailable disparaissent de la baseline quand le
+# retard est résorbé (retrait des entrées = cliquet, jamais
+# régénération pour masquer).
+
+[versions]
+androidxAnnotation = "1.11.0"
+androidxTestCore = "1.7.0"
+androidxTestExtJunit = "1.3.0"
+gson = "2.14.0"
+# 1.0.0 disponible mais refusé à dessein : rupture de contrat (WorkspaceEdit
+# porte List<Either<TextEdit, SnippetTextEdit>> et Hover simplifie sa somme) —
+# l'adoption exige d'implémenter les éditions SNIPPET dans l'application
+# d'édits (lot de fonctionnalité à part entière, tests délibérés requis).
+lsp4j = "0.22.0"
+junitJupiter = "6.1.3"
+junitVintage = "6.1.3"
+robolectric = "4.17"
+# 1.8.0 disponible mais retenue : l'exige compileSdk 35+, lui-même maintenu à
+# dessein en 34 (décision de toolchain du propriétaire — voir la baseline).
+appcompat = "1.7.0"
+# 1.14.0 disponible mais retenue : exige compileSdk 35+ (core-ktx 1.16 en
+# transitif) — même décision.
+material = "1.12.0"
+junit4 = "4.13.2"
+
+[libraries]
+androidx-annotation = { group = "androidx.annotation", name = "annotation", version.ref = "androidxAnnotation" }
+androidx-test-core = { group = "androidx.test", name = "core", version.ref = "androidxTestCore" }
+androidx-test-ext-junit = { group = "androidx.test.ext", name = "junit", version.ref = "androidxTestExtJunit" }
+gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
+lsp4j = { group = "org.eclipse.lsp4j", name = "org.eclipse.lsp4j", version.ref = "lsp4j" }
+lsp4j-jsonrpc = { group = "org.eclipse.lsp4j", name = "org.eclipse.lsp4j.jsonrpc", version.ref = "lsp4j" }
+junit-jupiter = { group = "org.junit.jupiter", name = "junit-jupiter", version.ref = "junitJupiter" }
+junit-platform-launcher = { group = "org.junit.platform", name = "junit-platform-launcher" }
+junit-vintage-engine = { group = "org.junit.vintage", name = "junit-vintage-engine", version.ref = "junitVintage" }
+robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
+# Dépendances propres à la démo (A-03 : le catalogue couvre l'ensemble du build)
+androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
+material = { group = "com.google.android.material", name = "material", version.ref = "material" }
+junit4 = { group = "junit", name = "junit", version.ref = "junit4" }

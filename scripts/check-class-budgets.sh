@@ -48,6 +48,25 @@ budget() {
 # Écart au ratchet : plafond LIGNES d'EditorView relevé de 3350 à 4100
 # par décision explicite du propriétaire (2026-10, session J2) — marge
 # pour les jalons du lot 2.
+# A-01 (audit 3.69.0) : le cliquet DESCEND — extraction de l'état
+# Parcelable (EditorSavedState) : 3840 → 3799 lignes mesurées, plafond
+# abaissé à 3810. Les relèvements futurs exigent la décision du
+# propriétaire ; chaque extraction doit accompagner son abaissement.
+# Plan 01, étape 2 (post-plan) : CompletionState extrait (popup de
+# complétion : liste, sélection, fenêtre de scroll, cache par token +
+# invariants possédés) — 3799 → 3779 lignes, 180 → 170 champs,
+# 276 → 274 méthodes publiques ; plafonds abaissés à 3790 lignes et
+# 180 champs (marge 11 lignes, style maison).
+# Plan 01, étape 3 (post-plan) : FindState extrait (surlignages de
+# recherche : occurrences + courante, invariant de bornes possédé) —
+# 3779 → 3777 lignes, 170 → 169 champs ; plafond abaissé à 3788 lignes
+# (marge 11) et 179 champs.
+# Plan 01, étape 5 (post-plan) : ScrollState extrait (vOffset/hOffset,
+# invariant [0, max] possédé, restauration bornée/brute) —
+# 3777 → 3775 lignes, 169 → 168 champs ; plafond abaissé à 3786 lignes
+# et 178 champs. (Étape 4 FoldViewState : constat vide — l'état de pli
+# était déjà intégralement déménagé vers cel-core/FoldRegions et
+# l'EditorFoldIndex lors des lots B14 : rien à extraire.)
 # Écart au ratchet : plafonds CHAMPS (170→190) et MÉTHODES PUBLIQUES
 # (255→280) d'EditorView relevés par décision explicite du propriétaire
 # (2026-10, session J3 — « Go pour J3, tu peux aussi augmenter le
@@ -56,8 +75,23 @@ budget() {
 # marge conservée pour J4 (T2 actions socle) ; les 4100 lignes restent
 # le plafond de décomposition — le relèvement ne dispense PAS de
 # décomposer via les collaborateurs existants.
-budget editor/cel-ui/src/main/java/jo/codeeditor/view/EditorView.java 4100 190 280
+budget editor/cel-ui/src/main/java/jo/codeeditor/view/EditorView.java 3786 178 280
 budget editor/cel-core/src/main/java/jo/codeeditor/session/EditorSession.java 1600 15 100
+
+# ── Règle de paquet (plan 03, §5) : le client LSP ne référence jamais
+# la vue. cel-lsp programme contre EditorHost (cel-lsp-api) ;
+# l'adaptateur de référence (LspEditorViewHost) vit côté cel-ui. La
+# dépendance cel-lsp → cel-ui est RETIRÉE : toute régression (import,
+# FQN, ou compileOnly) échoue le garde-fou.
+if grep -rn "jo\.codeeditor\.view" editor/cel-lsp/src/main editor/cel-lsp-api/src/main 2>/dev/null; then
+    echo "check-class-budgets: VIOLATION plan 03 — cel-lsp/cel-lsp-api référence la vue :" >&2
+    echo "  → programmez contre EditorHost (cel-lsp-api) ; l'adaptateur vit dans cel-ui." >&2
+    echec=1
+fi
+if grep -n 'compileOnly(project(":cel-ui"))' editor/cel-lsp/build.gradle.kts 2>/dev/null; then
+    echo "check-class-budgets: VIOLATION plan 03 — cel-lsp dépend à nouveau de cel-ui (compileOnly)." >&2
+    echec=1
+fi
 
 if [ "$echec" -ne 0 ]; then
     exit 1

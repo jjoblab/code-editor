@@ -78,22 +78,7 @@ public class SquiggleTapMultiDiagnosticTest {
     }
 
     private static void injectMetrics(EditorView view, float lineHeight, float charWidth) {
-        try {
-            setFloat(view.metrics, "lineHeight", lineHeight);
-            setFloat(view.metrics, "charWidth", charWidth);
-            setFloat(view.metrics, "padTop", lineHeight * 0.5f);
-            setFloat(view.metrics, "padLeft", charWidth * 0.5f);
-            setFloat(view.metrics, "gutterWidth", charWidth * 7f);
-            setFloat(view.metrics, "foldStripWidth", charWidth * 2f);
-        } catch (Exception e) {
-            throw new IllegalStateException(e);
-        }
-    }
-
-    private static void setFloat(Object target, String field, float value) throws Exception {
-        Field f = target.getClass().getDeclaredField(field);
-        f.setAccessible(true);
-        f.setFloat(target, value);
+        TestMetrics.injecter(view, lineHeight, charWidth);
     }
 
     private static void tap(EditorView view, float x, float y) {
@@ -138,7 +123,7 @@ public class SquiggleTapMultiDiagnosticTest {
         // — flip en dessous sinon), jamais par-dessus le texte de la ligne
         // elle-même. 3 rangées × 34dp ne tiennent pas au-dessus de la ligne
         // 2 (haut à y=100) → la mini-liste est basculée SOUS la ligne.
-        float line2Top = view.docLineToY(2) - view.vOffset;
+        float line2Top = view.docLineToY(2) - view.scroll.vOffset;
         boolean above = m.y + m.h <= line2Top + 0.5f;
         boolean below = m.y >= line2Top + view.metrics.getLineHeight() - 0.5f;
         assertTrue("ancrée au-dessus OU sous la ligne (flip), pas par-dessus",

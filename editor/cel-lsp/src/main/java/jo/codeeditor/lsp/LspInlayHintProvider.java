@@ -71,8 +71,8 @@ class LspInlayHintProvider implements InlayHintProvider {
         // Convertit (startLine, endLine) en plage LSP. Colonne 0 au
         // début et Integer.MAX_VALUE à la fin pour couvrir toute la
         // plage de lignes.
-        jo.codeeditor.document.EditorDocument doc = editor.getEditorView() != null
-            ? editor.getEditorView().getSession().getDocument() : null;
+        jo.codeeditor.document.EditorDocument doc = editor.getHost() != null
+            ? editor.getHost().document() : null;
         int safeStartLine = doc != null ? Math.max(0, Math.min(startLine, doc.lineCount() - 1)) : Math.max(0, startLine);
         int safeEndLine = doc != null ? Math.max(safeStartLine, Math.min(endLine, doc.lineCount() - 1)) : Math.max(safeStartLine, endLine);
         org.eclipse.lsp4j.Range range = new org.eclipse.lsp4j.Range(
@@ -83,7 +83,8 @@ class LspInlayHintProvider implements InlayHintProvider {
         try {
             CompletableFuture<List<org.eclipse.lsp4j.InlayHint>> future =
                 server.getTextDocumentService().inlayHint(params);
-            List<org.eclipse.lsp4j.InlayHint> hints = future.get(5, TimeUnit.SECONDS);
+            List<org.eclipse.lsp4j.InlayHint> hints =
+                    LspRequestTimeouts.await(future, wrapper.requestTimeouts().inlayHintsMs());
             if (hints == null || hints.isEmpty()) {
                 log("inlayHint: no results");
                 return Collections.emptyList();
@@ -220,8 +221,9 @@ class LspInlayHintProvider implements InlayHintProvider {
         }
         log("inlayHint/resolve: requesting tooltip for \"" + hint.text + "\"");
         try {
-            org.eclipse.lsp4j.InlayHint resolved = server.getTextDocumentService()
-                    .resolveInlayHint(original).get(3, TimeUnit.SECONDS);
+            org.eclipse.lsp4j.InlayHint resolved = LspRequestTimeouts.await(
+                    server.getTextDocumentService().resolveInlayHint(original),
+                    wrapper.requestTimeouts().inlayResolveMs());
             String tooltip = resolved != null ? tooltipText(resolved.getTooltip()) : null;
             if (tooltip == null || tooltip.isEmpty()) return hint;
             return new InlayHint(hint.offset, hint.text, hint.kind, tooltip);
@@ -264,7 +266,7 @@ class LspInlayHintProvider implements InlayHintProvider {
     }
 
     private void log(String message) {
-        android.util.Log.i("LspInlay", message);
+        jo.codeeditor.util.EditorLog.info("LspInlay", message);
         if (logSink != null) logSink.log(message);
     }
 }

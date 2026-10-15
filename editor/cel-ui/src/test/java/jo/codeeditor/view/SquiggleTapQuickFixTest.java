@@ -103,22 +103,7 @@ public class SquiggleTapQuickFixTest {
     }
 
     private static void injectMetrics(EditorView view, float lineHeight, float charWidth) {
-        try {
-            setFloat(view.metrics, "lineHeight", lineHeight);
-            setFloat(view.metrics, "charWidth", charWidth);
-            setFloat(view.metrics, "padTop", lineHeight * 0.5f);
-            setFloat(view.metrics, "padLeft", charWidth * 0.5f);
-            setFloat(view.metrics, "gutterWidth", charWidth * 7f);
-            setFloat(view.metrics, "foldStripWidth", charWidth * 2f);
-        } catch (Exception e) {
-            throw new IllegalStateException(e);
-        }
-    }
-
-    private static void setFloat(Object target, String field, float value) throws Exception {
-        Field f = target.getClass().getDeclaredField(field);
-        f.setAccessible(true);
-        f.setFloat(target, value);
+        TestMetrics.injecter(view, lineHeight, charWidth);
     }
 
     private static void tap(EditorView view, float x, float y) {
@@ -139,14 +124,9 @@ public class SquiggleTapQuickFixTest {
     }
 
     /** Attend la publication des quick-fixes (voie « features » async). */
-    private static boolean awaitActions(EditorView view, long timeoutMs)
-            throws InterruptedException {
-        long deadline = System.currentTimeMillis() + timeoutMs;
-        while (System.currentTimeMillis() < deadline) {
-            if (!view.codeActionsByLine.isEmpty()) return true;
-            Thread.sleep(20);
-        }
-        return !view.codeActionsByLine.isEmpty();
+    /** A-06 : attente bornée des quick-fixes résolus. */
+    private static boolean awaitActions(EditorView view, long timeoutMs) {
+        return jo.codeeditor.AttenteBornee.jusquA(timeoutMs, () -> !view.codeActionsByLine.isEmpty());
     }
 
     @Test

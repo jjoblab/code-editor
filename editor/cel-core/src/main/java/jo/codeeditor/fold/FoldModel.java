@@ -127,7 +127,23 @@ public class FoldModel {
         return new FoldModel(vlines, lineCount);
     }
 
-    private static List<FoldRegion> mergeRegions(List<FoldRegion> sorted) {
+    /**
+     * Fusionne les régions triées qui se chevauchent (union) —
+     * L'UNIQUE implémentation de la sémantique de fusion (M-02) :
+     * partagée par le modèle (cette classe) et l'index de plis de la
+     * vue ({@code EditorFoldIndex.FoldIndex}), dont la copie interne
+     * a été retirée. L'entrée DOIT être triée par début ; la
+     * placeholder/kind de la première région de chaque union est
+     * conservée.
+     *
+     * <p>Les bornes sont des INTERVALLES abstraits : offsets pour le
+     * modèle, numéros de ligne pour l'index de la vue — la fusion
+     * (union) est la même.</p>
+     *
+     * @param sorted régions triées par début
+     * @return régions fusionnées, sans chevauchement
+     */
+    public static List<FoldRegion> mergeRegions(List<FoldRegion> sorted) {
         if (sorted.isEmpty()) return Collections.emptyList();
         List<FoldRegion> result = new ArrayList<>();
         FoldRegion current = sorted.get(0);

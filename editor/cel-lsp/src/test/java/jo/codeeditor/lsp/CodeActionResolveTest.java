@@ -74,7 +74,7 @@ public class CodeActionResolveTest {
         session = new jo.codeeditor.session.EditorSession(
                 jo.codeeditor.document.EditorDocument.of(DOC));
         view.setSession(session);
-        editor.setEditorView(view);
+        editor.setHost(new jo.codeeditor.view.LspEditorViewHost(view));
     }
 
     @After
@@ -183,6 +183,6 @@ public class CodeActionResolveTest {
         session = new jo.codeeditor.session.EditorSession(
                 jo.codeeditor.document.EditorDocument.of(DOC));
         view.setSession(session);
-        editor.setEditorView(view);
+        editor.setHost(new jo.codeeditor.view.LspEditorViewHost(view));
     }
 }

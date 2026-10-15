@@ -69,22 +69,7 @@ public class EditorDiagnosticsInlaysTest {
 
     /** Injecte des métriques déterministes (les fontes legacy de Robolectric renvoient des zéros). */
     private static void injectMetrics(EditorView view, float lineHeight, float charWidth) {
-        try {
-            setFloat(view.metrics, "lineHeight", lineHeight);
-            setFloat(view.metrics, "charWidth", charWidth);
-            setFloat(view.metrics, "padTop", lineHeight * 0.5f);
-            setFloat(view.metrics, "padLeft", charWidth * 0.5f);
-            setFloat(view.metrics, "gutterWidth", charWidth * 7f);
-            setFloat(view.metrics, "foldStripWidth", charWidth * 2f);
-        } catch (Exception e) {
-            throw new IllegalStateException(e);
-        }
-    }
-
-    private static void setFloat(Object target, String field, float value) throws Exception {
-        Field f = target.getClass().getDeclaredField(field);
-        f.setAccessible(true);
-        f.setFloat(target, value);
+        jo.codeeditor.view.TestMetrics.injecter(view, lineHeight, charWidth);
     }
 
     // ── Inlay weaving : visual ↔ raw mapping ─────────────────────────

@@ -39,7 +39,8 @@ class LspDocumentHighlightProvider implements DocumentHighlightProvider {
             CompletableFuture<List<org.eclipse.lsp4j.DocumentHighlight>> future =
                 (CompletableFuture<List<org.eclipse.lsp4j.DocumentHighlight>>) (CompletableFuture<?>)
                 server.getTextDocumentService().documentHighlight(params);
-            List<org.eclipse.lsp4j.DocumentHighlight> result = future.get(10, TimeUnit.SECONDS);
+            List<org.eclipse.lsp4j.DocumentHighlight> result =
+                    LspRequestTimeouts.await(future, wrapper.requestTimeouts().documentHighlightMs());
             if (result == null || result.isEmpty()) {
                 log("documentHighlight: no results");
                 return Collections.emptyList();
@@ -60,7 +61,7 @@ class LspDocumentHighlightProvider implements DocumentHighlightProvider {
     }
 
     private void log(String message) {
-        android.util.Log.i("LspDocHighlight", message);
+        jo.codeeditor.util.EditorLog.info("LspDocHighlight", message);
         if (logSink != null) logSink.log(message);
     }
 }
