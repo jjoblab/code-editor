@@ -1,6 +1,6 @@
 # ADR-002 — Stratégie multi-langages : généraliser l'interne, embarquer la voie grammaires
 
-- **Statut** : proposé — décisions 🧑‍⚖️ ouvertes, à arbitrer par le propriétaire
+- **Statut** : accepté — arbitrée par le propriétaire le 2026-10-16, les cinq recommandations sont entérinées
 - **Date** : 2026-10-16
 - **Décideur** : propriétaire du dépôt
 
@@ -41,9 +41,13 @@ L'implémentation `TextMateTokenizer` (moteur de grammaires, mapping portées→
 
 Les catégories de portées standard des grammaires (mot-clé/contrôle/modificateur, chaîne/brute/caractère, commentaire/documentation, constante/numérique, entité, variable, support, namespace…) sont mappées sur les clés `syntax.*` existantes et les types fins déjà présents dans `TokenType` (`DOC_COMMENT`, `KEYWORD_CONTROL`, `NAMESPACE`, `RAW_STRING`… — tous déjà héritants, prêts à être colorés). Critère : **un thème colore un langage nouveau sans clé par langage** ; les deux voies (intégrée et grammaires) convergent vers le même schéma.
 
-## Décisions ouvertes 🧑‍⚖️
+## Décisions arbitrées 🧑‍⚖️ (propriétaire, 2026-10-16)
 
-| # | Décision | Options | Recommandation |
+Les cinq décisions sont tranchées dans le sens des recommandations —
+la colonne « Décision » fait foi. D4 fixe l'ordre d'exécution : **C1→C3→C2**
+(sur la branche dédiée `agent/multi-lang-3.71.0`).
+
+| # | Décision | Options | Décision |
 |---|---|---|---|
 | D1 | Où vit le moteur de grammaires ? | (a) dans ce dépôt, module optionnel ; (b) fourni par l'hôte (statu quo documenté) | **(a)** — sinon la qualité de coloration reste inégale selon l'hôte, et le dépôt ne peut pas livrer de langages nouveaux « grammaire-only » |
 | D2 | Ampleur du schéma de portées thèmes | (a) 16 catégories actuelles ; (b) palette étendue (~25) exploitant les types fins existants | **(b)** — les types existent déjà, seules les entrées de palette manquent |

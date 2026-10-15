@@ -53,6 +53,7 @@ Les sections antérieures à la période courante sont archivées dans
 
 ### Changed (post-plan — décisions du propriétaire)
 
+- **ADR-002 « stratégie multi-langages » acceptée** — le propriétaire arbitre les cinq décisions ouvertes dans le sens des recommandations : moteur de grammaires embarqué comme module optionnel `:cel-textmate` dépendant de `cel-core` seul (D1-a) ; palette de portées thèmes étendue (~25 clés sur les types fins existants, D2-b) ; grammaires embarquées sous réserve de vérification de licence fichier par fichier, attributions dans `NOTICE` (D3) ; ordre d'exécution **C1→C3→C2** (D4) ; mots-clés de complétion portés par la même table déclarative que la coloration (D5). L'exécution démarre sur la branche dédiée `agent/multi-lang-3.71.0`, critères d'acceptation (i)–(iv) de l'ADR en garde.
 - **Licence du projet : MIT → Apache 2.0** — `LICENSE` porte désormais le texte canonique Apache License 2.0 ; la mention de copyright du projet (2024-2026, code-editor-lib contributors) vit dans `NOTICE`, qui documente en sus le régime des œuvres combinées avec l'EPL-2.0 de la dépendance LSP embarquée par `cel-lsp` ; les POM des quatre modules publiés consignent la licence (`Apache-2.0`) pour les consommateurs et les scans de conformité ; le README est aligné.
 
 ### Changed (plan 01 — décomposition d'EditorView, étapes 2, 3 et 5)
