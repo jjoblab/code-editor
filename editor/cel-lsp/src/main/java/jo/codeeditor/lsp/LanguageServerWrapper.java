@@ -62,6 +62,14 @@ public class LanguageServerWrapper {
         return t != null ? t : DEFAULT_TIMEOUTS;
     }
 
+    /**
+     * La définition de ce serveur — D-03 : consultation de la porte
+     * {@code disabledFeatures} AVANT l'installation des providers.
+     */
+    LanguageServerDefinition definition() {
+        return definition;
+    }
+
     /** Timeouts par défaut (délais historiques des providers). */
     private static final LspRequestTimeouts DEFAULT_TIMEOUTS = new LspRequestTimeouts();
 

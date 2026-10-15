@@ -60,6 +60,21 @@ public class LspLanguage implements Language {
         logCapabilities();
     }
 
+    /**
+     * D-03 — porte des fonctionnalités désactivées : évaluée AVANT
+     * l'installation du provider (le getter retourne null, aucune
+     * requête n'atteint jamais le serveur pour cette fonctionnalité).
+     * Historiquement, {@code setDisabledFeatures} était une API sans
+     * effet — aucun provider, aucun puller, aucun client ne consultait
+     * l'ensemble.
+     */
+    private boolean featureDésactivée(LspFeature feature) {
+        LanguageServerDefinition def = wrapper.definition();
+        if (def == null) return false;
+        java.util.Set<LspFeature> désactivées = def.getDisabledFeatures();
+        return désactivées != null && désactivées.contains(feature);
+    }
+
     /** Journalise les capacités du serveur à des fins de diagnostic. */
     private void logCapabilities() {
         org.eclipse.lsp4j.ServerCapabilities caps = wrapper.getCapabilities();
@@ -98,6 +113,7 @@ public class LspLanguage implements Language {
 
     @Override
     public CompletionProvider getCompletionProvider() {
+        if (featureDésactivée(LspFeature.COMPLETION)) return null;
         if (wrapper.getCapabilities() == null) return null;
         // CompletionProvider est un Either<Boolean, CompletionOptions> —
         // non-null signifie pris en charge.
@@ -107,6 +123,7 @@ public class LspLanguage implements Language {
 
     @Override
     public HoverProvider getHoverProvider() {
+        if (featureDésactivée(LspFeature.HOVER)) return null;
         if (wrapper.getCapabilities() == null) return null;
         // HoverProvider est un Either<Boolean, HoverOptions> — non-null
         // signifie pris en charge.
@@ -116,6 +133,7 @@ public class LspLanguage implements Language {
 
     @Override
     public SignatureHelpProvider getSignatureHelpProvider() {
+        if (featureDésactivée(LspFeature.SIGNATURE_HELP)) return null;
         if (wrapper.getCapabilities() == null) return null;
         return wrapper.getCapabilities().getSignatureHelpProvider() != null
             ? signatureHelpProvider : null;
@@ -123,6 +141,7 @@ public class LspLanguage implements Language {
 
     @Override
     public SymbolProvider getSymbolProvider() {
+        if (featureDésactivée(LspFeature.DOCUMENT_SYMBOL)) return null;
         if (wrapper.getCapabilities() == null) return null;
         // DocumentSymbolProvider est un Either<Boolean, ...> — non-null
         // signifie pris en charge.
@@ -132,6 +151,7 @@ public class LspLanguage implements Language {
 
     @Override
     public DiagnosticsProvider getDiagnosticsProvider() {
+        if (featureDésactivée(LspFeature.DIAGNOSTICS)) return null;
         // Les diagnostics sont poussés par le serveur, pas tirés — mais un
         // provider est exposé pour que l'éditeur puisse interroger l'état
         // courant.
@@ -142,6 +162,7 @@ public class LspLanguage implements Language {
 
     @Override
     public DefinitionProvider getDefinitionProvider() {
+        if (featureDésactivée(LspFeature.DEFINITION)) return null;
         if (wrapper.getCapabilities() == null) return null;
         return wrapper.getCapabilities().getDefinitionProvider() != null
             ? new LspDefinitionProvider(wrapper, editor, logSink) : null;
@@ -154,6 +175,7 @@ public class LspLanguage implements Language {
      */
     @Override
     public TypeDefinitionProvider getTypeDefinitionProvider() {
+        if (featureDésactivée(LspFeature.TYPE_DEFINITION)) return null;
         if (wrapper.getCapabilities() == null) return null;
         return wrapper.getCapabilities().getTypeDefinitionProvider() != null
             ? new LspTypeDefinitionProvider(wrapper, editor, logSink) : null;
@@ -167,6 +189,7 @@ public class LspLanguage implements Language {
      */
     @Override
     public ImplementationsProvider getImplementationsProvider() {
+        if (featureDésactivée(LspFeature.IMPLEMENTATIONS)) return null;
         if (wrapper.getCapabilities() == null) return null;
         return wrapper.getCapabilities().getImplementationProvider() != null
             ? new LspImplementationsProvider(wrapper, editor, logSink) : null;
@@ -181,6 +204,7 @@ public class LspLanguage implements Language {
      */
     @Override
     public SuperDefinitionProvider getSuperDefinitionProvider() {
+        if (featureDésactivée(LspFeature.SUPER_DEFINITION)) return null;
         if (wrapper.getCapabilities() == null) return null;
         return superDefinitionSupported(wrapper.getCapabilities())
             ? new LspSuperDefinitionProvider(wrapper, editor, logSink) : null;
@@ -220,6 +244,7 @@ public class LspLanguage implements Language {
      */
     @Override
     public ReferencesProvider getReferencesProvider() {
+        if (featureDésactivée(LspFeature.REFERENCES)) return null;
         if (wrapper.getCapabilities() == null) return null;
         return wrapper.getCapabilities().getReferencesProvider() != null
             ? new LspReferencesProvider(wrapper, editor, logSink) : null;
@@ -227,6 +252,7 @@ public class LspLanguage implements Language {
 
     @Override
     public RenameProvider getRenameProvider() {
+        if (featureDésactivée(LspFeature.RENAME)) return null;
         if (wrapper.getCapabilities() == null) return null;
         return wrapper.getCapabilities().getRenameProvider() != null
             ? new LspRenameProvider(wrapper, editor, logSink) : null;
@@ -234,6 +260,7 @@ public class LspLanguage implements Language {
 
     @Override
     public CodeActionsProvider getCodeActionsProvider() {
+        if (featureDésactivée(LspFeature.CODE_ACTION)) return null;
         if (wrapper.getCapabilities() == null) return null;
         return wrapper.getCapabilities().getCodeActionProvider() != null
             ? new LspCodeActionsProvider(wrapper, editor, logSink) : null;
@@ -241,6 +268,7 @@ public class LspLanguage implements Language {
 
     @Override
     public DocumentHighlightProvider getDocumentHighlightProvider() {
+        if (featureDésactivée(LspFeature.DOCUMENT_HIGHLIGHT)) return null;
         if (wrapper.getCapabilities() == null) return null;
         return wrapper.getCapabilities().getDocumentHighlightProvider() != null
             ? new LspDocumentHighlightProvider(wrapper, editor, logSink) : null;
@@ -248,6 +276,7 @@ public class LspLanguage implements Language {
 
     @Override
     public Formatter getFormatter() {
+        if (featureDésactivée(LspFeature.FORMATTING)) return null;
         if (wrapper.getCapabilities() == null) return null;
         return wrapper.getCapabilities().getDocumentFormattingProvider() != null
             ? new LspFormatter(wrapper, editor, logSink) : null;
@@ -260,6 +289,7 @@ public class LspLanguage implements Language {
      */
     @Override
     public InlayHintProvider getInlayHintProvider() {
+        if (featureDésactivée(LspFeature.INLAY_HINT)) return null;
         if (wrapper.getCapabilities() == null) return null;
         return wrapper.getCapabilities().getInlayHintProvider() != null
             ? new LspInlayHintProvider(wrapper, editor, logSink) : null;
