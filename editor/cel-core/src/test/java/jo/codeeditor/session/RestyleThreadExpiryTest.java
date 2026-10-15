@@ -33,6 +33,10 @@ class RestyleThreadExpiryTest {
     @Test
     void deuxCentsSessionsSansDispose_threadsExpirésSousBorneConstante()
             throws Exception {
+        // Les autres classes de test (même JVM) laissent des sessions
+        // non disposées dont le thread vit encore < 30 s : soustraire
+        // la BASELINE pour ne mesurer que l'expiration de NOS sessions.
+        int baseline = compterThreadsRestyle();
         java.util.List<EditorSession> sessions = new java.util.ArrayList<>();
         try {
             for (int i = 0; i < 200; i++) {
@@ -51,12 +55,12 @@ class RestyleThreadExpiryTest {
             }
             // Laisser expirer les threads inactifs (50 ms × marge).
             Thread.sleep(500);
-            int vivants = compterThreadsRestyle();
+            int vivants = compterThreadsRestyle() - baseline;
             // Acceptation : sous une borne CONSTANTE (quelques
             // retardataires au plus), pas 200.
             assertTrue(vivants <= 4,
-                    "threads EditorSession-restyle vivants après expiration : "
-                            + vivants + " (attendu ≤ 4, fuite si ≈ 200)");
+                    "threads EditorSession-restyle de NOS sessions vivants après "
+                            + "expiration : " + vivants + " (attendu ≤ 4, fuite si ≈ 200)");
         } finally {
             for (EditorSession s : sessions) {
                 s.dispose();
