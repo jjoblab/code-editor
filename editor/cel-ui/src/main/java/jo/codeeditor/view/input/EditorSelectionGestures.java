@@ -660,7 +660,13 @@ public class EditorSelectionGestures {
         // showQuickDocRaw à l'arrivée).
         final int fOffset = hint.offset;
         final String fText = hint.text;
-        final String docText = view.session.getText();
+        // P-06 (audit 3.69.0) : vue de ROPE immuable — l'ancien chemin
+        // matérialisait le document ENTIER (getText) sur le thread UI
+        // juste pour la résolution différée. La rope d'une révision est
+        // un instantané cohérent pour toujours (les éditions substituent
+        // la rope, jamais elles ne la mutent) : le thread « features »
+        // peut la lire telle quelle, zéro copie.
+        final CharSequence docText = view.session.getDocument().charSequence();
         jo.codeeditor.view.EditorTaskLanes.submitFeature(() -> {
             String tooltip = null;
             try {
