@@ -49,7 +49,7 @@ maven { url = uri("https://jitpack.io") }
 
 // app/build.gradle.kts
 dependencies {
-    implementation("com.github.jjoblab:cel-ui:v3.71.0")
+    implementation("com.github.jjoblab.code-editor:cel-ui:v3.71.0")
 }
 ```
 

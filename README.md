@@ -79,8 +79,8 @@ maven { url = uri("https://jitpack.io") }
 
 ```kotlin
 dependencies {
-    implementation("com.github.jjoblab:cel-ui:v3.71.0")
-    implementation("com.github.jjoblab:cel-lsp:v3.71.0") // optionnel
+    implementation("com.github.jjoblab.code-editor:cel-ui:v3.71.0")
+    implementation("com.github.jjoblab.code-editor:cel-lsp:v3.71.0") // optionnel
 }
 ```
 

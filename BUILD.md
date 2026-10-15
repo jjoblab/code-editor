@@ -169,7 +169,7 @@ avec un jeton `read:packages` — voir la section Installation du
 ### JitPack (alternative de secours)
 
 JitPack construit la bibliothèque à la demande depuis un tag Git
-(`com.github.jjoblab:<module>:<tag>`) ; le fichier `jitpack.yml` épingle le
+(`com.github.jjoblab.code-editor:<module>:<tag>`) ; le fichier `jitpack.yml` épingle le
 JDK 17 côté JitPack. Poussez simplement un tag `v*` :
 
 ```bash
