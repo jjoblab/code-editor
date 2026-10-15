@@ -5,6 +5,29 @@ All notable changes to **code-editor-lib** are documented in this file.
 Le format suit la convention [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.71.0] — non publié — Exécution du plan d'audit 3.69.0 (lots L1→L10)
+
+### Added
+
+- **Complétion : snippets, `textEdit`, `filterText`, `sortText` (D-01)** — `CompletionItem` (SPI) transporte le format snippet, la plage de remplacement (sémantique *remplacement*, normalisée), les champs de filtrage et de tri ; `SnippetSession` est CÂBLÉE : expansion à l'acceptation (texte apuré, aucun marqueur `$` résiduel), navigation Tab/Shift+Tab en ordre LSP ($1 → $2 → $0), miroirs synchronisés, `OnSnippetEditListener` enfin déclenché ; la plage `textEdit` du serveur est appliquée exactement (correctif des « console.console.log »).
+- **Timeouts LSP par requête (L1-bis)** — `LspRequestTimeouts`, surchargeables par définition de serveur ; garde-fou sur la poignée de main `initialize` (10 s) via fil démon interrompu à la complétion.
+- **États de recherche sûre (D-05)** — `FindReplace.SearchResult` (`truncated` / `tooCostly`), budget temps 250 ms, plafond 10 000 correspondances ; `EditorSearchController.isTooCostly()` / `isTruncated()` ; la barre affiche « expression trop coûteuse » et « N/10000+ ».
+
+### Fixed
+
+- **Fuite de thread par session (D-02)** — le thread `EditorSession-restyle` expire après 30 s d'inactivité (`allowCoreThreadTimeOut`) : la fuite à vie quand l'hôte oublie `dispose()` est impossible ; Javadoc de `dispose()` corrigée (l'`EditorView` NE l'appelle pas pour vous — la libération est à la charge de l'hôte).
+- **Recherche regex sûre (D-05)** — une regex catastrophique (`(a+)+b` sur texte adverse) figeait le THREAD UI (ANR) : la vue garde-fou interrompt le backtracking au budget ; les passes de remplacement avortent proprement (document jamais muté à moitié) ; construction du `Pattern` centralisée (duplication supprimée).
+- **Ordre de navigation des snippets** — `SnippetSession` visitait $2 avant $1 (tri décroissant, invisible tant que la classe n'était pas câblée) : ordre LSP correct.
+
+### Changed
+
+- **`LspFeature` honoré (D-03)** — `setDisabledFeatures` a désormais un effet : la porte est évaluée AVANT l'installation des providers (aucune requête n'atteint le serveur pour une fonctionnalité désactivée) ; trois valeurs couvrant la famille GO TO (`TYPE_DEFINITION`, `IMPLEMENTATIONS`, `SUPER_DEFINITION`).
+- **`EditOps.tryPostfix` (D-04)** — le résultat de complétion postfix est un objet immuable retourné PAR APPEL (l'ancien champ statique partagé — source d'insertion erronée entre sessions concurrentes — est retiré).
+
+### Deprecated
+
+- `EditOps.tryPostfixCompletion` / `EditOps.getPostfixInsertText` (D-04) : la paire reposait sur un état global ; `getPostfixInsertText` est inerte (null). Retrait au palier suivant.
+
 ## [3.70.0] — 2026-10-15 — Correctif complétion XML : la porte de contexte respecte la famille XML
 
 Retour utilisateur CodeIDE : « le LSP XML ne propose plus de complétion ».
