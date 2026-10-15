@@ -38,6 +38,10 @@ public class EditorAssistPopupPainter {
     // Objets de travail réutilisables — évite les allocations par frame.
     // Usage mono-thread (uniquement depuis onDraw sur le thread UI).
     private final Path scratchPath = new Path();
+    // P-05 (audit 3.69.0) : RectF de travail réutilisé — chaque popup,
+    // culot et badge allouait un RectF par draw. Usage mono-thread (onDraw,
+    // thread UI) ; chaque site fait set → draws immédiats séquentiels.
+    private final RectF scratchRect = new RectF();
 
     /** Rayons par coin du popup de complétion (réutilisé chaque frame). */
     private final float[] completionCornerRadii = new float[8];
@@ -164,7 +168,8 @@ public class EditorAssistPopupPainter {
         }
 
         // Fond + bordure
-        RectF rect = new RectF(anchorX, anchorY, anchorX + width, anchorY + popupH);
+        RectF rect = scratchRect;
+        rect.set(anchorX, anchorY, anchorX + width, anchorY + popupH);
         view.bgPaint.setColor(view.theme.glassBg);
         canvas.drawRoundRect(rect, radius, radius, view.bgPaint);
         view.caretPaint.setStyle(Paint.Style.STROKE);
@@ -434,7 +439,8 @@ public class EditorAssistPopupPainter {
         List<DocRow> rows = buildQuickDocRows(popupW - 2 * padX, view.textPaint);
 
         // Fond + bordure
-        RectF rect = new RectF(anchorX, anchorY, anchorX + popupW, anchorY + popupH);
+        RectF rect = scratchRect;
+        rect.set(anchorX, anchorY, anchorX + popupW, anchorY + popupH);
         view.bgPaint.setColor(view.theme.glassBg);
         canvas.drawRoundRect(rect, radius, radius, view.bgPaint);
         view.caretPaint.setStyle(Paint.Style.STROKE);
@@ -600,8 +606,8 @@ public class EditorAssistPopupPainter {
             // Culot : petit rectangle arrondi sous l'ampoule.
             float socketW = bulbR * 0.8f;
             float socketH = bulbR * 0.5f;
-            android.graphics.RectF socket = new android.graphics.RectF(
-                bulbX - socketW * 0.5f, cy + bulbR * 0.6f,
+            android.graphics.RectF socket = scratchRect;
+            socket.set(bulbX - socketW * 0.5f, cy + bulbR * 0.6f,
                 bulbX + socketW * 0.5f, cy + bulbR * 0.6f + socketH);
             view.selPaint.setColor(android.graphics.Color.rgb(120, 90, 0));
             canvas.drawRoundRect(socket, bulbR * 0.15f, bulbR * 0.15f, view.selPaint);
@@ -639,7 +645,8 @@ public class EditorAssistPopupPainter {
         if (anchorY + popupH > view.getHeight()) {
             anchorY = Math.max(0, anchorY - popupH + lineHeight);
         }
-        RectF rect = new RectF(anchorX, anchorY, anchorX + width, anchorY + popupH);
+        RectF rect = scratchRect;
+        rect.set(anchorX, anchorY, anchorX + width, anchorY + popupH);
         view.bgPaint.setColor(view.theme.glassBg);
         canvas.drawRoundRect(rect, radius, radius, view.bgPaint);
         view.caretPaint.setStyle(Paint.Style.STROKE);
@@ -688,7 +695,8 @@ public class EditorAssistPopupPainter {
         // Centré en haut.
         float anchorX = (view.getWidth() - width) * 0.5f;
         float anchorY = 8 * density;
-        RectF rect = new RectF(anchorX, anchorY, anchorX + width, anchorY + popupH);
+        RectF rect = scratchRect;
+        rect.set(anchorX, anchorY, anchorX + width, anchorY + popupH);
         view.bgPaint.setColor(view.theme.glassBg);
         canvas.drawRoundRect(rect, radius, radius, view.bgPaint);
         view.caretPaint.setStyle(Paint.Style.STROKE);
@@ -772,7 +780,8 @@ public class EditorAssistPopupPainter {
         // Fond + bordure — coins TOP-LEFT/TOP-RIGHT arrondis uniquement
         // (le haut du popup « s'attache » à la ligne du curseur, motif
         // bottom-docked de la diagnostic sheet inversé).
-        RectF rect = new RectF(anchorX, anchorY, anchorX + width, anchorY + popupH);
+        RectF rect = scratchRect;
+        rect.set(anchorX, anchorY, anchorX + width, anchorY + popupH);
         float[] radii = completionCornerRadii;
         radii[0] = radius; radii[1] = radius;   // haut-gauche
         radii[2] = radius; radii[3] = radius;   // haut-droite
@@ -843,7 +852,8 @@ public class EditorAssistPopupPainter {
         float badgeSize = rowH - 10 * density;   // rangée 28 dp → badge 18 dp
         float badgeLeft = anchorX + padX;
         float badgeTop = y + (rowH - badgeSize) * 0.5f;
-        RectF badgeRect = new RectF(badgeLeft, badgeTop, badgeLeft + badgeSize,
+        RectF badgeRect = scratchRect;
+        badgeRect.set(badgeLeft, badgeTop, badgeLeft + badgeSize,
                 badgeTop + badgeSize);
 
         // Fond : teinte du kind à 20 % d'alpha.
