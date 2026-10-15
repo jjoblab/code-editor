@@ -160,13 +160,15 @@ editorView.setTheme(EditorTheme.dark());
 ### Extensibilité
 
 ```java
-// 1. Enregistrer son propre langage — coloration + commentaires pris en
-//    charge immédiatement (registre observable) :
+// 1. Enregistrer son propre langage — coloration + commentaires + saut
+//    de ligne intelligents pris en charge immédiatement (registre
+//    observable) :
 LanguageRegistry.register(LanguageProfile.builder("mylang")
         .family(SyntaxFamily.C_LIKE)
         .alias("ml").extension("ml")
         .keywords("if", "else", "repeat", "until")
         .commentSyntax(new CommentSyntax("#", null, null))
+        .newlineTrigger(NewlineTrigger.onSuffix(":")) // +1 après « clé: »
         .build());
 session.setLanguage("mylang");
 

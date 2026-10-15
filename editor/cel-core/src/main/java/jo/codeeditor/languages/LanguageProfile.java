@@ -24,7 +24,11 @@ import java.util.function.Predicate;
  * {@code toggleBlockComment}), ses <b>traits d'édition</b> (Lot 2) —
  * caractères à auto-fermer, stratégie de pliage — et, depuis S5 (lot
  * 2, J6), sa <b>détection de lignes sticky</b> : chaque langue décide
- * seule de ses en-têtes de bloc via {@link #isBlockHeaderLine}.</p>
+ * seule de ses en-têtes de bloc via {@link #isBlockHeaderLine}. Depuis
+ * ADR-002 (chantier C1), il porte aussi la {@link CompletionGate} de
+ * la complétion, les {@link #snippets} intégrés (D5 « source unique »),
+ * la {@link NewlineStrategy} de saut de ligne et ses
+ * {@link NewlineTrigger}s d'indentation.</p>
  *
  * <p>Les profils sont enregistrés dans le {@link LanguageRegistry}. Les
  * hôtes peuvent enregistrer leurs propres langages — y compris des
@@ -41,6 +45,8 @@ import java.util.function.Predicate;
  *     .autoCloseQuotes('"', '\'')
  *     .autoCloseBrackets('(', '{', '[')
  *     .foldStrategy(FoldStrategy.BRACE)
+ *     .newlineStrategy(NewlineStrategy.KOTLIN)      // flèche when, pas de label case
+ *     .newlineTrigger(NewlineTrigger.onSuffix(":")) // +1 après « clé: »
  *     .build();
  * LanguageRegistry.register(custom);
  * editorSession.setLanguage("mylang");
@@ -113,13 +119,36 @@ public final class LanguageProfile {
      * mots-clés, sans code dédié dans l'UI.
      */
     public final List<String> snippets;
+    /**
+     * Stratégie de saut de ligne intelligent (ADR-002, C1 — étape 3).
+     * Jamais null. Défaut calculé depuis la famille : XML →
+     * {@link NewlineStrategy#XML} (indentation structurelle), toutes
+     * les autres → {@link NewlineStrategy#C_LIKE}. Le profil
+     * {@code kotlin} déclare {@link NewlineStrategy#KOTLIN} (flèche
+     * when, pas de label case) ; un hôte surcharge via
+     * {@link Builder#newlineStrategy(NewlineStrategy)} — c'est la
+     * voie pour un langage XML qui veut la newline C, ou un langage
+     * maison Kotlin-like.
+     */
+    public final NewlineStrategy newlineStrategy;
+    /**
+     * Déclencheurs d'indentation +1 au saut de ligne (ADR-002, C1 —
+     * étape 3). Liste immuable, vide par défaut. Python déclare le
+     * déclencheur « : » avec mots-clés de bloc, YAML le « : » sans
+     * prérequis, Shell et Lua « then »/« do ». Un hôte ajoute les
+     * siens via {@link Builder#newlineTrigger(NewlineTrigger...)} —
+     * la newline C-like les consulte avant son comportement par
+     * défaut, sans code dédié.
+     */
+    public final List<NewlineTrigger> newlineTriggers;
 
     private LanguageProfile(String name, SyntaxFamily family,
             Set<String> aliases, Set<String> extensions,
             Set<String> keywords, CommentSyntax commentSyntax,
             Set<Character> autoCloseQuotes, Set<Character> autoCloseBrackets,
             FoldStrategy foldStrategy, Predicate<CharSequence> stickyHeaderTest,
-            CompletionGate completionGate, List<String> snippets) {
+            CompletionGate completionGate, List<String> snippets,
+            NewlineStrategy newlineStrategy, List<NewlineTrigger> newlineTriggers) {
         this.name = name;
         this.family = family;
         this.aliases = aliases;
@@ -132,6 +161,8 @@ public final class LanguageProfile {
         this.stickyHeaderTest = stickyHeaderTest;
         this.completionGate = completionGate;
         this.snippets = snippets;
+        this.newlineStrategy = newlineStrategy;
+        this.newlineTriggers = newlineTriggers;
     }
 
     /** Builder fluent — voir la javadoc de la classe pour un exemple d'utilisation. */
@@ -227,6 +258,11 @@ public final class LanguageProfile {
         // ADR-002 (C1, D5) : snippets de complétion intégrée — même
         // table que les mots-clés (source unique).
         private final List<String> snippets = new ArrayList<>();
+        // ADR-002 (C1-é3) : stratégie de saut de ligne + déclencheurs
+        // d'indentation — données par langage, défauts calculés dans
+        // build() depuis la famille.
+        private NewlineStrategy newlineStrategy;
+        private final List<NewlineTrigger> newlineTriggers = new ArrayList<>();
 
         private Builder(String name) {
             if (name == null) throw new IllegalArgumentException("name is null");
@@ -364,6 +400,37 @@ public final class LanguageProfile {
             return this;
         }
 
+        /**
+         * ADR-002 (C1-é3) : stratégie de saut de ligne pour CE
+         * langage. Si non appelé, la valeur par défaut dépend de la
+         * famille : XML → {@link NewlineStrategy#XML} (indentation
+         * structurelle des balises, alignement d'attributs) ; toutes
+         * les autres → {@link NewlineStrategy#C_LIKE}. Le profil
+         * intégré {@code kotlin} déclare {@link NewlineStrategy#KOTLIN}.
+         * Passer {@code null} retombe sur le défaut de famille.
+         */
+        public Builder newlineStrategy(NewlineStrategy strategy) {
+            this.newlineStrategy = strategy;
+            return this;
+        }
+
+        /**
+         * ADR-002 (C1-é3) : déclencheurs d'indentation +1 au saut de
+         * ligne pour CE langage (fin de ligne {@code :}, {@code then},
+         * {@code do}…, avec optionnellement des préfixes de
+         * mots-clés de bloc). Consultés par la newline C-like AVANT
+         * son comportement par défaut, dans l'ordre déclaré. Les
+         * entrées nulles sont ignorées. Vide par défaut.
+         */
+        public Builder newlineTrigger(NewlineTrigger... triggers) {
+            if (triggers != null) {
+                for (NewlineTrigger t : triggers) {
+                    if (t != null) newlineTriggers.add(t);
+                }
+            }
+            return this;
+        }
+
         public LanguageProfile build() {
             // Lot 2 : valeurs par défaut par famille (quand le builder
             // n'a pas été appelé explicitement pour ces traits).
@@ -377,6 +444,10 @@ public final class LanguageProfile {
                     ? completionGate : defaultCompletionGate(family);
             List<String> finalSnippets = Collections.unmodifiableList(
                     new ArrayList<>(snippets));
+            NewlineStrategy finalNewline = newlineStrategy != null
+                    ? newlineStrategy : defaultNewlineStrategy(family);
+            List<NewlineTrigger> finalTriggers = Collections.unmodifiableList(
+                    new ArrayList<>(newlineTriggers));
             return new LanguageProfile(name, family,
                     Collections.unmodifiableSet(new HashSet<>(aliases)),
                     Collections.unmodifiableSet(new HashSet<>(extensions)),
@@ -387,7 +458,9 @@ public final class LanguageProfile {
                     finalFold,
                     stickyHeaderTest,
                     finalGate,
-                    finalSnippets);
+                    finalSnippets,
+                    finalNewline,
+                    finalTriggers);
         }
 
         /** Valeurs par défaut pour autoCloseQuotes selon la famille. */
@@ -494,6 +567,12 @@ public final class LanguageProfile {
                 default:
                     return CompletionGate.STANDARD;
             }
+        }
+
+        /** Défaut de stratégie de saut de ligne selon la famille (ADR-002, C1-é3). */
+        private static NewlineStrategy defaultNewlineStrategy(SyntaxFamily family) {
+            return family == SyntaxFamily.XML
+                    ? NewlineStrategy.XML : NewlineStrategy.C_LIKE;
         }
 
         private static Set<String> normalize(String... values) {

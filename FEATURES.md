@@ -84,8 +84,8 @@ par responsabilité.
 | smartBackspace (effondrement ligne vide) | ✅ | `edit/SmartTyping.java` | Paire vide, sensible à l'indent |
 | smartDeleteForward | ✅ | `edit/SmartTyping.java` | Suppression avant intelligente |
 | Smart Enter (Java) | ✅ | `edit/SmartNewline.java` | Case labels, découpage de chaînes, raw strings |
-| Smart Enter (XML) | ✅ | `edit/XmlNewline.java` | Indentation structurelle, expansion de paire de tags |
-| Smart Enter (défaut) | ✅ | `edit/SmartNewline.java` | Indentation de base + expansion de bracket |
+| Smart Enter (XML) | ✅ | `edit/XmlNewline.java` | Indentation structurelle, expansion de paire de tags — stratégie `newlineStrategy` du profil (ADR-002 C1), surchargeable |
+| Smart Enter (défaut) | ✅ | `edit/SmartNewline.java` | Indentation de base + expansion de bracket + triggers `newlineTrigger` du profil |
 | smartEnterCompleteStatement | ✅ | `edit/EditOps.java` | Ajoute `;` ou `{ }` si nécessaire |
 | Paires de brackets | ✅ | `edit/BracketPairs.java` | Table ouvrant/fermant |
 | Word boundaries (left, right, rangeAt) | ✅ | `edit/WordBounds.java` | Bornes de mot |

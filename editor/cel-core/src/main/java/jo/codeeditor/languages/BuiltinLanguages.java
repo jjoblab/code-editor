@@ -291,7 +291,17 @@ final class BuiltinLanguages {
         LanguageRegistry.put(LanguageProfile.builder("python")
                 .family(SyntaxFamily.PYTHON).alias("py")
                 .extension("py").keywordSet(PYTHON_KEYWORDS)
-                .commentSyntax(HASH).build());
+                .commentSyntax(HASH)
+                // ADR-002 (C1-é3) : indent trigger « : » + mot-clé de
+                // bloc — descendu du switch par nom canonique de
+                // SmartNewline vers la table (comportement repris
+                // octet pour octet, y compris les deux formes
+                // « try: » / « try : »).
+                .newlineTrigger(NewlineTrigger.onSuffix(":",
+                        "def ", "class ", "if ", "elif ", "for ",
+                        "while ", "try:", "try :", "with ", "except ",
+                        "else:", "finally:"))
+                .build());
         LanguageRegistry.put(LanguageProfile.builder("markdown")
                 .family(SyntaxFamily.MARKDOWN).alias("md")
                 .extension("md", "markdown")
@@ -311,7 +321,11 @@ final class BuiltinLanguages {
         LanguageRegistry.put(LanguageProfile.builder("lua")
                 .family(SyntaxFamily.LUA).extension("lua")
                 .keywordSet(LUA_KEYWORDS)
-                .commentSyntax(LUA_STYLE).build());
+                .commentSyntax(LUA_STYLE)
+                // ADR-002 (C1-é3) : indent triggers « then » / « do ».
+                .newlineTrigger(NewlineTrigger.onSuffix("then"),
+                        NewlineTrigger.onSuffix("do"))
+                .build());
         LanguageRegistry.put(LanguageProfile.builder("xml")
                 .family(SyntaxFamily.XML).alias("html", "htm", "svg")
                 .extension("xml", "html", "htm", "svg")
@@ -325,11 +339,19 @@ final class BuiltinLanguages {
                 .family(SyntaxFamily.SHELL).alias("bash", "sh")
                 .extension("sh", "bash")
                 .keywordSet(SHELL_KEYWORDS)
-                .commentSyntax(HASH).build());
+                .commentSyntax(HASH)
+                // ADR-002 (C1-é3) : indent triggers « then » / « do ».
+                .newlineTrigger(NewlineTrigger.onSuffix("then"),
+                        NewlineTrigger.onSuffix("do"))
+                .build());
         LanguageRegistry.put(LanguageProfile.builder("yaml")
                 .family(SyntaxFamily.YAML).alias("yml")
                 .extension("yaml", "yml")
-                .commentSyntax(HASH).build());
+                .commentSyntax(HASH)
+                // ADR-002 (C1-é3) : indent trigger « : » sans valeur
+                // après (clé sans valeur = bloc imbriqué attendu).
+                .newlineTrigger(NewlineTrigger.onSuffix(":"))
+                .build());
         LanguageRegistry.put(LanguageProfile.builder("sql")
                 .family(SyntaxFamily.SQL).extension("sql")
                 .keywordSet(SQL_KEYWORDS)
@@ -363,7 +385,13 @@ final class BuiltinLanguages {
         LanguageRegistry.put(LanguageProfile.builder("kotlin")
                 .family(SyntaxFamily.C_LIKE).alias("kt")
                 .extension("kt", "kts").keywordSet(KT_KEYWORDS)
-                .commentSyntax(CommentSyntax.C_STYLE).build());
+                .commentSyntax(CommentSyntax.C_STYLE)
+                // ADR-002 (C1-é3) : la newline Kotlin (flèche when,
+                // pas de label case) devient une donnée du profil au
+                // lieu d'un « kotlin ».equals(language) en dur — les
+                // alias (kt, casse mixte) sont désormais honorés.
+                .newlineStrategy(NewlineStrategy.KOTLIN)
+                .build());
         LanguageRegistry.put(LanguageProfile.builder("javascript")
                 .family(SyntaxFamily.C_LIKE).alias("js")
                 .extension("js", "mjs", "jsx").keywordSet(JS_KEYWORDS)
