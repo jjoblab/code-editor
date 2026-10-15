@@ -254,12 +254,14 @@ class LspDocumentSynchronizer {
         try {
             editor.currentWrapper().getServer().getTextDocumentService().didChange(params);
             lastSyncedText = text;  // ★ R1 : la nouvelle base devient synced.
-            android.util.Log.i("LspEditor", "didChange v" + v + " ("
-                    + (change.getRange() != null ? "range " + editDeltaHint(baseline, text) : text.length() + " chars") + ")");
+            // D-08 : le Log.i PAR FRAPPE est supprimé — le bruit de
+            // logcat à chaque didChange masquait les vraies anomalies ;
+            // le récepteur de journal (panneau de la démo) reste informé,
+            // lui, sur demande explicite de l'utilisateur.
             final LspLogSink sink = editor.getProject().getLogSink();
             if (sink != null) sink.log("didChange v" + v + " (" + text.length() + " chars)");
         } catch (Exception e) {
-            android.util.Log.e("LspEditor", "didChange FAILED: " + e.getMessage(), e);
+            jo.codeeditor.util.EditorLog.error("LspEditor", "didChange FAILED: " + e.getMessage(), e);
             final LspLogSink sink = editor.getProject().getLogSink();
             if (sink != null) sink.log("didChange FAILED: " + e.getMessage());
         }
@@ -336,11 +338,11 @@ class LspDocumentSynchronizer {
                 params.setText(editor.getEditorView().getSession().getText().toString());
             }
             wrapper.getServer().getTextDocumentService().didSave(params);
-            android.util.Log.i("LspEditor", "didSave sent (triggers diagnostics re-inspection)");
+            jo.codeeditor.util.EditorLog.info("LspEditor", "didSave sent (triggers diagnostics re-inspection)");
             final LspLogSink sink = editor.getProject().getLogSink();
             if (sink != null) sink.log("didSave sent (triggers diagnostics re-inspection)");
         } catch (Exception e) {
-            android.util.Log.e("LspEditor", "didSave FAILED: " + e.getMessage(), e);
+            jo.codeeditor.util.EditorLog.error("LspEditor", "didSave FAILED: " + e.getMessage(), e);
             final LspLogSink sink = editor.getProject().getLogSink();
             if (sink != null) sink.log("didSave FAILED: " + e.getMessage());
         }
@@ -362,10 +364,10 @@ class LspDocumentSynchronizer {
             wrapper.getServer().getTextDocumentService().didOpen(params);
             // ★ R1 : enregistre la base synced pour les diffs incrémentaux.
             lastSyncedText = item.getText();
-            android.util.Log.i("LspEditor", "didOpen sent: " + editor.getFileUri()
+            jo.codeeditor.util.EditorLog.info("LspEditor", "didOpen sent: " + editor.getFileUri()
                 + " (" + item.getText().length() + " chars, lang=" + editor.extension() + ")");
         } catch (Exception e) {
-            android.util.Log.e("LspEditor", "didOpen FAILED: " + e.getMessage(), e);
+            jo.codeeditor.util.EditorLog.error("LspEditor", "didOpen FAILED: " + e.getMessage(), e);
         }
     }
 

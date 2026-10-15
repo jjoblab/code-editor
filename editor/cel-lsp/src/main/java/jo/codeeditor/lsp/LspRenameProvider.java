@@ -213,7 +213,7 @@ class LspRenameProvider implements RenameProvider {
     }
 
     private void log(String message) {
-        android.util.Log.i("LspRename", message);
+        jo.codeeditor.util.EditorLog.info("LspRename", message);
         if (logSink != null) logSink.log(message);
     }
 }

@@ -72,7 +72,7 @@ class LspDefinitionProvider implements DefinitionProvider {
     }
 
     private void log(String message) {
-        android.util.Log.i("LspDef", message);
+        jo.codeeditor.util.EditorLog.info("LspDef", message);
         if (logSink != null) logSink.log(message);
     }
 }

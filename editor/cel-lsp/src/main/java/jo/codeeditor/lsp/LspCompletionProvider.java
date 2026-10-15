@@ -122,10 +122,10 @@ class LspCompletionProvider implements CompletionProvider {
                         out.postApplyAction = () -> {
                             try {
                                 editorRef.applyAdditionalEdits(extraEdits, versionAtRequest);
-                                android.util.Log.i("LspCompletion",
+                                jo.codeeditor.util.EditorLog.info("LspCompletion",
                                     "auto-import appliqué pour " + itemLabel);
                             } catch (Exception t) {
-                                android.util.Log.w("LspCompletion",
+                                jo.codeeditor.util.EditorLog.warn("LspCompletion",
                                     "auto-import échoué pour "
                                         + itemLabel + ": " + t.getMessage());
                             }
@@ -301,8 +301,8 @@ class LspCompletionProvider implements CompletionProvider {
     }
 
     private void log(String message, Throwable t) {
-        android.util.Log.i("LspCompletion", message);
-        if (t != null) android.util.Log.e("LspCompletion", message, t);
+        jo.codeeditor.util.EditorLog.info("LspCompletion", message);
+        if (t != null) jo.codeeditor.util.EditorLog.error("LspCompletion", message, t);
         if (logSink != null) logSink.log(message);
     }
 
@@ -340,7 +340,7 @@ class LspCompletionProvider implements CompletionProvider {
                 } catch (Exception e) {
                     // Le cast/accès typé peut échouer sur un serveur
                     // exotique — journalisé, repli sur « pas de liste ».
-                    android.util.Log.w("LspCompletion",
+                    jo.codeeditor.util.EditorLog.warn("LspCompletion",
                         "réponse completion illisible : " + e);
                     return null;
                 }

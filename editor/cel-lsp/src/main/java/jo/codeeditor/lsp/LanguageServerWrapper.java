@@ -252,7 +252,7 @@ public class LanguageServerWrapper {
             } catch (Exception e) {
                 // Certains serveurs n'en ont peut-être pas besoin — journaliser
                 // sans échouer.
-                android.util.Log.w("LspWrapper", "initialized notification failed: " + e.getMessage());
+                jo.codeeditor.util.EditorLog.warn("LspWrapper", "initialized notification failed: " + e.getMessage());
             }
         }).exceptionally(throwable -> {
             initialized = false;

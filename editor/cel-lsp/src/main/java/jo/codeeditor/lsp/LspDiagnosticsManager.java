@@ -75,7 +75,7 @@ class LspDiagnosticsManager {
         cachedLspDiagnostics = params.getDiagnostics() != null
                 ? new CopyOnWriteArrayList<>(params.getDiagnostics())
                 : new CopyOnWriteArrayList<>();
-        android.util.Log.i("LspEditor", "publishDiagnostics: " + diags.size() + " diagnostics received");
+        jo.codeeditor.util.EditorLog.info("LspEditor", "publishDiagnostics: " + diags.size() + " diagnostics received");
         final LspLogSink sink = editor.getProject().getLogSink();
         if (sink != null) {
             sink.log("publishDiagnostics: " + diags.size() + " diagnostics received");

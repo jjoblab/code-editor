@@ -266,7 +266,7 @@ class LspInlayHintProvider implements InlayHintProvider {
     }
 
     private void log(String message) {
-        android.util.Log.i("LspInlay", message);
+        jo.codeeditor.util.EditorLog.info("LspInlay", message);
         if (logSink != null) logSink.log(message);
     }
 }

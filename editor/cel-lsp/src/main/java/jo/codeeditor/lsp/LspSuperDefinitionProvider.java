@@ -68,7 +68,7 @@ class LspSuperDefinitionProvider implements SuperDefinitionProvider {
     }
 
     private void log(String message) {
-        android.util.Log.i("LspSuper", message);
+        jo.codeeditor.util.EditorLog.info("LspSuper", message);
         if (logSink != null) logSink.log(message);
     }
 }

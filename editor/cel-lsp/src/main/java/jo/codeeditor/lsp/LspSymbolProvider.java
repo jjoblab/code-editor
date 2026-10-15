@@ -62,7 +62,7 @@ class LspSymbolProvider implements SymbolProvider {
     }
 
     private void log(String message) {
-        android.util.Log.i("LspSymbol", message);
+        jo.codeeditor.util.EditorLog.info("LspSymbol", message);
         if (logSink != null) logSink.log(message);
     }
 

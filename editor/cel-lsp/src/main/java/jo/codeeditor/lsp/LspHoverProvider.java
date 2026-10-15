@@ -62,7 +62,7 @@ class LspHoverProvider implements HoverProvider {
     }
 
     private void log(String message) {
-        android.util.Log.i("LspHover", message);
+        jo.codeeditor.util.EditorLog.info("LspHover", message);
         if (logSink != null) logSink.log(message);
     }
 }

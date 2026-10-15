@@ -96,7 +96,7 @@ class LspImplementationsProvider implements ImplementationsProvider {
     }
 
     private void log(String message) {
-        android.util.Log.i("LspImpl", message);
+        jo.codeeditor.util.EditorLog.info("LspImpl", message);
         if (logSink != null) logSink.log(message);
     }
 }

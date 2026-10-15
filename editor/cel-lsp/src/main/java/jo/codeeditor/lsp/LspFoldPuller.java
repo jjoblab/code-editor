@@ -49,7 +49,7 @@ class LspFoldPuller {
             if (caps == null || caps.getFoldingRangeProvider() == null) return;
         } catch (Exception t) {
             // Requête refusée/échouée — pas de plis cette fois.
-            android.util.Log.w("LspEditor", "foldingRange request failed: " + t);
+            jo.codeeditor.util.EditorLog.warn("LspEditor", "foldingRange request failed: " + t);
             return;
         }
         long now = System.currentTimeMillis();
@@ -96,7 +96,7 @@ class LspFoldPuller {
                     editorView.post(() -> applyFolds(gen, result));
                 }
             } catch (Exception t) {
-                android.util.Log.w("LspEditor", "foldingRange failed: " + t);
+                jo.codeeditor.util.EditorLog.warn("LspEditor", "foldingRange failed: " + t);
             }
         });
     }
@@ -140,9 +140,9 @@ class LspFoldPuller {
             }
             editorView.getSession().applyCodeFolds(regions);
             editorView.invalidate();
-            android.util.Log.i("LspEditor", "folds applied: " + regions.size());
+            jo.codeeditor.util.EditorLog.info("LspEditor", "folds applied: " + regions.size());
         } catch (Exception t) {
-            android.util.Log.w("LspEditor", "applyFolds failed: " + t);
+            jo.codeeditor.util.EditorLog.warn("LspEditor", "applyFolds failed: " + t);
         }
     }
 }

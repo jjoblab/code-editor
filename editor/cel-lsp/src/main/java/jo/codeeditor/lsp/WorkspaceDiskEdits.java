@@ -73,7 +73,7 @@ final class WorkspaceDiskEdits {
         if (!rejections.isEmpty()) {
             // Tout-ou-rien STRICT : une URI hors workspace ou une
             // opération de ressource refusée ⇒ AUCUN fichier écrit.
-            android.util.Log.w("WorkspaceDiskEdits",
+            jo.codeeditor.util.EditorLog.warn("WorkspaceDiskEdits",
                     "WorkspaceEdit refusé (confinement) : " + rejections);
             return new Result(false, rejections, 0, 0);
         }
@@ -104,7 +104,7 @@ final class WorkspaceDiskEdits {
         }
         if (nouveauxContenus.size() != diskEdits.size()) {
             // Tout-ou-rien : une validation en échec → RIEN n'est écrit.
-            android.util.Log.w("WorkspaceDiskEdits",
+            jo.codeeditor.util.EditorLog.warn("WorkspaceDiskEdits",
                     "WorkspaceEdit refusé (tout-ou-rien) : " + rejections);
             return new Result(false, rejections, 0, 0);
         }

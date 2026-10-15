@@ -106,7 +106,7 @@ class LspReferencesProvider implements ReferencesProvider {
     }
 
     private void log(String message) {
-        android.util.Log.i("LspRef", message);
+        jo.codeeditor.util.EditorLog.info("LspRef", message);
         if (logSink != null) logSink.log(message);
     }
 }

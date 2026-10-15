@@ -92,7 +92,7 @@ class LspSignatureHelpProvider implements SignatureHelpProvider {
     }
 
     private void log(String message) {
-        android.util.Log.i("LspSig", message);
+        jo.codeeditor.util.EditorLog.info("LspSig", message);
         if (logSink != null) logSink.log(message);
     }
 }

@@ -61,7 +61,7 @@ class LspDocumentHighlightProvider implements DocumentHighlightProvider {
     }
 
     private void log(String message) {
-        android.util.Log.i("LspDocHighlight", message);
+        jo.codeeditor.util.EditorLog.info("LspDocHighlight", message);
         if (logSink != null) logSink.log(message);
     }
 }

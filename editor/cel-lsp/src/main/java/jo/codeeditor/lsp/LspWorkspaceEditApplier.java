@@ -56,7 +56,7 @@ class LspWorkspaceEditApplier {
             Integer versionAtRequest) {
         EditorView editorView = editor.getEditorView();
         if (editorView == null || editorView.getSession() == null) {
-            android.util.Log.w("LspEditor", "applyWorkspaceEdit: no editor bound");
+            jo.codeeditor.util.EditorLog.warn("LspEditor", "applyWorkspaceEdit: no editor bound");
             return new WorkspaceDiskEdits.Result(false,
                     java.util.Collections.singletonList("aucun éditeur lié"), 0, 0);
         }
@@ -74,7 +74,7 @@ class LspWorkspaceEditApplier {
                 || LspTextUtils.isStaleEdit(versionAtRequest, versionCourante)) {
             String motif = "éditions périmées (document modifié depuis la requête : version "
                     + versionCourante + " ≠ " + (versionPortee != null ? versionPortee : versionAtRequest) + ")";
-            android.util.Log.w("LspEditor", "applyWorkspaceEdit REFUSÉ : " + motif);
+            jo.codeeditor.util.EditorLog.warn("LspEditor", "applyWorkspaceEdit REFUSÉ : " + motif);
             return new WorkspaceDiskEdits.Result(false,
                     java.util.Collections.singletonList(motif), 0, 0);
         }
@@ -88,7 +88,7 @@ class LspWorkspaceEditApplier {
         if (!rejections.isEmpty()) {
             // Une opération refusée = le WorkspaceEdit n'est pas appliqué
             // en entier : rien ne bouge, l'utilisateur est informé.
-            android.util.Log.w("LspEditor", "WorkspaceEdit refusé : " + rejections);
+            jo.codeeditor.util.EditorLog.warn("LspEditor", "WorkspaceEdit refusé : " + rejections);
             return new WorkspaceDiskEdits.Result(false, rejections, 0, 0);
         }
 
@@ -98,7 +98,7 @@ class LspWorkspaceEditApplier {
         // tout-ou-rien que les fichiers tiers).
         if (!applySessionEdits(currentEdits)) {
             rejections.add("éditions invalides sur le fichier courant");
-            android.util.Log.w("LspEditor", "WorkspaceEdit refusé : " + rejections);
+            jo.codeeditor.util.EditorLog.warn("LspEditor", "WorkspaceEdit refusé : " + rejections);
             return new WorkspaceDiskEdits.Result(false, rejections, 0, 0);
         }
 
@@ -189,7 +189,7 @@ class LspWorkspaceEditApplier {
         }
         if (!SessionEditGroup.apply(session, resolues)) return false;
         editorView.notifyTextChanged();
-        android.util.Log.i("LspEditor",
+        jo.codeeditor.util.EditorLog.info("LspEditor",
                 "applyWorkspaceEdit: applied " + edits.size() + " edits (un groupe d'annulation)");
         return true;
     }
@@ -226,7 +226,7 @@ class LspWorkspaceEditApplier {
     private void applyDiskEditsAsync(org.eclipse.lsp4j.WorkspaceEdit diskOnly,
             File workspaceRoot) {
         if (workspaceRoot == null) {
-            android.util.Log.w("LspEditor",
+            jo.codeeditor.util.EditorLog.warn("LspEditor",
                     "WorkspaceEdit disque ignoré : racine du workspace inconnue");
             return;
         }
@@ -235,10 +235,10 @@ class LspWorkspaceEditApplier {
         editor.submitBackground(() -> {
             WorkspaceDiskEdits.Result r = WorkspaceDiskEdits.applyAll(fEdit, fRoot);
             if (!r.applied) {
-                android.util.Log.w("LspEditor",
+                jo.codeeditor.util.EditorLog.warn("LspEditor",
                         "WorkspaceEdit disque REFUSÉ : " + r.rejections);
             } else if (r.filesWritten > 0) {
-                android.util.Log.i("LspEditor",
+                jo.codeeditor.util.EditorLog.info("LspEditor",
                         "WorkspaceEdit disque : " + r.filesWritten + " fichier(s), "
                                 + r.editsApplied + " édition(s)");
             }
@@ -299,14 +299,14 @@ class LspWorkspaceEditApplier {
         // réponse de complétion et l'acceptation du candidat.
         if (versionAtRequest != null
                 && LspTextUtils.isStaleEdit(versionAtRequest, editor.getDocumentVersion())) {
-            android.util.Log.w("LspEditor",
+            jo.codeeditor.util.EditorLog.warn("LspEditor",
                     "additionalTextEdits refusés (document modifié depuis la complétion)");
             return;
         }
         if (!applySessionEdits(new ArrayList<>(edits))) {
             // additionalTextEdits invalides : refus journalisé —
             // l'insertion de l'identifiant reste correcte.
-            android.util.Log.w("LspEditor",
+            jo.codeeditor.util.EditorLog.warn("LspEditor",
                     "additionalTextEdits refusés (plages invalides)");
         }
     }

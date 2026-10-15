@@ -61,7 +61,7 @@ public class DefaultLanguageClient implements LanguageClient {
         int count = diagnostics != null && diagnostics.getDiagnostics() != null
             ? diagnostics.getDiagnostics().size() : 0;
         String uri = diagnostics != null ? diagnostics.getUri() : "(null)";
-        android.util.Log.i("LspClient", "publishDiagnostics RECEIVED: uri=" + uri + " count=" + count);
+        jo.codeeditor.util.EditorLog.info("LspClient", "publishDiagnostics RECEIVED: uri=" + uri + " count=" + count);
         if (lspEditor != null && lspEditor.getProject() != null && lspEditor.getProject().getLogSink() != null) {
             lspEditor.getProject().getLogSink().log(
                 "publishDiagnostics RECEIVED: count=" + count + " uri=" + uri);
@@ -105,7 +105,7 @@ public class DefaultLanguageClient implements LanguageClient {
             + (configurationParams != null && configurationParams.getItems() != null
                 ? configurationParams.getItems().size() + " item(s)" : "0 items")
             + " → answered " + results.size();
-        android.util.Log.i("LspClient", logMsg);
+        jo.codeeditor.util.EditorLog.info("LspClient", logMsg);
         if (lspEditor != null && lspEditor.getProject() != null && lspEditor.getProject().getLogSink() != null) {
             lspEditor.getProject().getLogSink().log(logMsg);
         }
@@ -157,7 +157,7 @@ public class DefaultLanguageClient implements LanguageClient {
             WorkspaceFolder folder = new WorkspaceFolder();
             folder.setUri(UriUtils.fromPath(workspacePath));
             folder.setName(new java.io.File(workspacePath).getName());
-            android.util.Log.i("LspClient", "server requested workspaceFolders (returning " + folder.getUri() + ")");
+            jo.codeeditor.util.EditorLog.info("LspClient", "server requested workspaceFolders (returning " + folder.getUri() + ")");
             if (lspEditor.getProject().getLogSink() != null) {
                 lspEditor.getProject().getLogSink().log("server requested workspaceFolders (returning " + folder.getUri() + ")");
             }
@@ -183,7 +183,7 @@ public class DefaultLanguageClient implements LanguageClient {
     @Override
     public void showMessage(MessageParams message) {
         String log = "server/showMessage: " + message.getType() + ": " + message.getMessage();
-        android.util.Log.i("LspClient", log);
+        jo.codeeditor.util.EditorLog.info("LspClient", log);
         if (lspEditor != null && lspEditor.getProject() != null && lspEditor.getProject().getLogSink() != null) {
             lspEditor.getProject().getLogSink().log(log);
         }
@@ -192,7 +192,7 @@ public class DefaultLanguageClient implements LanguageClient {
     @Override
     public void logMessage(MessageParams message) {
         String log = "server/logMessage: " + message.getType() + ": " + message.getMessage();
-        android.util.Log.i("LspClient", log);
+        jo.codeeditor.util.EditorLog.info("LspClient", log);
         if (lspEditor != null && lspEditor.getProject() != null && lspEditor.getProject().getLogSink() != null) {
             lspEditor.getProject().getLogSink().log(log);
         }
@@ -226,25 +226,25 @@ public class DefaultLanguageClient implements LanguageClient {
             org.eclipse.lsp4j.ApplyWorkspaceEditParams params) {
         String label = params != null && params.getLabel() != null ? params.getLabel() : "";
         if (params == null || params.getEdit() == null) {
-            android.util.Log.w("LspClient",
+            jo.codeeditor.util.EditorLog.warn("LspClient",
                     "applyEdit REFUSÉ : requête sans édition (label=" + label + ")");
             return CompletableFuture.completedFuture(
                     reponseRefus("requête sans édition"));
         }
         LspEditor ed = lspEditor;
         if (ed == null) {
-            android.util.Log.w("LspClient",
+            jo.codeeditor.util.EditorLog.warn("LspClient",
                     "applyEdit REFUSÉ : aucun éditeur lié (label=" + label + ")");
             return CompletableFuture.completedFuture(
                     reponseRefus("aucun éditeur lié"));
         }
-        android.util.Log.i("LspClient", "applyEdit reçu (label=" + label + ") — application…");
+        jo.codeeditor.util.EditorLog.info("LspClient", "applyEdit reçu (label=" + label + ") — application…");
         return ed.applyServerEdit(params.getEdit()).thenApply(result -> {
             if (result.applied) {
-                android.util.Log.i("LspClient", "applyEdit appliqué : " + result.editsApplied
+                jo.codeeditor.util.EditorLog.info("LspClient", "applyEdit appliqué : " + result.editsApplied
                         + " édition(s), " + result.filesWritten + " fichier(s) (label=" + label + ")");
             } else {
-                android.util.Log.w("LspClient", "applyEdit REFUSÉ : "
+                jo.codeeditor.util.EditorLog.warn("LspClient", "applyEdit REFUSÉ : "
                         + String.join("; ", result.rejections) + " (label=" + label + ")");
             }
             org.eclipse.lsp4j.ApplyWorkspaceEditResponse response =

@@ -52,7 +52,7 @@ final class IoCompat {
             }
             return new String(bos.toByteArray(), Charset.forName("UTF-8"));
         } catch (IOException e) {
-            android.util.Log.w("IoCompat", "readUtf8 failed for " + file + ": " + e.getMessage());
+            jo.codeeditor.util.EditorLog.warn("IoCompat", "readUtf8 failed for " + file + ": " + e.getMessage());
             return null;
         }
     }
@@ -80,7 +80,7 @@ final class IoCompat {
         if (file == null || text == null) return false;
         File parent = file.getParentFile();
         if (parent != null && !parent.isDirectory() && !parent.mkdirs()) {
-            android.util.Log.w("IoCompat", "writeUtf8: cannot create parent dir for " + file);
+            jo.codeeditor.util.EditorLog.warn("IoCompat", "writeUtf8: cannot create parent dir for " + file);
             return false;
         }
         try (FileOutputStream fos = new FileOutputStream(file, false);
@@ -89,7 +89,7 @@ final class IoCompat {
             out.flush();
             return true;
         } catch (IOException e) {
-            android.util.Log.w("IoCompat", "writeUtf8 failed for " + file + ": " + e.getMessage());
+            jo.codeeditor.util.EditorLog.warn("IoCompat", "writeUtf8 failed for " + file + ": " + e.getMessage());
             return false;
         }
     }
@@ -128,7 +128,7 @@ final class IoCompat {
         if (file == null || text == null) return false;
         File parent = file.getParentFile();
         if (parent != null && !parent.isDirectory() && !parent.mkdirs()) {
-            android.util.Log.w("IoCompat", "writeUtf8Atomically: cannot create parent dir for " + file);
+            jo.codeeditor.util.EditorLog.warn("IoCompat", "writeUtf8Atomically: cannot create parent dir for " + file);
             return false;
         }
         boolean originalLectureSeule = file.exists() && !file.canWrite();
@@ -147,7 +147,7 @@ final class IoCompat {
             if (listener != null) listener.onTempWritten(tmp);
             if (originalLectureSeule) tmp.setReadOnly();
             if (!tmp.renameTo(file)) {
-                android.util.Log.w("IoCompat", "writeUtf8Atomically: rename failed for " + file);
+                jo.codeeditor.util.EditorLog.warn("IoCompat", "writeUtf8Atomically: rename failed for " + file);
                 return false;
             }
             if (originalLastModified != Long.MIN_VALUE
@@ -157,7 +157,7 @@ final class IoCompat {
             }
             return true;
         } catch (IOException e) {
-            android.util.Log.w("IoCompat", "writeUtf8Atomically failed for " + file + ": " + e.getMessage());
+            jo.codeeditor.util.EditorLog.warn("IoCompat", "writeUtf8Atomically failed for " + file + ": " + e.getMessage());
             return false;
         } finally {
             if (tmp.exists()) tmp.delete();

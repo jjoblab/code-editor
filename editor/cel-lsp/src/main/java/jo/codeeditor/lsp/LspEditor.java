@@ -171,7 +171,7 @@ public class LspEditor {
 
     /** Journalise vers le récepteur de journal du projet (panneau de la démo) + logcat. */
     private void log(LspLogSink sink, String message) {
-        android.util.Log.i("LspEditor", message);
+        jo.codeeditor.util.EditorLog.info("LspEditor", message);
         if (sink != null) sink.log(message);
     }
 
@@ -290,11 +290,11 @@ public class LspEditor {
             org.eclipse.lsp4j.DidChangeConfigurationParams params =
                 new org.eclipse.lsp4j.DidChangeConfigurationParams(settings);
             wrapper.getServer().getWorkspaceService().didChangeConfiguration(params);
-            android.util.Log.i("LspEditor", "didChangeConfiguration sent (settings cached for pull)");
+            jo.codeeditor.util.EditorLog.info("LspEditor", "didChangeConfiguration sent (settings cached for pull)");
             final LspLogSink sink = project.getLogSink();
             if (sink != null) sink.log("didChangeConfiguration sent (settings cached for pull)");
         } catch (Exception e) {
-            android.util.Log.e("LspEditor", "didChangeConfiguration FAILED: " + e.getMessage(), e);
+            jo.codeeditor.util.EditorLog.error("LspEditor", "didChangeConfiguration FAILED: " + e.getMessage(), e);
             final LspLogSink sink = project.getLogSink();
             if (sink != null) sink.log("didChangeConfiguration FAILED: " + e.getMessage());
         }
@@ -311,11 +311,11 @@ public class LspEditor {
         if (wrapper == null || wrapper.getServer() == null) return;
         try {
             wrapper.getServer().getWorkspaceService().didChangeWorkspaceFolders(params);
-            android.util.Log.i("LspEditor", "didChangeWorkspaceFolders sent");
+            jo.codeeditor.util.EditorLog.info("LspEditor", "didChangeWorkspaceFolders sent");
             final LspLogSink sink = project.getLogSink();
             if (sink != null) sink.log("didChangeWorkspaceFolders sent");
         } catch (Exception e) {
-            android.util.Log.e("LspEditor", "didChangeWorkspaceFolders FAILED: " + e.getMessage(), e);
+            jo.codeeditor.util.EditorLog.error("LspEditor", "didChangeWorkspaceFolders FAILED: " + e.getMessage(), e);
             final LspLogSink sink = project.getLogSink();
             if (sink != null) sink.log("didChangeWorkspaceFolders FAILED: " + e.getMessage());
         }

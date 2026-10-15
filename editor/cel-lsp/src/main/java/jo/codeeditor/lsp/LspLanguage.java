@@ -99,7 +99,7 @@ public class LspLanguage implements Language {
     }
 
     private void log(String message) {
-        android.util.Log.i("LspLang", message);
+        jo.codeeditor.util.EditorLog.info("LspLang", message);
         if (logSink != null) logSink.log(message);
     }
 

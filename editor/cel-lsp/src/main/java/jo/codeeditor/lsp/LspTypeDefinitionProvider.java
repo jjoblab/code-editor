@@ -69,7 +69,7 @@ class LspTypeDefinitionProvider implements TypeDefinitionProvider {
     }
 
     private void log(String message) {
-        android.util.Log.i("LspTypeDef", message);
+        jo.codeeditor.util.EditorLog.info("LspTypeDef", message);
         if (logSink != null) logSink.log(message);
     }
 }
