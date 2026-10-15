@@ -854,4 +854,72 @@ class GenericTokenizerTest {
         StyledLine l2 = GenericTokenizer.styleLine(REQUETE, ".5 + 1", 0);
         assertEquals(TokenType.NUMBER, typeAt(l2, 0));
     }
+
+    // ── C2-é9 : préfixes de chaîne, décorateur borné, cas avant appel ─
+
+    /**
+     * Template maison (C2-é9) : mini-langage façon Python — chaînes à
+     * préfixe (f/r/b + quote), décorateur borné dont le mot inclut les
+     * points, classification par cas AVANT l'appel : la grammaire de la
+     * famille PYTHON sans une ligne de moteur.
+     */
+    private static final TokenizerTemplate PY = TokenizerTemplate.builder()
+            .freeForm()
+            .lineComments("#")
+            .blockLiteral("\"\"\"", "\"\"\"", 3, 1, TokenType.STRING)
+            .stringPrefixes('f', 'r', 'b')
+            .valueQuotes('"', '\'')
+            .valueType(TokenType.STRING)
+            .annotationPrefixes('@')
+            .annotationWordChars('.')
+            .annotationRequiresBoundary(true)
+            .wordFuncAfterCase(true)
+            .wordUpperCaseType(TokenType.TYPE)
+            .wordFuncFollowChars('(')
+            .wordFallbackType(TokenType.PLAIN)
+            .build();
+
+    @Test
+    void pyMaison_chaîneÀPréfixe() {
+        // f"…" : le préfixe fait partie du jeton de chaîne ; r'…' aussi.
+        StyledLine l = GenericTokenizer.styleLine(PY, "x = f\"a\"", 0);
+        assertEquals(TokenType.STRING, typeAt(l, 4), "le préfixe est dans la chaîne");
+        assertEquals(TokenType.STRING, typeAt(l, 5));
+        assertEquals(TokenType.STRING, typeAt(l, 7), "la fermante incluse");
+        StyledLine l2 = GenericTokenizer.styleLine(PY, "y = r'a'", 0);
+        assertEquals(TokenType.STRING, typeAt(l2, 4));
+    }
+
+    @Test
+    void pyMaison_préfixeSeulEstUnMot() {
+        // f suivi d'autre chose qu'une quote : mot ordinaire.
+        StyledLine l = GenericTokenizer.styleLine(PY, "f x", 0);
+        assertEquals(TokenType.PLAIN, typeAt(l, 0));
+    }
+
+    @Test
+    void pyMaison_décorateurBornéAuMot() {
+        // @ après un blanc ou en début de ligne → décorateur ; le mot
+        // inclut les points (@app.route en UN jeton).
+        StyledLine l = GenericTokenizer.styleLine(PY, "a @app.route", 0);
+        assertEquals(TokenType.PLAIN, typeAt(l, 0));
+        assertEquals(TokenType.ANNOTATION, typeAt(l, 2));
+        assertEquals(TokenType.ANNOTATION, typeAt(l, 6), "le point reste dans le mot");
+        assertEquals(TokenType.ANNOTATION, typeAt(l, 10));
+        // a@b : @ précédé d'une lettre → pas un décorateur.
+        StyledLine l2 = GenericTokenizer.styleLine(PY, "a@b", 0);
+        assertEquals(TokenType.PLAIN, typeAt(l2, 0));
+        assertEquals(TokenType.PUNCT, typeAt(l2, 1), "@ intra-mot → PUNCT");
+        assertEquals(TokenType.PLAIN, typeAt(l2, 2));
+    }
+
+    @Test
+    void pyMaison_majusculeInitialeAvantLAppel() {
+        // Foo( → TYPE (la casse est évaluée AVANT la parenthèse) ;
+        // foo( → FUNC (aucune casse ne s'applique).
+        StyledLine l = GenericTokenizer.styleLine(PY, "Foo(", 0);
+        assertEquals(TokenType.TYPE, typeAt(l, 0));
+        StyledLine l2 = GenericTokenizer.styleLine(PY, "foo(", 0);
+        assertEquals(TokenType.FUNC, typeAt(l2, 0));
+    }
 }

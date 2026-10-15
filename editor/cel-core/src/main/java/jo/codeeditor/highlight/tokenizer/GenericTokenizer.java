@@ -562,6 +562,27 @@ public final class GenericTokenizer {
                 }
             }
 
+            // Chaîne à préfixe (C2-é9, Python) : une lettre déclarée
+            // (f, r, b…) immédiatement suivie d'un guillemet de valeur
+            // ouvre une chaîne DONT le préfixe fait partie — échappements
+            // apparents, orpheline → fin de ligne sans état.
+            if (template.stringPrefixes.contains(ch)
+                    && pos + 1 < line.length()
+                    && template.valueQuotes.contains(line.charAt(pos + 1))) {
+                char quote = line.charAt(pos + 1);
+                int end = SpanUtils.findStringEnd(line, pos + 2, quote);
+                if (end >= 0) {
+                    SpanUtils.addStringSpans(spans, line, pos, end + 1,
+                            template.valueType);
+                    pos = end + 1;
+                } else {
+                    spans.add(new LineSpan(pos, line.length(),
+                            template.valueType));
+                    pos = line.length();
+                }
+                continue;
+            }
+
             // Chaîne à guillemets doubles : échappements sautés, un
             // seul jeton ; non fermée → jusqu'en fin de ligne.
             // C2-é8 (SQL) : le type du jeton est DÉCLARABLE — la
@@ -677,12 +698,20 @@ public final class GenericTokenizer {
             }
 
             // Annotation (C2-é6, famille C) : préfixe + identifiant en
-            // un jeton (@Override → ANNOTATION).
-            if (template.annotationPrefixes.contains(ch)) {
+            // un jeton (@Override → ANNOTATION). C2-é9 (Python) : le
+            // mot peut inclure des caractères déclarés (@app.route) et
+            // le préfixe peut être BORNÉ — évalué seulement en début de
+            // ligne ou après un blanc (a@b n'est pas un décorateur).
+            if (template.annotationPrefixes.contains(ch)
+                    && (!template.annotationRequiresBoundary
+                            || pos == 0
+                            || Character.isWhitespace(line.charAt(pos - 1)))) {
                 int end = pos + 1;
                 while (end < line.length()
                         && (Character.isLetterOrDigit(line.charAt(end))
-                                || line.charAt(end) == '_')) {
+                                || line.charAt(end) == '_'
+                                || template.annotationWordChars.contains(
+                                        line.charAt(end)))) {
                     end++;
                 }
                 spans.add(new LineSpan(pos, end, template.annotationType));
@@ -769,12 +798,19 @@ public final class GenericTokenizer {
                 } else if (template.wordAllCapsType != null
                         && SpanUtils.isAllCaps(word) && word.length() > 1) {
                     type = template.wordAllCapsType;
-                } else if (end < line.length()
+                } else if (!template.wordFuncAfterCase
+                        && end < line.length()
                         && template.wordFuncFollowChars.contains(line.charAt(end))) {
                     type = TokenType.FUNC;
                 } else if (template.wordUpperCaseType != null
                         && Character.isUpperCase(word.charAt(0))) {
                     type = template.wordUpperCaseType;
+                } else if (template.wordFuncAfterCase
+                        && end < line.length()
+                        && template.wordFuncFollowChars.contains(line.charAt(end))) {
+                    // C2-é9 (Python) : la CASSE est évaluée avant la
+                    // parenthèse d'appel — Foo( est TYPE, pas FUNC.
+                    type = TokenType.FUNC;
                 } else if (template.wordAfterDotType != null && pos > 0
                         && line.charAt(pos - 1) == '.') {
                     type = template.wordAfterDotType;

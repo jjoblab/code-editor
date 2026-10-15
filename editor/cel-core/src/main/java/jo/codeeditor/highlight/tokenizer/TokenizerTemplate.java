@@ -222,6 +222,9 @@ public final class TokenizerTemplate {
     /** Type d'une chaîne simple (C2-é8, SQL) — null : le type de
      * valeur (comportement Shell historique). */
     public final TokenType plainStringType;
+    /** Lettres de préfixe de chaîne (C2-é9, Python) : f"…", r'…',
+     * b"…" — le préfixe fait partie du jeton. */
+    public final Set<Character> stringPrefixes;
     /** Guillemet d'un littéral à état inter-lignes (0 : aucun). */
     public final char interLineQuote;
     /** État de sortie d'un littéral inter-lignes non fermé. */
@@ -252,6 +255,12 @@ public final class TokenizerTemplate {
     public final Set<Character> annotationPrefixes;
     /** Type d'une ancre/alias/tag reconnu. */
     public final TokenType annotationType;
+    /** Caractères supplémentaires du mot d'annotation (C2-é9, Python :
+     * {@code .} pour {@code @app.route}). */
+    public final Set<Character> annotationWordChars;
+    /** Vrai (C2-é9, Python) : l'annotation n'est reconnue qu'en début
+     * de ligne ou après un blanc (a@b n'est pas un décorateur). */
+    public final boolean annotationRequiresBoundary;
     /** Caractères de départ d'une clé au-delà des lettres (YAML :
      * {@code _ " ' - . /}) — vide : clé non filtrée (historique). */
     public final Set<Character> keyStartExtras;
@@ -348,6 +357,9 @@ public final class TokenizerTemplate {
     public final TokenType wordAllCapsType;
     /** Type d'un identifiant précédé d'un point (null : désactivé). */
     public final TokenType wordAfterDotType;
+    /** Vrai (C2-é9, Python) : la casse (ALL_CAPS, majuscule initiale)
+     * est évaluée AVANT la parenthèse d'appel — Foo( est TYPE. */
+    public final boolean wordFuncAfterCase;
 
     private TokenizerTemplate(Builder b) {
         this.lineComments = List.copyOf(b.lineComments);
@@ -377,6 +389,8 @@ public final class TokenizerTemplate {
         this.plainStringQuotes = Collections.unmodifiableSet(
                 new HashSet<>(b.plainStringQuotes));
         this.plainStringType = b.plainStringType;
+        this.stringPrefixes = Collections.unmodifiableSet(
+                new HashSet<>(b.stringPrefixes));
         this.interLineQuote = b.interLineQuote;
         this.interLineState = b.interLineState;
         this.commandQuotes = Collections.unmodifiableSet(new HashSet<>(b.commandQuotes));
@@ -392,6 +406,9 @@ public final class TokenizerTemplate {
         this.annotationPrefixes = Collections.unmodifiableSet(
                 new HashSet<>(b.annotationPrefixes));
         this.annotationType = b.annotationType;
+        this.annotationWordChars = Collections.unmodifiableSet(
+                new HashSet<>(b.annotationWordChars));
+        this.annotationRequiresBoundary = b.annotationRequiresBoundary;
         this.keyStartExtras = Collections.unmodifiableSet(new HashSet<>(b.keyStartExtras));
         this.keyStopChars = Collections.unmodifiableSet(new HashSet<>(b.keyStopChars));
         this.keyLookahead = b.keyLookahead;
@@ -436,6 +453,7 @@ public final class TokenizerTemplate {
         this.wordTypeKeywordType = b.wordTypeKeywordType;
         this.wordAllCapsType = b.wordAllCapsType;
         this.wordAfterDotType = b.wordAfterDotType;
+        this.wordFuncAfterCase = b.wordFuncAfterCase;
     }
 
     /**
@@ -687,6 +705,43 @@ public final class TokenizerTemplate {
             .build();
 
     /**
+     * Template Python intégré (migration C2-é9) : commentaires
+     * {@code #}, chaînes à triple guillemet (état inter-lignes —
+     * seuls les GUILLEMETS, la garde historique '''), chaînes à
+     * préfixe f/r/b dont le préfixe fait partie du jeton, chaînes
+     * quotées à échappements apparents, décorateurs bornés au mot
+     * (chemins avec points), nombres hexadécimaux/imaginaires/à
+     * soulignés, mots-clés et types du registre, casse évaluée avant
+     * l'appel (Foo( est TYPE) — reprend la grammaire historique de
+     * {@code PythonTokenizer} octet pour octet.
+     */
+    public static final TokenizerTemplate PYTHON = builder()
+            .freeForm()
+            .lineComments("#")
+            .blockLiteral("\"\"\"", "\"\"\"", 3, LexState.BLOCK_COMMENT, TokenType.STRING)
+            .stringPrefixes('f', 'F', 'r', 'R', 'b', 'B')
+            .valueQuotes('"', '\'')
+            .valueType(TokenType.STRING)
+            .valueNumberChars('.', '_', 'x', 'X', 'a', 'b', 'c', 'd', 'e', 'f',
+                    'A', 'B', 'C', 'D', 'E', 'F', 'j', 'J')
+            .valueKeywords(KeywordTables.PYTHON_KEYWORDS)
+            .valueKeywordType(TokenType.KEYWORD)
+            .wordTypeKeywords(KeywordTables.PYTHON_TYPES)
+            .wordTypeKeywordType(TokenType.TYPE)
+            .annotationPrefixes('@')
+            .annotationWordChars('.')
+            .annotationRequiresBoundary(true)
+            .wordFuncAfterCase(true)
+            .wordExtraChars('_')
+            .wordAllCapsType(TokenType.CONSTANT)
+            .wordFuncFollowChars('(')
+            .wordUpperCaseType(TokenType.TYPE)
+            .wordFallbackType(TokenType.PLAIN)
+            .operatorChars('+', '-', '*', '/', '%', '=', '!', '<', '>', '&',
+                    '|', '^', '~', '?', ':')
+            .build();
+
+    /**
      * Littéral à délimiteurs (C2-é6, famille C) : ouvrant, fermant,
      * offset de recherche de la fermante (l'ouverture {@code /**}
      * cherche sa fermante dès {@code pos+2} — {@code /**&#47;} se referme),
@@ -776,6 +831,7 @@ public final class TokenizerTemplate {
         private TokenType variableType = TokenType.VARIABLE;
         private final Set<Character> plainStringQuotes = new HashSet<>();
         private TokenType plainStringType = null;
+        private final Set<Character> stringPrefixes = new HashSet<>();
         private char interLineQuote = 0;
         private int interLineState = 0;
         private final Set<Character> commandQuotes = new HashSet<>();
@@ -789,6 +845,8 @@ public final class TokenizerTemplate {
         private TokenType documentMarkerType = TokenType.KEYWORD;
         private final Set<Character> annotationPrefixes = new HashSet<>();
         private TokenType annotationType = TokenType.ANNOTATION;
+        private final Set<Character> annotationWordChars = new HashSet<>();
+        private boolean annotationRequiresBoundary = false;
         private final Set<Character> keyStartExtras = new HashSet<>();
         private final Set<Character> keyStopChars = new HashSet<>();
         private boolean keyLookahead = false;
@@ -825,6 +883,7 @@ public final class TokenizerTemplate {
         private TokenType wordTypeKeywordType = TokenType.TYPE;
         private TokenType wordAllCapsType = null;
         private TokenType wordAfterDotType = null;
+        private boolean wordFuncAfterCase = false;
 
         /** Préfixes de commentaire de ligne (entrées vides/nulles ignorées). */
         public Builder lineComments(String... prefixes) {
@@ -953,6 +1012,12 @@ public final class TokenizerTemplate {
             return this;
         }
 
+        /** Lettres de préfixe de chaîne (C2-é9, Python : f"…", r'…'). */
+        public Builder stringPrefixes(char... prefixes) {
+            for (char c : prefixes) stringPrefixes.add(c);
+            return this;
+        }
+
         /** Littéral à état inter-lignes (guillemet, état de sortie). */
         public Builder interLineString(char quote, int exitState) {
             this.interLineQuote = quote;
@@ -1025,6 +1090,20 @@ public final class TokenizerTemplate {
         /** Type d'une ancre/alias/tag reconnu. */
         public Builder annotationType(TokenType type) {
             this.annotationType = type != null ? type : TokenType.ANNOTATION;
+            return this;
+        }
+
+        /** Caractères supplémentaires du mot d'annotation (C2-é9,
+         * Python : « . » pour {@code @app.route}). */
+        public Builder annotationWordChars(char... chars) {
+            for (char c : chars) annotationWordChars.add(c);
+            return this;
+        }
+
+        /** Annotation reconnue seulement en début de ligne ou après un
+         * blanc (C2-é9, Python : a@b n'est pas un décorateur). */
+        public Builder annotationRequiresBoundary(boolean required) {
+            this.annotationRequiresBoundary = required;
             return this;
         }
 
@@ -1251,6 +1330,13 @@ public final class TokenizerTemplate {
         /** Type d'un identifiant précédé d'un point. */
         public Builder wordAfterDotType(TokenType type) {
             this.wordAfterDotType = type;
+            return this;
+        }
+
+        /** Vrai : la casse (ALL_CAPS, majuscule initiale) est évaluée
+         * AVANT la parenthèse d'appel (C2-é9, Python : Foo( est TYPE). */
+        public Builder wordFuncAfterCase(boolean enabled) {
+            this.wordFuncAfterCase = enabled;
             return this;
         }
 
