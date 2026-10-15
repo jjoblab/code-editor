@@ -205,7 +205,14 @@ class LspCodeActionsProvider implements CodeActionsProvider {
                     .resolveCodeAction(unresolved)
                     .get(CODE_ACTION_TIMEOUT_MS, java.util.concurrent.TimeUnit.MILLISECONDS);
             return resolved != null ? resolved.getEdit() : null;
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            // D-07 : la réponse du serveur est malformée, muette ou
+            // trop lente — journalisée en warn (l'ancien catch muet
+            // cachait les serveurs bogués) puis repli null : l'action
+            // n'est tout simplement pas résolue.
+            jo.codeeditor.util.EditorLog.warn("LspCodeAction",
+                    "résolution d'une action de code échouée (réponse serveur "
+                            + "malformée, muette ou trop lente)", e);
             return null;
         }
     }
@@ -281,7 +288,15 @@ class LspCodeActionsProvider implements CodeActionsProvider {
             com.google.gson.JsonObject o = el.getAsJsonObject();
             if (!o.has("changes") && !o.has("documentChanges")) return null;
             return gson.fromJson(el, org.eclipse.lsp4j.WorkspaceEdit.class);
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            // D-07 : la valeur retournée par la commande n'a pas la
+            // forme d'un WorkspaceEdit malgré ses champs — journalisée
+            // en warn (l'ancien catch muet cachait les réponses
+            // boguées) puis repli null : la commande est réputée sans
+            // édition, sans faire échouer l'application.
+            jo.codeeditor.util.EditorLog.warn("LspCodeAction",
+                    "réponse de commande ininterprétable en édition d'espace "
+                            + "de travail (réponse serveur malformée)", e);
             return null;
         }
     }
@@ -314,7 +329,7 @@ class LspCodeActionsProvider implements CodeActionsProvider {
     }
 
     private void log(String message) {
-        android.util.Log.i("LspCodeAction", message);
+        jo.codeeditor.util.EditorLog.info("LspCodeAction", message);
         if (logSink != null) logSink.log(message);
     }
 }
