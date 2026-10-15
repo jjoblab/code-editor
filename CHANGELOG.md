@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Les sections antérieures à la période courante sont archivées dans
 [`docs/CHANGELOG-archive.md`](docs/CHANGELOG-archive.md) (A-08, audit 3.69.0).
 
-## [3.71.0] — non publié — Exécution du plan d'audit 3.69.0 (lots L1→L10)
+## [3.71.0] — 2026-10-16 — Exécution du plan d'audit 3.69.0 (lots L1→L10) + décisions du propriétaire (Apache-2.0, plans 01/03, ADR-002)
 
 ### Added
 
