@@ -216,6 +216,9 @@ public final class TokenizerTemplate {
     public final Set<Character> variablePrefixes;
     /** Type d'une variable reconnue. */
     public final TokenType variableType;
+    /** Caractères supplémentaires du mot de variable (C2-é11, CSS :
+     * {@code -} pour {@code $primary-color}). */
+    public final Set<Character> variableWordChars;
     /** Guillemets ouvrant une chaîne à échappements sautés (un seul
      * jeton, non fermée → fin de ligne). */
     public final Set<Character> plainStringQuotes;
@@ -229,6 +232,11 @@ public final class TokenizerTemplate {
     public final char interLineQuote;
     /** État de sortie d'un littéral inter-lignes non fermé. */
     public final int interLineState;
+    /** Guillemets fermant le littéral inter-lignes, en ordre DÉCLARÉ
+     * (C2-é11, CSS : « " » puis « ' » — le premier existant ferme,
+     * même si l'autre apparaît plus tôt). Prioritaire sur
+     * {@link #interLineQuote} si non vide. */
+    public final List<Character> interLineQuotes;
     /** Guillemets ouvrant une substitution par paires (backticks). */
     public final Set<Character> commandQuotes;
     /** Type d'une substitution par paires. */
@@ -236,6 +244,9 @@ public final class TokenizerTemplate {
     /** Caractères supplémentaires d'un mot, au-delà des lettres
      * (départ) et des alphanumériques (suite) — shell : {@code _ -}. */
     public final Set<Character> wordExtraChars;
+    /** Caractères ouvrant un mot SANS le continuer (C2-é11, CSS :
+     * {@code &} — a&b est deux mots). */
+    public final Set<Character> wordStartExtras;
     /** Caractères qui, suivant un mot, en font un appel de fonction
      * (shell : {@code ( [}). */
     public final Set<Character> wordFuncFollowChars;
@@ -327,6 +338,9 @@ public final class TokenizerTemplate {
     /** Vrai : un POINT ancré à un chiffre ouvre un nombre (SQL :
      * {@code .5}) — sans condition de frontière. */
     public final boolean numberLeadingDot;
+    /** Vrai : l'unité (lettres, %) est absorbée dans le nombre
+     * (C2-é11, CSS : {@code 12px}, {@code 100%}). */
+    public final boolean numberUnitSuffix;
     /** Caractères émis en opérateurs mono-caractère, jamais fusionnés
      * en course (JSON : {@code :}, {@code ,}). */
     public final Set<Character> operatorSingleChars;
@@ -415,6 +429,8 @@ public final class TokenizerTemplate {
         this.variablePrefixes = Collections.unmodifiableSet(
                 new HashSet<>(b.variablePrefixes));
         this.variableType = b.variableType;
+        this.variableWordChars = Collections.unmodifiableSet(
+                new HashSet<>(b.variableWordChars));
         this.plainStringQuotes = Collections.unmodifiableSet(
                 new HashSet<>(b.plainStringQuotes));
         this.plainStringType = b.plainStringType;
@@ -422,9 +438,12 @@ public final class TokenizerTemplate {
                 new HashSet<>(b.stringPrefixes));
         this.interLineQuote = b.interLineQuote;
         this.interLineState = b.interLineState;
+        this.interLineQuotes = List.copyOf(b.interLineQuotes);
         this.commandQuotes = Collections.unmodifiableSet(new HashSet<>(b.commandQuotes));
         this.commandQuoteType = b.commandQuoteType;
         this.wordExtraChars = Collections.unmodifiableSet(new HashSet<>(b.wordExtraChars));
+        this.wordStartExtras = Collections.unmodifiableSet(
+                new HashSet<>(b.wordStartExtras));
         this.wordFuncFollowChars = Collections.unmodifiableSet(
                 new HashSet<>(b.wordFuncFollowChars));
         this.wordUpperCaseType = b.wordUpperCaseType;
@@ -464,6 +483,7 @@ public final class TokenizerTemplate {
         this.numberRequiresBoundary = b.numberRequiresBoundary;
         this.numberLeadingMinus = b.numberLeadingMinus;
         this.numberLeadingDot = b.numberLeadingDot;
+        this.numberUnitSuffix = b.numberUnitSuffix;
         this.operatorSingleChars = Collections.unmodifiableSet(
                 new HashSet<>(b.operatorSingleChars));
         this.blockLiterals = List.copyOf(b.blockLiterals);
@@ -824,6 +844,46 @@ public final class TokenizerTemplate {
             .build();
 
     /**
+     * Template CSS/SCSS/LESS intégré (migration C2-é11) : règles at
+     * raffinées par table (sinon VARIABLE — interpolation), variables
+     * SCSS à tiret, couleurs hexadécimales, nombres à unités ouverts au
+     * point, commentaires de bloc (état CSS_COMMENT) et de ligne SCSS,
+     * chaînes à échappements apparents dont l'orphaine porte l'état
+     * CSS_STRING (fermable par l'un des deux guillemets, « " » en
+     * premier), propriétés en PROPERTY (table), sélecteur majuscule en
+     * TYPE, « & » ouvrant un mot sans le continuer — reprend la
+     * grammaire historique de {@code CssTokenizer} octet pour octet.
+     */
+    public static final TokenizerTemplate CSS = builder()
+            .freeForm()
+            .lineComments("//")
+            .blockLiteral("/*", "*/", 2, LexState.CSS_COMMENT, TokenType.COMMENT)
+            .annotationPrefixes('@')
+            .annotationKeywords(KeywordTables.CSS_AT_RULES)
+            .annotationKeywordType(TokenType.KEYWORD)
+            .annotationType(TokenType.VARIABLE)
+            .annotationWordChars('-')
+            .variablePrefixes('$')
+            .variableWordChars('-')
+            .valueQuotes('"', '\'')
+            .valueType(TokenType.STRING)
+            .interLineQuotes('"', '\'')
+            .interLineStringState(LexState.CSS_STRING)
+            .valueNumberChars('.')
+            .numberLeadingDot(true)
+            .numberUnitSuffix(true)
+            .colorLiteral('#', TokenType.NUMBER)
+            .wordExtraChars('-', '.', '_')
+            .wordStartExtras('&')
+            .wordTypeKeywords(KeywordTables.CSS_PROPERTIES)
+            .wordTypeKeywordType(TokenType.PROPERTY)
+            .wordUpperCaseType(TokenType.TYPE)
+            .wordFallbackType(TokenType.PLAIN)
+            .operatorSingleChars(':', ';', '{', '}', ',', '!', '>', '+',
+                    '~', '*', '=')
+            .build();
+
+    /**
      * Littéral à délimiteurs (C2-é6, famille C) : ouvrant, fermant,
      * offset de recherche de la fermante (l'ouverture {@code /**}
      * cherche sa fermante dès {@code pos+2} — {@code /**&#47;} se referme),
@@ -911,14 +971,17 @@ public final class TokenizerTemplate {
         private final Set<Character> commentAnchors = new HashSet<>();
         private final Set<Character> variablePrefixes = new HashSet<>();
         private TokenType variableType = TokenType.VARIABLE;
+        private final Set<Character> variableWordChars = new HashSet<>();
         private final Set<Character> plainStringQuotes = new HashSet<>();
         private TokenType plainStringType = null;
         private final Set<Character> stringPrefixes = new HashSet<>();
         private char interLineQuote = 0;
         private int interLineState = 0;
+        private final List<Character> interLineQuotes = new ArrayList<>();
         private final Set<Character> commandQuotes = new HashSet<>();
         private TokenType commandQuoteType = TokenType.ANNOTATION;
         private final Set<Character> wordExtraChars = new HashSet<>();
+        private final Set<Character> wordStartExtras = new HashSet<>();
         private final Set<Character> wordFuncFollowChars = new HashSet<>();
         private TokenType wordUpperCaseType = null;
         private TokenType wordFallbackType = TokenType.PLAIN;
@@ -951,6 +1014,7 @@ public final class TokenizerTemplate {
         private boolean numberRequiresBoundary = true;
         private boolean numberLeadingMinus = false;
         private boolean numberLeadingDot = false;
+        private boolean numberUnitSuffix = false;
         private final Set<Character> operatorSingleChars = new HashSet<>();
         private final List<BlockLiteral> blockLiterals = new ArrayList<>();
         private final Set<Character> charQuotes = new HashSet<>();
@@ -1092,6 +1156,13 @@ public final class TokenizerTemplate {
             return this;
         }
 
+        /** Caractères supplémentaires du mot de variable (C2-é11, CSS :
+         * « - » pour {@code $primary-color}). */
+        public Builder variableWordChars(char... chars) {
+            for (char c : chars) variableWordChars.add(c);
+            return this;
+        }
+
         /** Guillemets de chaîne à échappements sautés (span unique). */
         public Builder plainStringQuotes(char... quotes) {
             for (char q : quotes) plainStringQuotes.add(q);
@@ -1118,6 +1189,19 @@ public final class TokenizerTemplate {
             return this;
         }
 
+        /** Guillemets fermant le littéral inter-lignes, en ordre
+         * DÉCLARÉ (C2-é11, CSS) — prioritaire sur interLineString. */
+        public Builder interLineQuotes(char... quotes) {
+            for (char q : quotes) interLineQuotes.add(q);
+            return this;
+        }
+
+        /** État de sortie d'un littéral inter-lignes non fermé. */
+        public Builder interLineStringState(int exitState) {
+            this.interLineState = exitState;
+            return this;
+        }
+
         /** Guillemets de substitution par paires (backticks). */
         public Builder commandQuotes(char... quotes) {
             for (char q : quotes) commandQuotes.add(q);
@@ -1133,6 +1217,13 @@ public final class TokenizerTemplate {
         /** Caractères supplémentaires d'un mot (départ et suite). */
         public Builder wordExtraChars(char... chars) {
             for (char c : chars) wordExtraChars.add(c);
+            return this;
+        }
+
+        /** Caractères ouvrant un mot SANS le continuer (C2-é11, CSS :
+         * « & » — a&b est deux mots). */
+        public Builder wordStartExtras(char... chars) {
+            for (char c : chars) wordStartExtras.add(c);
             return this;
         }
 
@@ -1332,6 +1423,13 @@ public final class TokenizerTemplate {
         /** Un point ancré à un chiffre ouvre un nombre (C2-é8, SQL). */
         public Builder numberLeadingDot(boolean enabled) {
             this.numberLeadingDot = enabled;
+            return this;
+        }
+
+        /** L'unité (lettres, %) est absorbée dans le nombre (C2-é11,
+         * CSS : 12px, 100%). */
+        public Builder numberUnitSuffix(boolean enabled) {
+            this.numberUnitSuffix = enabled;
             return this;
         }
 

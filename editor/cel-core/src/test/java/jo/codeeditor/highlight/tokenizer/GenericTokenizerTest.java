@@ -1019,4 +1019,103 @@ class GenericTokenizerTest {
         assertEquals(1, l3.spans.size());
         assertEquals(TokenType.PLAIN, l3.spans.get(0).type, "a/b est UN mot (slash interne)");
     }
+
+    // ── C2-é11 : unités, &-mot, guillemets inter-lignes multiples ──
+
+    /**
+     * Template maison (C2-é11) : mini-langage façon CSS — règles at
+     * raffinées par table, variables à tiret, nombres à unités, mot
+     * ouvert par « & » mais non continué, chaîne inter-lignes fermable
+     * par l'un des guillemets déclarés : la grammaire de la famille
+     * CSS sans une ligne de moteur.
+     */
+    private static final TokenizerTemplate FEUILLE = TokenizerTemplate.builder()
+            .freeForm()
+            .lineComments("//")
+            .blockLiteral("/*", "*/", 2, 5, TokenType.COMMENT)
+            .annotationPrefixes('@')
+            .annotationKeywords(java.util.Set.of("@media"))
+            .annotationKeywordType(TokenType.KEYWORD)
+            .annotationType(TokenType.VARIABLE)
+            .annotationWordChars('-')
+            .variablePrefixes('$')
+            .variableWordChars('-')
+            .valueQuotes('"', '\'')
+            .valueType(TokenType.STRING)
+            .interLineQuotes('"', '\'')
+            .interLineStringState(6)
+            .valueNumberChars('.')
+            .numberLeadingDot(true)
+            .numberUnitSuffix(true)
+            .colorLiteral('#', TokenType.NUMBER)
+            .wordExtraChars('-', '.')
+            .wordStartExtras('&')
+            .wordTypeKeywords(java.util.Set.of("color"))
+            .wordTypeKeywordType(TokenType.PROPERTY)
+            .wordUpperCaseType(TokenType.TYPE)
+            .wordFallbackType(TokenType.PLAIN)
+            .operatorSingleChars(':', ';', '{', '}', ',', '!', '>', '+', '~', '*', '=')
+            .build();
+
+    @Test
+    void feuilleMaison_règleAtRaffinée() {
+        // @media → KEYWORD (table) ; @var → VARIABLE (repli déclaré).
+        StyledLine l = GenericTokenizer.styleLine(FEUILLE, "@media x", 0);
+        assertEquals(TokenType.KEYWORD, typeAt(l, 0));
+        StyledLine l2 = GenericTokenizer.styleLine(FEUILLE, "@var-x", 0);
+        assertEquals(TokenType.VARIABLE, typeAt(l2, 0));
+    }
+
+    @Test
+    void feuilleMaison_variableAvecTiret() {
+        // $primary-color : le tiret reste dans la variable.
+        StyledLine l = GenericTokenizer.styleLine(FEUILLE, "$primary-color", 0);
+        assertEquals(1, l.spans.size());
+        assertEquals(TokenType.VARIABLE, l.spans.get(0).type);
+        assertEquals(14, l.spans.get(0).endCol);
+    }
+
+    @Test
+    void feuilleMaison_nombreAvecUnité() {
+        // 12px : l'unité est absorbée dans le nombre ; 100% aussi.
+        StyledLine l = GenericTokenizer.styleLine(FEUILLE, "12px 100%", 0);
+        assertEquals(2, l.spans.size());
+        assertEquals(TokenType.NUMBER, l.spans.get(0).type);
+        assertEquals(4, l.spans.get(0).endCol, "px absorbé");
+        assertEquals(TokenType.NUMBER, l.spans.get(1).type);
+        assertEquals(9, l.spans.get(1).endCol, "% absorbé");
+    }
+
+    @Test
+    void feuilleMaison_etOuvreMaisNeContinuePas() {
+        // a&b : « & » ouvre un mot mais ne le continue pas — DEUX mots.
+        StyledLine l = GenericTokenizer.styleLine(FEUILLE, "a&b", 0);
+        assertEquals(2, l.spans.size());
+        assertEquals(1, l.spans.get(0).endCol, "« a » s'arrête devant &");
+        assertEquals(TokenType.PLAIN, l.spans.get(1).type);
+        assertEquals(3, l.spans.get(1).endCol, "« &b » est un mot");
+    }
+
+    @Test
+    void feuilleMaison_chaîneInterLignesAuxDeuxGuillemets() {
+        // L'orphaine porte l'état, quel que soit le guillemet ; la
+        // continuation ferme au PREMIER guillemet de l'ordre DECLARÉ
+        // (« " » d'abord, sinon « ' »).
+        StyledLine l = GenericTokenizer.styleLine(FEUILLE, "x: \"ouvert", 0);
+        assertEquals(TokenType.STRING, typeAt(l, 3));
+        assertEquals(6, l.exitState);
+        StyledLine l2 = GenericTokenizer.styleLine(FEUILLE, "suite \" fin", 6);
+        assertEquals(TokenType.STRING, typeAt(l2, 0));
+        assertEquals(TokenType.PLAIN, typeAt(l2, 8));
+        assertEquals(LexState.NORMAL, l2.exitState);
+        // Pas de guillemet : la fermeture tombe à l'apostrophe.
+        StyledLine l3 = GenericTokenizer.styleLine(FEUILLE, "c'est", 6);
+        assertEquals(TokenType.STRING, typeAt(l3, 0));
+        assertEquals(2, l3.spans.get(0).endCol, "fermée à l'apostrophe");
+        assertEquals(TokenType.PLAIN, typeAt(l3, 2), "« est » est re-lexé");
+        assertEquals(LexState.NORMAL, l3.exitState);
+        // L'apostrophe orpheline porte AUSSI l'état.
+        StyledLine l4 = GenericTokenizer.styleLine(FEUILLE, "x: 'ouvert", 0);
+        assertEquals(6, l4.exitState);
+    }
 }

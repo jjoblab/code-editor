@@ -472,8 +472,22 @@ public final class GenericTokenizer {
 
         // Littéral inter-lignes non fermé à la ligne précédente :
         // consommé jusqu'à la fermante (bash autorise le multi-ligne).
-        if (template.interLineQuote != 0 && state == template.interLineState) {
-            int end = line.indexOf(template.interLineQuote, pos);
+        // C2-é11 (CSS) : plusieurs guillemets peuvent déclarer l'état —
+        // la fermeture tombe au premier guillemet de l'ordre DÉCLARÉ
+        // qui existe sur la ligne (« " » avant « ' »), même si l'autre
+        // apparaît plus tôt (garde historique CSS).
+        if (state == template.interLineState
+                && (template.interLineQuote != 0
+                        || !template.interLineQuotes.isEmpty())) {
+            int end = -1;
+            if (template.interLineQuote != 0) {
+                end = line.indexOf(template.interLineQuote, pos);
+            } else {
+                for (char q : template.interLineQuotes) {
+                    end = line.indexOf(q, pos);
+                    if (end >= 0) break;
+                }
+            }
             if (end >= 0) {
                 spans.add(new LineSpan(pos, end + 1, template.valueType));
                 pos = end + 1;
@@ -534,7 +548,9 @@ public final class GenericTokenizer {
             }
 
             // Variable : $var, ${var}, $?, $1… (${...} peut contenir
-            // un # sans ouvrir de commentaire).
+            // un # sans ouvrir de commentaire). C2-é11 (CSS) : le mot
+            // de la variable accepte des caractères déclarés
+            // ($primary-color).
             if (template.variablePrefixes.contains(ch)) {
                 int end = pos + 1;
                 if (end < line.length() && line.charAt(end) == '{') {
@@ -543,10 +559,14 @@ public final class GenericTokenizer {
                     if (end < line.length()) end++;
                 } else if (end < line.length()
                         && (Character.isLetter(line.charAt(end))
-                                || line.charAt(end) == '_')) {
+                                || line.charAt(end) == '_'
+                                || template.variableWordChars.contains(
+                                        line.charAt(end)))) {
                     while (end < line.length()
                             && (Character.isLetterOrDigit(line.charAt(end))
-                                    || line.charAt(end) == '_')) {
+                                    || line.charAt(end) == '_'
+                                    || template.variableWordChars.contains(
+                                            line.charAt(end)))) {
                         end++;
                     }
                 } else if (end < line.length() && line.charAt(end) == '?') {
@@ -637,7 +657,8 @@ public final class GenericTokenizer {
                 if (!template.stringOrphanFallsThrough) {
                     spans.add(new LineSpan(pos, line.length(), template.valueType));
                     pos = line.length();
-                    if (ch == template.interLineQuote) {
+                    if (ch == template.interLineQuote
+                            || template.interLineQuotes.contains(ch)) {
                         state = template.interLineState;
                     }
                     continue;
@@ -783,6 +804,15 @@ public final class GenericTokenizer {
                                         line.charAt(end)))) {
                     end++;
                 }
+                // C2-é11 (CSS) : l'unité (lettres, %) est ABSORBÉE dans
+                // le nombre — 12px, 1.5em, 100% en un seul jeton.
+                if (template.numberUnitSuffix) {
+                    while (end < line.length()
+                            && (Character.isLetter(line.charAt(end))
+                                    || line.charAt(end) == '%')) {
+                        end++;
+                    }
+                }
                 spans.add(new LineSpan(pos, end, template.valueNumberType));
                 pos = end;
                 continue;
@@ -810,7 +840,10 @@ public final class GenericTokenizer {
             // repli — caractères supplémentaires déclarés inclus ;
             // les chiffres participent au mot sauf dérogation (JSON :
             // mots de lettres pures, le chiffre collé ouvre un nombre).
-            if (Character.isLetter(ch) || template.wordExtraChars.contains(ch)) {
+            // C2-é11 (CSS) : des caractères peuvent ouvrir le mot SANS
+            // le continuer (« & » SCSS : a&b est DEUX mots).
+            if (Character.isLetter(ch) || template.wordExtraChars.contains(ch)
+                    || template.wordStartExtras.contains(ch)) {
                 int end = pos + 1;
                 while (end < line.length()
                         && wordContinues(template, line.charAt(end))) {
