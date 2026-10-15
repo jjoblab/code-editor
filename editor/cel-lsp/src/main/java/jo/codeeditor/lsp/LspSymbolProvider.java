@@ -39,7 +39,7 @@ class LspSymbolProvider implements SymbolProvider {
             CompletableFuture<List<org.eclipse.lsp4j.jsonrpc.messages.Either<org.eclipse.lsp4j.SymbolInformation, DocumentSymbol>>> future =
                 server.getTextDocumentService().documentSymbol(params);
             List<org.eclipse.lsp4j.jsonrpc.messages.Either<org.eclipse.lsp4j.SymbolInformation, DocumentSymbol>> result =
-                future.get(3, TimeUnit.SECONDS);
+                LspRequestTimeouts.await(future, wrapper.requestTimeouts().symbolMs());
             if (result == null) {
                 log("documentSymbol: null result");
                 return Collections.emptyList();

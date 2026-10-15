@@ -38,7 +38,8 @@ class LspDefinitionProvider implements DefinitionProvider {
         log("definition: requesting at offset=" + offset);
         try {
             org.eclipse.lsp4j.jsonrpc.messages.Either<List<? extends org.eclipse.lsp4j.Location>, List<? extends org.eclipse.lsp4j.LocationLink>> defResult =
-                server.getTextDocumentService().definition(params).get(3, TimeUnit.SECONDS);
+                LspRequestTimeouts.await(server.getTextDocumentService().definition(params),
+                        wrapper.requestTimeouts().definitionMs());
             List<org.eclipse.lsp4j.Location> locations;
             if (defResult == null) {
                 locations = Collections.emptyList();

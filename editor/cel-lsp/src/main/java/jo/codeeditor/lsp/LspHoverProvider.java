@@ -39,7 +39,7 @@ class LspHoverProvider implements HoverProvider {
         try {
             CompletableFuture<Hover> future = server.getTextDocumentService().hover(params);
             // 2 s — un tooltip de survol ne doit JAMAIS bloquer 10 s.
-            Hover hover = future.get(2, TimeUnit.SECONDS);
+            Hover hover = LspRequestTimeouts.await(future, wrapper.requestTimeouts().hoverMs());
             if (hover == null) {
                 log("hover: server returned null");
                 return null;

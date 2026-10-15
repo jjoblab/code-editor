@@ -36,7 +36,8 @@ class LspImplementationsProvider implements ImplementationsProvider {
         log("implementation: requesting at offset=" + offset);
         try {
             org.eclipse.lsp4j.jsonrpc.messages.Either<List<? extends org.eclipse.lsp4j.Location>, List<? extends org.eclipse.lsp4j.LocationLink>> result =
-                server.getTextDocumentService().implementation(params).get(8, TimeUnit.SECONDS);
+                LspRequestTimeouts.await(server.getTextDocumentService().implementation(params),
+                        wrapper.requestTimeouts().implementationsMs());
             List<org.eclipse.lsp4j.Location> locations;
             if (result == null) {
                 locations = Collections.emptyList();

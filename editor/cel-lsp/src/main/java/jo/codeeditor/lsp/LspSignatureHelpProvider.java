@@ -42,7 +42,8 @@ class LspSignatureHelpProvider implements SignatureHelpProvider {
         try {
             CompletableFuture<org.eclipse.lsp4j.SignatureHelp> future =
                 server.getTextDocumentService().signatureHelp(params);
-            org.eclipse.lsp4j.SignatureHelp help = future.get(10, TimeUnit.SECONDS);
+            org.eclipse.lsp4j.SignatureHelp help =
+                    LspRequestTimeouts.await(future, wrapper.requestTimeouts().signatureHelpMs());
             if (help == null || help.getSignatures().isEmpty()) {
                 log("signatureHelp: no signatures returned");
                 return null;

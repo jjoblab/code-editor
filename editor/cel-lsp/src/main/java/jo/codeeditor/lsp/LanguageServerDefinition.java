@@ -130,6 +130,28 @@ public abstract class LanguageServerDefinition {
         this.disabledFeatures = features != null ? features : Collections.emptySet();
     }
 
+    /**
+     * Timeouts par type de requête LSP (L1-bis) — null = valeurs par
+     * défaut (celles des providers historiques). Posable avant le
+     * démarrage du serveur ; les lectures des providers se font sans
+     * verrou (champs volatils).
+     */
+    private LspRequestTimeouts timeouts;
+
+    /** Retourne les timeouts surchargés, ou null (valeurs par défaut). */
+    public LspRequestTimeouts getTimeouts() { return timeouts; }
+
+    /**
+     * Surcharge les timeouts par type de requête pour CE serveur (p.
+     * ex. un serveur lent obtient une complétion à 30 s, un serveur
+     * local descend à 1 s). À poser avant le démarrage du serveur ;
+     * après démarrage, seules les requêtes ultérieures voient la
+     * nouvelle valeur.
+     */
+    public void setTimeouts(LspRequestTimeouts timeouts) {
+        this.timeouts = timeouts;
+    }
+
     /** Retourne true si une notification exit doit être envoyée au serveur à l'arrêt. */
     public boolean callExitForLanguageServer() { return true; }
 }

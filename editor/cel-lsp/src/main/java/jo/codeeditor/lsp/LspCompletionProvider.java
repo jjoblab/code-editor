@@ -91,7 +91,7 @@ class LspCompletionProvider implements CompletionProvider {
             CompletableFuture<org.eclipse.lsp4j.jsonrpc.messages.Either<List<org.eclipse.lsp4j.CompletionItem>, CompletionList>> future =
                 server.getTextDocumentService().completion(params);
             org.eclipse.lsp4j.jsonrpc.messages.Either<List<org.eclipse.lsp4j.CompletionItem>, CompletionList> result =
-                future.get(15, TimeUnit.SECONDS);
+                LspRequestTimeouts.await(future, wrapper.requestTimeouts().completionMs());
             List<org.eclipse.lsp4j.CompletionItem> items = result.isLeft()
                 ? result.getLeft() : result.getRight().getItems();
             int count = items != null ? items.size() : 0;
