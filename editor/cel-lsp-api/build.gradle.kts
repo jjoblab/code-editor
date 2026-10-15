@@ -54,10 +54,10 @@ dependencies {
     // A-07 (audit 3.69.0) : annotations de nullité du contrat SPI —
     // compileOnly (rétention CLASS, invisibles au runtime, absentes du
     // POM consommateur).
-    compileOnly("androidx.annotation:annotation:1.8.0")
+    compileOnly(libs.androidx.annotation)
 
-    testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    testImplementation(libs.junit.jupiter)
+    testRuntimeOnly(libs.junit.platform.launcher)
 }
 
 tasks.withType<JavaCompile>().configureEach {

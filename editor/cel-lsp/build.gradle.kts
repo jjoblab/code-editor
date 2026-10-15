@@ -78,29 +78,29 @@ dependencies {
 
     // LSP4J — la liaison Java canonique du Language Server Protocol.
     // Licence EPL-2.0 (compatible MIT pour les œuvres combinées).
-    implementation("org.eclipse.lsp4j:org.eclipse.lsp4j:0.22.0")
-    implementation("org.eclipse.lsp4j:org.eclipse.lsp4j.jsonrpc:0.22.0")
+    implementation(libs.lsp4j)
+    implementation(libs.lsp4j.jsonrpc)
     // Gson (déjà transitif de LSP4J, déclaré EXPLICITEMENT) —
     // désérialisation des réponses des requêtes LSP personnalisées
     // (textDocument/superDefinition) envoyées via RemoteEndpoint.
-    implementation("com.google.code.gson:gson:2.10.1")
+    implementation(libs.gson)
 
     // JUnit 5 pour les tests JVM purs.
-    testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    testImplementation(libs.junit.jupiter)
+    testRuntimeOnly(libs.junit.platform.launcher)
     testImplementation(project(":cel-lsp-api"))
     testImplementation(project(":cel-core"))
     testImplementation(project(":cel-ui"))
     // Robolectric pour les tests d'InProcessStreamConnectionProvider
     // (Robolectric 4.13 ne supporte pas JUnit 5 — ces tests restent JUnit 4,
     // exécutés sur la plateforme JUnit 5 via le moteur vintage).
-    testImplementation("org.robolectric:robolectric:4.13")
-    testImplementation("androidx.test:core:1.6.1")
-    testImplementation("androidx.test.ext:junit:1.2.1")
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.test.core)
+    testImplementation(libs.androidx.test.ext.junit)
     // Moteur vintage : exécute les tests JUnit 4 (Robolectric, @Rule
     // TemporaryFolder) sur la même plateforme JUnit 5 que les tests Jupiter
     // (LspModuleTest) — les deux générations cohabitent.
-    testRuntimeOnly("org.junit.vintage:junit-vintage-engine:5.10.2")
+    testRuntimeOnly(libs.junit.vintage.engine)
 }
 
 tasks.withType<JavaCompile>().configureEach {
