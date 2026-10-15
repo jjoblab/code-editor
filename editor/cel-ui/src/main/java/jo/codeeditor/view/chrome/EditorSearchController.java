@@ -73,6 +73,12 @@ public class EditorSearchController {
     private boolean replaceMode = false;
     private OnMatchesChangedListener matchesListener;
 
+    /** D-05 : la dernière recherche a dépassé le budget (expression trop coûteuse). */
+    private boolean tooCostly = false;
+
+    /** D-05 : la collecte s'est arrêtée au plafond de résultats. */
+    private boolean truncated = false;
+
     /** Session dont le listener de texte est accroché (null = aucune). */
     private EditorSession hookedSession;
 
@@ -97,6 +103,20 @@ public class EditorSearchController {
 
     /** Index de l'occurrence courante (−1 si aucune). */
     public int getCurrentIndex() { return current; }
+
+    /**
+     * D-05 — la dernière recherche a dépassé le budget temps : le motif
+     * est trop coûteux pour ce document (l'UI affiche l'avertissement,
+     * aucune correspondance partielle n'est fiable).
+     */
+    public boolean isTooCostly() { return tooCostly; }
+
+    /**
+     * D-05 — la collecte s'est arrêtée au plafond de résultats
+     * ({@code FindReplace.MAX_MATCHES}) : le compte affiché est un
+     * plancher (« N+ »).
+     */
+    public boolean isTruncated() { return truncated; }
 
     public void setMatchesListener(OnMatchesChangedListener listener) {
         this.matchesListener = listener;
@@ -191,9 +211,16 @@ public class EditorSearchController {
         EditorSession session = view.getSession();
         matches.clear();
         current = -1;
+        tooCostly = false;
+        truncated = false;
         if (session != null && !query.isEmpty()) {
-            matches.addAll(FindReplace.findMatches(
-                    session.getText(), query, options));
+            // D-05 : entrée SÛRE — budget temps en mode regex, plafond
+            // de résultats dans tous les modes, états exposés à l'UI.
+            FindReplace.SearchResult résultat = FindReplace.find(
+                    session.getText(), query, options);
+            matches.addAll(résultat.matches);
+            tooCostly = résultat.tooCostly;
+            truncated = résultat.truncated;
             if (!matches.isEmpty()) {
                 int caret = session.getSelection().start;
                 current = FindReplace.matchIndexFrom(matches, caret);
@@ -357,10 +384,15 @@ public class EditorSearchController {
         ensureSessionHooked();
         matches.clear();
         current = -1;
+        tooCostly = false;
+        truncated = false;
         EditorSession session = view.getSession();
         if (session != null && !query.isEmpty()) {
-            matches.addAll(FindReplace.findMatches(
-                    session.getText(), query, options));
+            FindReplace.SearchResult résultat = FindReplace.find(
+                    session.getText(), query, options);
+            matches.addAll(résultat.matches);
+            tooCostly = résultat.tooCostly;
+            truncated = résultat.truncated;
             // Première occurrence à partir de la fin du remplacement ;
             // bouclage si la fin du document est dépassée.
             for (int i = 0; i < matches.size(); i++) {
@@ -405,8 +437,11 @@ public class EditorSearchController {
     private int appendRegexReplacements(StringBuilder out, String text,
             String replacement) {
         try {
-            Pattern pattern = compilePattern();
-            Matcher matcher = pattern.matcher(text);
+            // D-05 : Pattern centralisé dans FindReplace + matcher
+            // GARDE-FOU — un motif catastrophique avorte la passe au
+            // budget au lieu de figer le thread appelant.
+            Pattern pattern = FindReplace.compilePattern(query, options);
+            Matcher matcher = FindReplace.guardedMatcher(pattern, text);
             StringBuffer buffer = new StringBuffer(
                     text.length() + 16);
             int count = 0;
@@ -423,6 +458,13 @@ public class EditorSearchController {
             out.setLength(0);
             out.append(text);
             return 0;
+        } catch (FindReplace.RegexBudgetExceededException e) {
+            // Motif trop coûteux : AUCUN remplacement (le document n'est
+            // pas muté à moitié) — l'état tooCostly est posé par le
+            // refresh qui suit.
+            out.setLength(0);
+            out.append(text);
+            return 0;
         }
     }
 
@@ -435,7 +477,8 @@ public class EditorSearchController {
      */
     private String expandRegexReplacement(String text, Match m, String replacement) {
         try {
-            Matcher matcher = compilePattern().matcher(text);
+            Matcher matcher = FindReplace.guardedMatcher(
+                    FindReplace.compilePattern(query, options), text);
             matcher.region(m.start, m.end);
             if (matcher.find() && matcher.start() == m.start) {
                 // StringBuffer (pas StringBuilder) : la surcharge
@@ -448,14 +491,11 @@ public class EditorSearchController {
             }
         } catch (IllegalArgumentException | IndexOutOfBoundsException e) {
             // Repli littéral ci-dessous.
+        } catch (FindReplace.RegexBudgetExceededException e) {
+            // Motif trop coûteux : repli littéral ci-dessous (le document
+            // n'est pas muté à moitié).
         }
         return replacement;
-    }
-
-    private Pattern compilePattern() {
-        int flags = Pattern.MULTILINE;
-        if (!options.caseSensitive) flags |= Pattern.CASE_INSENSITIVE;
-        return Pattern.compile(query, flags);
     }
 
     // ════════════════════════════════════════════════════════════════

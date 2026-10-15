@@ -1,5 +1,6 @@
 package jo.codeeditor.view.chrome;
 
+import jo.codeeditor.find.FindReplace;
 import jo.codeeditor.view.EditorView;
 import jo.codeeditor.view.icons.EditorIcons;
 
@@ -451,10 +452,19 @@ public class EditorSearchBar extends LinearLayout {
     // État visuel
     // ════════════════════════════════════════════════════════════════
 
-    /** Compte « courante/total » — vide sans requête, « 0/0 » sans hit. */
+    /** Compte « courante/total » — vide sans requête, « 0/0 » sans hit ;
+     *  D-05 : « trop coûteux » quand le budget est dépassé, « N+ » quand
+     *  la collecte est tronquée au plafond. */
     void updateCount(int count, int currentIndex) {
         if (controller == null || controller.getQuery().isEmpty()) {
             countView.setText("");
+        } else if (controller.isTooCostly()) {
+            countView.setText(getContext().getString(
+                    jo.codeeditor.ui.R.string.cel_find_too_costly));
+        } else if (controller.isTruncated()) {
+            countView.setText(getContext().getString(
+                    jo.codeeditor.ui.R.string.cel_find_count_truncated,
+                    count, FindReplace.MAX_MATCHES));
         } else if (count == 0) {
             countView.setText(getContext().getString(
                     jo.codeeditor.ui.R.string.cel_find_count, 0, 0));
