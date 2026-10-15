@@ -22,8 +22,15 @@ import java.util.Map;
  * <p>Table calibrée sur les catégories standard des grammaires de
  * l'écosystème (celles des portées « TextMate Language Grammars ») :
  * commentaire, chaîne, mot-clé, constante, entité, variable, support,
- * stockage, ponctuation. Une portée inconnue retombe sur
- * {@link TokenType#PLAIN}.</p>
+ * stockage, ponctuation, interpolation, markup. Une portée inconnue
+ * retombe sur {@link TokenType#PLAIN}.</p>
+ *
+ * <p>C4 (schéma de portées pour les thèmes) : la couverture est
+ * CALIBRÉE pour converger avec la voie intégrée — les interpolations
+ * des template literals atterrissent en VARIABLE (comme
+ * {@code addTemplateLiteralSpans} côté famille C), les propriétés
+ * d'objet en PROPERTY (comme l'identifiant après point), le markup
+ * Markdown sur les mêmes types que {@code MarkdownTokenizer}.</p>
  */
 public final class ScopeMapper {
 
@@ -73,6 +80,10 @@ public final class ScopeMapper {
         // ── Variables et paramètres ───────────────────────────────
         m.put("variable.language", TokenType.KEYWORD);
         m.put("variable.parameter", TokenType.VARIABLE);
+        // Propriété d'objet (obj.champ) : convergence avec la voie
+        // intégrée (identifiant après point → PROPERTY).
+        m.put("variable.other.object.property", TokenType.PROPERTY);
+        m.put("variable.other.property", TokenType.PROPERTY);
         m.put("variable.other", TokenType.VARIABLE);
         m.put("variable", TokenType.VARIABLE);
         // ── Support (bibliothèques) ───────────────────────────────
@@ -80,6 +91,27 @@ public final class ScopeMapper {
         m.put("support.type", TokenType.TYPE);
         m.put("support.constant", TokenType.CONSTANT);
         m.put("support.class", TokenType.TYPE);
+        m.put("support.module", TokenType.TYPE);
+        // ── Interpolations : convergence avec la voie intégrée ────
+        // (les ${…} des template literals JS/TS sont VARIABLE côté
+        // intégrée — les portées d'interpolation idem côté grammaires).
+        m.put("meta.interpolation", TokenType.VARIABLE);
+        m.put("meta.template.expression", TokenType.VARIABLE);
+        m.put("punctuation.definition.template-expression", TokenType.VARIABLE);
+        // ── Délimiteurs de définition : colorés comme le contenu ──
+        m.put("punctuation.definition.comment", TokenType.COMMENT);
+        m.put("punctuation.definition.string", TokenType.STRING);
+        // ── Invalides : illégal (erreur) vs déprécié (avertissement)
+        m.put("invalid.deprecated", TokenType.WARNING);
+        // ── Markup (grammaires Markdown) : convergence avec la voie
+        // intégrée (titres → KEYWORD, emphases → EMPHASIS, code
+        // inline → STRING, liens → FUNC).
+        m.put("markup.heading", TokenType.KEYWORD);
+        m.put("markup.bold", TokenType.EMPHASIS);
+        m.put("markup.italic", TokenType.EMPHASIS);
+        m.put("markup.inline.raw", TokenType.STRING);
+        m.put("markup.underline.link", TokenType.FUNC);
+        m.put("string.other.link", TokenType.FUNC);
         // ── Divers ────────────────────────────────────────────────
         m.put("meta.annotation", TokenType.ANNOTATION);
         m.put("meta.preprocessor", TokenType.ANNOTATION);

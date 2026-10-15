@@ -57,6 +57,63 @@ class ScopeMapperTest {
         assertEquals(TokenType.TYPE, ScopeMapper.tokenTypeFor("support.type"));
     }
 
+    // ── C4 : complétion des catégories standard de l'écosystème ────
+
+    @Test
+    void interpolations_convergenceAvecLaVoieIntégrée() {
+        // La voie intégrée colore les ${…} des template literals JS/TS
+        // en VARIABLE (addTemplateLiteralSpans) — la voie grammaires
+        // converge : les portées d'interpolation standard aussi.
+        assertEquals(TokenType.VARIABLE, ScopeMapper.tokenTypeFor("meta.interpolation"));
+        assertEquals(TokenType.VARIABLE, ScopeMapper.tokenTypeFor("meta.template.expression"));
+        assertEquals(TokenType.VARIABLE,
+                ScopeMapper.tokenTypeFor("punctuation.definition.template-expression.begin"));
+    }
+
+    @Test
+    void propriétésDObjet_convergenceAvecLaVoieIntégrée() {
+        // La voie intégrée C colore obj.champ en PROPERTY (identifiant
+        // après point) — les portées standard des grammaires idem.
+        assertEquals(TokenType.PROPERTY,
+                ScopeMapper.tokenTypeFor("variable.other.object.property.python"));
+        assertEquals(TokenType.PROPERTY, ScopeMapper.tokenTypeFor("variable.other.property"));
+        // … mais une variable « simple » reste VARIABLE.
+        assertEquals(TokenType.VARIABLE, ScopeMapper.tokenTypeFor("variable.other.object"));
+    }
+
+    @Test
+    void délimiteurs_colorésCommeLeurContenu() {
+        // Les // /* " ' de définition ne tombent plus en PUNCT gris.
+        assertEquals(TokenType.COMMENT,
+                ScopeMapper.tokenTypeFor("punctuation.definition.comment.line"));
+        assertEquals(TokenType.STRING,
+                ScopeMapper.tokenTypeFor("punctuation.definition.string.begin"));
+    }
+
+    @Test
+    void invalides_illégalVersusDéprécié() {
+        assertEquals(TokenType.ERROR, ScopeMapper.tokenTypeFor("invalid.illegal"));
+        assertEquals(TokenType.WARNING, ScopeMapper.tokenTypeFor("invalid.deprecated"));
+    }
+
+    @Test
+    void markup_convergenceAvecLaVoieIntégréeMarkdown() {
+        // La voie intégrée Markdown : titres → KEYWORD, emphases →
+        // EMPHASIS, code inline → STRING, liens → FUNC. Les portées
+        // markup.* des grammaires Markdown convergent.
+        assertEquals(TokenType.KEYWORD, ScopeMapper.tokenTypeFor("markup.heading.marker"));
+        assertEquals(TokenType.EMPHASIS, ScopeMapper.tokenTypeFor("markup.bold"));
+        assertEquals(TokenType.EMPHASIS, ScopeMapper.tokenTypeFor("markup.italic"));
+        assertEquals(TokenType.STRING, ScopeMapper.tokenTypeFor("markup.inline.raw.string"));
+        assertEquals(TokenType.FUNC, ScopeMapper.tokenTypeFor("markup.underline.link"));
+        assertEquals(TokenType.FUNC, ScopeMapper.tokenTypeFor("string.other.link"));
+    }
+
+    @Test
+    void support_modules() {
+        assertEquals(TokenType.TYPE, ScopeMapper.tokenTypeFor("support.module.node"));
+    }
+
     @Test
     void inconnusEtVides() {
         assertEquals(TokenType.PLAIN, ScopeMapper.tokenTypeFor("source.unknown.segment"));

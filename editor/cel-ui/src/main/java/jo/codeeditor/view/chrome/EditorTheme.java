@@ -43,7 +43,14 @@ public class EditorTheme {
     public final int warning;
     public final int info;
 
-    // ── Couleurs syntaxiques (16 types) ──────────────────────────
+    // ── Couleurs syntaxiques (palette C4 : 23 entrées syntax.*) ──
+    // 15 champs dédiés ci-dessous + 8 clés VIRTUELLES (distinctions
+    // fines : docComment, keywordControl, keywordModifier, char,
+    // stringRaw, namespace, entity, emphasis — cf. registre
+    // ColorAttributes et extraColor) : les deux voies de tokénisation
+    // (intégrée et grammaires :cel-textmate) convergent vers ces
+    // types, un thème colore un langage nouveau sans clé par langage
+    // (ADR-002, chantier C4).
     public final int keyword;
     public final int string;
     public final int comment;
