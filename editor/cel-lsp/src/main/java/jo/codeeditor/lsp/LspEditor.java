@@ -3,6 +3,7 @@ import jo.codeeditor.view.popup.*;
 
 import jo.codeeditor.lang.model.Diagnostic;
 import jo.codeeditor.lang.Language;
+import jo.codeeditor.lang.host.EditorHost;
 import jo.codeeditor.view.EditorView;
 
 import org.eclipse.lsp4j.Position;
@@ -40,6 +41,8 @@ public class LspEditor {
     private LanguageServerWrapper wrapper;
     private LspLanguage language;
     private EditorView editorView;
+    /** Hôte d'édition (contrat plan 03 — inversion de dépendance). */
+    private EditorHost host;
     private volatile boolean connected = false;
 
     /**
@@ -91,9 +94,23 @@ public class LspEditor {
 
     /**
      * Lie cet éditeur à un {@link EditorView}. Appeler avant {@link #connect()}.
+     * Pont historique — les collaborateurs migrent vers le contrat
+     * {@link EditorHost} (plan 03) ; la voie de retrait est consignée
+     * au CHANGELOG.
      */
     public void setEditorView(EditorView view) {
         this.editorView = view;
+    }
+
+    /**
+     * Lie cet éditeur à un hôte d'édition (contrat {@link EditorHost},
+     * plan 03 — inversion de dépendance : le client LSP ne connaît plus
+     * la vue Android). Appeler avant {@link #connect()}. Implémentation
+     * de référence : {@code LspEditorViewHost} (module {@code cel-ui})
+     * autour d'une {@code EditorView}.
+     */
+    public void setHost(EditorHost host) {
+        this.host = host;
     }
 
     /**
