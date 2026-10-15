@@ -16,8 +16,8 @@
 | L5 | M-01 code mort certain | ✅ terminé |
 | L6 | M-02/M-03 classes et API mortes | ✅ terminé |
 | L7 | P-01…P-06 performance | ✅ terminé |
-| L8 | D-09 documentation dérivée | ⏳ en cours |
-| L9 | A-06 tests | ⬜ à faire |
+| L8 | D-09 documentation dérivée | ✅ terminé |
+| L9 | A-06 tests | ✅ terminé |
 | L10 | A-01…A-08 structure | ⬜ à faire |
 
 > Exécution reprise en session 2 (environnement de travail réinitialisé
@@ -98,3 +98,18 @@ Rouges avant / verts après, mesures sur cet environnement (protocoles L0, docum
 | P-06 | getText() entier au long-press inlay (thread UI) | vue de rope immuable O(1) | l'interface prend déjà CharSequence |
 
 Découvertes du lot : **fix(lsp) e5074e8** — `View.post()` sur une vue détachée ne détecte pas la non-attache (branche morte) : le pont LSP ne se posait jamais sur une vue jamais attachée (rouge/vert LspDetachedViewBridgeTest). Figures de tests mises à jour au fil du lot (README/AGENT : 1 776 → 1 865, contrôle d'écart conforme).
+
+---
+
+## L8 — D-09 documentation dérivée (commit 6c33855)
+
+README/USAGE : 3.49.2 → 3.70.1 (8 occurrences) ; BUILD : 3.54.0 → 3.70.1 (5) ; SECURITY.md : 3.49.x → 3.70.x ; AGENT.md : graphe des modules aligné sur les build files (cel-lsp-api → cel-core en api, cel-lsp → aussi cel-ui en compileOnly) ; plans 01/02 : collaborateurs retirés cités (EditorBarTools, SurroundWith) ; FEATURES.md/README : les revendications tab stops/FoldModel auditées comme prématurées en 3.69.0 sont exactes depuis L1/M-02 — inchangées. `check-doc-figures.sh` §4 : la version annoncée (README) et les coordonnées Maven (USAGE/BUILD) doivent égaler `build.gradle.kts` — rouge/vert vérifié par injection d'une version 3.99.0 (exit 1) puis retour (exit 0).
+
+## L9 — A-06 tests (commit de clôture du lot)
+
+- **Attente bornée** : helper `AttenteBornee` par module (condition re-testée à pas fixe, interruption propre, action entre passes pour le looper Robolectric). `Thread.sleep` des tests : 44 → 19 (÷2,3 — acceptance « au moins ÷2 » satisfaite). Les 19 restants sont des sujets de test : fenêtres multi-tap réelles (320 ms), marges d'absence de doublon du débounceur, attentes négatives (un popup ne doit PAS s'ouvrir — aucune condition observable à scruter), pauses GC de finalisation.
+- **Points d'accès de test** : `TestMetrics` (cel-ui, arbre de test) concentre la réflexion d'injection de métriques — 50 fichiers migraient leur copie privée vers le helper ; setAccessible : 97 → 48 (÷2). Aucune méthode publique ajoutée au code de production (cliquet : EditorView à 279/280 méthodes). Écart assumé : ~20 fichiers gardent une variante locale à valeurs propres — adoption progressive possible, comportement identique.
+- **Renommage par sujet** : `V3340RegressionTest` → `RestyleLifecycleRegressionTest`.
+- **Couverture CI en mode rapport** : `enableUnitTestCoverage = true` (4 modules) + étape CI de génération/téléversement des rapports Jacoco — JAMAIS bloquante (aucun seuil).
+- **Stabilité** : suite complète exécutée 5× consécutives sur cet environnement — 5/5 verte, aucun échec intermittent.
+- Contrats cel-lsp-api : couverts par les tests existants (LanguageSPITest, defaults des providers, CompletionItemFieldsTest du lot L1).

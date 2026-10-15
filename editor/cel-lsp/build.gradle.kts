@@ -18,6 +18,10 @@ android {
         }
         debug {
             isMinifyEnabled = false
+            // A-06 (audit 3.69.0) : couverture en mode RAPPORT — les
+            // rapports Jacoco des tests unitaires sont générés pour la CI
+            // (téléversés, jamais bloquants : aucun seuil).
+            enableUnitTestCoverage = true
         }
     }
 

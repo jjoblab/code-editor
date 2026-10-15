@@ -168,7 +168,7 @@ public class LspIncrementalSyncTest {
      */
     @Test
     public void éditionsSuivies_événementsSéquentielsPlagesExactes() {
-        attendre(5000, () -> server.didOpenText != null);
+        jo.codeeditor.AttenteBornee.jusquA(5000, 10L, () -> server.didOpenText != null);
         assertEquals(DOC, server.didOpenText);
 
         // a) insertion " // fin" juste avant le \n final (ligne 2, col 1).
@@ -179,7 +179,7 @@ public class LspIncrementalSyncTest {
         session.replaceRange(17, 17, "\n");
 
         editor.flushPendingChange();
-        attendre(5000, () -> server.didChangeCount >= 1);
+        jo.codeeditor.AttenteBornee.jusquA(5000, 10L, () -> server.didChangeCount >= 1);
 
         assertEquals(1, server.didChangeCount);
         List<TextDocumentContentChangeEvent> events = server.batches.get(0);
@@ -205,11 +205,11 @@ public class LspIncrementalSyncTest {
      */
     @Test
     public void suppressionMultiLignes_bornesPréÉdition() {
-        attendre(5000, () -> server.didOpenText != null);
+        jo.codeeditor.AttenteBornee.jusquA(5000, 10L, () -> server.didOpenText != null);
         // Supprime de la fin de L1 à la fin de L2 : [27, 33) = "= 1;\n}" remplacé par "!".
         session.replaceRange(27, 33, "!");
         editor.flushPendingChange();
-        attendre(5000, () -> server.didChangeCount >= 1);
+        jo.codeeditor.AttenteBornee.jusquA(5000, 10L, () -> server.didChangeCount >= 1);
 
         List<TextDocumentContentChangeEvent> events = server.batches.get(0);
         assertEquals(1, events.size());
@@ -228,15 +228,15 @@ public class LspIncrementalSyncTest {
      */
     @Test
     public void undo_événementInverseExact() {
-        attendre(5000, () -> server.didOpenText != null);
+        jo.codeeditor.AttenteBornee.jusquA(5000, 10L, () -> server.didOpenText != null);
         session.replaceRange(21, 24, "long");
         editor.flushPendingChange();
-        attendre(5000, () -> server.didChangeCount >= 1);
+        jo.codeeditor.AttenteBornee.jusquA(5000, 10L, () -> server.didChangeCount >= 1);
         assertEquals(1, server.didChangeCount);
 
         assertTrue(session.undo());
         editor.flushPendingChange();
-        attendre(5000, () -> server.didChangeCount >= 2);
+        jo.codeeditor.AttenteBornee.jusquA(5000, 10L, () -> server.didChangeCount >= 2);
 
         List<TextDocumentContentChangeEvent> undoEvents = server.batches.get(1);
         assertEquals(1, undoEvents.size());
@@ -277,11 +277,11 @@ public class LspIncrementalSyncTest {
         editeur2.setEditorView(vue2);
         editeur2.connect().get(10, java.util.concurrent.TimeUnit.SECONDS);
         try {
-            attendre(5000, () -> plein.didOpenText != null);
+            jo.codeeditor.AttenteBornee.jusquA(5000, 10L, () -> plein.didOpenText != null);
             assertEquals(DOC, plein.didOpenText);
             session.replaceRange(21, 24, "long");
             editeur2.flushPendingChange();
-            attendre(5000, () -> plein.didChangeCount >= 1);
+            jo.codeeditor.AttenteBornee.jusquA(5000, 10L, () -> plein.didChangeCount >= 1);
             List<TextDocumentContentChangeEvent> events = plein.batches.get(0);
             assertEquals(1, events.size());
             assertNull("pas de plage en mode plein texte", events.get(0).getRange());
@@ -316,20 +316,6 @@ public class LspIncrementalSyncTest {
                 new LspDocumentSynchronizer.TrackedEdit(0, 0, 0, 0, "z", 0, 4);
         assertNull(LspDocumentSynchronizer.coherentRevision(
                 java.util.List.of(e2, e3), 0, 10, 10));
-    }
-
-    /** Attend (borné) qu'une condition async devienne vraie — les messages
-     *  LSP4J sont consommés côté serveur après le retour des appels proxy. */
-    private static void attendre(long timeoutMs, java.util.function.BooleanSupplier condition) {
-        long fin = System.currentTimeMillis() + timeoutMs;
-        while (!condition.getAsBoolean() && System.currentTimeMillis() < fin) {
-            try {
-                Thread.sleep(10);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                return;
-            }
-        }
     }
 
     /** Vérifie la plage d'un événement de contenu. */

@@ -53,7 +53,8 @@ class LspDebouncerTest {
         List<String> ordre = java.util.Collections.synchronizedList(new ArrayList<>());
         CountDownLatch deux = new CountDownLatch(2);
         d.debounce(() -> { ordre.add("première"); deux.countDown(); });
-        Thread.sleep(120); // laisse tirer la première
+        // A-06 : attend (borné) que la première ait tiré avant de relancer.
+        jo.codeeditor.AttenteBornee.jusquA(2000, () -> !ordre.isEmpty());
         d.debounce(() -> { ordre.add("deuxième"); deux.countDown(); });
         assertTrue(deux.await(3, TimeUnit.SECONDS));
         assertEquals(java.util.Arrays.asList("première", "deuxième"), ordre,
@@ -77,19 +78,16 @@ class LspDebouncerTest {
         LspDebouncer d = new LspDebouncer("fuite", 20);
         d.debounce(() -> { });
         d.shutdown();
-        long fin = System.nanoTime() + TimeUnit.SECONDS.toNanos(3);
-        boolean vivant = true;
-        while (System.nanoTime() < fin && vivant) {
-            vivant = false;
+        // A-06 : attente bornée de l'extinction du thread du débounceur.
+        boolean éteint = jo.codeeditor.AttenteBornee.jusquA(3000, 50L, () -> {
             for (Thread t : Thread.getAllStackTraces().keySet()) {
                 if (t.isAlive() && t.getName().contains("lsp-fuite")) {
-                    vivant = true;
-                    Thread.sleep(50);
-                    break;
+                    return false;
                 }
             }
-        }
-        assertFalse(vivant, "le thread du débounceur doit s'arrêter avec shutdown()");
+            return true;
+        });
+        assertTrue(éteint, "le thread du débounceur doit s'arrêter avec shutdown()");
     }
 
     @Test

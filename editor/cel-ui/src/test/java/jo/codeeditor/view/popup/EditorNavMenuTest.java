@@ -131,14 +131,9 @@ public class EditorNavMenuTest {
     }
 
     /** Attend l'ouverture async du menu (voie « features »). */
-    private static boolean awaitNavMenu(EditorView view, long timeoutMs)
-            throws InterruptedException {
-        long deadline = System.currentTimeMillis() + timeoutMs;
-        while (System.currentTimeMillis() < deadline) {
-            if (view.navMenuVisible) return true;
-            Thread.sleep(25);
-        }
-        return view.navMenuVisible;
+    /** A-06 : attente bornée du menu (navMenuVisible). */
+    private static boolean awaitNavMenu(EditorView view, long timeoutMs) {
+        return jo.codeeditor.AttenteBornee.jusquA(timeoutMs, 25L, () -> view.navMenuVisible);
     }
 
     /** Ouvre le menu et attend son contenu. */

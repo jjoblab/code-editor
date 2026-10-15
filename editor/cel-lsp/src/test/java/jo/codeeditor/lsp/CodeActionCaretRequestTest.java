@@ -68,18 +68,9 @@ class CodeActionCaretRequestTest {
     }
 
     private List<Diagnostic> attendreCacheBrut() {
-        long fin = System.currentTimeMillis() + 5000;
-        List<Diagnostic> bruts = editor.cachedLspDiagnostics();
-        while (bruts.isEmpty() && System.currentTimeMillis() < fin) {
-            try {
-                Thread.sleep(20);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                break;
-            }
-            bruts = editor.cachedLspDiagnostics();
-        }
-        return bruts;
+        // A-06 : attente bornée de la publication asynchrone côté pont.
+        jo.codeeditor.AttenteBornee.jusquA(5000, () -> !editor.cachedLspDiagnostics().isEmpty());
+        return editor.cachedLspDiagnostics();
     }
 
     /** L'offset d'un texte dans DOC. */

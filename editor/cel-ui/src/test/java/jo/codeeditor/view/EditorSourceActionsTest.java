@@ -127,17 +127,9 @@ public class EditorSourceActionsTest {
         };
     }
 
-    /** Attend la fin de la résolution arrière-plan (voie « features »). */
+    /** Attend la fin de la résolution arrière-plan (voie « features ») — A-06. */
     private static void attendreCompteur(Compteur compteur, int attendu) {
-        long fin = System.currentTimeMillis() + 5000;
-        while (compteur.appels.get() < attendu && System.currentTimeMillis() < fin) {
-            try {
-                Thread.sleep(20);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                break;
-            }
-        }
+        jo.codeeditor.AttenteBornee.jusquA(5000, () -> compteur.appels.get() >= attendu);
     }
 
     @Test

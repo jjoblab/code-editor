@@ -79,6 +79,13 @@ jobs:
       - name: Tests unitaires (variante debug, tous les modules)
         run: ./gradlew testDebugUnitTest --stacktrace
 
+      - name: Couverture des tests (mode RAPPORT, jamais bloquant)
+        # A-06 (audit 3.69.0) : les rapports Jacoco des tests unitaires
+        # sont générés et téléversés — AUCUN seuil, aucun échec possible
+        # sur le taux : la couverture informe d'abord (mode rapport),
+        # le passage bloquant se discutera sur des chiffres réels.
+        run: ./gradlew createDebugUnitTestCoverageReport --continue
+
       - name: Chiffres documentés = chiffres mesurés
         # Le total de tests annoncé dans README.md doit coller (±5 %) au
         # total réellement exécuté — la documentation ne peut plus
@@ -92,6 +99,16 @@ jobs:
 
       - name: Lint (tous les modules, bloquant)
         run: ./gradlew lint --stacktrace
+
+      - name: Téléversement des rapports de couverture (toujours)
+        # v4.6.2
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: coverage-reports
+          path: |
+            **/build/reports/coverage/
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: Téléversement des rapports lint (toujours)
         # v4.6.2

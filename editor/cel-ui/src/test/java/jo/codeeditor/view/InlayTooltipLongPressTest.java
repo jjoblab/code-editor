@@ -64,22 +64,7 @@ public class InlayTooltipLongPressTest {
     }
 
     private static void injectMetrics(EditorView view, float lineHeight, float charWidth) {
-        try {
-            setFloat(view.metrics, "lineHeight", lineHeight);
-            setFloat(view.metrics, "charWidth", charWidth);
-            setFloat(view.metrics, "padTop", lineHeight * 0.5f);
-            setFloat(view.metrics, "padLeft", charWidth * 0.5f);
-            setFloat(view.metrics, "gutterWidth", charWidth * 7f);
-            setFloat(view.metrics, "foldStripWidth", charWidth * 2f);
-        } catch (Exception e) {
-            throw new IllegalStateException(e);
-        }
-    }
-
-    private static void setFloat(Object target, String field, float value) throws Exception {
-        Field f = target.getClass().getDeclaredField(field);
-        f.setAccessible(true);
-        f.setFloat(target, value);
+        TestMetrics.injecter(view, lineHeight, charWidth);
     }
 
     /** Appui long au centre de la plage tissée du hint (colonne visuelle
@@ -102,13 +87,9 @@ public class InlayTooltipLongPressTest {
     /** Attend (poll borné) que le quick doc devienne visible. */
     private static boolean awaitQuickDoc(EditorView view, long timeoutMs)
             throws InterruptedException {
-        long deadline = System.currentTimeMillis() + timeoutMs;
-        while (System.currentTimeMillis() < deadline) {
-            if (view.quickDocVisible) return true;
-            Shadows.shadowOf(Looper.getMainLooper()).idle();
-            Thread.sleep(20);
-        }
-        return view.quickDocVisible;
+        // A-06 : attente bornée, looper avancé entre passes.
+        return jo.codeeditor.AttenteBornee.jusquA(timeoutMs, 20L, () -> view.quickDocVisible,
+                () -> Shadows.shadowOf(Looper.getMainLooper()).idle());
     }
 
     private static int hintVisStart(EditorView view, int line, int col) {

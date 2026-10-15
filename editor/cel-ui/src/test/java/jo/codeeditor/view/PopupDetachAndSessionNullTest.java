@@ -103,13 +103,17 @@ public class PopupDetachAndSessionNullTest {
         // 3. La résolution se termine APRÈS la fermeture — son apply ne
         //    doit PAS rouvrir le popup (génération bumpée par dismiss).
         release.countDown();
-        long deadline = System.currentTimeMillis() + 1500;
-        while (System.currentTimeMillis() < deadline) {
-            assertFalse("la résolution en vol ne doit pas RE-OUVRIR le popup"
-                    + " fermé par l'utilisateur (B16)", view.isReferencesVisible());
-            if (resolveDone.get()) break;
-            Thread.sleep(25);
-        }
+        // A-06 : attendre (borné) la fin de la résolution, en vérifiant
+        // l'invariant À CHAQUE PASSE (le popup ne doit jamais se rouvrir,
+        // même pendant la résolution en vol).
+        boolean résolu = jo.codeeditor.AttenteBornee.jusquA(1500, 25L, () -> {
+            if (view.isReferencesVisible()) {
+                throw new AssertionError(
+                        "la résolution en vol ne doit pas RE-OUVRIR le popup"
+                        + " fermé par l'utilisateur (B16)");
+            }
+            return resolveDone.get();
+        });
         // Marge après la fin de resolve : l'apply suit immédiatement sur
         // le même fil d'exécution.
         Thread.sleep(250);

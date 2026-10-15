@@ -8,6 +8,14 @@
 
 ### Fixed
 
+### Changed (L9 — A-06 tests)
+
+- **Attente bornée partagée (`AttenteBornee`)** — les scrutations à la main des tests (boucle while + `Thread.sleep` + try/catch, dupliquées fichier par fichier) sont remplacées par un helper par module : les `Thread.sleep` des tests passent de 44 à 19 (÷2,3) ; les temporisations restantes sont des sujets de test (fenêtres multi-tap, marges d'absence de doublon) documentés sur place.
+- **Réflexion de métriques centralisée (`TestMetrics`)** — 50 fichiers de test dupliquaient chacun sa copie privée `injectMetrics` + `setFloat` (getDeclaredField/setAccessible éparpillés) : le point d'accès de test unique concentre la réflexion (setAccessible 97 → 48, ÷2) sans ajouter la moindre méthode publique au code de production (cliquet A-01 : `EditorView` est à 279/280).
+- **`V3340RegressionTest` renommé par sujet** — `RestyleLifecycleRegressionTest` (cycle de vie/disposal, buckets, re-planification du restyle) : le nom ne date plus le test d'une version, il dit ce qu'il protège.
+- **Couverture CI en mode rapport** — `enableUnitTestCoverage` sur les 4 modules + étape CI `createDebugUnitTestCoverageReport` et téléversement des rapports : JAMAIS bloquante (aucun seuil) — la couverture informe d'abord, le passage bloquant se discutera sur des chiffres réels.
+- **Suite exécutée 5× consécutives sans échec intermittent** (validation de l'acceptance A-06 sur cet environnement).
+
 ### Fixed (D-09)
 
 - **Documentation dérivée resynchronisée** — README/USAGE annonçaient `3.49.2`, BUILD `3.54.0`, SECURITY `3.49.x` (réalité : `3.70.1`) ; le graphe des modules d'AGENT.md omettait `cel-lsp-api → cel-core (api)` et `cel-lsp → cel-ui (compileOnly)` ; les plans 01/02 citaient les collaborateurs `EditorBarTools` (retiré en B15) et `SurroundWith` (retiré au lot M-02). `check-doc-figures.sh` verrouille désormais l'égalité version README/USAGE/BUILD ↔ `build.gradle.kts` (rouge/vert testé par injection d'une version divergente).

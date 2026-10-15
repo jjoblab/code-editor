@@ -72,11 +72,9 @@ public class ProcessLifecycleTest {
         // Après stop(), le process référencé n'est plus vivant (ou est
         // détaché) — le contrat est : plus aucun processus actif.
         if (proc != null) {
-            long fin = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
-            while (System.nanoTime() < fin && proc.isAlive()) {
-                Thread.sleep(20);
-            }
-            assertFalse("le processus doit être terminé après stop()", proc.isAlive());
+            // A-06 : attente bornée de l'extinction du processus.
+            assertFalse("le processus doit être terminé après stop()",
+                    jo.codeeditor.AttenteBornee.jusquA(5000, () -> !proc.isAlive()));
         }
     }
 
@@ -100,19 +98,16 @@ public class ProcessLifecycleTest {
         p.stop();
         // La pompe stderr est daemon ET interrompue à l'arrêt : après
         // stop(), aucun thread "cel-lsp-stderr" ne doit rester.
-        long fin = System.nanoTime() + TimeUnit.SECONDS.toNanos(3);
-        boolean found = true;
-        while (System.nanoTime() < fin && found) {
-            found = false;
+        // A-06 : attente bornée de la disparition du thread stderr.
+        boolean pompeÉteinte = jo.codeeditor.AttenteBornee.jusquA(3000, 50L, () -> {
             for (Thread t : Thread.getAllStackTraces().keySet()) {
                 if (t.isAlive() && t.getName().contains("cel-lsp-stderr")) {
-                    found = true;
-                    Thread.sleep(50);
-                    break;
+                    return false;
                 }
             }
-        }
-        assertFalse("la pompe stderr doit être arrêtée avec le processus", found);
+            return true;
+        });
+        assertTrue("la pompe stderr doit être arrêtée avec le processus", pompeÉteinte);
     }
 
     /**

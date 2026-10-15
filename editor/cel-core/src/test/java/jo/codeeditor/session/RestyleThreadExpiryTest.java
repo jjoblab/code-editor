@@ -53,8 +53,11 @@ class RestyleThreadExpiryTest {
             for (EditorSession s : sessions) {
                 s.awaitPendingRestyle();
             }
-            // Laisser expirer les threads inactifs (50 ms × marge).
-            Thread.sleep(500);
+            // Laisser expirer les threads inactifs (A-06 : attente bornée
+            // de la chute du compte, garde-fou 500 ms + marge fixe).
+            jo.codeeditor.AttenteBornee.jusquA(2_000, 25L,
+                    () -> compterThreadsRestyle() - baseline <= 4);
+            Thread.sleep(300); // marge de stabilité pour les retardataires
             int vivants = compterThreadsRestyle() - baseline;
             // Acceptation : sous une borne CONSTANTE (quelques
             // retardataires au plus), pas 200.
@@ -65,7 +68,9 @@ class RestyleThreadExpiryTest {
             for (EditorSession s : sessions) {
                 s.dispose();
             }
-            Thread.sleep(100);
+            // A-06 : attendre (borné) que TOUS les threads de nos sessions
+            // disparaissent après dispose — pas une marge fixe.
+            jo.codeeditor.AttenteBornee.jusquA(2000, 25L, () -> compterThreadsRestyle() == baseline);
         }
     }
 

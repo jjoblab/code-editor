@@ -119,22 +119,7 @@ public class InlayViewportRangeTest {
     }
 
     private static void injectMetrics(EditorView view, float lineHeight, float charWidth) {
-        try {
-            setFloat(view.metrics, "lineHeight", lineHeight);
-            setFloat(view.metrics, "charWidth", charWidth);
-            setFloat(view.metrics, "padTop", lineHeight * 0.5f);
-            setFloat(view.metrics, "padLeft", charWidth * 0.5f);
-            setFloat(view.metrics, "gutterWidth", charWidth * 7f);
-            setFloat(view.metrics, "foldStripWidth", charWidth * 2f);
-        } catch (Exception e) {
-            throw new IllegalStateException(e);
-        }
-    }
-
-    private static void setFloat(Object target, String field, float value) throws Exception {
-        Field f = target.getClass().getDeclaredField(field);
-        f.setAccessible(true);
-        f.setFloat(target, value);
+        TestMetrics.injecter(view, lineHeight, charWidth);
     }
 
     private static Analyzer analyzer() {
@@ -163,16 +148,9 @@ public class InlayViewportRangeTest {
 
     /** Attend (sondage borné) que le provider ait été appelé n fois. */
     private static void attendre(Recorder provider, int attendu) {
-        long fin = System.currentTimeMillis() + 5000;
-        while (provider.calls.get() < attendu && System.currentTimeMillis() < fin) {
-            écroulerDebounce();
-            try {
-                Thread.sleep(20);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                break;
-            }
-        }
+        // A-06 : attente bornée, le debounce écroulé entre passes.
+        jo.codeeditor.AttenteBornee.jusquA(5000, 20L, () -> provider.calls.get() >= attendu,
+                InlayViewportRangeTest::écroulerDebounce);
     }
 
     @Test

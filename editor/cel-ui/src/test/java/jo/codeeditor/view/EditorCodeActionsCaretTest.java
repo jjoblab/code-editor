@@ -127,13 +127,9 @@ public class EditorCodeActionsCaretTest {
 
     /** Attend l'ouverture async du popup (voie « features »). */
     private static boolean awaitPopup(EditorView view, long timeoutMs)
-            throws InterruptedException {
-        long deadline = System.currentTimeMillis() + timeoutMs;
-        while (System.currentTimeMillis() < deadline) {
-            if (view.codeActionsPopupVisible) return true;
-            Thread.sleep(20);
-        }
-        return view.codeActionsPopupVisible;
+    {
+        // A-06 : attente bornée du popup d'actions.
+        return jo.codeeditor.AttenteBornee.jusquA(timeoutMs, () -> view.codeActionsPopupVisible);
     }
 
     @Test
@@ -197,10 +193,8 @@ public class EditorCodeActionsCaretTest {
 
         view.popupManager.resolveCodeActionsAt(foo, foo, foo, true);
         // Attends la fin de la tâche (borne), le popup ne doit PAS s'ouvrir.
-        long fin = System.currentTimeMillis() + 3000;
-        while (System.currentTimeMillis() < fin && compteur.appels == 0) {
-            Thread.sleep(20);
-        }
+        // A-06 : attente bornée de la tâche (le popup ne doit PAS s'ouvrir).
+        jo.codeeditor.AttenteBornee.jusquA(3000, () -> compteur.appels >= 1);
         assertEquals(1, compteur.appels);
         assertFalse(view.codeActionsPopupVisible);
         assertTrue(view.codeActionsByLine.isEmpty());
@@ -218,10 +212,7 @@ public class EditorCodeActionsCaretTest {
         // Deuxième invocation, ligne 2 : l'entrée précédente est REMPLACÉE.
         int fin = DOC.length() - 2;  // le « } » de la ligne 2
         view.popupManager.resolveCodeActionsAt(fin, fin, fin, true);
-        long borne = System.currentTimeMillis() + 3000;
-        while (System.currentTimeMillis() < borne && compteur.appels < 2) {
-            Thread.sleep(20);
-        }
+        jo.codeeditor.AttenteBornee.jusquA(3000, () -> compteur.appels >= 2);
         assertEquals(2, compteur.appels);
         assertTrue("le cache reste mono-ligne",
                 view.codeActionsByLine.size() <= 1);
@@ -248,11 +239,8 @@ public class EditorCodeActionsCaretTest {
         int foo = DOC.indexOf("foo");
 
         view.showNavMenu(1, foo);
-        long fin = System.currentTimeMillis() + 5000;
-        while (System.currentTimeMillis() < fin && !view.navMenuVisible) {
-            Thread.sleep(20);
-        }
-        assertTrue("le menu doit s'ouvrir (async)", view.navMenuVisible);
+        assertTrue("le menu doit s'ouvrir (async)",
+                jo.codeeditor.AttenteBornee.jusquA(5000, () -> view.navMenuVisible));
         assertEquals("quick-fixes du menu résolus à la demande (cache absent)",
                 1, compteur.appels);
         assertEquals(foo, compteur.dernierCaret);
