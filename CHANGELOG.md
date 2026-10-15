@@ -5,7 +5,11 @@ All notable changes to **code-editor-lib** are documented in this file.
 Le format suit la convention [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [3.70.0] — 2026-10-15 — Correctif complétion XML : la porte de contexte respecte la famille XML
+## [3.70.1] — 2026-10-15 — Correctif complétion XML : la porte de contexte respecte la famille XML
+
+(Réédition de 3.70.0 : la construction JitPack de ce tag avait échoué sur un
+rate-limit transitoire de Maven Central — HTTP 429 — sans lien avec le code ;
+même contenu, seul le numéro change pour forcer une construction fraîche.)
 
 Retour utilisateur CodeIDE : « le LSP XML ne propose plus de complétion ».
 L'enquête remonte à la porte de contexte du Lot 3 (audit v3.41.0) : son
