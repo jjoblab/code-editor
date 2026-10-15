@@ -46,6 +46,46 @@ class EditorSessionBenchmark {
     }
 
     @Test
+    void benchmark_commitText_multiChar_hugeDoc_prefixe() {
+        // P-01 (audit 3.69.0) : protocole du lot L0 — document ~1 M de
+        // caractères (25 000 lignes), caret en FIN, commitText de
+        // 2 caractères × 200. Mesure de base consignée en L0 :
+        // 6,38 ms/op — la simulation postfix matérialise le PRÉFIXE
+        // ENTIER du document à chaque frappe multi-caractères
+        // (subSequence(0, pos).toString() + texte). La complétion
+        // postfix ne lit que l'arrière-garde (postfix ≤ 8 caractères,
+        // expression courante, retrait de ligne) : après correctif,
+        // la vue paresseuse ne copie plus rien et l'op tombe au coût
+        // du splice seul.
+        final int LINES = 25_000;
+        EditorSession s = buildSession(LINES);
+        int end = s.getDocument().length();
+        s.setSelection(end);
+        // Échauffement (cache JIT + memoïsation getText).
+        for (int i = 0; i < 20; i++) {
+            s.commitText("ab");
+        }
+        end = s.getDocument().length();
+        s.setSelection(end);
+        // Benchmark : 200 insertions de 2 caractères en fin de document.
+        long start = System.nanoTime();
+        for (int i = 0; i < 200; i++) {
+            s.commitText("xy");
+        }
+        long elapsedNs = System.nanoTime() - start;
+        double avgNs = elapsedNs / 200.0;
+        System.out.printf("[benchmark] commitText 2 caractères (25k lignes, caret en fin): "
+                + "%.1f ns/op (%.2f ms/op)%n", avgNs, avgNs / 1e6);
+        // Budget de frappe perceptible : une frappe multi-caractères sur
+        // un document d'un million de caractères doit rester sous 2,5 ms
+        // (la base L0 mesurait 6,38 ms/op — le test est ROUGE avant le
+        // correctif P-01, VERT après).
+        assertTrue(avgNs < 2_500_000,
+            "commitText multi-caractères trop lent: " + (avgNs / 1e6)
+                + " ms/op (attendu < 2.5 ms/op — P-01)");
+    }
+
+    @Test
     void benchmark_undoRedo_largeDoc() {
         EditorSession s = buildSession(LARGE_DOC_LINES);
         // Appliquer 100 éditions à des positions différentes.

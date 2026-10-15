@@ -29,6 +29,10 @@
 
 - **Une seule implémentation de la fusion de régions de plis** : `FoldModel.mergeRegions` (publique, testée) et l'index de plis de la vue délègue — la copie interne divergente est retirée.
 
+### Performance (L7)
+
+- **Frappe multi-caractères : plus de copie du préfixe du document (P-01)** — la complétion postfix simule l'insertion via une vue `CharSequence` paresseuse (`EditOps.simulatedInsert`) : l'ancien chemin matérialisait `subSequence(0, pos) + texte` — le PRÉFIXE ENTIER du document, ~1 Mo copié par frappe sur un fichier d'un million de caractères (mesure de base : 3,02 ms/op sur 25 000 lignes, caret en fin). La vue sert les lectures de l'analyse (postfix ≤ 8 caractères, expression, retrait de ligne) via la rope sans copie : 0,24 ms/op après correctif (÷12,5), benchmark de non-régression borné à 2,5 ms/op.
+
 ### Added (M-03)
 
 - **Contrats des API publiques sans test** : `BlockEditor` (arbre de blocs : parse, structure, localisation par offset, cycle setSource/getRoot) et `SymbolBarView` (construction, écouteur, cheminement du toucher) reçoivent leur premier test — politique M-03 « au moins un test ».

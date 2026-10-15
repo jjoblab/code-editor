@@ -769,9 +769,16 @@ public class EditorSession {
         if (text.length() >= 2) {
             CharSequence docChars = doc.charSequence();
             int pos = selection.start;
-            // Simuler le texte après insertion.
-            String simulated = docChars.subSequence(0, pos).toString()
-                    + text;
+            // P-01 (audit 3.69.0) : simuler le texte après insertion en
+            // VUE PARESSEUSE — l'ancien chemin matérialisait le préfixe
+            // entier du document (O(pos), ~1 Mo par frappe sur un document
+            // d'un million de caractères) alors que la complétion postfix
+            // ne lit que l'arrière-garde (postfix ≤ 8 c., expression,
+            // retrait de ligne). La rope sert les lectures en O(log n) par
+            // caractère, aucune copie tant que l'analyse ne demande pas
+            // de tranche.
+            CharSequence simulated = jo.codeeditor.edit.EditOps.simulatedInsert(
+                    docChars.subSequence(0, pos), text);
             int simulatedPos = pos + text.length();
             jo.codeeditor.edit.EditOps.PostfixResult pc =
                     jo.codeeditor.edit.EditOps.tryPostfix(

@@ -143,6 +143,24 @@ public final class EditOps {
     }
 
     /**
+     * Vue {@link CharSequence} paresseuse « préfixe + insertion »
+     * (P-01, audit 3.69.0) : sert la simulation du document après
+     * insertion SANS matérialiser le préfixe (l'ancien chemin copiait
+     * O(pos) caractères par frappe multi-caractères). Les lecteurs
+     * bornés — complétion postfix, aide à la frappe — y lisent via
+     * {@code charAt} sur la source sous-jacente ; les tranches
+     * demandées seules sont matérialisées.
+     *
+     * @param prefix  préfixe du document (immuable pendant la lecture,
+     *                p. ex. la rope d'une révision)
+     * @param inserted texte frappé, inséré juste après le préfixe
+     * @return la vue concaténée paresseuse
+     */
+    public static CharSequence simulatedInsert(CharSequence prefix, String inserted) {
+        return new PrefixedInsertView(prefix, inserted);
+    }
+
+    /**
      * Résultat immuable d'une complétion postfix (D-04) — retourné PAR
      * APPEL, sans aucun état partagé entre sessions ou threads.
      */
