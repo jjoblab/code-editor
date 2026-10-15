@@ -257,4 +257,118 @@ class GrammarTokenizerTest {
         assertEquals(2, l.spans.size());
         assertEquals(TokenType.PLAIN, l.spans.get(1).type, "count reste PLAIN");
     }
+
+    // ── C3-ter : matchs de largeur nulle, idiome (?!\\G), « \\n » virtuel ──
+
+    /**
+     * Grammaire de travail pour les idiomes VS Code : wrapper de
+     * commentaire « blancs de tête + lookahead » à fermante
+     * {@code (?!\G)} (java/html/lua de sora-editor), appel de fonction
+     * à begin lookahead + fermante lookahead {@code (?=\\))}.
+     */
+    private static final TextMateGrammar LOOKAHEAD = load(
+            "textmate/lookahead-test.tmg.json");
+
+    private StyledLine tokLook(String line, int state) {
+        return engine.tokenize(LOOKAHEAD, line, state);
+    }
+
+    /** La ligne est intégralement couverte : aucun trou entre spans. */
+    private static void couvertureIntégrale(StyledLine l, int longueur) {
+        int fin = 0;
+        for (LineSpan s : l.spans) {
+            assertEquals(fin, s.startCol, "trou avant le span " + s);
+            assertTrue(s.endCol > s.startCol, "span vide : " + s);
+            fin = s.endCol;
+        }
+        assertEquals(longueur, fin, "la fin de ligne n'est pas couverte");
+    }
+
+    @Test
+    void commentaireLigne_wrapperNotG_seRefermeEnFinDeLigne() {
+        // Régression C3-ter : la fermante (?!\G) du wrapper (idiome
+        // java/html/lua) ne compile pas en java.util.regex où \G vaut
+        // TOUJOURS la position courante — sans la garde portée par le
+        // cadre, le wrapper ne se refermait JAMAIS et le contexte
+        // avalait les lignes suivantes.
+        StyledLine l = tokLook("  // commentaire", 0);
+        assertEquals(TokenType.COMMENT, type(l, "  // commentaire", "//"));
+        couvertureIntégrale(l, 16);
+        assertEquals(0, l.exitState, "le wrapper ET le commentaire se referment (\\n virtuel)");
+    }
+
+    @Test
+    void ligneAprèsCommentaire_pasAvalée() {
+        // La ligne suivant un commentaire de ligne doit être typée
+        // NORMALEMENT — le wrapper (?!\G) refermé en fin de ligne ne
+        // doit pas fuiter sur l'aval.
+        StyledLine l1 = tokLook("  // note", 0);
+        StyledLine l2 = tokLook("if x = 42", l1.exitState);
+        assertEquals(TokenType.KEYWORD_CONTROL, type(l2, "if x = 42", "if"));
+        assertEquals(TokenType.NUMBER, type(l2, "if x = 42", "42"));
+        assertEquals(0, l2.exitState);
+    }
+
+    @Test
+    void fermanteLookaheadVide_dépileEtRetente() {
+        // Régression C3-ter : une fermante DE LARGEUR NULLE ((?=\\)))
+        // dépile et RETENTE À LA MÊME POSITION — l'ancienne garde
+        // anti-boucle sautait un caractère (le « ) » échappait alors à
+        // la fermante du parent, le cadre ne se refermait jamais).
+        StyledLine l = tokLook("foo(1)", 0);
+        assertEquals(TokenType.FUNC, type(l, "foo(1)", "foo"));
+        couvertureIntégrale(l, 6);
+        assertEquals(0, l.exitState, "le cadre function-call se referme sur (?=\\))");
+    }
+
+    @Test
+    void beginLookaheadVide_pousseEtRetente() {
+        // Un begin DE LARGEUR NULLE (wrapper lookahead) pousse le
+        // cadre puis retente À LA MÊME POSITION : les sous-règles du
+    // wrapper colorent depuis le début du mot (pas de trou).
+        StyledLine l = tokLook("ab foo(1)", 0);
+        assertEquals(TokenType.PLAIN, type(l, "ab foo(1)", "ab"));
+        assertEquals(TokenType.FUNC, type(l, "ab foo(1)", "foo"));
+        couvertureIntégrale(l, 9);
+        assertEquals(0, l.exitState);
+    }
+
+    @Test
+    void frontièreDeMotTransparente_beginNeMatchePasAuMilieu() {
+        // Régression C3-ter : bornes TRANSPARENTES — un « \\b » à la
+        // position courante doit voir le VRAI caractère précédent. En
+        // bornes d'ancrage (l'ancien comportement), le begin
+        // lookahead matchait AU MILIEU d'un mot (frontière fantôme au
+        // bord de région).
+        StyledLine l = tokLook("ab foo(1)", 0);
+        // Si \\b était ancré au bord de région, un cadre function-call
+        // serait poussé au « b » de « ab » : « ab » ne serait pas un
+        // seul span PLAIN couvrant [0,2).
+        couvertureIntégrale(l, 9);
+        assertEquals(TokenType.FUNC, type(l, "ab foo(1)", "foo"),
+                "le begin ne matche qu'à la frontière du mot");
+    }
+
+    @Test
+    void cadreLookahead_propagationInterLignes() {
+        // L'appel non fermé propage son cadre : la ligne suivante est
+        // du contenu de l'appel jusqu'à la fermante lookahead.
+        StyledLine l1 = tokLook("foo(", 0);
+        assertTrue(l1.exitState != 0, "le cadre function-call est ouvert");
+        StyledLine l2 = tokLook("x)", l1.exitState);
+        couvertureIntégrale(l2, 2);
+        assertEquals(0, l2.exitState, "fermé par le lookahead vide sur « ) »");
+    }
+
+    @Test
+    void oscillationZéroLargeur_disjoncteurBorné() {
+        // Grammaire dégénérée : begin ET end lookahead vide qui
+        // s'annulent — le disjoncteur (50 étapes vides consécutives)
+        // doit faire progresser le scan sans boucle infinie.
+        TextMateGrammar dégénérée = TextMateGrammar.parse(
+                "{\"scopeName\": \"source.d\", \"patterns\": ["
+                        + "{\"begin\": \"(?=x)\", \"end\": \"(?=x)\", \"name\": \"meta.d\"}]}");
+        StyledLine l = engine.tokenize(dégénérée, "xax", 0);
+        couvertureIntégrale(l, 3);
+    }
 }

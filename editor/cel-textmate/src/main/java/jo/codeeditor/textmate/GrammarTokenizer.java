@@ -23,15 +23,33 @@ import java.util.regex.PatternSyntaxException;
  *
  * <h2>Sémantique</h2>
  * <ul>
- *   <li><b>Leftmost-first</b> : à chaque position, la règle dont le
- *       match commence le plus tôt gagne ; à égalité, l'ordre de
- *       déclaration des patterns départage (sémantique TextMate).</li>
+ *   <li><b>Leftmost-first</b> : le scan avance position par position ;
+ *       à chaque position, la première règle (ordre de déclaration)
+ *       qui matche ANCRÉE là l'emporte — le premier candidat trouvé
+ *       EST le leftmost, et à position égale l'ordre de déclaration
+ *       tranche (sémantique TextMate).</li>
+ *   <li><b>Matchs de largeur nulle</b> : les fermantes en lookahead
+ *       ({@code (?=\))} python, {@code ($)}) DÉPILENT et retentent à
+ *       la MÊME position (le parent peut consommer) ; les ouvrantes en
+ *       lookahead (wrappers VS Code) EMPILENT et retentent aussi —
+ *       une garde anti-récursion par (règle, position) et un
+ *       disjoncteur bornent les grammaires dégénérées.</li>
  *   <li><b>Pile de contextes</b> : une règle begin/end non fermée en
  *       fin de ligne empile un cadre ; les lignes suivantes
  *       recommencent avec les sous-règles du sommet (et la recherche
  *       de son {@code end} en candidate prioritaire). La pile se
  *       propage entre les lignes via l'{@code exitState} opaque du
  *       contrat.</li>
+ *   <li><b>« \n » virtuel</b> : la ligne est prolongée d'un terminateur
+ *       virtuel invisible — les fermantes {@code \n}/{@code $} des
+ *       règles de ligne (commentaire java) MATCHENT en fin de ligne et
+ *       referment leur cadre, sans que le terminateur ne fuite dans
+ *       les spans.</li>
+ *   <li><b>Idiome {@code (?!\G)}</b> : les wrappers « blancs de tête +
+ *       lookahead » des grammaires VS Code (java/html/lua) portent leur
+ *       garde par le CADRE (la fermante ne matche qu'au-delà du début
+ *       du contenu) — en java.util.regex, {@code \G} vaut toujours la
+ *       position courante et l'idiome ne matcherait jamais.</li>
  *   <li><b>Portée du contenu</b> : le texte entre begin et end reçoit
  *       le {@code contentName} de la règle (une chaîne multiligne non
  *       fermée colore toute la ligne suivante en STRING).</li>
@@ -64,10 +82,21 @@ public final class GrammarTokenizer {
         final Rule rule;
         /** Pattern end résolu (backrefs substituées par les groupes du begin). */
         final Pattern endPattern;
+        /** Position de fin du begin (début du contenu) — ancre de
+         * l'idiome {@code (?!\G)} : la fermante ne matche qu'une fois
+         * le scan DÉPASSÉ ce point (idiome VS Code des wrappers
+         * « blancs de tête + lookahead », java/html/lua). */
+        final int contentStart;
+        /** Vrai quand le end source commence par {@code (?!\G)} (idiome
+         * wrapper) — le préfixe est retiré du pattern compilé, la
+         * garde sémantique est portée par le cadre. */
+        final boolean notGEnd;
 
-        Frame(Rule rule, Pattern endPattern) {
+        Frame(Rule rule, Pattern endPattern, int contentStart, boolean notGEnd) {
             this.rule = rule;
             this.endPattern = endPattern;
+            this.contentStart = contentStart;
+            this.notGEnd = notGEnd;
         }
 
         @Override
@@ -78,14 +107,19 @@ public final class GrammarTokenizer {
             // Identité de règle (immuable, partagée) + end compilé
             // équivalent (même source résolue — comparaison par
             // pattern().source(), les regex compilées n'implantent
-            // pas equals).
+            // pas equals) + même ancre de contenu (l'idiome (?!\G)
+            // rend deux poussées de la même règle à des positions
+            // différentes SÉMANTIQUEMENT distinctes).
             return rule == f.rule
+                    && contentStart == f.contentStart
+                    && notGEnd == f.notGEnd
                     && Objects.equals(endPattern.pattern(), f.endPattern.pattern());
         }
 
         @Override
         public int hashCode() {
-            return 31 * System.identityHashCode(rule) + endPattern.pattern().hashCode();
+            return 31 * (31 * (31 * System.identityHashCode(rule) + contentStart)
+                    + (notGEnd ? 1 : 0)) + endPattern.pattern().hashCode();
         }
     }
 
@@ -114,7 +148,7 @@ public final class GrammarTokenizer {
             Map<String, TextMateGrammar> externals) {
         List<Frame> stack = resolve(entryState);
         List<LineSpan> spans = new ArrayList<>();
-        tokenizeLine(grammar, line, stack, spans, externals);
+        tokenizeLine(new Ctx(grammar, line, externals), stack, spans);
         // Fusion des spans adjacents de même type (le rendu n'a pas
         // besoin de la granularité règle par règle).
         return new StyledLine(merge(spans), entryState, intern(stack));
@@ -143,87 +177,244 @@ public final class GrammarTokenizer {
 
     // ── Moteur d'une ligne ───────────────────────────────────────
 
-    private void tokenizeLine(TextMateGrammar grammar, String line,
-            List<Frame> stack, List<LineSpan> spans, Map<String, TextMateGrammar> externals) {
-        int pos = 0;
-        while (pos < line.length()) {
-            Step step = nextStep(grammar, line, pos, stack, externals);
-            if (step == null) {
-                // Aucune règle ne matche sur le reste : le texte
-                // restant reçoit la portée de contenu du sommet (ou
-                // PLAIN à la racine).
-                spans.add(new LineSpan(pos, line.length(), contentType(stack)));
-                return;
+    /**
+     * Contexte d'une ligne : matchers RÉUTILISÉS (un par Pattern —
+     * l'allocation d'un Matcher par règle×position dominait le coût
+     * des grammaires réelles) et includes résolus MÉMOÏSÉS (la
+     * résolution allouait une règle synthétique à chaque tentative).
+     * Les matchers sont remis à zéro avant chaque essai — SÉMANTIQUE
+     * DU MATCHER FRAIS : bornes TRANSPARENTES + ancrage désactivé, un
+     * « \b » ou un lookbehind à la position courante voit le VRAI
+     * caractère précédent (la sémantique TextMate d'un matcher lancé
+     * sur la ligne entière), « ^ » ne matche qu'en 0, « \G » ancre à
+     * la frontière de région comme un matcher neuf.
+     */
+    private static final class Ctx {
+        final TextMateGrammar grammar;
+        final String line;
+        /** Ligne + « \n » VIRTUEL : les grammaires réelles terminent
+         * leurs règles de ligne par un « \n » littéral ou « $ » (le
+         * commentaire de ligne java, par exemple) — sans lui, la
+         * fermante ne matche JAMAIS et le contexte avale le reste du
+         * fichier. Les positions émises sont BORNÉES à la ligne réelle. */
+        final String matchLine;
+        final Map<String, TextMateGrammar> externals;
+        /** Identité des Pattern (compilés une fois par règle, partagés) :
+         * Pattern ne met pas hashCode en cache — l'IdentitéHashMap
+         * évite de recalculer l'arbre du pattern à chaque lookup. */
+        final Map<Pattern, Matcher> matchers = new java.util.IdentityHashMap<>();
+        final Map<Rule, Rule> resolvedIncludes = new java.util.IdentityHashMap<>();
+        /** Règles begin DE LARGEUR NULLE déjà poussées à chaque
+         * position (BitSet par règle, index = position) : un lookahead
+         * begin qui vient de pousser un cadre ne doit pas se
+         * ré-empiler à la MÊME position (récursion dégénérée des
+         * grammaires VS Code à wrapper lookahead — java class, python
+         * docstring). */
+        final Map<Rule, java.util.BitSet> emptyPushedAt = new java.util.IdentityHashMap<>();
+
+        Ctx(TextMateGrammar grammar, String line,
+                Map<String, TextMateGrammar> externals) {
+            this.grammar = grammar;
+            this.line = line;
+            this.matchLine = line + "\n";
+            this.externals = externals;
+        }
+
+        Matcher matcher(Pattern pattern) {
+            Matcher m = matchers.get(pattern);
+            if (m == null) {
+                m = pattern.matcher(matchLine);
+                // Bornes posées UNE fois : elles persistent sur le
+                // matcher (réinitialisées par reset(), reposées ici).
+                m.useAnchoringBounds(false);
+                m.useTransparentBounds(true);
+                matchers.put(pattern, m);
             }
-            int start = step.matcher.start();
-            if (start > pos) {
-                spans.add(new LineSpan(pos, start, contentType(stack)));
-            }
-            pos = apply(step, stack, spans);
-            if (pos <= start) {
-                // Garde anti-boucle (match vide) : avancer d'un.
-                pos = start + 1;
-            }
+            return m;
+        }
+
+        /** Match ANCRÉ à pos (lookingAt sur région), sans allouer ni
+         * balayer l'aval — équivalent sémantique du matcher frais
+         * lancé à pos sur la ligne (plus le « \n » virtuel). */
+        boolean matchAt(Pattern pattern, int pos, boolean allowEmpty) {
+            Matcher m = matcher(pattern);
+            m.reset();
+            m.region(pos, matchLine.length());
+            m.useAnchoringBounds(false);
+            m.useTransparentBounds(true);
+            if (!m.lookingAt()) return false;
+            return allowEmpty || m.end() > m.start();
+        }
+
+        /** Une règle begin de largeur nulle a-t-elle déjà poussé à pos ? */
+        boolean pushedEmptyAt(Rule rule, int pos) {
+            java.util.BitSet bs = emptyPushedAt.get(rule);
+            return bs != null && bs.get(pos);
+        }
+
+        /** Marque la poussée vide (rule, pos) — dédoublonnage par ligne. */
+        void markEmptyPush(Rule rule, int pos) {
+            emptyPushedAt.computeIfAbsent(rule, r -> new java.util.BitSet()).set(pos);
         }
     }
 
-    /** Le plus proche match parmi les règles candidates à la position courante. */
-    private Step nextStep(TextMateGrammar grammar, String line, int pos,
-            List<Frame> stack, Map<String, TextMateGrammar> externals) {
-        Step best = null;
-        // Candidats : au sommet d'un begin/end — le end (prioritaire,
-        // comme TextMate) puis les sous-règles ; sinon les patterns racine.
+    /**
+     * Boucle d'une ligne. Le stepping avance position par position ;
+     * à chaque pos, la première règle (ordre de déclaration) qui
+     * matche ANCRÉE à pos l'emporte. Les matchs DE LARGEUR NULLE
+     * (begin/end en lookahead — sémantique VS Code : java
+     * {@code (?={\s*class...)} , python {@code (?=\'''})}) ne
+     * consomment RIEN : une fermante vide DÉPILE et RETENTE À LA MÊME
+     * POSITION (le parent peut alors consommer — ex. le « ) » vu par
+     * l'{@code end} du cadre function-call, le « } » du corps de
+     * classe) ; une ouvrante vide EMPILE et retente aussi (les
+     * sous-règles du wrapper prennent le relais). Un disjoncteur
+     * borne les oscillations dégénérées pousser/dépiler sans
+     * consommation.
+     */
+    private void tokenizeLine(Ctx ctx, List<Frame> stack, List<LineSpan> spans) {
+        String line = ctx.line;
+        int limit = line.length();
+        int pos = 0;
+        // Début du run de texte non encore stylé (le repli de contenu
+        // couvre les trous entre règles).
+        int textStart = 0;
+        // Étapes de largeur nulle consécutives (disjoncteur).
+        int zeroWidth = 0;
+        // La boucle couvre AUSSI pos == limit : le « \n » virtuel s'y
+        // trouve — les fermantes « \n »/« $ » des règles de ligne
+        // DOIVENT pouvoir matcher, sinon leur cadre ne se referme
+        // jamais et le contexte avale le reste du fichier.
+        while (pos <= limit) {
+            Step step = nextStep(ctx, pos, stack);
+            if (step == null) {
+                pos++;
+                zeroWidth = 0;
+                continue;
+            }
+            // Le run non stylé depuis textStart reçoit la portée de
+            // contenu du sommet (ou PLAIN à la racine) — et le run est
+            // CONSOMMÉ par l'émission (une étape vide qui retente à la
+            // même position ne doit pas le ré-émettre).
+            if (pos > textStart) {
+                spans.add(new LineSpan(textStart, pos, contentType(stack)));
+                textStart = pos;
+            }
+            int after = apply(step, stack, spans, limit);
+            if (after > step.start) {
+                // Match consommateur : avancer et reprendre le run.
+                pos = Math.min(after, limit + 1);
+                textStart = Math.min(after, limit);
+                zeroWidth = 0;
+            } else {
+                // Match vide (poussé ou dépile) : RETENTER à la même
+                // position — chaque étape a changé la pile (progression
+                // garantie). Disjoncteur : après 50 étapes vides
+                // consécutives, avancer d'un (grammaire dégénérée).
+                if (zeroWidth++ < 50) {
+                    pos = step.start;
+                } else {
+                    pos = step.start + 1;
+                    zeroWidth = 0;
+                }
+            }
+            if (pos > limit) break;
+        }
+        // Le reliquat de ligne reçoit la portée de contenu du sommet
+        // (ou PLAIN à la racine).
+        if (textStart < limit) {
+            spans.add(new LineSpan(textStart, limit, contentType(stack)));
+        }
+    }
+
+    /**
+     * La première règle (ordre de déclaration) qui matche À pos : le
+     * stepping avance caractère par caractère — le premier candidat
+     * trouvé EST le leftmost, et à position égale l'ordre de
+     * déclaration tranche (sémantique TextMate). Le end du sommet de
+     * pile est essayé EN PREMIER : il gagne les égalités.
+     */
+    private Step nextStep(Ctx ctx, int pos, List<Frame> stack) {
         if (!stack.isEmpty()) {
             Frame top = stack.get(stack.size() - 1);
-            Matcher m = top.endPattern.matcher(line);
-            if (m.find(pos)) {
-                best = new Step(m, top.rule, true);
+            // Idiome (?!\G) : la fermante ne matche qu'au-delà du début
+            // du contenu (en TextMate, \G = fin du match précédent — la
+            // valeur au moment de l'évaluation de la fermante ; en
+            // java.util.regex \G vaut TOUJOURS la position courante,
+            // l'idiome ne matcherait jamais). Le reste du end (souvent
+            // vide) compile et matche normalement après la garde.
+            if (top.notGEnd
+                    ? pos > top.contentStart && ctx.matchAt(top.endPattern, pos, true)
+                    : ctx.matchAt(top.endPattern, pos, true)) {
+                return new Step(ctx.matcher(top.endPattern), top.rule, true,
+                        ctx.line.length());
             }
             for (Rule sub : top.rule.patterns) {
-                best = better(best, tryRule(sub, grammar, line, pos, externals, 0));
+                Step s = tryRule(sub, ctx, pos, 0);
+                if (s != null) return s;
             }
-        } else {
-            for (Rule root : grammar.patterns) {
-                best = better(best, tryRule(root, grammar, line, pos, externals, 0));
-            }
+            return null;
         }
-        return best;
+        for (Rule root : ctx.grammar.patterns) {
+            Step s = tryRule(root, ctx, pos, 0);
+            if (s != null) return s;
+        }
+        return null;
     }
 
-    /** Évalue une règle (et ses includes) à la recherche d'un match depuis pos. */
-    private Step tryRule(Rule rule, TextMateGrammar grammar, String line, int pos,
-            Map<String, TextMateGrammar> externals, int depth) {
+    /** Évalue une règle (et ses includes) à la recherche d'un match À pos. */
+    private Step tryRule(Rule rule, Ctx ctx, int pos, int depth) {
         if (rule.include != null) {
-            Rule resolved = resolveInclude(rule, grammar, externals);
+            Rule resolved = resolveInclude(rule, ctx);
             if (resolved == null || resolved == rule) return null; // absent ou cycle
             // Garde de profondeur : une inclusion externe mutuelle ne
             // doit jamais provoquer de récursion infinie.
             if (depth >= 50) return null;
-            return tryRule(resolved, grammar, line, pos, externals, depth + 1);
+            return tryRule(resolved, ctx, pos, depth + 1);
         }
         if (rule.match != null) {
-            Matcher m = rule.match.matcher(line);
-            if (m.find(pos) && m.end() > m.start()) {
-                return new Step(m, rule, false);
+            if (ctx.matchAt(rule.match, pos, false)) {
+                return new Step(ctx.matcher(rule.match), rule, false,
+                        ctx.line.length());
             }
             return null;
         }
         if (rule.begin != null) {
-            Matcher m = rule.begin.matcher(line);
-            if (m.find(pos)) {
-                return new Step(m, rule, false);
+            // Dédoublonnage : un begin de largeur nulle déjà poussé à
+            // cette position ne se ré-empile pas (récursion dégénérée
+            // des wrappers lookahead des grammaires VS Code).
+            boolean empty = ctx.pushedEmptyAt(rule, pos);
+            if (!empty && ctx.matchAt(rule.begin, pos, true)) {
+                if (ctx.matcher(rule.begin).end() == ctx.matcher(rule.begin).start()) {
+                    ctx.markEmptyPush(rule, pos);
+                }
+                return new Step(ctx.matcher(rule.begin), rule, false,
+                        ctx.line.length());
             }
             return null;
         }
-        // Règle conteneur (groupe de patterns) : chercher dans ses enfants.
-        Step best = null;
+        // Règle conteneur (groupe de patterns) : le premier enfant qui
+        // matche à pos — l'ordre de déclaration tranche (à position
+        // égale, le premier déclaré gagne, sémantique TextMate).
         for (Rule sub : rule.patterns) {
-            best = better(best, tryRule(sub, grammar, line, pos, externals, depth));
+            Step s = tryRule(sub, ctx, pos, depth);
+            if (s != null) return s;
         }
-        return best;
+        return null;
     }
 
-    private Rule resolveInclude(Rule rule, TextMateGrammar grammar,
+    /** Include résolu MÉMOÏSÉ par ligne (l'allocation d'une règle
+     * synthétique par tentative dominait le coût des grammaires
+     * réelles, java et python notamment). */
+    private Rule resolveInclude(Rule rule, Ctx ctx) {
+        Rule cached = ctx.resolvedIncludes.get(rule);
+        if (cached != null) return cached;
+        Rule resolved = resolveIncludeUncached(rule, ctx.grammar, ctx.externals);
+        ctx.resolvedIncludes.put(rule, resolved);
+        return resolved;
+    }
+
+    private Rule resolveIncludeUncached(Rule rule, TextMateGrammar grammar,
             Map<String, TextMateGrammar> externals) {
         String ref = rule.include;
         if ("$self".equals(ref) || "$base".equals(ref)) {
@@ -244,26 +435,23 @@ public final class GrammarTokenizer {
                 Map.of(), Map.of(), Map.of(), foreign.patterns, null);
     }
 
-    private Step better(Step a, Step b) {
-        if (b == null) return a;
-        if (a == null) return b;
-        if (b.matcher.start() < a.matcher.start()) return b;
-        return a; // leftmost ; à égalité, la première déclarée (a) gagne
-    }
-
-    /** Applique le step : produit les spans et met à jour la pile. */
-    private int apply(Step step, List<Frame> stack, List<LineSpan> spans) {
+    /** Applique le step : produit les spans et met à jour la pile.
+     * Toutes les positions sont BORNÉES à la ligne réelle (le « \n »
+     * virtuel du contexte ne doit jamais fuiter dans les spans). */
+    private int apply(Step step, List<Frame> stack, List<LineSpan> spans,
+            int limit) {
         Rule rule = step.rule;
         if (step.isEnd) {
             // Fermeture du sommet de pile : span du end (endCaptures)
             // + dépilement.
             Frame top = stack.remove(stack.size() - 1);
-            emitWithCaptures(step.matcher, top.rule.endCaptures, top.rule.name, spans);
-            return step.matcher.end();
+            emitWithCaptures(step.matcher, top.rule.endCaptures, top.rule.name,
+                    spans, limit);
+            return step.end;
         }
         if (rule.match != null) {
-            emitWithCaptures(step.matcher, rule.captures, rule.name, spans);
-            return step.matcher.end();
+            emitWithCaptures(step.matcher, rule.captures, rule.name, spans, limit);
+            return step.end;
         }
         if (rule.begin != null) {
             // Ouverture de bloc : résoudre les backrefs du end avec
@@ -273,12 +461,23 @@ public final class GrammarTokenizer {
             // leftmost, pour qu'un échappement situé AVANT le
             // fermateur soit consommé par la sous-règle (ex. \" dans
             // une chaîne) et ne précipite pas la fermeture.
-            Pattern endPat = resolveEnd(rule.end, step.matcher);
-            stack.add(new Frame(rule, endPat));
-            emitWithCaptures(step.matcher, rule.beginCaptures, rule.name, spans);
-            return step.matcher.end();
+            // Idiome (?!\G) : préfixe retiré du pattern (garde portée
+            // par le cadre), ancre = fin du begin.
+            boolean notG = rule.end.startsWith("(?!\\G)");
+            String endSrc = notG ? rule.end.substring(6) : rule.end;
+            Pattern endPat = resolveEnd(endSrc, step.matcher);
+            // Plafond de profondeur : une grammaire dégénérée ne doit
+            // pas empiler sans fin — au-delà, le begin est émis mais
+            // le contenu s'écoule dans le cadre parent (dégradation
+            // bornée, jamais de OOM).
+            if (stack.size() < 100) {
+                stack.add(new Frame(rule, endPat, step.matcher.end(), notG));
+            }
+            emitWithCaptures(step.matcher, rule.beginCaptures, rule.name,
+                    spans, limit);
+            return step.end;
         }
-        return step.matcher.end();
+        return step.end;
     }
 
     /**
@@ -319,9 +518,9 @@ public final class GrammarTokenizer {
      * la portée de la règle.
      */
     private void emitWithCaptures(Matcher m, Map<Integer, String> captures,
-            String name, List<LineSpan> spans) {
-        int start = m.start();
-        int end = m.end();
+            String name, List<LineSpan> spans, int limit) {
+        int start = Math.min(m.start(), limit);
+        int end = Math.min(m.end(), limit);
         if (end <= start) return; // match vide : rien à émettre
         if (captures.isEmpty()) {
             spans.add(new LineSpan(start, end, ScopeMapper.tokenTypeFor(name)));
@@ -334,8 +533,8 @@ public final class GrammarTokenizer {
         indices.sort(Integer::compare);
         for (int idx : indices) {
             if (idx < 0 || idx > m.groupCount()) continue;
-            int gs = m.start(idx);
-            int ge = m.end(idx);
+            int gs = Math.min(m.start(idx), limit);
+            int ge = Math.min(m.end(idx), limit);
             if (gs < 0) continue; // groupe non participante
             if (gs > cursor) {
                 spans.add(new LineSpan(cursor, gs, ScopeMapper.tokenTypeFor(name)));
@@ -374,17 +573,25 @@ public final class GrammarTokenizer {
         return out;
     }
 
-    /** Candidat de match retenu à une position. */
+    /** Candidat de match retenu à une position — positions BORNÉES à
+     * la ligne réelle (le « \n » virtuel peut être consommé par la
+     * fermante sans fuiter dans les spans). */
     private static final class Step {
         final Matcher matcher;
         final Rule rule;
         /** Vrai quand le match est le end du sommet de pile (dépilement). */
         final boolean isEnd;
+        /** Début du match, borné à la ligne. */
+        final int start;
+        /** Fin du match, bornée à la ligne. */
+        final int end;
 
-        Step(Matcher matcher, Rule rule, boolean isEnd) {
+        Step(Matcher matcher, Rule rule, boolean isEnd, int limit) {
             this.matcher = matcher;
             this.rule = rule;
             this.isEnd = isEnd;
+            this.start = Math.min(matcher.start(), limit);
+            this.end = Math.min(matcher.end(), limit);
         }
     }
 }

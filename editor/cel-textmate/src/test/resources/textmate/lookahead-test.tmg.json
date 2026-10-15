@@ -1,0 +1,29 @@
+{
+  "scopeName": "source.l",
+  "name": "Lookahead Test",
+  "patterns": [
+    {
+      "begin": "(^[ \t]+)?(?=//)",
+      "beginCaptures": { "1": { "name": "punctuation.whitespace.comment.leading.l" } },
+      "end": "(?!\\G)",
+      "patterns": [
+        {
+          "begin": "//",
+          "beginCaptures": { "0": { "name": "punctuation.definition.comment.l" } },
+          "end": "\\n",
+          "name": "comment.line.double-slash.l"
+        }
+      ]
+    },
+    {
+      "begin": "\\b(?=\\w+\\s*\\()",
+      "end": "(?=\\))",
+      "name": "meta.function-call.l",
+      "patterns": [
+        { "match": "\\b[A-Za-z_]\\w*", "name": "entity.name.function.l" }
+      ]
+    },
+    { "match": "\\b(?:if|else)\\b", "name": "keyword.control.l" },
+    { "match": "\\b\\d+\\b", "name": "constant.numeric.l" }
+  ]
+}
