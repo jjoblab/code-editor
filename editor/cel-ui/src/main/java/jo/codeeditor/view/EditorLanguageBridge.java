@@ -671,6 +671,9 @@ final class EditorLanguageBridge {
                 kindCode == 14,   // LSP Keyword
                 item.isSnippet,
                 item.kindTag,
+                // L1/D-01 : champs étendus transportés jusqu'au client.
+                item.filterText, item.sortText,
+                item.replaceStart, item.replaceEnd,
                 item.postApplyAction));
         }
 

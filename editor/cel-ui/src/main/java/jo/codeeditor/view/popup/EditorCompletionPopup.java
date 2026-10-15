@@ -196,7 +196,25 @@ public class EditorCompletionPopup {
                 view.imeBridge.listener.onRestartInput();
             }
         }
-        view.session.replaceRange(view.completionTokenStart, caret, item.insertText);
+        // L1/D-01 : plage de remplacement — le candidat peut transporter
+        // une édition (textEdit, sémantique remplacement) qui couvre tout
+        // le texte à écraser, y compris AVANT le token courant. Elle est
+        // appliquée EXACTEMENT (jamais le token ET la plage — c'est la
+        // double application qui produit « console.console.log »).
+        // Sans édition : sémantique historique du token.
+        int replaceStart = item.replaceStart >= 0
+                ? item.replaceStart : view.completionTokenStart;
+        int replaceEnd = item.replaceEnd >= 0
+                ? item.replaceEnd : caret;
+        if (item.isSnippet) {
+            // Format snippet : expansion par la session de snippet —
+            // insertion du texte apuré (aucun marqueur $ résiduel),
+            // sélection du premier champ, navigation Tab/Shift+Tab,
+            // miroirs et listener de champ.
+            view.session.snippets.apply(replaceStart, replaceEnd, item.insertText);
+        } else {
+            view.session.replaceRange(replaceStart, replaceEnd, item.insertText);
+        }
         view.onTextChanged();
         dismissCompletion();
         // Action post-insertion transportée par le backend —
@@ -560,16 +578,24 @@ public class EditorCompletionPopup {
         List<jo.codeeditor.completion.CompletionSession.Item> prefixMatchCi = new ArrayList<>();
         List<jo.codeeditor.completion.CompletionSession.Item> fuzzy = new ArrayList<>();
         for (jo.codeeditor.completion.CompletionSession.Item item : items) {
-            String label = item.label;
-            if (label.equals(prefix)) {
+            // L1/D-01 : le filterText (posé par le pont LSP) sert de
+            // repli quand le label n'apparie nulle part — le candidat
+            // est classé selon la qualité du match sur son texte de
+            // filtrage.
+            String match = classifies(item.label, prefix, lowerPrefix)
+                    ? item.label
+                    : (item.filterText != null && !item.filterText.isEmpty()
+                            && classifies(item.filterText, prefix, lowerPrefix)
+                            ? item.filterText : item.label);
+            if (match.equals(prefix)) {
                 exact.add(item);
-            } else if (label.equalsIgnoreCase(prefix)) {
+            } else if (match.equalsIgnoreCase(prefix)) {
                 exactCi.add(item);
-            } else if (label.startsWith(prefix)) {
+            } else if (match.startsWith(prefix)) {
                 prefixMatch.add(item);
-            } else if (label.toLowerCase(java.util.Locale.ROOT).startsWith(lowerPrefix)) {
+            } else if (match.toLowerCase(java.util.Locale.ROOT).startsWith(lowerPrefix)) {
                 prefixMatchCi.add(item);
-            } else if (fuzzyMatches(label, prefix)) {
+            } else if (fuzzyMatches(match, prefix)) {
                 fuzzy.add(item);
             }
         }
@@ -580,6 +606,14 @@ public class EditorCompletionPopup {
         out.addAll(prefixMatchCi);
         out.addAll(fuzzy);
         return out;
+    }
+
+    /** Le candidat matche-t-il le préfixe sur l'un des 5 paliers ? */
+    private static boolean classifies(String candidate, String prefix, String lowerPrefix) {
+        return candidate.equals(prefix) || candidate.equalsIgnoreCase(prefix)
+                || candidate.startsWith(prefix)
+                || candidate.toLowerCase(java.util.Locale.ROOT).startsWith(lowerPrefix)
+                || fuzzyMatches(candidate, prefix);
     }
 
     private static boolean fuzzyMatches(String candidate, String query) {

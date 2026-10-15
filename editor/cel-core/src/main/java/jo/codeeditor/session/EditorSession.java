@@ -120,7 +120,17 @@ public class EditorSession {
      * retire tous les listeners existants puis ajoute le nouveau.
      */
     private final java.util.List<OnTextEditListener> onTextEditListeners = new java.util.concurrent.CopyOnWriteArrayList<>();
-    private OnSnippetEditListener onSnippetEditListener;
+
+    /**
+     * Contrôleur de session de snippet (L1/D-01) — collaborateur sur
+     * le modèle de {@code RestyleEngine} : application des snippets à
+     * l'acceptation de complétion, navigation des champs (Tab /
+     * Shift+Tab), ré-ancrage sur édition, miroirs, arrêt final $0.
+     * Champ public final (référence stable) : l'API de navigation
+     * vit sur le contrôleur, le plafond de méthodes publiques de la
+     * session reste intact (cliquet A-01).
+     */
+    public final SnippetController snippets;
 
     public interface OnTextEditListener {
         void onTextEdit(int start, int end, String inserted);
@@ -175,6 +185,7 @@ public class EditorSession {
         this.selection = Selection.cursor(0);
         this.recorder = new UndoRecorder(MAX_UNDO_STEPS);
         this.restyle = new RestyleEngine(this);
+        this.snippets = new SnippetController(this);
         restyle.restyleAll();
     }
 
@@ -317,7 +328,7 @@ public class EditorSession {
     }
 
     public void setOnSnippetEditListener(OnSnippetEditListener listener) {
-        this.onSnippetEditListener = listener;
+        snippets.setOnSnippetEditListener(listener);
     }
 
     /**
@@ -683,6 +694,11 @@ public class EditorSession {
         // pliage.
         annotations.shift(span);
         folds.shift(span);
+
+        // Session de snippet active (L1/D-01) : ré-ancrage des champs,
+        // synchronisation des miroirs quand l'édition a eu lieu DANS le
+        // champ courant, notification du listener de champ.
+        snippets.onEdit(span, insertion);
 
         // Décaler aussi la région de composition (gravité gauche — cf.
         // ImeBridge.shiftComposingRegion).
@@ -1204,76 +1220,19 @@ public class EditorSession {
     }
 
     // ── Déplacement du curseur ─────────────────────────────────
+    // Plan 02 : implémentations dans CursorMoves (collaborateur statique
+    // package-privé) — la session garde de fins relais publics (zéro
+    // rupture d'API), son plafond de lignes tient.
 
-    public void moveHorizontal(int delta, boolean selecting) {
-        int newPos = Math.max(0, Math.min(doc.length(), selection.start + delta));
-        if (selecting) {
-            int anchor = selection.isCursor() ? selection.start : (delta > 0 ? selection.start : selection.end);
-            setSelection(Selection.range(Math.min(anchor, newPos), Math.max(anchor, newPos)));
-        } else {
-            setSelection(Selection.cursor(newPos));
-        }
-    }
+    public void moveHorizontal(int delta, boolean selecting) { CursorMoves.moveHorizontal(this, delta, selecting); }
 
-    public void moveVertical(int lines, boolean selecting) {
-        int currentLine = doc.lineForOffset(selection.start);
-        int currentCol = selection.start - doc.lineStart(currentLine);
-        int targetLine = Math.max(0, Math.min(doc.lineCount() - 1, currentLine + lines));
-        int targetLineStart = doc.lineStart(targetLine);
-        int targetLineEnd = doc.lineEnd(targetLine);
-        int newPos = Math.min(targetLineStart + currentCol, targetLineEnd);
+    public void moveVertical(int lines, boolean selecting) { CursorMoves.moveVertical(this, lines, selecting); }
 
-        if (selecting) {
-            int anchor = selection.start;
-            setSelection(Selection.range(Math.min(anchor, newPos), Math.max(anchor, newPos)));
-        } else {
-            setSelection(Selection.cursor(newPos));
-        }
-    }
+    public void moveLineStart(boolean selecting) { CursorMoves.moveLineStart(this, selecting); }
 
-    public void moveLineStart(boolean selecting) {
-        int line = doc.lineForOffset(selection.start);
-        int lineStart = doc.lineStart(line);
-        String lineText = doc.lineText(line);
-        // Début de ligne intelligent : aller au premier non-blanc, ou au début
-        // de ligne si on y est déjà
-        int firstNonWs = lineStart;
-        for (int i = 0; i < lineText.length(); i++) {
-            if (!Character.isWhitespace(lineText.charAt(i))) {
-                firstNonWs = lineStart + i;
-                break;
-            }
-        }
-        int newPos = (selection.start == firstNonWs) ? lineStart : firstNonWs;
+    public void moveLineEnd(boolean selecting) { CursorMoves.moveLineEnd(this, selecting); }
 
-        if (selecting) {
-            int anchor = selection.start;
-            setSelection(Selection.range(Math.min(anchor, newPos), Math.max(anchor, newPos)));
-        } else {
-            setSelection(Selection.cursor(newPos));
-        }
-    }
-
-    public void moveLineEnd(boolean selecting) {
-        int line = doc.lineForOffset(selection.start);
-        int newPos = doc.lineEnd(line);
-        if (selecting) {
-            int anchor = selection.start;
-            setSelection(Selection.range(Math.min(anchor, newPos), Math.max(anchor, newPos)));
-        } else {
-            setSelection(Selection.cursor(newPos));
-        }
-    }
-
-    public void moveDocBoundary(boolean toEnd, boolean selecting) {
-        int newPos = toEnd ? doc.length() : 0;
-        if (selecting) {
-            int anchor = selection.start;
-            setSelection(Selection.range(Math.min(anchor, newPos), Math.max(anchor, newPos)));
-        } else {
-            setSelection(Selection.cursor(newPos));
-        }
-    }
+    public void moveDocBoundary(boolean toEnd, boolean selecting) { CursorMoves.moveDocBoundary(this, toEnd, selecting); }
 
     // ── Opérations sur les lignes ───────────────────────────────
     // Plan 01/02 : implémentations dans LineOperations (collaborateur
@@ -1377,6 +1336,9 @@ public class EditorSession {
         // Lecture-seule : l'annulation ne doit RIEN modifier (et ne pas
         // consommer la pile — l'étape reste disponible si l'hôte déverrouille).
         if (readOnly) return false;
+        // Le snippet actif ne survit pas à l'annulation : les offsets de
+        // ses champs ne sont plus fiables (aucun mapping inverse).
+        snippets.end();
         UndoStep step = recorder.manager().undo();
         if (step == null) return false;
         boolean wasComposing = ime.isComposing();
@@ -1402,6 +1364,8 @@ public class EditorSession {
     public boolean redo() {
         // Lecture-seule : symétrique d'undo.
         if (readOnly) return false;
+        // Symétrique d'undo : la session de snippet ne survit pas.
+        snippets.end();
         UndoStep step = recorder.manager().redo();
         if (step == null) return false;
         boolean wasComposing = ime.isComposing();

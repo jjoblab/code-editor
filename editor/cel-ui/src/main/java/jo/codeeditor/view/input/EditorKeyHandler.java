@@ -95,6 +95,26 @@ public class EditorKeyHandler {
                     return true;
             }
         }
+        // ── Navigation de session de snippet (L1/D-01) ─────────────
+        // Tab / Shift+Tab naviguent les champs du snippet actif AVANT
+        // l'indentation ; Échap termine la session (le texte inséré
+        // reste). Le popup de complétion garde la priorité : son
+        // acceptation peut elle-même POSER une session de snippet.
+        if (!ctrl && view.session.snippets.isActive()) {
+            if (keyCode == KeyEvent.KEYCODE_TAB) {
+                boolean consumed = shift
+                        ? view.session.snippets.prev()
+                        : view.session.snippets.next();
+                if (consumed) {
+                    view.invalidate();
+                    return true;
+                }
+            } else if (keyCode == KeyEvent.KEYCODE_ESCAPE) {
+                view.session.snippets.end();
+                view.invalidate();
+                return true;
+            }
+        }
         // ── Navigation popup d'aide de signature ───────────────
         // Haut/Bas fait défiler les surcharges (activeSignature) quand
         // il y a plus d'une signature. Échap ferme. Quand une seule

@@ -31,6 +31,26 @@ public class CompletionSession {
          */
         public final String kindTag;
         /**
+         * Texte de filtrage (champ LSP {@code filterText}) — utilisé
+         * quand le préfixe tapé n'apparie pas le label. Null = label.
+         */
+        public final String filterText;
+        /**
+         * Clé de tri secondaire (champ LSP {@code sortText}) — départage
+         * les candidats de même score (ordre naturel croissant, null en
+         * dernier). Null = départage par label.
+         */
+        public final String sortText;
+        /**
+         * Plage de remplacement optionnelle en offsets document (champ
+         * LSP {@code textEdit}, sémantique remplacement — voir la
+         * Javadoc de l'item SPI). {@code -1} = non spécifiée →
+         * remplacement du token {@code [tokenStart, caret)}.
+         */
+        public final int replaceStart;
+        /** Fin de plage de remplacement (exclusive) ; {@code -1} = non spécifiée. */
+        public final int replaceEnd;
+        /**
          * Payload opaque attaché au candidat par le backend
          * (ex: Runnable d'auto-import LSP exécuté à l'acceptation).
          * Jamais interprété par la lib — l'hôte/le pont décide.
@@ -58,6 +78,20 @@ public class CompletionSession {
         public Item(String label, String detail, String insertText, String icon,
                     int kind, int sortScore, boolean isKeyword, boolean isSnippet,
                     String kindTag, Object attachment) {
+            this(label, detail, insertText, icon, kind, sortScore, isKeyword, isSnippet,
+                    kindTag, null, null, -1, -1, attachment);
+        }
+
+        /**
+         * Variante étendue (L1/D-01) : transport de {@code filterText},
+         * {@code sortText} et de la plage de remplacement optionnelle
+         * (sémantique remplacement — l'acceptation remplace
+         * EXACTEMENT cette plage, jamais le token ET la plage).
+         */
+        public Item(String label, String detail, String insertText, String icon,
+                    int kind, int sortScore, boolean isKeyword, boolean isSnippet,
+                    String kindTag, String filterText, String sortText,
+                    int replaceStart, int replaceEnd, Object attachment) {
             this.label = label != null ? label : "";
             this.detail = detail != null ? detail : "";
             this.insertText = insertText != null ? insertText : label;
@@ -67,6 +101,10 @@ public class CompletionSession {
             this.isKeyword = isKeyword;
             this.isSnippet = isSnippet;
             this.kindTag = kindTag;
+            this.filterText = filterText;
+            this.sortText = sortText;
+            this.replaceStart = replaceStart;
+            this.replaceEnd = replaceEnd;
             this.attachment = attachment;
         }
 
@@ -121,7 +159,7 @@ public class CompletionSession {
 
         List<Item> matched = new ArrayList<>();
         for (Item item : base) {
-            if (matchesFilter(item.label, prefix)) {
+            if (matchesItem(item, prefix)) {
                 matched.add(item);
             }
         }
@@ -130,7 +168,10 @@ public class CompletionSession {
 
     /**
      * Vérifie si l'élément correspond au préfixe (exact, préfixe, ou
-     * sous-séquence camel-hump).
+     * sous-séquence camel-hump). Le {@code filterText} (quand il est
+     * posé) sert de repli : un candidat dont le label ne matche pas
+     * mais dont le texte de filtrage matche reste visible (LSP 3.17 —
+     * champ {@code filterText}).
      */
     private boolean matchesFilter(String label, String prefix) {
         if (label == null || label.isEmpty()) return false;
@@ -142,7 +183,18 @@ public class CompletionSession {
         // Préfixe
         if (lowerLabel.startsWith(lowerPrefix)) return true;
         // Sous-séquence camel-hump
-        return isCamelHumpSubsequence(label, prefix);
+        if (isCamelHumpSubsequence(label, prefix)) return true;
+        return false;
+    }
+
+    /**
+     * Appariement d'un item au préfixe tapé, label d'abord puis
+     * {@code filterText} en repli.
+     */
+    private boolean matchesItem(Item item, String prefix) {
+        if (matchesFilter(item.label, prefix)) return true;
+        return item.filterText != null && !item.filterText.isEmpty()
+                && matchesFilter(item.filterText, prefix);
     }
 
     /**
@@ -158,10 +210,22 @@ public class CompletionSession {
             // sortScore le plus élevé d'abord
             int scoreCmp = Integer.compare(b.sortScore, a.sortScore);
             if (scoreCmp != 0) return scoreCmp;
+            // Départage par sortText (ordre naturel croissant, null en
+            // dernier) puis ordre alphabétique.
+            int sortTextCmp = compareSortText(a.sortText, b.sortText);
+            if (sortTextCmp != 0) return sortTextCmp;
             // Ordre alphabétique
             return a.label.compareToIgnoreCase(b.label);
         });
         return result;
+    }
+
+    /** Comparaison de sortText : ordre naturel croissant, null en dernier. */
+    private static int compareSortText(String a, String b) {
+        if (a == null && b == null) return 0;
+        if (a == null) return 1;
+        if (b == null) return -1;
+        return a.compareTo(b);
     }
 
     /**
@@ -179,7 +243,7 @@ public class CompletionSession {
         String typed = text.subSequence(tokenStart, caret).toString();
         if (typed.isEmpty()) return true;
         for (Item item : base) {
-            if (matchesFilter(item.label, typed)) return true;
+            if (matchesItem(item, typed)) return true;
         }
         return false;
     }
