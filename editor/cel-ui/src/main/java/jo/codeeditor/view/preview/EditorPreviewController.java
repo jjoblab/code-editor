@@ -109,21 +109,6 @@ public class EditorPreviewController {
         return currentFileName;
     }
 
-    private static boolean isPreviewableFile(String fileName) {
-        if (fileName == null) return false;
-        String lower = fileName.toLowerCase(java.util.Locale.ROOT);
-        return lower.endsWith(".md")
-            || lower.endsWith(".markdown")
-            || lower.endsWith(".html")
-            || lower.endsWith(".htm")
-            || lower.endsWith(".xml");
-    }
-
-    private static boolean isXmlLayoutFile(String fileName) {
-        if (fileName == null) return false;
-        return fileName.toLowerCase(java.util.Locale.ROOT).endsWith(".xml");
-    }
-
     /**
      * Hit-teste les icônes d'aperçu. Retourne :
      * 0 = aucun hit
