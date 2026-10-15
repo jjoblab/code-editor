@@ -922,4 +922,101 @@ class GenericTokenizerTest {
         StyledLine l2 = GenericTokenizer.styleLine(PY, "foo(", 0);
         assertEquals(TokenType.FUNC, typeAt(l2, 0));
     }
+
+    // ── C2-é10 : directives, descripteurs, signes, orpheline ───────
+
+    /**
+     * Template maison (C2-é10) : mini-langage façon Smali — directives
+     * à mot-clé (« .connu » → KEYWORD, sinon ANNOTATION), descripteur
+     * de type L…;/[L…;, nombres ouverts par un signe, chaîne orpheline
+     * tombante, mots à tiret/slash en FUNC : la grammaire de la famille
+     * SMALI sans une ligne de moteur.
+     */
+    private static final TokenizerTemplate DEX = TokenizerTemplate.builder()
+            .freeForm()
+            .lineComments("#")
+            .annotationPrefixes('.')
+            .annotationKeywords(java.util.Set.of(".connu"))
+            .annotationKeywordType(TokenType.KEYWORD)
+            .annotationType(TokenType.ANNOTATION)
+            .annotationWordChars('-')
+            .valueQuotes('"')
+            .valueType(TokenType.STRING)
+            .stringOrphanFallsThrough(true)
+            .typeDescriptor('L', '[', ';', 200, TokenType.TYPE)
+            .valueNumberChars('x', 'a', 'f', 't', 'L', 'l')
+            .numberSignChars('-', '+')
+            .wordExtraChars('_', '-', '/')
+            .wordFuncContainsChars('-')
+            .wordFuncSuffixChars('/')
+            .wordUpperCaseType(TokenType.TYPE)
+            .wordFallbackType(TokenType.PLAIN)
+            .operatorSingleChars('=', '>', '+')
+            .build();
+
+    @Test
+    void dexMaison_directiveÀMotClé() {
+        // .connu → KEYWORD ; .inconnu → ANNOTATION (repli déclaré).
+        StyledLine l = GenericTokenizer.styleLine(DEX, ".connu x", 0);
+        assertEquals(TokenType.KEYWORD, typeAt(l, 0));
+        StyledLine l2 = GenericTokenizer.styleLine(DEX, ".inconnu-chose", 0);
+        assertEquals(TokenType.ANNOTATION, typeAt(l2, 0));
+        assertEquals(TokenType.ANNOTATION, typeAt(l2, 11), "le tiret reste dans le mot");
+    }
+
+    @Test
+    void dexMaison_descripteurDeType() {
+        // L…; et [L…; → TYPE ; sans fermante → règle de mot.
+        StyledLine l = GenericTokenizer.styleLine(DEX, "Lpkg/Cl;", 0);
+        assertEquals(1, l.spans.size());
+        assertEquals(TokenType.TYPE, l.spans.get(0).type);
+        assertEquals(8, l.spans.get(0).endCol);
+        StyledLine l2 = GenericTokenizer.styleLine(DEX, "[Lpkg/Cl;", 0);
+        assertEquals(1, l2.spans.size());
+        assertEquals(9, l2.spans.get(0).endCol, "le crochet préfixe le descripteur");
+        // Sans fermante : [I → PUNCT + mot (majuscule → TYPE).
+        StyledLine l3 = GenericTokenizer.styleLine(DEX, "[I", 0);
+        assertEquals(TokenType.PUNCT, typeAt(l3, 0));
+        assertEquals(TokenType.TYPE, typeAt(l3, 1));
+    }
+
+    @Test
+    void dexMaison_nombreOuvertAuSigne() {
+        // « - » et « + » ouvrent TOUJOURS un nombre, même seuls.
+        StyledLine l = GenericTokenizer.styleLine(DEX, "-", 0);
+        assertEquals(1, l.spans.size());
+        assertEquals(TokenType.NUMBER, l.spans.get(0).type);
+        StyledLine l2 = GenericTokenizer.styleLine(DEX, "+5t", 0);
+        assertEquals(TokenType.NUMBER, typeAt(l2, 0));
+        assertEquals(TokenType.NUMBER, typeAt(l2, 2), "le suffixe t reste dans le nombre");
+    }
+
+    @Test
+    void dexMaison_chaîneOrphelineTombante() {
+        // "ouvert : la quote orpheline n'est PAS consommée — PUNCT et
+        // la suite est re-lexée.
+        StyledLine l = GenericTokenizer.styleLine(DEX, "x \"ouvert", 0);
+        assertEquals(TokenType.PLAIN, typeAt(l, 0));
+        assertEquals(TokenType.PUNCT, typeAt(l, 2), "la quote orpheline → PUNCT");
+        assertEquals(TokenType.PLAIN, typeAt(l, 3), "la suite est re-lexée");
+        // Fermée : chaîne normale.
+        StyledLine l2 = GenericTokenizer.styleLine(DEX, "\"fermee\"", 0);
+        assertEquals(TokenType.STRING, typeAt(l2, 0));
+    }
+
+    @Test
+    void dexMaison_motsÀTiretEtSlash() {
+        // Un mot CONTENANT « - » ou SE TERMINANT par « / » est FUNC.
+        StyledLine l = GenericTokenizer.styleLine(DEX, "invoke-direct", 0);
+        assertEquals(1, l.spans.size());
+        assertEquals(TokenType.FUNC, l.spans.get(0).type);
+        StyledLine l2 = GenericTokenizer.styleLine(DEX, "chemin/", 0);
+        assertEquals(1, l2.spans.size());
+        assertEquals(TokenType.FUNC, l2.spans.get(0).type);
+        // a/b : le slash INTERNE ne suffit pas (« b » finit le mot sans
+        // slash final) — garde historique.
+        StyledLine l3 = GenericTokenizer.styleLine(DEX, "a/b", 0);
+        assertEquals(1, l3.spans.size());
+        assertEquals(TokenType.PLAIN, l3.spans.get(0).type, "a/b est UN mot (slash interne)");
+    }
 }

@@ -261,6 +261,12 @@ public final class TokenizerTemplate {
     /** Vrai (C2-é9, Python) : l'annotation n'est reconnue qu'en début
      * de ligne ou après un blanc (a@b n'est pas un décorateur). */
     public final boolean annotationRequiresBoundary;
+    /** Mots-clés d'annotation (C2-é10, Smali/CSS) : le JETON entier
+     * (préfixe compris — {@code .class}, {@code @media}) y est
+     * raffiné, sinon le type de repli s'applique. */
+    public final Set<String> annotationKeywords;
+    /** Type d'une annotation raffinée par mot-clé. */
+    public final TokenType annotationKeywordType;
     /** Caractères de départ d'une clé au-delà des lettres (YAML :
      * {@code _ " ' - . /}) — vide : clé non filtrée (historique). */
     public final Set<Character> keyStartExtras;
@@ -360,6 +366,29 @@ public final class TokenizerTemplate {
     /** Vrai (C2-é9, Python) : la casse (ALL_CAPS, majuscule initiale)
      * est évaluée AVANT la parenthèse d'appel — Foo( est TYPE. */
     public final boolean wordFuncAfterCase;
+    /** Caractères qui, CONTENUS dans un mot, en font un appel/opcode
+     * (C2-é10, Smali : {@code -} — invoke-direct → FUNC). */
+    public final Set<Character> wordFuncContainsChars;
+    /** Caractères qui, TERMINANT un mot, en font un appel/chemin
+     * (C2-é10, Smali : {@code /} — array/ → FUNC). */
+    public final Set<Character> wordFuncSuffixChars;
+    /** Préfixe d'un descripteur de type (C2-é10, Smali : {@code L}
+     * — 0 : désactivé). */
+    public final char typeDescriptorPrefix;
+    /** Crochet préfixant aussi le descripteur (Smali : {@code [L…;}). */
+    public final char typeDescriptorBracket;
+    /** Terminateur du descripteur (Smali : {@code ;}). */
+    public final char typeDescriptorTerminator;
+    /** Longueur maximale du descripteur (Smali : 200). */
+    public final int typeDescriptorMaxSpan;
+    /** Type d'un descripteur reconnu. */
+    public final TokenType typeDescriptorType;
+    /** Caractères ouvrant TOUJOURS un nombre, même seuls (C2-é10,
+     * Smali : {@code -} et {@code +}). */
+    public final Set<Character> numberSignChars;
+    /** Vrai (C2-é10, Smali) : une chaîne orpheline n'est PAS consommée
+     * jusqu'en fin de ligne — les règles suivantes reprennent à pos. */
+    public final boolean stringOrphanFallsThrough;
 
     private TokenizerTemplate(Builder b) {
         this.lineComments = List.copyOf(b.lineComments);
@@ -409,6 +438,9 @@ public final class TokenizerTemplate {
         this.annotationWordChars = Collections.unmodifiableSet(
                 new HashSet<>(b.annotationWordChars));
         this.annotationRequiresBoundary = b.annotationRequiresBoundary;
+        this.annotationKeywords = Collections.unmodifiableSet(
+                new HashSet<>(b.annotationKeywords));
+        this.annotationKeywordType = b.annotationKeywordType;
         this.keyStartExtras = Collections.unmodifiableSet(new HashSet<>(b.keyStartExtras));
         this.keyStopChars = Collections.unmodifiableSet(new HashSet<>(b.keyStopChars));
         this.keyLookahead = b.keyLookahead;
@@ -454,6 +486,18 @@ public final class TokenizerTemplate {
         this.wordAllCapsType = b.wordAllCapsType;
         this.wordAfterDotType = b.wordAfterDotType;
         this.wordFuncAfterCase = b.wordFuncAfterCase;
+        this.wordFuncContainsChars = Collections.unmodifiableSet(
+                new HashSet<>(b.wordFuncContainsChars));
+        this.wordFuncSuffixChars = Collections.unmodifiableSet(
+                new HashSet<>(b.wordFuncSuffixChars));
+        this.typeDescriptorPrefix = b.typeDescriptorPrefix;
+        this.typeDescriptorBracket = b.typeDescriptorBracket;
+        this.typeDescriptorTerminator = b.typeDescriptorTerminator;
+        this.typeDescriptorMaxSpan = b.typeDescriptorMaxSpan;
+        this.typeDescriptorType = b.typeDescriptorType;
+        this.numberSignChars = Collections.unmodifiableSet(
+                new HashSet<>(b.numberSignChars));
+        this.stringOrphanFallsThrough = b.stringOrphanFallsThrough;
     }
 
     /**
@@ -742,6 +786,44 @@ public final class TokenizerTemplate {
             .build();
 
     /**
+     * Template Smali intégré (migration C2-é10) : directives
+     * {@code .class}/{@code .method} raffinées par table (sinon
+     * ANNOTATION), commentaires {@code #}, chaînes à échappements
+     * apparents dont l'orpheline TOMBE dans les règles suivantes
+     * (garde historique), descripteurs de type {@code L…;}/{@code [L…;}
+     * à fermante proche, registres p/v en VARIABLE, mots à tiret ou à
+     * slash final en FUNC (opcodes), nombres ouverts par un signe
+     * (même seul), hexadécimaux et suffixes t/L — reprend la grammaire
+     * historique de {@code SmaliTokenizer} octet pour octet. Aucun état
+     * inter-lignes.
+     */
+    public static final TokenizerTemplate SMALI = builder()
+            .freeForm()
+            .lineComments("#")
+            .annotationPrefixes('.')
+            .annotationKeywords(KeywordTables.SMALI_KEYWORDS)
+            .annotationKeywordType(TokenType.KEYWORD)
+            .annotationType(TokenType.ANNOTATION)
+            .annotationWordChars('-')
+            .valueQuotes('"')
+            .valueType(TokenType.STRING)
+            .stringOrphanFallsThrough(true)
+            .typeDescriptor('L', '[', ';', 200, TokenType.TYPE)
+            .valueNumberChars('x', 'X', 'a', 'b', 'c', 'd', 'e', 'f',
+                    'A', 'B', 'C', 'D', 'E', 'F', 't', 'L', 'l')
+            .numberSignChars('-', '+')
+            .wordTypeKeywords(KeywordTables.SMALI_REGISTERS)
+            .wordTypeKeywordType(TokenType.VARIABLE)
+            .wordExtraChars('_', '-', '/')
+            .wordFuncContainsChars('-')
+            .wordFuncSuffixChars('/')
+            .wordUpperCaseType(TokenType.TYPE)
+            .wordFallbackType(TokenType.PLAIN)
+            .operatorSingleChars('+', '-', '*', '/', '%', '=', '!', '<',
+                    '>', '&', '|', '^', '~', '?', ':')
+            .build();
+
+    /**
      * Littéral à délimiteurs (C2-é6, famille C) : ouvrant, fermant,
      * offset de recherche de la fermante (l'ouverture {@code /**}
      * cherche sa fermante dès {@code pos+2} — {@code /**&#47;} se referme),
@@ -847,6 +929,8 @@ public final class TokenizerTemplate {
         private TokenType annotationType = TokenType.ANNOTATION;
         private final Set<Character> annotationWordChars = new HashSet<>();
         private boolean annotationRequiresBoundary = false;
+        private final Set<String> annotationKeywords = new HashSet<>();
+        private TokenType annotationKeywordType = TokenType.KEYWORD;
         private final Set<Character> keyStartExtras = new HashSet<>();
         private final Set<Character> keyStopChars = new HashSet<>();
         private boolean keyLookahead = false;
@@ -884,6 +968,15 @@ public final class TokenizerTemplate {
         private TokenType wordAllCapsType = null;
         private TokenType wordAfterDotType = null;
         private boolean wordFuncAfterCase = false;
+        private final Set<Character> wordFuncContainsChars = new HashSet<>();
+        private final Set<Character> wordFuncSuffixChars = new HashSet<>();
+        private char typeDescriptorPrefix = 0;
+        private char typeDescriptorBracket = 0;
+        private char typeDescriptorTerminator = ';';
+        private int typeDescriptorMaxSpan = 200;
+        private TokenType typeDescriptorType = TokenType.TYPE;
+        private final Set<Character> numberSignChars = new HashSet<>();
+        private boolean stringOrphanFallsThrough = false;
 
         /** Préfixes de commentaire de ligne (entrées vides/nulles ignorées). */
         public Builder lineComments(String... prefixes) {
@@ -1104,6 +1197,19 @@ public final class TokenizerTemplate {
          * blanc (C2-é9, Python : a@b n'est pas un décorateur). */
         public Builder annotationRequiresBoundary(boolean required) {
             this.annotationRequiresBoundary = required;
+            return this;
+        }
+
+        /** Mots-clés d'annotation (C2-é10, Smali/CSS) — le JETON entier
+         * (préfixe compris : « .class », « @media ») y est raffiné. */
+        public Builder annotationKeywords(Set<String> keywords) {
+            if (keywords != null) annotationKeywords.addAll(keywords);
+            return this;
+        }
+
+        /** Type d'une annotation raffinée par mot-clé. */
+        public Builder annotationKeywordType(TokenType type) {
+            this.annotationKeywordType = type != null ? type : TokenType.KEYWORD;
             return this;
         }
 
@@ -1337,6 +1443,46 @@ public final class TokenizerTemplate {
          * AVANT la parenthèse d'appel (C2-é9, Python : Foo( est TYPE). */
         public Builder wordFuncAfterCase(boolean enabled) {
             this.wordFuncAfterCase = enabled;
+            return this;
+        }
+
+        /** Caractères qui, CONTENUS dans un mot, en font un appel
+         * (C2-é10, Smali : « - »). */
+        public Builder wordFuncContainsChars(char... chars) {
+            for (char c : chars) wordFuncContainsChars.add(c);
+            return this;
+        }
+
+        /** Caractères qui, TERMINANT un mot, en font un appel
+         * (C2-é10, Smali : « / »). */
+        public Builder wordFuncSuffixChars(char... chars) {
+            for (char c : chars) wordFuncSuffixChars.add(c);
+            return this;
+        }
+
+        /** Descripteur de type (C2-é10, Smali) : préfixe, crochet
+         * préfixant, terminateur, longueur maximale, type. */
+        public Builder typeDescriptor(char prefix, char bracket,
+                char terminator, int maxSpan, TokenType type) {
+            this.typeDescriptorPrefix = prefix;
+            this.typeDescriptorBracket = bracket;
+            this.typeDescriptorTerminator = terminator;
+            this.typeDescriptorMaxSpan = maxSpan;
+            this.typeDescriptorType = type != null ? type : TokenType.TYPE;
+            return this;
+        }
+
+        /** Caractères ouvrant TOUJOURS un nombre, même seuls (C2-é10,
+         * Smali : « - » et « + »). */
+        public Builder numberSignChars(char... chars) {
+            for (char c : chars) numberSignChars.add(c);
+            return this;
+        }
+
+        /** Vrai : une chaîne orpheline tombe dans les règles suivantes
+         * au lieu d'être consommée (C2-é10, Smali). */
+        public Builder stringOrphanFallsThrough(boolean enabled) {
+            this.stringOrphanFallsThrough = enabled;
             return this;
         }
 

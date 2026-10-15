@@ -611,6 +611,9 @@ public final class GenericTokenizer {
             // de clé requalifie une chaîne fermée suivie d'un
             // séparateur ; orpheline → fin de ligne et l'état
             // inter-lignes se propage si le guillemet le déclare.
+            // C2-é10 (Smali) : dérogation tombante — une orpheline
+            // n'est PAS consommée, les règles suivantes reprennent à
+            // pos (garde historique Smali : « " » → PUNCT, re-lexée).
             if (template.valueQuotes.contains(ch)) {
                 int end = SpanUtils.findStringEnd(line, pos + 1, ch);
                 if (end >= 0) {
@@ -629,14 +632,18 @@ public final class GenericTokenizer {
                     }
                     SpanUtils.addStringSpans(spans, line, pos, end + 1, type);
                     pos = end + 1;
-                } else {
+                    continue;
+                }
+                if (!template.stringOrphanFallsThrough) {
                     spans.add(new LineSpan(pos, line.length(), template.valueType));
                     pos = line.length();
                     if (ch == template.interLineQuote) {
                         state = template.interLineState;
                     }
+                    continue;
                 }
-                continue;
+                // Orpheline tombante : ne pas consommer, les règles
+                // suivantes reprennent à pos.
             }
 
             // Littéral à guillemet simple : paire → jeton ; orpheline →
@@ -702,6 +709,10 @@ public final class GenericTokenizer {
             // mot peut inclure des caractères déclarés (@app.route) et
             // le préfixe peut être BORNÉ — évalué seulement en début de
             // ligne ou après un blanc (a@b n'est pas un décorateur).
+            // C2-é10 (Smali/CSS) : le JETON entier (préfixe compris)
+            // peut être raffiné par une table de mots-clés (.class →
+            // KEYWORD, .foo → ANNOTATION ; @media → KEYWORD, @var →
+            // VARIABLE).
             if (template.annotationPrefixes.contains(ch)
                     && (!template.annotationRequiresBoundary
                             || pos == 0
@@ -714,9 +725,34 @@ public final class GenericTokenizer {
                                         line.charAt(end)))) {
                     end++;
                 }
-                spans.add(new LineSpan(pos, end, template.annotationType));
+                TokenType type = template.annotationType;
+                if (!template.annotationKeywords.isEmpty()
+                        && template.annotationKeywords.contains(
+                                line.substring(pos, end))) {
+                    type = template.annotationKeywordType;
+                }
+                spans.add(new LineSpan(pos, end, type));
                 pos = end;
                 continue;
+            }
+
+            // Descripteur de type (C2-é10, Smali) : L…; ou [L…; — la
+            // fermante « ; » doit exister à moins de maxSpan
+            // caractères de l'ouverture ; sinon la règle de mot
+            // reprend (garde historique).
+            if (template.typeDescriptorPrefix != 0
+                    && (ch == template.typeDescriptorPrefix
+                        || (template.typeDescriptorBracket != 0
+                            && ch == template.typeDescriptorBracket
+                            && pos + 1 < line.length()
+                            && line.charAt(pos + 1) == template.typeDescriptorPrefix))) {
+                int end = line.indexOf(template.typeDescriptorTerminator, pos);
+                if (end >= 0 && end - pos < template.typeDescriptorMaxSpan) {
+                    spans.add(new LineSpan(pos, end + 1,
+                            template.typeDescriptorType));
+                    pos = end + 1;
+                    continue;
+                }
             }
 
             // Nombre : chiffre en frontière de mot (pas collé à un
@@ -736,7 +772,10 @@ public final class GenericTokenizer {
             boolean leadingDot = template.numberLeadingDot && ch == '.'
                     && pos + 1 < line.length()
                     && Character.isDigit(line.charAt(pos + 1));
-            if (digitStart || leadingMinus || leadingDot) {
+            // C2-é10 (Smali) : signes inconditionnels — « - »/« + »
+            // ouvrent TOUJOURS un nombre, même seuls.
+            boolean signStart = template.numberSignChars.contains(ch);
+            if (digitStart || leadingMinus || leadingDot || signStart) {
                 int end = pos + 1;
                 while (end < line.length()
                         && (Character.isDigit(line.charAt(end))
@@ -798,6 +837,16 @@ public final class GenericTokenizer {
                 } else if (template.wordAllCapsType != null
                         && SpanUtils.isAllCaps(word) && word.length() > 1) {
                     type = template.wordAllCapsType;
+                } else if (!template.wordFuncContainsChars.isEmpty()
+                        && containsAny(word, template.wordFuncContainsChars)) {
+                    // C2-é10 (Smali) : un mot CONTENANT un caractère
+                    // déclaré est un opcode (invoke-direct → FUNC).
+                    type = TokenType.FUNC;
+                } else if (!template.wordFuncSuffixChars.isEmpty()
+                        && endsWithAny(word, template.wordFuncSuffixChars)) {
+                    // C2-é10 (Smali) : un mot SE TERMINANT par un
+                    // caractère déclaré est un chemin (array/ → FUNC).
+                    type = TokenType.FUNC;
                 } else if (!template.wordFuncAfterCase
                         && end < line.length()
                         && template.wordFuncFollowChars.contains(line.charAt(end))) {
@@ -876,6 +925,21 @@ public final class GenericTokenizer {
                     || template.wordExtraChars.contains(c);
         }
         return Character.isLetter(c) || template.wordExtraChars.contains(c);
+    }
+
+    /** Vrai si le mot contient l'un des caractères déclarés. */
+    private static boolean containsAny(String word,
+            java.util.Set<Character> chars) {
+        for (int i = 0; i < word.length(); i++) {
+            if (chars.contains(word.charAt(i))) return true;
+        }
+        return false;
+    }
+
+    /** Vrai si le mot se termine par l'un des caractères déclarés. */
+    private static boolean endsWithAny(String word,
+            java.util.Set<Character> chars) {
+        return !word.isEmpty() && chars.contains(word.charAt(word.length() - 1));
     }
 
     /**
