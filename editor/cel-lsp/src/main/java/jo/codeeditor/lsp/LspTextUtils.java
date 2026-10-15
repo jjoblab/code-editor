@@ -118,22 +118,6 @@ final class LspTextUtils {
     }
 
     /**
-     * Offset de début (inclus) de la ligne 0-based demandée — borne au
-     * texte : une ligne au-delà de la dernière ramène le début de la
-     * dernière ligne existante.
-     */
-    static int lineStartOffset(String text, int line) {
-        if (text == null || text.isEmpty() || line <= 0) return 0;
-        int lineStart = 0;
-        for (int i = 0; i < line; i++) {
-            int nl = text.indexOf('\n', lineStart);
-            if (nl < 0) break;
-            lineStart = nl + 1;
-        }
-        return lineStart;
-    }
-
-    /**
      * Ordre lexicographique des positions LSP (ligne, puis colonne) —
      * aux offsets UTF-16 près.
      */
