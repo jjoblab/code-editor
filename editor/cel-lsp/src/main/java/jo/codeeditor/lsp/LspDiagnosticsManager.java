@@ -1,7 +1,7 @@
 package jo.codeeditor.lsp;
 
+import jo.codeeditor.lang.host.EditorHost;
 import jo.codeeditor.lang.model.Diagnostic;
-import jo.codeeditor.view.EditorView;
 
 import org.eclipse.lsp4j.PublishDiagnosticsParams;
 
@@ -12,7 +12,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 /**
  * Réception et diffusion des diagnostics serveur pour un document ouvert :
  * convertit les diagnostics LSP en offsets éditeur, les met en cache puis
- * pousse la liste à la session de l'EditorView sur le thread UI. Extrait de
+ * pousse la liste à la session de l'hôte d'édition sur le thread UI. Extrait de
  * {@link LspEditor} pour isoler cette responsabilité du reste du pont
  * éditeur↔serveur.
  */
@@ -83,13 +83,13 @@ class LspDiagnosticsManager {
                 sink.log("  - [" + d.severity + "] " + d.message);
             }
         }
-        EditorView editorView = editor.getEditorView();
-        if (editorView != null) {
+        EditorHost host = editor.getHost();
+        if (host != null) {
             final List<Diagnostic> diagsFinal = diags;
             Runnable push = () -> {
-                EditorView view = editor.getEditorView();
-                if (view != null && view.getSession() != null) {
-                    view.getSession().setDiagnostics(
+                EditorHost current = editor.getHost();
+                if (current != null && current.session() != null) {
+                    current.session().setDiagnostics(
                         convertToLegacyDiagnostics(diagsFinal));
                     // P2-11c — voie UNIQUE de sortie : la publication LSP
                     // emprunte le même chemin que la voie locale
@@ -99,17 +99,16 @@ class LspDiagnosticsManager {
                     // notification de l'hôte (OnDiagnosticsPublishedListener,
                     // resté muet côté LSP — le futur onglet Problèmes de
                     // l'hôte en dépend), invalidation comprise.
-                    view.notifyDiagnosticsChanged();
+                    current.notifyDiagnosticsChanged();
                 }
             };
-            // Pattern applyServerEdit : vue ATTACHÉE → handler (thread UI,
-            // la mutation de session est sérialisée avec le rendu) ;
-            // vue NON attachée (pas de handler) → exécution EN LIGNE —
-            // un View.post resterait en file d'actions et ne serait jamais
-            // exécuté avant l'attachement : une publication serveur ne
-            // doit pas rester pendante.
-            android.os.Handler h = editorView.getHandler();
-            if (h != null) h.post(push); else push.run();
+            // Pattern applyServerEdit : hôte ATTACHÉ → thread UI
+            // (la mutation de session est sérialisée avec le rendu) ;
+            // hôte NON attaché → exécution EN LIGNE — un post resterait
+            // en file d'actions et ne serait jamais exécuté avant
+            // l'attachement : une publication serveur ne doit pas rester
+            // pendante.
+            if (host.isAttachedToWindow()) host.post(push); else push.run();
             // ★ R3 : chaque publication de diagnostics est
             // le signal naturel pour rafraîchir les couleurs sémantiques —
             // un seul déclencheur, déjà cadencé par le debounce didChange,

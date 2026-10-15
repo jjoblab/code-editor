@@ -71,8 +71,8 @@ class LspInlayHintProvider implements InlayHintProvider {
         // Convertit (startLine, endLine) en plage LSP. Colonne 0 au
         // début et Integer.MAX_VALUE à la fin pour couvrir toute la
         // plage de lignes.
-        jo.codeeditor.document.EditorDocument doc = editor.getEditorView() != null
-            ? editor.getEditorView().getSession().getDocument() : null;
+        jo.codeeditor.document.EditorDocument doc = editor.getHost() != null
+            ? editor.getHost().document() : null;
         int safeStartLine = doc != null ? Math.max(0, Math.min(startLine, doc.lineCount() - 1)) : Math.max(0, startLine);
         int safeEndLine = doc != null ? Math.max(safeStartLine, Math.min(endLine, doc.lineCount() - 1)) : Math.max(safeStartLine, endLine);
         org.eclipse.lsp4j.Range range = new org.eclipse.lsp4j.Range(

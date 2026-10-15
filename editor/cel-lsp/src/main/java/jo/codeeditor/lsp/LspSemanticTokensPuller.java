@@ -1,6 +1,6 @@
 package jo.codeeditor.lsp;
 
-import jo.codeeditor.view.EditorView;
+import jo.codeeditor.lang.host.EditorHost;
 
 import org.eclipse.lsp4j.Position;
 
@@ -41,8 +41,8 @@ class LspSemanticTokensPuller {
         if (!editor.isConnected()) return;
         LanguageServerWrapper wrapper = editor.currentWrapper();
         if (wrapper == null || wrapper.getServer() == null) return;
-        EditorView editorView = editor.getEditorView();
-        if (editorView == null || editorView.getSession() == null) return;
+        EditorHost host = editor.getHost();
+        if (host == null || host.session() == null) return;
         try {
             org.eclipse.lsp4j.ServerCapabilities caps = wrapper.getCapabilities();
             if (caps == null || caps.getSemanticTokensProvider() == null) return;
@@ -58,7 +58,7 @@ class LspSemanticTokensPuller {
             // Un seul re-tir en fin de fenêtre — jamais de rafale sous la frappe.
             final int genAtSchedule = semanticGeneration.get();
             final long delay = SEMANTIC_MIN_INTERVAL_MS - elapsed;
-            editorView.postDelayed(() -> {
+            host.postDelayed(() -> {
                 if (editor.isConnected() && semanticGeneration.get() == genAtSchedule) {
                     doPullSemanticTokens();
                 }
@@ -95,9 +95,9 @@ class LspSemanticTokensPuller {
                         || result.getData().isEmpty()) return;
                 final List<Integer> flat = result.getData();
                 // Conversion offset → appliquée sur le THREAD UI (session).
-                EditorView editorView = editor.getEditorView();
-                if (editorView != null) {
-                    editorView.post(() -> applySemanticTokens(gen, flat));
+                EditorHost host = editor.getHost();
+                if (host != null) {
+                    host.post(() -> applySemanticTokens(gen, flat));
                 }
             } catch (Exception t) {
                 jo.codeeditor.util.EditorLog.warn("LspEditor", "semanticTokens failed: " + t);
@@ -113,8 +113,8 @@ class LspSemanticTokensPuller {
      */
     private void applySemanticTokens(int gen, List<Integer> flat) {
         if (!editor.isConnected()) return;
-        EditorView editorView = editor.getEditorView();
-        if (editorView == null || editorView.getSession() == null) return;
+        EditorHost host = editor.getHost();
+        if (host == null || host.session() == null) return;
         if (gen != semanticGeneration.get()) return;
         List<jo.codeeditor.shift.DiagnosticShift.SemanticToken> tokens =
                 new ArrayList<>(Math.max(8, flat.size() / 5));
@@ -137,8 +137,8 @@ class LspSemanticTokensPuller {
             // Frontière tolérante : l'écart est attendu, pas journalisé.
         }
         try {
-            editorView.getSession().setSemanticTokens(tokens);
-            editorView.invalidate();
+            host.session().setSemanticTokens(tokens);
+            host.invalidate();
             jo.codeeditor.util.EditorLog.info("LspEditor", "semanticTokens applied: " + tokens.size());
         } catch (Exception t) {
             jo.codeeditor.util.EditorLog.warn("LspEditor", "setSemanticTokens failed: " + t);

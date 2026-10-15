@@ -25,7 +25,7 @@ import java.util.concurrent.Executors;
  * LspProject project = new LspProject("/path/to/workspace");
  * project.addServerDefinition(myServerDefinition);
  * LspEditor editor = project.createEditor("file:///path/to/Foo.java");
- * editor.setEditorView(editorView);
+ * editor.setHost(host);
  * editor.connect();
  * }</pre>
  *

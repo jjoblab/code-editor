@@ -46,7 +46,7 @@
 **Un seul changement est indispensable** : monter la version dans
 `gradle/libs.versions.toml` (§2). Tout le reste est additif — les
 surfaces que CodeIDE touche (`LspProject`, `addServerDefinition`,
-`createEditor`, `setEditorView`, `setCurrentFilePath`, `connect`,
+`createEditor`, `setHost`, `setCurrentFilePath`, `connect`,
 `disconnect`, `shutdown`, `setLogSink`, `sendDidChangeConfiguration`)
 sont inchangées ; les ajouts sont des méthodes par défaut, des
 surcharges ou des constructeurs étendus déléguant à l'existant.
@@ -668,7 +668,7 @@ plage** : `EditorBarTools` (classe publique orpheline depuis B5,
 zéro référence dans CodeIDE — audit v3.58.0) est SUPPRIMÉE ; tout
 consommateur externe de cette classe migre vers
 `BreadcrumbBar.addAction` (§1.15) — **CodeIDE n'est pas concerné**
-(ses surfaces — `LspProject`, `createEditor`, `setEditorView`… —
+(ses surfaces — `LspProject`, `createEditor`, `setHost`… —
 sont intactes).
 
 ### Publication (2026-10-14, lot B15)

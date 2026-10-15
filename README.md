@@ -15,7 +15,7 @@ ce projet.
 |--------|------|-----------|
 | `:cel-core` | Moteur pur (sans Android UI) : Rope, EditorDocument, EditorSession, EditOps, FindReplace, DiagnosticShift, SnippetSession, FoldModel, WrapModel, LineRenderCache, SyntaxHighlighter, complétion, registre de langages | — |
 | `:cel-lsp-api` | SPI langage : `Language`, 17 interfaces de providers (completion, hover, diagnostics, definition, rename, format, inlay hints…) et 15 classes de données | `:cel-core` |
-| `:cel-lsp` | Intégration LSP4J : `LspProject`, `LspEditor`, serveurs in-process/socket/process | `:cel-core`, `:cel-lsp-api`, `:cel-ui` (compileOnly) |
+| `:cel-lsp` | Intégration LSP4J : `LspProject`, `LspEditor`, serveurs in-process/socket/process | `:cel-core`, `:cel-lsp-api` (compileOnly) — contrat `EditorHost` |
 | `:cel-ui` | Vues Android : `EditorView` (Canvas), renderer et painters, gutter, popups, IME bridge, bar tools, breadcrumb, minimap | `:cel-core`, `:cel-lsp-api` |
 
 ## Installation
@@ -60,8 +60,9 @@ dependencies {
     implementation("jo.codeeditor:cel-ui:3.70.1")
 
     // Optionnel — intégration Language Server Protocol (LSP4J).
-    // Ses dépendances vers cel-core/cel-lsp-api/cel-ui sont compileOnly :
-    // gardez la ligne cel-ui ci-dessus.
+    // Ses dépendances vers cel-core/cel-lsp-api sont compileOnly :
+    // gardez la ligne cel-ui ci-dessus (l'adaptateur LspEditorViewHost
+    // du pont LSP y vit — plan 03 : le client LSP ne dépend plus de la vue).
     implementation("jo.codeeditor:cel-lsp:3.70.1")
 }
 ```
@@ -199,7 +200,7 @@ OpenTabDiagnosticsSweep.start(openEditorViews);
 LspProject project = new LspProject("/path/to/workspace");
 project.addServerDefinition(myServerDefinition); // ex. un serveur Java, un serveur Lua…
 LspEditor editor = project.createEditor("file:///path/to/Foo.java");
-editor.setEditorView(editorView);
+editor.setHost(new jo.codeeditor.view.LspEditorViewHost(editorView));
 editor.connect();
 // …
 project.shutdown(); // borné à 2 s par serveur

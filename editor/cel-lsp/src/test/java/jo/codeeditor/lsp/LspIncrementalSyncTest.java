@@ -146,7 +146,7 @@ public class LspIncrementalSyncTest {
                 jo.codeeditor.document.EditorDocument.of(DOC));
         view.setSession(session);
         editor = project.createEditor(URI);
-        editor.setEditorView(view);
+        editor.setHost(new jo.codeeditor.view.LspEditorViewHost(view));
         editor.connect().get(10, java.util.concurrent.TimeUnit.SECONDS);
         // Exécute le applyLanguage posté sur le looper principal (pose du
         // listener d'éditions suivies).
@@ -274,7 +274,7 @@ public class LspIncrementalSyncTest {
         vue2.setSession(session);
         // Vue détachée → applyLanguage s'exécute en ligne (correctif dédié).
         LspEditor editeur2 = project.createEditor("file:///proj/src/A.kt");
-        editeur2.setEditorView(vue2);
+        editeur2.setHost(new jo.codeeditor.view.LspEditorViewHost(vue2));
         editeur2.connect().get(10, java.util.concurrent.TimeUnit.SECONDS);
         try {
             jo.codeeditor.AttenteBornee.jusquA(5000, 10L, () -> plein.didOpenText != null);

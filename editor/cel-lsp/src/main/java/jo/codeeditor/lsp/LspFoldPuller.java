@@ -1,6 +1,6 @@
 package jo.codeeditor.lsp;
 
-import jo.codeeditor.view.EditorView;
+import jo.codeeditor.lang.host.EditorHost;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -41,8 +41,8 @@ class LspFoldPuller {
         if (!editor.isConnected()) return;
         LanguageServerWrapper wrapper = editor.currentWrapper();
         if (wrapper == null || wrapper.getServer() == null) return;
-        EditorView editorView = editor.getEditorView();
-        if (editorView == null || editorView.getSession() == null) return;
+        EditorHost host = editor.getHost();
+        if (host == null || host.session() == null) return;
         if (!editor.isLanguageApplied()) return; // setLanguage pas encore appliqué
         try {
             org.eclipse.lsp4j.ServerCapabilities caps = wrapper.getCapabilities();
@@ -57,7 +57,7 @@ class LspFoldPuller {
         if (elapsed < FOLD_MIN_INTERVAL_MS) {
             final int genAtSchedule = foldGeneration.get();
             final long delay = FOLD_MIN_INTERVAL_MS - elapsed;
-            editorView.postDelayed(() -> {
+            host.postDelayed(() -> {
                 if (editor.isConnected() && editor.isLanguageApplied()
                         && foldGeneration.get() == genAtSchedule) {
                     doPullFolds();
@@ -91,9 +91,9 @@ class LspFoldPuller {
                 }
                 if (gen != foldGeneration.get()) return; // obsolète
                 if (result == null) return;
-                EditorView editorView = editor.getEditorView();
-                if (editorView != null) {
-                    editorView.post(() -> applyFolds(gen, result));
+                EditorHost host = editor.getHost();
+                if (host != null) {
+                    host.post(() -> applyFolds(gen, result));
                 }
             } catch (Exception t) {
                 jo.codeeditor.util.EditorLog.warn("LspEditor", "foldingRange failed: " + t);
@@ -110,8 +110,8 @@ class LspFoldPuller {
      */
     private void applyFolds(int gen, List<org.eclipse.lsp4j.FoldingRange> ranges) {
         if (!editor.isConnected()) return;
-        EditorView editorView = editor.getEditorView();
-        if (editorView == null || editorView.getSession() == null) return;
+        EditorHost host = editor.getHost();
+        if (host == null || host.session() == null) return;
         if (gen != foldGeneration.get()) return;
         if (!editor.isLanguageApplied()) return;
         try {
@@ -138,8 +138,8 @@ class LspFoldPuller {
                         r.getKind() != null ? r.getKind() : "block",
                         false, collapsedByDefault));
             }
-            editorView.getSession().applyCodeFolds(regions);
-            editorView.invalidate();
+            host.session().applyCodeFolds(regions);
+            host.invalidate();
             jo.codeeditor.util.EditorLog.info("LspEditor", "folds applied: " + regions.size());
         } catch (Exception t) {
             jo.codeeditor.util.EditorLog.warn("LspEditor", "applyFolds failed: " + t);

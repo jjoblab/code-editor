@@ -1,10 +1,8 @@
 package jo.codeeditor.lsp;
-import jo.codeeditor.view.popup.*;
 
 import jo.codeeditor.lang.model.Diagnostic;
 import jo.codeeditor.lang.Language;
 import jo.codeeditor.lang.host.EditorHost;
-import jo.codeeditor.view.EditorView;
 
 import org.eclipse.lsp4j.Position;
 import org.eclipse.lsp4j.TextDocumentIdentifier;
@@ -20,7 +18,7 @@ import java.util.List;
  * <ul>
  *   <li>Orchestrer la connexion (envoi du {@code textDocument/didOpen}, création
  *       et mise en cache du {@link LspLanguage} qui implémente le
- *       SPI {@link Language}, pose du language sur l'{@link EditorView}) et la
+ *       SPI {@link Language}, pose du language sur l'{@link EditorHost}) et la
  *       déconnexion (didClose)</li>
  *   <li>Convertir entre {@link Position} LSP (ligne/colonne) et offset éditeur
  *       sur le document vivant</li>
@@ -40,13 +38,11 @@ public class LspEditor {
     private final String ext;
     private LanguageServerWrapper wrapper;
     private LspLanguage language;
-    private EditorView editorView;
-    /** Hôte d'édition (contrat plan 03 — inversion de dépendance). */
     private EditorHost host;
     private volatile boolean connected = false;
 
     /**
-     * Le language SPI est-il posé sur l'EditorView ? Les tirs
+     * Le language SPI est-il posé sur l'hôte ? Les tirs
      * foldingRange arrivés AVANT (didOpen publie les diagnostics avant le
      * setLanguage posté) restent en attente : appliquer des folds serveur
      * avant setLanguage serait VAINCU par le detectFolds lexical (et
@@ -93,16 +89,6 @@ public class LspEditor {
     }
 
     /**
-     * Lie cet éditeur à un {@link EditorView}. Appeler avant {@link #connect()}.
-     * Pont historique — les collaborateurs migrent vers le contrat
-     * {@link EditorHost} (plan 03) ; la voie de retrait est consignée
-     * au CHANGELOG.
-     */
-    public void setEditorView(EditorView view) {
-        this.editorView = view;
-    }
-
-    /**
      * Lie cet éditeur à un hôte d'édition (contrat {@link EditorHost},
      * plan 03 — inversion de dépendance : le client LSP ne connaît plus
      * la vue Android). Appeler avant {@link #connect()}. Implémentation
@@ -140,14 +126,15 @@ public class LspEditor {
             synchronizer.sendDidOpen();
             log(logSink, "connect: didOpen sent");
             language = new LspLanguage(LspEditor.this, wrapper);
-            if (editorView != null) {
-                // Exécute setLanguage sur le thread UI — EditorView est une
-                // View : modifier ses resolvers depuis un thread de fond
+            if (host != null) {
+                // Exécute setLanguage sur le thread UI — l'hôte expose une
+                // vue : modifier ses resolvers depuis un thread de fond
                 // concurrence les lectures du thread UI.
                 final LspLanguage lang = language;
                 final LspEditor self = LspEditor.this;
+                final EditorHost h = host;
                 Runnable applyLanguage = () -> {
-                    editorView.setLanguage(lang);
+                    h.setLanguage(lang);
                     // Utilise addOnTextEditListener (et non set) pour ne pas
                     // remplacer l'écouteur existant de l'application.
                     // ★ P-02 : la variante 4-arg porte le texte RETIRÉ —
@@ -155,7 +142,7 @@ public class LspEditor {
                     // de l'édition (O(log n)) et capture la rope (O(1)) :
                     // plus AUCUNE matérialisation du document par frappe
                     // (l'ancien pont appelait getText() à chaque édition).
-                    editorView.getSession().addOnTextEditListener(
+                    h.session().addOnTextEditListener(
                             new jo.codeeditor.session.EditorSession.OnTextEditListener() {
                         @Override
                         public void onTextEdit(int start, int end, String inserted) {
@@ -164,7 +151,7 @@ public class LspEditor {
                         @Override
                         public void onTextEdit(int start, int end,
                                 String inserted, String removed) {
-                            self.onTextEdit(editorView.getSession(),
+                            self.onTextEdit(h.session(),
                                     start, end, inserted, removed);
                         }
                     });
@@ -177,26 +164,26 @@ public class LspEditor {
                     scheduleFoldPull();
                     log(logSink, "connect: setLanguage done, didChange forwarder wired");
                 };
-                if (editorView.isAttachedToWindow()) {
-                    // Vue attachée — exécution sur le thread UI (une View
+                if (h.isAttachedToWindow()) {
+                    // Hôte attaché — exécution sur le thread UI (une vue
                     // mutée depuis un thread de fond concurrence les
                     // lectures du thread UI de rendu).
-                    editorView.post(applyLanguage);
+                    h.post(applyLanguage);
                 } else {
-                    // Vue NON attachée — exécution en ligne. Bug découvert
-                    // par le test dédié : View.post() sur une vue détachée
+                    // Hôte NON attaché — exécution en ligne. Bug découvert
+                    // par le test dédié : post() sur un hôte détaché
                     // n'échoue PAS — il met l'action en file d'attente
                     // JUSQU'À L'ATTACHEMENT. L'ancien code comptait sur le
                     // retour de post() pour détecter la non-attache
                     // (branche réputée morte : post() retourne vrai même
-                    // détaché) : une vue jamais attachée (usage headless,
+                    // détaché) : un hôte jamais attaché (usage headless,
                     // tests) ne posait NI le langage NI le pont d'éditions
                     // suivies — le LSP restait silencieusement mort alors
-                    // que connect() avait annoncé SUCCESS. Une vue détachée
-                    // n'a pas de thread de rendu qui la lise : la pose en
+                    // que connect() avait annoncé SUCCESS. Un hôte détaché
+                    // n'a pas de thread de rendu qui le lise : la pose en
                     // ligne est sûre.
                     applyLanguage.run();
-                    log(logSink, "connect: setLanguage done inline (view not attached)");
+                    log(logSink, "connect: setLanguage done inline (host not attached)");
                 }
             }
             connected = true;
@@ -226,7 +213,7 @@ public class LspEditor {
     /** L'extension du fichier (languageId LSP), accès package. */
     String extension() { return ext; }
 
-    /** Le language SPI est-il posé sur l'EditorView (accès package). */
+    /** Le language SPI est-il posé sur l'hôte (accès package). */
     boolean isLanguageApplied() { return languageApplied; }
 
     /** Programme un tir semanticTokens throttlé (délégué au collaborateur). */
@@ -287,8 +274,8 @@ public class LspEditor {
      *
      * <p><b>Contexte du bug</b> : le debounce didChange
      * ({@code DID_CHANGE_DEBOUNCE_MS} = 300 ms) est PLUS LONG que le
-     * debounce completion ({@code COMPLETION_DEBOUNCE_MS} = 120 ms dans
-     * {@code EditorPopupManager}). Sans ce flush, une frappe déclenche
+     * debounce completion (120 ms dans le popup de complétion). Sans
+     * ce flush, une frappe déclenche
      * une requête completion à T+120 ms sur un serveur qui n'a PAS
      * encore reçu le didChange (prévu à T+300 ms). Le serveur lit
      * {@code openDocuments} STALE → {@code analyzeContext} ne détecte
@@ -416,8 +403,9 @@ public class LspEditor {
      * Convertit un offset éditeur en {@link Position} LSP (ligne, caractère).
      */
     public Position offsetToPosition(int offset) {
-        if (editorView == null) return new Position(0, 0);
-        jo.codeeditor.document.EditorDocument doc = editorView.getSession().getDocument();
+        if (host == null) return new Position(0, 0);
+        jo.codeeditor.document.EditorDocument doc = host.document();
+        if (doc == null) return new Position(0, 0);
         offset = Math.max(0, Math.min(offset, doc.length()));
         int line = doc.lineForOffset(offset);
         int col = offset - doc.lineStart(line);
@@ -428,8 +416,8 @@ public class LspEditor {
      * Convertit une {@link Position} LSP en offset éditeur.
      */
     public int positionToOffset(Position pos) {
-        if (editorView == null) return 0;
-        jo.codeeditor.document.EditorDocument doc = editorView.getSession().getDocument();
+        if (host == null) return 0;
+        jo.codeeditor.document.EditorDocument doc = host.document();
         if (doc == null) return 0;
         int line = Math.max(0, Math.min(pos.getLine(), doc.lineCount() - 1));
         int lineStart = doc.lineStart(line);
@@ -441,11 +429,11 @@ public class LspEditor {
     /**
      * Longueur du document vivant — sert au bornage des plages
      * {@code textEdit} de complétion avant transport vers le SPI.
-     * Retourne -1 quand la vue n'est pas liée (longueur inconnue).
+     * Retourne -1 quand l'hôte n'est pas lié (longueur inconnue).
      */
     public int documentLength() {
-        if (editorView == null) return -1;
-        jo.codeeditor.document.EditorDocument doc = editorView.getSession().getDocument();
+        if (host == null) return -1;
+        jo.codeeditor.document.EditorDocument doc = host.document();
         return doc != null ? doc.length() : -1;
     }
 
@@ -453,11 +441,11 @@ public class LspEditor {
     public String getFileUri() { return fileUri; }
 
     /**
-     * Retourne l'{@link EditorView} liée, ou null si pas encore liée.
+     * Retourne l'{@link EditorHost} lié, ou null si pas encore lié.
      * Utilisée par le fournisseur d'inlay hints pour convertir
      * ligne/colonne→offset sur le document.
      */
-    public EditorView getEditorView() { return editorView; }
+    public EditorHost getHost() { return host; }
 
     /** Retourne le projet parent (accès au récepteur de journal). */
     public LspProject getProject() { return project; }
@@ -505,8 +493,8 @@ public class LspEditor {
             org.eclipse.lsp4j.WorkspaceEdit edit) {
         java.util.concurrent.CompletableFuture<WorkspaceDiskEdits.Result> future =
                 new java.util.concurrent.CompletableFuture<>();
-        EditorView view = getEditorView();
-        if (view == null) {
+        final EditorHost h = getHost();
+        if (h == null) {
             future.complete(new WorkspaceDiskEdits.Result(false,
                     java.util.Collections.singletonList("aucun éditeur lié"), 0, 0));
             return future;
@@ -520,11 +508,10 @@ public class LspEditor {
                                 "erreur d'application : " + t.getMessage()), 0, 0));
             }
         };
-        // Handler de la vue si attachée (thread UI) ; sinon exécution en
-        // ligne (au mieux) : la réponse serveur ne doit JAMAIS rester
-        // pendante sur une vue détachée — la mutation reste servie.
-        android.os.Handler h = view.getHandler();
-        if (h != null) {
+        // Thread UI si l'hôte est attaché ; sinon exécution en ligne (au
+        // mieux) : la réponse serveur ne doit JAMAIS rester pendante sur
+        // un hôte détaché — la mutation reste servie.
+        if (h.isAttachedToWindow()) {
             h.post(task);
         } else {
             task.run();

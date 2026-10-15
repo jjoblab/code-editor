@@ -16,7 +16,7 @@ n'est possible sans SDK, pas même les tests « purs Java ») :
 |---|---|---|
 | `editor/cel-core` | moteur : rope, session, undo, styling, plis, wrap, complétion | — |
 | `editor/cel-lsp-api` | SPI langage (providers, modèles de données) | `cel-core` (api) |
-| `editor/cel-lsp` | client LSP4J | `cel-core`, `cel-lsp-api` (compileOnly), `cel-ui` (compileOnly) |
+| `editor/cel-lsp` | client LSP4J | `cel-core`, `cel-lsp-api` (compileOnly) — programme contre `EditorHost` (`cel-lsp-api`), ne connaît plus la vue |
 | `editor/cel-ui` | vues Android (rendu, gestes, popups) | `cel-core`, `cel-lsp-api` |
 
 Toolchain vérifiée : **JDK 17+ avec `javac`** (un JRE headless fait échouer

@@ -78,6 +78,21 @@ budget() {
 budget editor/cel-ui/src/main/java/jo/codeeditor/view/EditorView.java 3786 178 280
 budget editor/cel-core/src/main/java/jo/codeeditor/session/EditorSession.java 1600 15 100
 
+# ── Règle de paquet (plan 03, §5) : le client LSP ne référence jamais
+# la vue. cel-lsp programme contre EditorHost (cel-lsp-api) ;
+# l'adaptateur de référence (LspEditorViewHost) vit côté cel-ui. La
+# dépendance cel-lsp → cel-ui est RETIRÉE : toute régression (import,
+# FQN, ou compileOnly) échoue le garde-fou.
+if grep -rn "jo\.codeeditor\.view" editor/cel-lsp/src/main editor/cel-lsp-api/src/main 2>/dev/null; then
+    echo "check-class-budgets: VIOLATION plan 03 — cel-lsp/cel-lsp-api référence la vue :" >&2
+    echo "  → programmez contre EditorHost (cel-lsp-api) ; l'adaptateur vit dans cel-ui." >&2
+    echec=1
+fi
+if grep -n 'compileOnly(project(":cel-ui"))' editor/cel-lsp/build.gradle.kts 2>/dev/null; then
+    echo "check-class-budgets: VIOLATION plan 03 — cel-lsp dépend à nouveau de cel-ui (compileOnly)." >&2
+    echec=1
+fi
+
 if [ "$echec" -ne 0 ]; then
     exit 1
 fi

@@ -74,7 +74,6 @@ dependencies {
     // apporter leur propre version (évite la duplication d'artefacts).
     compileOnly(project(":cel-lsp-api"))
     compileOnly(project(":cel-core"))
-    compileOnly(project(":cel-ui"))
 
     // LSP4J — la liaison Java canonique du Language Server Protocol.
     // Licence EPL-2.0 (compatible MIT pour les œuvres combinées).

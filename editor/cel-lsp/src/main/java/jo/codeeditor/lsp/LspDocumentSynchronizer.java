@@ -1,7 +1,6 @@
 package jo.codeeditor.lsp;
-import jo.codeeditor.view.popup.*;
 
-import jo.codeeditor.view.EditorView;
+import jo.codeeditor.lang.host.EditorHost;
 
 import org.eclipse.lsp4j.DidChangeTextDocumentParams;
 import org.eclipse.lsp4j.DidOpenTextDocumentParams;
@@ -195,7 +194,7 @@ class LspDocumentSynchronizer {
      * <p><b>Contexte du bug historique</b> : le debounce didChange
      * ({@link #DID_CHANGE_DEBOUNCE_MS} = 300 ms) est PLUS LONG que le
      * debounce completion ({@code COMPLETION_DEBOUNCE_MS} = 120 ms dans
-     * {@code EditorPopupManager}). Sans ce flush, une frappe déclenche
+     * popup de complétion). Sans ce flush, une frappe déclenche
      * une requête completion à T+120 ms sur un serveur qui n'a PAS
      * encore reçu le didChange (prévu à T+300 ms) → analyse de contexte
      * périmée côté serveur. La notification didChange est SÉRIALISÉE et
@@ -394,8 +393,8 @@ class LspDocumentSynchronizer {
             params.setTextDocument(editor.getTextDocumentIdentifier());
             // Inclut le texte complet — certains serveurs l'exigent quand
             // textDocumentSync.save.includeText est true.
-            if (editor.getEditorView() != null && editor.getEditorView().getSession() != null) {
-                params.setText(editor.getEditorView().getSession().getText().toString());
+            if (editor.getHost() != null && editor.getHost().session() != null) {
+                params.setText(editor.getHost().session().getText().toString());
             }
             wrapper.getServer().getTextDocumentService().didSave(params);
             jo.codeeditor.util.EditorLog.info("LspEditor", "didSave sent (triggers diagnostics re-inspection)");
@@ -417,10 +416,10 @@ class LspDocumentSynchronizer {
      * au premier événement → repli plein texte → convergence garantie.
      */
     void sendDidOpen() {
-        EditorView editorView = editor.getEditorView();
+        EditorHost host = editor.getHost();
         LanguageServerWrapper wrapper = editor.currentWrapper();
-        if (editorView == null || wrapper == null || wrapper.getServer() == null) return;
-        jo.codeeditor.document.EditorDocument doc = editorView.getSession().getDocument();
+        if (host == null || wrapper == null || wrapper.getServer() == null) return;
+        jo.codeeditor.document.EditorDocument doc = host.session().getDocument();
         CharSequence rope = doc.charSequence();
         DidOpenTextDocumentParams params = new DidOpenTextDocumentParams();
         TextDocumentItem item = new TextDocumentItem();
@@ -510,9 +509,9 @@ class LspDocumentSynchronizer {
 
     /** Révision du document courant si sa longueur correspond, sinon sentinelle. */
     private int revisionOfCurrentDocIfLengthMatches(int length) {
-        if (editor.getEditorView() != null && editor.getEditorView().getSession() != null) {
+        if (editor.getHost() != null && editor.getHost().session() != null) {
             jo.codeeditor.document.EditorDocument doc =
-                    editor.getEditorView().getSession().getDocument();
+                    editor.getHost().session().getDocument();
             if (doc.length() == length) return doc.getRevision();
         }
         return Integer.MIN_VALUE;

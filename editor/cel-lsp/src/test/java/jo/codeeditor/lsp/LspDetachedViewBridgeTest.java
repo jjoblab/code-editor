@@ -78,7 +78,7 @@ public class LspDetachedViewBridgeTest {
                 new jo.codeeditor.session.EditorSession(
                         jo.codeeditor.document.EditorDocument.of("class A {}\n"));
         view.setSession(session);
-        editor.setEditorView(view);
+        editor.setHost(new jo.codeeditor.view.LspEditorViewHost(view));
         assertFalse("précondition : la vue n'est pas attachée",
                 view.isAttachedToWindow());
 

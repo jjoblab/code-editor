@@ -83,7 +83,7 @@ public class CodeActionsMalformedResponseTest {
         session = new jo.codeeditor.session.EditorSession(
                 jo.codeeditor.document.EditorDocument.of(DOC));
         view.setSession(session);
-        editor.setEditorView(view);
+        editor.setHost(new jo.codeeditor.view.LspEditorViewHost(view));
 
         EditorLog.install(new EditorLogger() {
             @Override public void info(String tag, String message) {}

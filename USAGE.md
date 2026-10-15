@@ -434,7 +434,7 @@ import jo.codeeditor.lsp.LspEditor;
 LspProject project = new LspProject("/path/to/workspace");
 project.addServerDefinition(myServerDefinition); // ex. un serveur Java, un serveur Lua…
 LspEditor editor = project.createEditor("file:///path/to/Foo.java");
-editor.setEditorView(editorView);
+editor.setHost(new jo.codeeditor.view.LspEditorViewHost(editorView));
 editor.connect();   // CompletableFuture — didOpen envoyé à la connexion
 // …
 project.shutdown(); // borné à 2 s par serveur

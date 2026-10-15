@@ -1,6 +1,6 @@
 package jo.codeeditor.lsp;
 
-import jo.codeeditor.view.EditorView;
+import jo.codeeditor.lang.host.EditorHost;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -54,8 +54,8 @@ class LspWorkspaceEditApplier {
      */
     WorkspaceDiskEdits.Result applyWorkspaceEdit(org.eclipse.lsp4j.WorkspaceEdit edit,
             Integer versionAtRequest) {
-        EditorView editorView = editor.getEditorView();
-        if (editorView == null || editorView.getSession() == null) {
+        EditorHost host = editor.getHost();
+        if (host == null || host.session() == null) {
             jo.codeeditor.util.EditorLog.warn("LspEditor", "applyWorkspaceEdit: no editor bound");
             return new WorkspaceDiskEdits.Result(false,
                     java.util.Collections.singletonList("aucun éditeur lié"), 0, 0);
@@ -176,8 +176,8 @@ class LspWorkspaceEditApplier {
      */
     private boolean applySessionEdits(List<org.eclipse.lsp4j.TextEdit> edits) {
         if (edits == null || edits.isEmpty()) return true;
-        EditorView editorView = editor.getEditorView();
-        jo.codeeditor.session.EditorSession session = editorView.getSession();
+        EditorHost host = editor.getHost();
+        jo.codeeditor.session.EditorSession session = host.session();
         String text = session.getText().toString();
         List<SessionEditGroup.Edit> resolues = new ArrayList<>(edits.size());
         for (org.eclipse.lsp4j.TextEdit te : edits) {
@@ -188,7 +188,7 @@ class LspWorkspaceEditApplier {
             resolues.add(new SessionEditGroup.Edit(start, end, te.getNewText()));
         }
         if (!SessionEditGroup.apply(session, resolues)) return false;
-        editorView.notifyTextChanged();
+        host.notifyTextChanged();
         jo.codeeditor.util.EditorLog.info("LspEditor",
                 "applyWorkspaceEdit: applied " + edits.size() + " edits (un groupe d'annulation)");
         return true;
@@ -293,8 +293,8 @@ class LspWorkspaceEditApplier {
     void applyAdditionalEdits(java.util.List<org.eclipse.lsp4j.TextEdit> edits,
             Integer versionAtRequest) {
         if (edits == null || edits.isEmpty()) return;
-        EditorView editorView = editor.getEditorView();
-        if (editorView == null || editorView.getSession() == null) return;
+        EditorHost host = editor.getHost();
+        if (host == null || host.session() == null) return;
         // Contrôle de fraîcheur : l'utilisateur peut avoir tapé entre la
         // réponse de complétion et l'acceptation du candidat.
         if (versionAtRequest != null
