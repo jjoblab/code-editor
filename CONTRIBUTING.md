@@ -143,6 +143,31 @@ sdk.dir=/path/to/your/android-sdk
    les tests doivent passer.
 5. Un mainteneur relit la PR sous quelques jours.
 
+## Politique de dépréciation et compatibilité
+
+Les ruptures d'API publique coûtent cher aux hôtes — elles suivent un
+palier obligatoire (A-07, audit 3.69.0) :
+
+1. **`@Deprecated` d'abord** : la javadoc de l'annotation dit POURQUOI
+   (le défaut, le risque) et PAR QUOI remplacer ; le CHANGELOG porte
+   l'entrée *Deprecated* dès la version qui déprécie.
+2. **La version dépréciée reste fonctionnelle** pendant au moins un
+   palier mineur (pas de comportement supprimé : le corps délègue au
+   remplaçant quand c'est possible).
+3. **Le retrait** se fait au palier suivant (majeur, ou mineur si la
+   rupture avait été annoncée) : entrée *Removed* du CHANGELOG et
+   message d'erreur/d'avertissement explicite.
+4. **Nullité du contrat** : les champs/paramètres publics portent des
+   annotations `@NonNull`/`@Nullable` (androidx.annotation, rétention
+   CLASS — invisibles au runtime, nul impact consommateur). Null
+   signifie « absent », jamais « erreur » : les constructeurs
+   normalisent (`null` → valeur neutre documentée) quand le modèle le
+   permet.
+5. **Compatibilité binaire** : le contrôle en CI viendra en deux
+   temps — avertissement d'abord (journal), bloquant ensuite. Tant
+   qu'il n'est pas en place, un mainteneur relit les signatures
+   publiques de chaque PR touchant l'API (diff des méthodes publiques).
+
 ## Signaler un bug
 
 Ouvrez un issue avec :

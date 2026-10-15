@@ -1,5 +1,7 @@
 package jo.codeeditor.lang.model;
 
+import androidx.annotation.NonNull;
+
 /**
  * Une édition de texte élémentaire (remplace [start, end) par
  * {@code newText}). Utilisée par {@link RenameResult} et les autres
@@ -12,9 +14,9 @@ public final class TextEdit {
     /** Offset de fin (exclu). */
     public final int end;
     /** Le texte à insérer. */
-    public final String newText;
+    @NonNull public final String newText;
 
-    public TextEdit(int start, int end, String newText) {
+    public TextEdit(int start, int end, @NonNull String newText) {
         this.start = start;
         this.end = end;
         this.newText = newText != null ? newText : "";

@@ -36,6 +36,11 @@ Les sections antérieures à la période courante sont archivées dans
 - **Derniers libellés en dur externalisés** — « Go to line » et « Rename "x" » deviennent `cel_goto_line_title` / `cel_rename_title` (l'hôte peut les traduire ou les surcharger).
 - **RTL : non-support documenté** — décision du propriétaire (ADR-001 n° 7) consignée dans `USAGE.md`, avec renvoi au plan d'implémentation existant si le besoin surgit.
 
+### Changed (L10 — A-07)
+
+- **Politique de dépréciation et compatibilité** — CONTRIBUTING.md fixe le palier obligatoire : `@Deprecated` (avec pourquoi/remplacement + CHANGELOG) → un palier mineur fonctionnel → retrait au palier suivant ; le contrat nullité (`@NonNull`/`@Nullable`, rétention CLASS, nul impact consommateur) ; contrôle de compatibilité binaire en CI en deux temps (avertissement puis bloquant — en attendant, revue humaine des signatures publiques par PR).
+- **Nullité du contrat SPI annotée (le plus grand écart de l'audit)** — les six modèles de requêtes/réponses les plus échangés de `cel-lsp-api` portent désormais leurs annotations : `CompletionItem` (7 champs), `Diagnostic`, `HoverContent`, `Symbol`, `TextEdit` — champs ET paramètres constructeurs. Début de l'adoption : `cel-core` suivra progressivement (même motif, `androidx.annotation` en `compileOnly` — absent du POM consommateur).
+
 ### Fixed (D-09)
 
 - **Documentation dérivée resynchronisée** — README/USAGE annonçaient `3.49.2`, BUILD `3.54.0`, SECURITY `3.49.x` (réalité : `3.70.1`) ; le graphe des modules d'AGENT.md omettait `cel-lsp-api → cel-core (api)` et `cel-lsp → cel-ui (compileOnly)` ; les plans 01/02 citaient les collaborateurs `EditorBarTools` (retiré en B15) et `SurroundWith` (retiré au lot M-02). `check-doc-figures.sh` verrouille désormais l'égalité version README/USAGE/BUILD ↔ `build.gradle.kts` (rouge/vert testé par injection d'une version divergente).

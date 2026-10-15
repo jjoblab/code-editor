@@ -1,5 +1,8 @@
 package jo.codeeditor.lang.model;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+
 import jo.codeeditor.lang.provider.CompletionProvider;
 
 /**
@@ -16,13 +19,13 @@ import jo.codeeditor.lang.provider.CompletionProvider;
 public final class CompletionItem {
 
     /** Le libellé affiché dans le popup (ex. « myMethod »). */
-    public final String label;
+    @NonNull public final String label;
     /** Le détail affiché à droite (ex. « void — MyClass »). */
-    public final String detail;
+    @Nullable public final String detail;
     /** Le texte à insérer quand l'item est accepté. */
-    public final String insertText;
+    @NonNull public final String insertText;
     /** Icône de kind : « k »=mot-clé, « m »=méthode, « f »=champ, « c »=classe, « v »=variable. */
-    public final String kind;
+    @NonNull public final String kind;
     /**
      * La valeur LSP moderne du kind (1=Text … 25=TypeParameter).
      * 0 = non spécifié → badge dérivé de {@link #kind}.
@@ -33,7 +36,7 @@ public final class CompletionItem {
      * « parameter ») quand le protocole LSP seul ne distingue pas deux
      * natures. Null = pas de raffinement.
      */
-    public final String kindTag;
+    @Nullable public final String kindTag;
     /** Priorité de tri (plus bas = plus haut dans la liste). */
     public final int sortPriority;
     /** Indique si l'item est un snippet (contient des tab stops). */
@@ -45,13 +48,13 @@ public final class CompletionItem {
      * filterText « tostring »). Null = absent → le filtrage utilise
      * {@link #label}.
      */
-    public final String filterText;
+    @Nullable public final String filterText;
     /**
      * Clé de tri secondaire (champ LSP {@code sortText}) — départage
      * les candidats de même priorité de tri (ordre naturel croissant,
      * null en dernier). Null = absent → départage par label.
      */
-    public final String sortText;
+    @Nullable public final String sortText;
     /**
      * Plage de remplacement optionnelle en OFFSETS document (champ LSP
      * {@code textEdit}, sémantique <b>remplacement</b> : la plage
@@ -73,7 +76,7 @@ public final class CompletionItem {
     /** Fin de la plage de remplacement (exclusive) ; {@code -1} = non spécifiée. */
     public final int replaceEnd;
 
-    public CompletionItem(String label, String detail, String insertText, String kind,
+    public CompletionItem(@NonNull String label, @Nullable String detail, @NonNull String insertText, @NonNull String kind,
                           int sortPriority, boolean isSnippet) {
         this(label, detail, insertText, kind, 0, null, sortPriority, isSnippet);
     }
@@ -82,8 +85,8 @@ public final class CompletionItem {
      * Constructeur complet : kind LSP numérique + raffinement (badge de
      * type précis dans le popup).
      */
-    public CompletionItem(String label, String detail, String insertText, String kind,
-                          int kindCode, String kindTag,
+    public CompletionItem(@NonNull String label, @Nullable String detail, @NonNull String insertText, @NonNull String kind,
+                          int kindCode, @Nullable String kindTag,
                           int sortPriority, boolean isSnippet) {
         this(label, detail, insertText, kind, kindCode, kindTag, sortPriority, isSnippet,
                 null, null, -1, -1);
@@ -97,10 +100,10 @@ public final class CompletionItem {
      * avec {@code filterText}/{@code sortText} absents et plage non
      * spécifiée — rétrocompatible.
      */
-    public CompletionItem(String label, String detail, String insertText, String kind,
-                          int kindCode, String kindTag,
+    public CompletionItem(@NonNull String label, @Nullable String detail, @NonNull String insertText, @NonNull String kind,
+                          int kindCode, @Nullable String kindTag,
                           int sortPriority, boolean isSnippet,
-                          String filterText, String sortText,
+                          @Nullable String filterText, @Nullable String sortText,
                           int replaceStart, int replaceEnd) {
         this.label = label != null ? label : "";
         this.detail = detail != null ? detail : "";
@@ -121,7 +124,7 @@ public final class CompletionItem {
     }
 
     /** Constructeur de commodité pour un simple mot-clé. */
-    public CompletionItem(String label, String insertText) {
+    public CompletionItem(@NonNull String label, @NonNull String insertText) {
         this(label, "", insertText, "k", 100, false);
     }
 
