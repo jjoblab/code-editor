@@ -375,6 +375,17 @@ public class LspEditor {
         return lineStart + col;
     }
 
+    /**
+     * Longueur du document vivant — sert au bornage des plages
+     * {@code textEdit} de complétion avant transport vers le SPI.
+     * Retourne -1 quand la vue n'est pas liée (longueur inconnue).
+     */
+    public int documentLength() {
+        if (editorView == null) return -1;
+        jo.codeeditor.document.EditorDocument doc = editorView.getSession().getDocument();
+        return doc != null ? doc.length() : -1;
+    }
+
     /** Retourne l'URI du fichier. */
     public String getFileUri() { return fileUri; }
 
