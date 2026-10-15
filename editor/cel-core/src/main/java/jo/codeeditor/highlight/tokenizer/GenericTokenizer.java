@@ -564,6 +564,10 @@ public final class GenericTokenizer {
 
             // Chaîne à guillemets doubles : échappements sautés, un
             // seul jeton ; non fermée → jusqu'en fin de ligne.
+            // C2-é8 (SQL) : le type du jeton est DÉCLARABLE — la
+            // sémantique « simple » (échappements avalés, pas de
+            // sous-span) reste celle du Shell, seul le type change
+            // (identifiant quoté SQL → PROPERTY).
             if (template.plainStringQuotes.contains(ch)) {
                 int end = pos + 1;
                 while (end < line.length()
@@ -572,7 +576,10 @@ public final class GenericTokenizer {
                     end++;
                 }
                 if (end < line.length()) end++;
-                spans.add(new LineSpan(pos, end, template.valueType));
+                spans.add(new LineSpan(pos, end,
+                        template.plainStringType != null
+                                ? template.plainStringType
+                                : template.valueType));
                 pos = end;
                 continue;
             }
@@ -686,15 +693,21 @@ public final class GenericTokenizer {
             // Nombre : chiffre en frontière de mot (pas collé à un
             // mot) sauf dérogation (JSON historique colle aux mots) ;
             // le signe moins ancré à un chiffre ouvre aussi un nombre
-            // si le template le déclare (JSON : -4.2).
+            // si le template le déclare (JSON : -4.2) ; le POINT ancré
+            // à un chiffre de même (C2-é8, SQL : .5) — ces deux
+            // ouvertures dérogatoires ignorent la frontière (a.5 est
+            // un nombre en SQL, pas une ponctuation).
             boolean numberAtBoundary = !template.numberRequiresBoundary
                     || pos == 0
                     || !Character.isLetterOrDigit(line.charAt(pos - 1));
-            if ((Character.isDigit(ch)
-                    || (template.numberLeadingMinus && ch == '-'
-                            && pos + 1 < line.length()
-                            && Character.isDigit(line.charAt(pos + 1))))
-                    && numberAtBoundary) {
+            boolean digitStart = Character.isDigit(ch) && numberAtBoundary;
+            boolean leadingMinus = template.numberLeadingMinus && ch == '-'
+                    && pos + 1 < line.length()
+                    && Character.isDigit(line.charAt(pos + 1));
+            boolean leadingDot = template.numberLeadingDot && ch == '.'
+                    && pos + 1 < line.length()
+                    && Character.isDigit(line.charAt(pos + 1));
+            if (digitStart || leadingMinus || leadingDot) {
                 int end = pos + 1;
                 while (end < line.length()
                         && (Character.isDigit(line.charAt(end))

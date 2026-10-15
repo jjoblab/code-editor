@@ -792,4 +792,66 @@ class GenericTokenizerTest {
         assertEquals(TokenType.COMMENT, typeAt(l, 0));
         assertEquals(LexState.NORMAL, l.exitState);
     }
+
+    // ── C2-é8 : type des chaînes simples, nombre au point ─────────
+
+    /**
+     * Template maison (C2-é8) : mini-langage de requête — chaîne
+     * « simple » (échappements avalés, un seul jeton) typée
+     * IDENTIFIANT, identifiant apostrophé, nombre ouvert par un point
+     * : la grammaire de la famille SQL sans une ligne de moteur.
+     */
+    private static final TokenizerTemplate REQUETE = TokenizerTemplate.builder()
+            .freeForm()
+            .lineComments("--")
+            .blockLiteral("/*", "*/", 2, 1, TokenType.COMMENT)
+            .valueQuotes('\'')
+            .valueType(TokenType.STRING)
+            .plainStringQuotes('"')
+            .plainStringType(TokenType.PROPERTY)
+            .valueNumberChars('.')
+            .numberLeadingDot(true)
+            .wordFallbackType(TokenType.PLAIN)
+            .build();
+
+    @Test
+    void requeteMaison_chaîneSimpleAuTypeDéclaré() {
+        // La chaîne « simple » reçoit le type DÉCLARÉ (PROPERTY), pas
+        // le type de valeur par défaut (STRING).
+        StyledLine l = GenericTokenizer.styleLine(REQUETE, "\"colonne\"", 0);
+        assertEquals(1, l.spans.size());
+        assertEquals(TokenType.PROPERTY, l.spans.get(0).type);
+    }
+
+    @Test
+    void requeteMaison_chaîneSimpleÉchappementAvalé() {
+        // Sémantique « simple » : l'échappement est sauté SANS sous-span
+        // ESCAPE — un seul jeton.
+        StyledLine l = GenericTokenizer.styleLine(REQUETE, "\"a\\\"b\"", 0);
+        assertEquals(1, l.spans.size());
+        assertEquals(TokenType.PROPERTY, l.spans.get(0).type);
+        assertEquals(6, l.spans.get(0).endCol);
+    }
+
+    @Test
+    void requeteMaison_chaîneÉchappéeÀPart() {
+        // L'apostrophe reste une chaîne à échappements APPARENTS
+        // (valeur) — les deux familles cohabitent.
+        StyledLine l = GenericTokenizer.styleLine(REQUETE, "'a\\'b'", 0);
+        assertEquals(TokenType.STRING, typeAt(l, 0));
+        assertEquals(TokenType.ESCAPE, typeAt(l, 2), "l'échappement reste apparent");
+        assertEquals(TokenType.STRING, typeAt(l, 4));
+    }
+
+    @Test
+    void requeteMaison_nombreOuvertAuPoint() {
+        // .5 ouvre le nombre même collé à un mot (pas de frontière pour
+        // l'ouverture au point — règle SQL).
+        StyledLine l = GenericTokenizer.styleLine(REQUETE, "a.5", 0);
+        assertEquals(TokenType.PLAIN, typeAt(l, 0));
+        assertEquals(TokenType.NUMBER, typeAt(l, 1));
+        assertEquals(TokenType.NUMBER, typeAt(l, 2));
+        StyledLine l2 = GenericTokenizer.styleLine(REQUETE, ".5 + 1", 0);
+        assertEquals(TokenType.NUMBER, typeAt(l2, 0));
+    }
 }

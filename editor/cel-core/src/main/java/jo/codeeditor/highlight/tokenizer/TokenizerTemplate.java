@@ -219,6 +219,9 @@ public final class TokenizerTemplate {
     /** Guillemets ouvrant une chaîne à échappements sautés (un seul
      * jeton, non fermée → fin de ligne). */
     public final Set<Character> plainStringQuotes;
+    /** Type d'une chaîne simple (C2-é8, SQL) — null : le type de
+     * valeur (comportement Shell historique). */
+    public final TokenType plainStringType;
     /** Guillemet d'un littéral à état inter-lignes (0 : aucun). */
     public final char interLineQuote;
     /** État de sortie d'un littéral inter-lignes non fermé. */
@@ -306,6 +309,9 @@ public final class TokenizerTemplate {
     /** Vrai : un signe moins ancré à un chiffre ouvre un nombre
      * (JSON : {@code -4.2}). */
     public final boolean numberLeadingMinus;
+    /** Vrai : un POINT ancré à un chiffre ouvre un nombre (SQL :
+     * {@code .5}) — sans condition de frontière. */
+    public final boolean numberLeadingDot;
     /** Caractères émis en opérateurs mono-caractère, jamais fusionnés
      * en course (JSON : {@code :}, {@code ,}). */
     public final Set<Character> operatorSingleChars;
@@ -370,6 +376,7 @@ public final class TokenizerTemplate {
         this.variableType = b.variableType;
         this.plainStringQuotes = Collections.unmodifiableSet(
                 new HashSet<>(b.plainStringQuotes));
+        this.plainStringType = b.plainStringType;
         this.interLineQuote = b.interLineQuote;
         this.interLineState = b.interLineState;
         this.commandQuotes = Collections.unmodifiableSet(new HashSet<>(b.commandQuotes));
@@ -407,6 +414,7 @@ public final class TokenizerTemplate {
         this.wordConsumesDigits = b.wordConsumesDigits;
         this.numberRequiresBoundary = b.numberRequiresBoundary;
         this.numberLeadingMinus = b.numberLeadingMinus;
+        this.numberLeadingDot = b.numberLeadingDot;
         this.operatorSingleChars = Collections.unmodifiableSet(
                 new HashSet<>(b.operatorSingleChars));
         this.blockLiterals = List.copyOf(b.blockLiterals);
@@ -650,6 +658,35 @@ public final class TokenizerTemplate {
             .build();
 
     /**
+     * Template SQL intégré (migration C2-é8) : commentaires de ligne
+     * {@code --} et de bloc {@code /* *&#47;}, chaînes entre apostrophes
+     * à échappements apparents, identifiants entre guillemets doubles
+     * (chaîne « simple » au type PROPERTY — échappements avalés),
+     * nombres décimaux ouverts par un point, mots-clés du registre
+     * (majuscules et minuscules), appels de fonction, majuscule
+     * initiale en CONSTANT — reprend la grammaire historique de
+     * {@code SqlTokenizer} octet pour octet.
+     */
+    public static final TokenizerTemplate SQL = builder()
+            .freeForm()
+            .lineComments("--")
+            .blockLiteral("/*", "*/", 2, LexState.BLOCK_COMMENT, TokenType.COMMENT)
+            .valueQuotes('\'')
+            .valueType(TokenType.STRING)
+            .plainStringQuotes('"')
+            .plainStringType(TokenType.PROPERTY)
+            .valueNumberChars('.')
+            .numberLeadingDot(true)
+            .valueKeywords(KeywordTables.SQL_KEYWORDS)
+            .valueKeywordType(TokenType.KEYWORD)
+            .wordFuncFollowChars('(')
+            .wordUpperCaseType(TokenType.CONSTANT)
+            .wordFallbackType(TokenType.PLAIN)
+            .operatorChars('+', '-', '*', '/', '%', '=', '!', '<', '>', '&',
+                    '|', '^', '~', '?', ':')
+            .build();
+
+    /**
      * Littéral à délimiteurs (C2-é6, famille C) : ouvrant, fermant,
      * offset de recherche de la fermante (l'ouverture {@code /**}
      * cherche sa fermante dès {@code pos+2} — {@code /**&#47;} se referme),
@@ -738,6 +775,7 @@ public final class TokenizerTemplate {
         private final Set<Character> variablePrefixes = new HashSet<>();
         private TokenType variableType = TokenType.VARIABLE;
         private final Set<Character> plainStringQuotes = new HashSet<>();
+        private TokenType plainStringType = null;
         private char interLineQuote = 0;
         private int interLineState = 0;
         private final Set<Character> commandQuotes = new HashSet<>();
@@ -770,6 +808,7 @@ public final class TokenizerTemplate {
         private boolean wordConsumesDigits = true;
         private boolean numberRequiresBoundary = true;
         private boolean numberLeadingMinus = false;
+        private boolean numberLeadingDot = false;
         private final Set<Character> operatorSingleChars = new HashSet<>();
         private final List<BlockLiteral> blockLiterals = new ArrayList<>();
         private final Set<Character> charQuotes = new HashSet<>();
@@ -904,6 +943,13 @@ public final class TokenizerTemplate {
         /** Guillemets de chaîne à échappements sautés (span unique). */
         public Builder plainStringQuotes(char... quotes) {
             for (char q : quotes) plainStringQuotes.add(q);
+            return this;
+        }
+
+        /** Type d'une chaîne simple (C2-é8, SQL — null : type de
+         * valeur, comportement Shell historique). */
+        public Builder plainStringType(TokenType type) {
+            this.plainStringType = type;
             return this;
         }
 
@@ -1095,6 +1141,12 @@ public final class TokenizerTemplate {
         /** Un signe moins ancré à un chiffre ouvre un nombre (JSON). */
         public Builder numberLeadingMinus(boolean enabled) {
             this.numberLeadingMinus = enabled;
+            return this;
+        }
+
+        /** Un point ancré à un chiffre ouvre un nombre (C2-é8, SQL). */
+        public Builder numberLeadingDot(boolean enabled) {
+            this.numberLeadingDot = enabled;
             return this;
         }
 
