@@ -1,5 +1,6 @@
 package jo.codeeditor.highlight.tokenizer;
 
+import jo.codeeditor.highlight.LexState;
 import jo.codeeditor.highlight.TokenType;
 
 import java.util.ArrayList;
@@ -52,6 +53,35 @@ import java.util.Set;
  *       de valeur (booléens TOML) et leur type.</li>
  * </ul>
  *
+ * <p>Champs de l'étape C2-é3 (flux libre — shell, scripts, ligne
+ * de commande : pas de zones clé=valeur, des jetons sur toute la
+ * ligne) :</p>
+ * <ul>
+ *   <li>{@link #freeForm} — vrai : le moteur tokénise la ligne en
+ *       flux de jetons (les règles de zone clé/valeur, sections
+ *       comprises, sont ignorées) ;</li>
+ *   <li>{@link #commentRequiresBoundary}/{@link #commentAnchors} —
+ *       le préfixe de commentaire ne démarre qu'en début de ligne,
+ *       après un blanc ou après un caractère qui l'ancre ({@code ;}) ;</li>
+ *   <li>{@link #variablePrefixes}/{@link #variableType} — formes
+ *       {@code $var}, {@code ${var}}, {@code $?}, {@code $1} ;</li>
+ *   <li>{@link #plainStringQuotes} — chaîne à guillemets doubles :
+ *       échappements sautés, un seul jeton, non fermée → fin de
+ *       ligne ;</li>
+ *   <li>{@link #interLineQuote}/{@link #interLineState} — littéral
+ *       à état inter-lignes (l'apostrophe non fermée d'un script
+ *       shell se propage à la ligne suivante) ;</li>
+ *   <li>{@link #commandQuotes}/{@link #commandQuoteType} —
+ *       substitution par paires de backticks ;</li>
+ *   <li>{@link #wordExtraChars}, {@link #valueKeywords} (table des
+ *       mots-clés du flux), {@link #wordFuncFollowChars},
+ *       {@link #wordUpperCaseType}, {@link #wordFallbackType} — la
+ *       règle de mot : mot-clé, appel de fonction ({@code foo(}),
+ *       initiale majuscule, repli ;</li>
+ *   <li>{@link #operatorChars} — courses d'opérateurs
+ *       ({@code |&}, {@code ;;}).</li>
+ * </ul>
+ *
  * <p>Dès qu'une règle de jeton de valeur est déclarée (chaîne,
  * nombre ou mot-clé), la zone valeur est tokénisée <b>jeton par
  * jeton</b> ({@link #tokenizesValue()}) et {@link #escapesInValue}
@@ -98,6 +128,44 @@ public final class TokenizerTemplate {
     /** Type d'un nombre en valeur. */
     public final TokenType valueNumberType;
 
+    /** Vrai : tokénisation en flux libre (pas de zones clé/valeur). */
+    public final boolean freeForm;
+    /** Vrai (flux libre) : le commentaire doit être ancré (début de
+     * ligne, après un blanc ou après un {@link #commentAnchors}). */
+    public final boolean commentRequiresBoundary;
+    /** Caractères qui ancrent aussi un commentaire en flux libre
+     * (shell : {@code ;}). */
+    public final Set<Character> commentAnchors;
+    /** Préfixes de variable en flux libre ({@code $}) et leurs formes
+     * {@code $var}/{@code ${var}}/{@code $?}/{@code $1}. */
+    public final Set<Character> variablePrefixes;
+    /** Type d'une variable reconnue. */
+    public final TokenType variableType;
+    /** Guillemets ouvrant une chaîne à échappements sautés (un seul
+     * jeton, non fermée → fin de ligne). */
+    public final Set<Character> plainStringQuotes;
+    /** Guillemet d'un littéral à état inter-lignes (0 : aucun). */
+    public final char interLineQuote;
+    /** État de sortie d'un littéral inter-lignes non fermé. */
+    public final int interLineState;
+    /** Guillemets ouvrant une substitution par paires (backticks). */
+    public final Set<Character> commandQuotes;
+    /** Type d'une substitution par paires. */
+    public final TokenType commandQuoteType;
+    /** Caractères supplémentaires d'un mot, au-delà des lettres
+     * (départ) et des alphanumériques (suite) — shell : {@code _ -}. */
+    public final Set<Character> wordExtraChars;
+    /** Caractères qui, suivant un mot, en font un appel de fonction
+     * (shell : {@code ( [}). */
+    public final Set<Character> wordFuncFollowChars;
+    /** Type d'un mot à initiale majuscule (null : désactivé). */
+    public final TokenType wordUpperCaseType;
+    /** Type de repli d'un mot non reconnu (flux libre). */
+    public final TokenType wordFallbackType;
+    /** Caractères d'opérateur consommés en course (shell :
+     * {@code | & ; < > ( )}). */
+    public final Set<Character> operatorChars;
+
     private TokenizerTemplate(List<String> lineComments,
             Set<Character> keyValueSeparators, TokenType keyType,
             TokenType separatorType, TokenType valueType, boolean escapesInValue,
@@ -105,7 +173,15 @@ public final class TokenizerTemplate {
             TokenType sectionNameType, TokenType sectionBracketType,
             Set<Character> valueQuotes, Set<Character> valueNumberExtras,
             Set<String> valueKeywords, TokenType valueKeywordType,
-            TokenType valueNumberType) {
+            TokenType valueNumberType,
+            boolean freeForm, boolean commentRequiresBoundary,
+            Set<Character> commentAnchors, Set<Character> variablePrefixes,
+            TokenType variableType, Set<Character> plainStringQuotes,
+            char interLineQuote, int interLineState,
+            Set<Character> commandQuotes, TokenType commandQuoteType,
+            Set<Character> wordExtraChars, Set<Character> wordFuncFollowChars,
+            TokenType wordUpperCaseType, TokenType wordFallbackType,
+            Set<Character> operatorChars) {
         this.lineComments = List.copyOf(lineComments);
         this.keyValueSeparators = Collections.unmodifiableSet(keyValueSeparators);
         this.keyType = keyType;
@@ -122,6 +198,21 @@ public final class TokenizerTemplate {
         this.valueKeywords = Collections.unmodifiableSet(valueKeywords);
         this.valueKeywordType = valueKeywordType;
         this.valueNumberType = valueNumberType;
+        this.freeForm = freeForm;
+        this.commentRequiresBoundary = commentRequiresBoundary;
+        this.commentAnchors = Collections.unmodifiableSet(commentAnchors);
+        this.variablePrefixes = Collections.unmodifiableSet(variablePrefixes);
+        this.variableType = variableType;
+        this.plainStringQuotes = Collections.unmodifiableSet(plainStringQuotes);
+        this.interLineQuote = interLineQuote;
+        this.interLineState = interLineState;
+        this.commandQuotes = Collections.unmodifiableSet(commandQuotes);
+        this.commandQuoteType = commandQuoteType;
+        this.wordExtraChars = Collections.unmodifiableSet(wordExtraChars);
+        this.wordFuncFollowChars = Collections.unmodifiableSet(wordFuncFollowChars);
+        this.wordUpperCaseType = wordUpperCaseType;
+        this.wordFallbackType = wordFallbackType;
+        this.operatorChars = Collections.unmodifiableSet(operatorChars);
     }
 
     /**
@@ -159,6 +250,35 @@ public final class TokenizerTemplate {
             .valueNumberChars('.', '-', ':', 'T', 'Z')
             .valueKeywords(KeywordTables.TOML_KEYWORDS)
             .valueKeywordType(TokenType.CONSTANT)
+            .build();
+
+    /**
+     * Template Shell/Bash intégré (migration C2-é3) : commentaires
+     * {@code #} ancrés (début/blanc/{@code ;}), variables
+     * {@code $var}/{@code ${var}}/{@code $?}/{@code $1}, chaînes
+     * doubles à échappements sautés, littéraux entre apostrophes à
+     * état inter-lignes, substitution par backticks, mots-clés du
+     * registre, appels de fonction, CONSTANT majuscules, courses
+     * d'opérateurs — reprend la grammaire historique de
+     * {@code ShellTokenizer} octet pour octet.
+     */
+    public static final TokenizerTemplate SHELL = builder()
+            .lineComments("#")
+            .commentRequiresBoundary(true)
+            .commentAnchors(';')
+            .freeForm()
+            .variablePrefixes('$')
+            .plainStringQuotes('"')
+            .interLineString('\'', LexState.SHELL_SINGLE_QUOTE)
+            .commandQuotes('`')
+            .valueType(TokenType.STRING)
+            .valueKeywords(KeywordTables.SHELL_KEYWORDS)
+            .valueKeywordType(TokenType.KEYWORD)
+            .wordExtraChars('_', '-')
+            .wordFuncFollowChars('(', '[')
+            .wordUpperCaseType(TokenType.CONSTANT)
+            .wordFallbackType(TokenType.PLAIN)
+            .operatorChars('|', '&', ';', '<', '>', '(', ')')
             .build();
 
     /** Vrai si des en-têtes de section sont déclarées. */
@@ -199,6 +319,21 @@ public final class TokenizerTemplate {
         private final Set<String> valueKeywords = new HashSet<>();
         private TokenType valueKeywordType = TokenType.CONSTANT;
         private TokenType valueNumberType = TokenType.NUMBER;
+        private boolean freeForm = false;
+        private boolean commentRequiresBoundary = false;
+        private final Set<Character> commentAnchors = new HashSet<>();
+        private final Set<Character> variablePrefixes = new HashSet<>();
+        private TokenType variableType = TokenType.VARIABLE;
+        private final Set<Character> plainStringQuotes = new HashSet<>();
+        private char interLineQuote = 0;
+        private int interLineState = 0;
+        private final Set<Character> commandQuotes = new HashSet<>();
+        private TokenType commandQuoteType = TokenType.ANNOTATION;
+        private final Set<Character> wordExtraChars = new HashSet<>();
+        private final Set<Character> wordFuncFollowChars = new HashSet<>();
+        private TokenType wordUpperCaseType = null;
+        private TokenType wordFallbackType = TokenType.PLAIN;
+        private final Set<Character> operatorChars = new HashSet<>();
 
         /** Préfixes de commentaire de ligne (entrées vides/nulles ignorées). */
         public Builder lineComments(String... prefixes) {
@@ -284,6 +419,91 @@ public final class TokenizerTemplate {
             return this;
         }
 
+        /** Mode flux libre : jetons sur toute la ligne, zones ignorées. */
+        public Builder freeForm() {
+            this.freeForm = true;
+            return this;
+        }
+
+        /** Commentaire (flux libre) ancré : début, blanc ou ancre. */
+        public Builder commentRequiresBoundary(boolean required) {
+            this.commentRequiresBoundary = required;
+            return this;
+        }
+
+        /** Caractères qui ancrent aussi un commentaire (ex. ;). */
+        public Builder commentAnchors(char... chars) {
+            for (char c : chars) commentAnchors.add(c);
+            return this;
+        }
+
+        /** Préfixes de variable ($var, ${var}, $?, $1). */
+        public Builder variablePrefixes(char... prefixes) {
+            for (char c : prefixes) variablePrefixes.add(c);
+            return this;
+        }
+
+        /** Type d'une variable reconnue. */
+        public Builder variableType(TokenType type) {
+            this.variableType = type != null ? type : TokenType.VARIABLE;
+            return this;
+        }
+
+        /** Guillemets de chaîne à échappements sautés (span unique). */
+        public Builder plainStringQuotes(char... quotes) {
+            for (char q : quotes) plainStringQuotes.add(q);
+            return this;
+        }
+
+        /** Littéral à état inter-lignes (guillemet, état de sortie). */
+        public Builder interLineString(char quote, int exitState) {
+            this.interLineQuote = quote;
+            this.interLineState = exitState;
+            return this;
+        }
+
+        /** Guillemets de substitution par paires (backticks). */
+        public Builder commandQuotes(char... quotes) {
+            for (char q : quotes) commandQuotes.add(q);
+            return this;
+        }
+
+        /** Type d'une substitution par paires. */
+        public Builder commandQuoteType(TokenType type) {
+            this.commandQuoteType = type != null ? type : TokenType.ANNOTATION;
+            return this;
+        }
+
+        /** Caractères supplémentaires d'un mot (départ et suite). */
+        public Builder wordExtraChars(char... chars) {
+            for (char c : chars) wordExtraChars.add(c);
+            return this;
+        }
+
+        /** Caractères qui font du mot précédent un appel de fonction. */
+        public Builder wordFuncFollowChars(char... chars) {
+            for (char c : chars) wordFuncFollowChars.add(c);
+            return this;
+        }
+
+        /** Type d'un mot à initiale majuscule (null : désactivé). */
+        public Builder wordUpperCaseType(TokenType type) {
+            this.wordUpperCaseType = type;
+            return this;
+        }
+
+        /** Type de repli d'un mot non reconnu (flux libre). */
+        public Builder wordFallbackType(TokenType type) {
+            this.wordFallbackType = type != null ? type : TokenType.PLAIN;
+            return this;
+        }
+
+        /** Caractères d'opérateur, consommés en course. */
+        public Builder operatorChars(char... chars) {
+            for (char c : chars) operatorChars.add(c);
+            return this;
+        }
+
         public TokenizerTemplate build() {
             return new TokenizerTemplate(
                     new ArrayList<>(lineComments),
@@ -292,7 +512,15 @@ public final class TokenizerTemplate {
                     commentsAnywhere, sectionOpen, sectionClose,
                     sectionNameType, sectionBracketType,
                     new HashSet<>(valueQuotes), new HashSet<>(valueNumberExtras),
-                    new HashSet<>(valueKeywords), valueKeywordType, valueNumberType);
+                    new HashSet<>(valueKeywords), valueKeywordType, valueNumberType,
+                    freeForm, commentRequiresBoundary,
+                    new HashSet<>(commentAnchors), new HashSet<>(variablePrefixes),
+                    variableType, new HashSet<>(plainStringQuotes),
+                    interLineQuote, interLineState,
+                    new HashSet<>(commandQuotes), commandQuoteType,
+                    new HashSet<>(wordExtraChars), new HashSet<>(wordFuncFollowChars),
+                    wordUpperCaseType, wordFallbackType,
+                    new HashSet<>(operatorChars));
         }
     }
 
@@ -308,6 +536,10 @@ public final class TokenizerTemplate {
                 + ", valueQuotes=" + valueQuotes
                 + ", valueNumberExtras=" + valueNumberExtras
                 + ", valueKeywords=" + valueKeywords.size() + " mots"
+                + (freeForm ? ", fluxLibre" : "")
+                + ", variables=" + variablePrefixes
+                + ", littéralInterLignes="
+                + (interLineQuote != 0 ? interLineQuote + "→" + interLineState : "aucun")
                 + ")";
     }
 }

@@ -62,6 +62,37 @@ class GenericTokenizerTest {
     private static final TokenizerTemplate TOML =
             TokenizerTemplate.TOML;
 
+    /**
+     * Template maison (C2-é3) : mini-langage de script en flux libre
+     * (pas de zones clé=valeur) — mots-clés, $variables, chaînes
+     * doubles et littérales à état inter-lignes, substitution par
+     * backtick, courses d'opérateurs, commentaires ancrés : la
+     * grammaire de la famille SHELL sans une ligne de moteur.
+     */
+    private static final TokenizerTemplate FLUX = TokenizerTemplate.builder()
+            .lineComments("#")
+            .commentRequiresBoundary(true)
+            .commentAnchors(';')
+            .freeForm()
+            .variablePrefixes('$')
+            .variableType(TokenType.VARIABLE)
+            .plainStringQuotes('"')
+            .interLineString('\'', 42)
+            .commandQuotes('`')
+            .valueType(TokenType.STRING)
+            .valueKeywords(java.util.Set.of("si", "alors"))
+            .valueKeywordType(TokenType.KEYWORD)
+            .wordExtraChars('_', '-')
+            .wordFuncFollowChars('(', '[')
+            .wordUpperCaseType(TokenType.CONSTANT)
+            .wordFallbackType(TokenType.PLAIN)
+            .operatorChars('|', '&', ';', '<', '>', '(', ')')
+            .build();
+
+    /** Le template Shell intégré (troisième migration du cliquet). */
+    private static final TokenizerTemplate SHELL =
+            TokenizerTemplate.SHELL;
+
     private static TokenType typeAt(StyledLine l, int col) {
         return l.spans.stream().filter(s -> col >= s.startCol && col < s.endCol)
                 .map(s -> s.type).findFirst()
@@ -234,5 +265,80 @@ class GenericTokenizerTest {
     void toml_commentaireAprèsLaValeur() {
         StyledLine l = GenericTokenizer.styleLine(TOML, "key = value # note", LexState.NORMAL);
         assertEquals(TokenType.COMMENT, typeAt(l, 12), "le # commente n'importe où (commentsAnywhere)");
+    }
+
+    // ── C2-é3 : flux libre, variables, états inter-lignes ──────────
+
+    @Test
+    void fluxMaison_motCléEtVariable() {
+        StyledLine l = GenericTokenizer.styleLine(FLUX, "si $X", 0);
+        assertEquals(TokenType.KEYWORD, typeAt(l, 0));
+        assertEquals(TokenType.VARIABLE, typeAt(l, 3));
+    }
+
+    @Test
+    void fluxMaison_variableEntreAccoladesEtCommentaireAncré() {
+        StyledLine l = GenericTokenizer.styleLine(FLUX, "${x} # c", 0);
+        assertEquals(TokenType.VARIABLE, typeAt(l, 0));
+        assertEquals(TokenType.COMMENT, typeAt(l, 5), "le # suit un blanc → commentaire");
+        StyledLine l2 = GenericTokenizer.styleLine(FLUX, "x#y", 0);
+        assertEquals(TokenType.PUNCT, typeAt(l2, 1), "le # dans un mot n'est PAS un commentaire");
+    }
+
+    @Test
+    void fluxMaison_chaîneDoublesÉchappementSauté() {
+        StyledLine l = GenericTokenizer.styleLine(FLUX, "\"a\\\"b\"", 0);
+        assertEquals(1, l.spans.size(), "un seul span, l'échappement sauté");
+        assertEquals(TokenType.STRING, l.spans.get(0).type);
+    }
+
+    @Test
+    void fluxMaison_littéralÀÉtatInterLignes() {
+        // L'état est PARAMÉTRIQUE : 42 pour ce template maison.
+        StyledLine l = GenericTokenizer.styleLine(FLUX, "x 'abc", 0);
+        assertEquals(42, l.exitState, "apostrophe non fermée → état déclaré");
+        StyledLine l2 = GenericTokenizer.styleLine(FLUX, "d' e", 42);
+        assertEquals(TokenType.STRING, typeAt(l2, 0), "le littéral se clôt à la ligne suivante");
+        assertEquals(0, l2.exitState, "retour à NORMAL");
+        StyledLine l3 = GenericTokenizer.styleLine(FLUX, "zz", 42);
+        assertEquals(42, l3.exitState, "sans fermante, l'état se propage");
+    }
+
+    @Test
+    void fluxMaison_substitutionParBacktick() {
+        StyledLine l = GenericTokenizer.styleLine(FLUX, "x=`f`", 0);
+        assertEquals(TokenType.ANNOTATION, typeAt(l, 2));
+    }
+
+    @Test
+    void fluxMaison_majusculeFonctionEtRepli() {
+        StyledLine l = GenericTokenizer.styleLine(FLUX, "TOTO foo(1)", 0);
+        assertEquals(TokenType.CONSTANT, typeAt(l, 0), "initiale majuscule → CONSTANT");
+        assertEquals(TokenType.FUNC, typeAt(l, 5), "mot suivi de ( → FUNC");
+        StyledLine l2 = GenericTokenizer.styleLine(FLUX, "bar", 0);
+        assertEquals(TokenType.PLAIN, typeAt(l2, 0), "mot de repli → PLAIN");
+    }
+
+    @Test
+    void fluxMaison_opérateursEnCourseEtNombres() {
+        StyledLine l = GenericTokenizer.styleLine(FLUX, "a |& 2", 0);
+        assertEquals(TokenType.OPERATOR, typeAt(l, 2));
+        assertEquals(TokenType.OPERATOR, typeAt(l, 3), "course : |& en un seul jeton");
+        assertEquals(TokenType.NUMBER, typeAt(l, 5));
+    }
+
+    // ── Template Shell : la troisième migration est exacte ─────────
+
+    @Test
+    void shell_variable() {
+        StyledLine l = GenericTokenizer.styleLine(SHELL, "echo $HOME", LexState.NORMAL);
+        assertEquals(TokenType.VARIABLE, typeAt(l, 5));
+        assertEquals(TokenType.KEYWORD, typeAt(l, 0), "echo est un mot-clé du registre");
+    }
+
+    @Test
+    void shell_étatInterLignes() {
+        StyledLine l = GenericTokenizer.styleLine(SHELL, "echo 'abc", LexState.NORMAL);
+        assertEquals(LexState.SHELL_SINGLE_QUOTE, l.exitState);
     }
 }

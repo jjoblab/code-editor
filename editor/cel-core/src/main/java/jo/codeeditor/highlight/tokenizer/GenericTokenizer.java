@@ -54,8 +54,33 @@ import java.util.List;
  *       l'étape C2-é1 (Properties inchangé).</li>
  * </ol>
  *
+ * <p><b>Extensions de l'étape C2-é3</b> (migration Shell/Bash —
+ * comportement de {@code ShellTokenizer} repris octet pour octet) :
+ * le mode <b>flux libre</b> ({@link TokenizerTemplate#freeForm})
+ * tokénise la ligne en jetons sans zones clé/valeur :</p>
+ * <ol>
+ *   <li>littéral inter-lignes non fermé à la ligne précédente
+ *       ({@link TokenizerTemplate#interLineQuote}) : consommé jusqu'à
+ *       la fermante, sinon propagé ({@link TokenizerTemplate#interLineState}) ;</li>
+ *   <li>commentaire ancré ({@link TokenizerTemplate#commentRequiresBoundary}) :
+ *       préfixe en début, après un blanc ou après un caractère
+ *       d'ancrage — jamais au milieu d'un mot ;</li>
+ *   <li>variables ({@link TokenizerTemplate#variablePrefixes}) :
+ *       {@code $var}, {@code ${var}}, {@code $?}, {@code $1} ;</li>
+ *   <li>chaîne double ({@link TokenizerTemplate#plainStringQuotes}) :
+ *       échappements sautés, un seul jeton, non fermée → fin de ligne ;</li>
+ *   <li>littéral simple : paire → jeton, orpheline → fin de ligne + état ;</li>
+ *   <li>substitution par paires
+ *       ({@link TokenizerTemplate#commandQuotes}) ;</li>
+ *   <li>nombre en frontière de mot ;</li>
+ *   <li>mot : mots-clés, appel de fonction, initiale majuscule, repli ;</li>
+ *   <li>course d'opérateurs
+ *       ({@link TokenizerTemplate#operatorChars}) ;</li>
+ *   <li>repli : un caractère en PUNCT.</li>
+ * </ol>
+ *
  * <p>Les migrations suivantes du cliquet étendront la machine
- * (états inter-lignes, variables, opérateurs) tokéniseur par
+ * (marqueurs de document, clés à lookahead) tokéniseur par
  * tokéniseur, chaque suite existante restant verte sans modification
  * de ses assertions.</p>
  */
@@ -68,6 +93,18 @@ public final class GenericTokenizer {
      */
     public static StyledLine styleLine(TokenizerTemplate template, String line,
             int entryState) {
+        if (template.freeForm) {
+            return styleFreeFormLine(template, line, entryState);
+        }
+        return styleZonedLine(template, line, entryState);
+    }
+
+    /**
+     * Mode zones clé=valeur (Properties, TOML) : commentaire,
+     * section, séparateur, clé, valeur mono-jeton ou à jetons.
+     */
+    private static StyledLine styleZonedLine(TokenizerTemplate template,
+            String line, int entryState) {
         List<LineSpan> spans = new ArrayList<>();
         int pos = 0;
         boolean seenSeparator = false;
@@ -220,6 +257,192 @@ public final class GenericTokenizer {
             if (line.startsWith(prefix, pos)) return prefix;
         }
         return null;
+    }
+
+    /**
+     * Mode flux libre (Shell) : jetons sur toute la ligne, sans zones.
+     * Reprise paramétrée de l'algorithme ShellTokenizer historique —
+     * comportement octet pour octet pour le template
+     * {@link TokenizerTemplate#SHELL}.
+     */
+    private static StyledLine styleFreeFormLine(TokenizerTemplate template,
+            String line, int entryState) {
+        List<LineSpan> spans = new ArrayList<>();
+        int pos = 0;
+        int state = entryState;
+
+        // Littéral inter-lignes non fermé à la ligne précédente :
+        // consommé jusqu'à la fermante (bash autorise le multi-ligne).
+        if (template.interLineQuote != 0 && state == template.interLineState) {
+            int end = line.indexOf(template.interLineQuote, pos);
+            if (end >= 0) {
+                spans.add(new LineSpan(pos, end + 1, template.valueType));
+                pos = end + 1;
+                state = LexState.NORMAL;
+            } else {
+                spans.add(new LineSpan(pos, line.length(), template.valueType));
+                pos = line.length();
+            }
+        }
+
+        while (pos < line.length()) {
+            char ch = line.charAt(pos);
+
+            if (Character.isWhitespace(ch)) {
+                pos++;
+                continue;
+            }
+
+            // Commentaire ancré : en début de ligne, après un blanc ou
+            // après un caractère d'ancrage — jamais au milieu d'un mot
+            // (foo#bar n'est pas un commentaire).
+            if (commentStartsAt(template, line, pos)) {
+                spans.add(new LineSpan(pos, line.length(), TokenType.COMMENT));
+                pos = line.length();
+                continue;
+            }
+
+            // Variable : $var, ${var}, $?, $1… (${...} peut contenir
+            // un # sans ouvrir de commentaire).
+            if (template.variablePrefixes.contains(ch)) {
+                int end = pos + 1;
+                if (end < line.length() && line.charAt(end) == '{') {
+                    end++;
+                    while (end < line.length() && line.charAt(end) != '}') end++;
+                    if (end < line.length()) end++;
+                } else if (end < line.length()
+                        && (Character.isLetter(line.charAt(end))
+                                || line.charAt(end) == '_')) {
+                    while (end < line.length()
+                            && (Character.isLetterOrDigit(line.charAt(end))
+                                    || line.charAt(end) == '_')) {
+                        end++;
+                    }
+                } else if (end < line.length() && line.charAt(end) == '?') {
+                    end++;
+                } else if (end < line.length()
+                        && Character.isDigit(line.charAt(end))) {
+                    end++;
+                }
+                if (end > pos + 1) {
+                    spans.add(new LineSpan(pos, end, template.variableType));
+                    pos = end;
+                    continue;
+                }
+            }
+
+            // Chaîne à guillemets doubles : échappements sautés, un
+            // seul jeton ; non fermée → jusqu'en fin de ligne.
+            if (template.plainStringQuotes.contains(ch)) {
+                int end = pos + 1;
+                while (end < line.length()
+                        && !template.plainStringQuotes.contains(line.charAt(end))) {
+                    if (line.charAt(end) == '\\' && end + 1 < line.length()) end++;
+                    end++;
+                }
+                if (end < line.length()) end++;
+                spans.add(new LineSpan(pos, end, template.valueType));
+                pos = end;
+                continue;
+            }
+
+            // Littéral à guillemet simple : paire → jeton ; orpheline →
+            // fin de ligne et l'état inter-lignes se propage.
+            if (template.interLineQuote != 0 && ch == template.interLineQuote) {
+                int end = line.indexOf(template.interLineQuote, pos + 1);
+                if (end >= 0) {
+                    spans.add(new LineSpan(pos, end + 1, template.valueType));
+                    pos = end + 1;
+                } else {
+                    spans.add(new LineSpan(pos, line.length(), template.valueType));
+                    pos = line.length();
+                    state = template.interLineState;
+                }
+                continue;
+            }
+
+            // Substitution de commande par paires ; orpheline → repli.
+            if (template.commandQuotes.contains(ch)) {
+                int end = line.indexOf(ch, pos + 1);
+                if (end >= 0) {
+                    spans.add(new LineSpan(pos, end + 1, template.commandQuoteType));
+                    pos = end + 1;
+                    continue;
+                }
+            }
+
+            // Nombre : chiffre en frontière de mot (pas collé à un mot).
+            if (Character.isDigit(ch) && (pos == 0
+                    || !Character.isLetterOrDigit(line.charAt(pos - 1)))) {
+                int end = pos + 1;
+                while (end < line.length()
+                        && (Character.isDigit(line.charAt(end))
+                                || template.valueNumberExtras.contains(
+                                        line.charAt(end)))) {
+                    end++;
+                }
+                spans.add(new LineSpan(pos, end, template.valueNumberType));
+                pos = end;
+                continue;
+            }
+
+            // Mot : mot-clé, appel de fonction, initiale majuscule,
+            // repli — caractères supplémentaires déclarés inclus.
+            if (Character.isLetter(ch) || template.wordExtraChars.contains(ch)) {
+                int end = pos + 1;
+                while (end < line.length()
+                        && (Character.isLetterOrDigit(line.charAt(end))
+                                || template.wordExtraChars.contains(line.charAt(end)))) {
+                    end++;
+                }
+                String word = line.substring(pos, end);
+                TokenType type;
+                if (template.valueKeywords.contains(word)) {
+                    type = template.valueKeywordType;
+                } else if (end < line.length()
+                        && template.wordFuncFollowChars.contains(line.charAt(end))) {
+                    type = TokenType.FUNC;
+                } else if (template.wordUpperCaseType != null
+                        && Character.isUpperCase(word.charAt(0))) {
+                    type = template.wordUpperCaseType;
+                } else {
+                    type = template.wordFallbackType;
+                }
+                spans.add(new LineSpan(pos, end, type));
+                pos = end;
+                continue;
+            }
+
+            // Course d'opérateurs (|&, ;;, &&…).
+            if (template.operatorChars.contains(ch)) {
+                int end = pos + 1;
+                while (end < line.length()
+                        && template.operatorChars.contains(line.charAt(end))) {
+                    end++;
+                }
+                spans.add(new LineSpan(pos, end, TokenType.OPERATOR));
+                pos = end;
+                continue;
+            }
+
+            // Repli : un caractère en ponctuation.
+            spans.add(new LineSpan(pos, pos + 1, TokenType.PUNCT));
+            pos++;
+        }
+        return new StyledLine(spans, entryState, state);
+    }
+
+    /**
+     * Le préfixe de commentaire démarre en pos ET, si le template
+     * exige une ancre, pos est une frontière (début de ligne, blanc,
+     * ou caractère d'ancrage déclaré).
+     */
+    private static boolean commentStartsAt(TokenizerTemplate template,
+            String line, int pos) {
+        if (commentAt(template, line, pos) == null) return false;
+        if (!template.commentRequiresBoundary) return true;
+        return pos == 0 || Character.isWhitespace(line.charAt(pos - 1))
+                || template.commentAnchors.contains(line.charAt(pos - 1));
     }
 
     private GenericTokenizer() {}
