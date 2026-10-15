@@ -492,21 +492,17 @@ public final class GenericTokenizer {
                 continue;
             }
 
-            // Commentaire ancré : en début de ligne, après un blanc ou
-            // après un caractère d'ancrage — jamais au milieu d'un mot
-            // (foo#bar n'est pas un commentaire).
-            if (commentStartsAt(template, line, pos)) {
-                spans.add(new LineSpan(pos, line.length(), TokenType.COMMENT));
-                pos = line.length();
-                continue;
-            }
-
             // Littéral à délimiteurs (C2-é6, famille C) : /** et /*
             // ouvrent les commentaires de documentation et de bloc,
             // """ (kotlin seulement) une chaîne brute — le plus long
             // préfixe d'abord (/** avant /*) ; la fermante est cherchée
             // à l'offset déclaré, absente elle porte l'état
             // inter-lignes.
+            //
+            // Évalué AVANT le commentaire de ligne (C2-é7, Lua) : un
+            // littéral peut PARTAGER son préfixe avec lui (« --[[ »
+            // commence par « -- ») — l'ordre de déclaration tranche,
+            // et le littéral, plus long, doit gagner.
             TokenizerTemplate.BlockLiteral opened = null;
             for (TokenizerTemplate.BlockLiteral bl : template.blockLiterals) {
                 if (line.startsWith(bl.open, pos) && bl.appliesTo(language)) {
@@ -525,6 +521,15 @@ public final class GenericTokenizer {
                     pos = line.length();
                     state = opened.state;
                 }
+                continue;
+            }
+
+            // Commentaire ancré : en début de ligne, après un blanc ou
+            // après un caractère d'ancrage — jamais au milieu d'un mot
+            // (foo#bar n'est pas un commentaire).
+            if (commentStartsAt(template, line, pos)) {
+                spans.add(new LineSpan(pos, line.length(), TokenType.COMMENT));
+                pos = line.length();
                 continue;
             }
 

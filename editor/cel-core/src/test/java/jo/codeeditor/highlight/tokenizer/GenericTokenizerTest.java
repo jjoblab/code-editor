@@ -732,4 +732,64 @@ class GenericTokenizerTest {
         StyledLine l2 = GenericTokenizer.styleLine(REGISTRE, "while", 0, null);
         assertEquals(TokenType.KEYWORD_CONTROL, typeAt(l2, 0));
     }
+
+    // ── C2-é7 : littéraux à délimiteurs AVANT les commentaires ────
+
+    /**
+     * Template maison (C2-é7) : mini-langage façon Lua — commentaire de
+     * bloc « --[[ ]] » PARTAGEANT son préfixe avec le commentaire de
+     * ligne « -- », chaîne longue « [[ ]] » réutilisant le même état
+     * inter-lignes : la grammaire de la famille LUA sans une ligne de
+     * moteur.
+     */
+    private static final TokenizerTemplate BLOC = TokenizerTemplate.builder()
+            .freeForm()
+            .lineComments("--")
+            .blockLiteral("--[[", "]]", 4, 7, TokenType.COMMENT)
+            .blockLiteral("[[", "]]", 2, 7, TokenType.STRING)
+            .valueQuotes('"', '\'')
+            .valueType(TokenType.STRING)
+            .wordExtraChars('_')
+            .wordFallbackType(TokenType.PLAIN)
+            .build();
+
+    @Test
+    void blocMaison_littéralÀDélimiteursAvantCommentaireDeLigne() {
+        // « --[[ x ]] y » : le commentaire de bloc ferme en colonne 9 et
+        // le code reprend — preuve que le littéral est évalué AVANT le
+        // commentaire de ligne « -- » (sinon toute la ligne serait un
+        // commentaire).
+        StyledLine l = GenericTokenizer.styleLine(BLOC, "--[[ x ]] y", 0);
+        assertEquals(TokenType.COMMENT, typeAt(l, 0));
+        assertEquals(TokenType.COMMENT, typeAt(l, 8), "la fermante ]] appartient au bloc");
+        assertEquals(TokenType.PLAIN, typeAt(l, 10), "le code reprend après le bloc");
+        assertEquals(LexState.NORMAL, l.exitState);
+    }
+
+    @Test
+    void blocMaison_commentaireDeLigneSeulQuandLeBlocNeOuvrePas() {
+        // « -- x » : pas de « --[[ » → commentaire de ligne jusqu'au bout.
+        StyledLine l = GenericTokenizer.styleLine(BLOC, "-- x ]]", 0);
+        assertEquals(1, l.spans.size());
+        assertEquals(TokenType.COMMENT, l.spans.get(0).type);
+    }
+
+    @Test
+    void blocMaison_chaîneLongueRéutilisantLEtat() {
+        // « [[ ... ]] » ouvre une chaîne longue ; non fermée, elle porte
+        // l'état du commentaire de bloc (règle historique Lua).
+        StyledLine l = GenericTokenizer.styleLine(BLOC, "s = [[texte", 0);
+        assertEquals(TokenType.STRING, typeAt(l, 4));
+        assertEquals(7, l.exitState, "la chaîne longue ouverte porte l'état déclaré");
+    }
+
+    @Test
+    void blocMaison_continuationColoréeParLePremierLittéral() {
+        // L'état étant partagé, la continuation reçoit le type du
+        // PREMIER littéral déclarant cet état (COMMENT) — contrat de la
+        // machine, calqué sur le comportement historique Lua.
+        StyledLine l = GenericTokenizer.styleLine(BLOC, "suite ]]", 7);
+        assertEquals(TokenType.COMMENT, typeAt(l, 0));
+        assertEquals(LexState.NORMAL, l.exitState);
+    }
 }

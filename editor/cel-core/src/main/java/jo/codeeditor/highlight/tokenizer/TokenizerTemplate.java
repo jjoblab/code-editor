@@ -619,6 +619,37 @@ public final class TokenizerTemplate {
             .build();
 
     /**
+     * Template Lua intégré (migration C2-é7) : commentaires de ligne
+     * {@code --} et de bloc {@code --[[ ]]}, chaînes longues
+     * {@code [[ ]]} partageant l'état inter-lignes du commentaire de
+     * bloc (la continuation est COMMENT — garde historique), chaînes
+     * quotées à échappements apparents sans état inter-lignes, nombres
+     * hexadécimaux, mots-clés et builtins du registre, CONSTANT
+     * majuscules, appels de fonction — reprend la grammaire historique
+     * de {@code LuaTokenizer} octet pour octet.
+     */
+    public static final TokenizerTemplate LUA = builder()
+            .freeForm()
+            .lineComments("--")
+            .blockLiteral("--[[", "]]", 4, LexState.BLOCK_COMMENT, TokenType.COMMENT)
+            .blockLiteral("[[", "]]", 2, LexState.BLOCK_COMMENT, TokenType.STRING)
+            .valueQuotes('"', '\'')
+            .valueType(TokenType.STRING)
+            .valueNumberChars('.', 'x', 'X', 'a', 'b', 'c', 'd', 'e', 'f',
+                    'A', 'B', 'C', 'D', 'E', 'F')
+            .valueKeywords(KeywordTables.LUA_KEYWORDS)
+            .valueKeywordType(TokenType.KEYWORD)
+            .wordTypeKeywords(KeywordTables.LUA_BUILTINS)
+            .wordTypeKeywordType(TokenType.TYPE)
+            .wordExtraChars('_')
+            .wordAllCapsType(TokenType.CONSTANT)
+            .wordFuncFollowChars('(')
+            .wordFallbackType(TokenType.PLAIN)
+            .operatorChars('+', '-', '*', '/', '%', '=', '!', '<', '>', '&',
+                    '|', '^', '~', '?', ':')
+            .build();
+
+    /**
      * Littéral à délimiteurs (C2-é6, famille C) : ouvrant, fermant,
      * offset de recherche de la fermante (l'ouverture {@code /**}
      * cherche sa fermante dès {@code pos+2} — {@code /**&#47;} se referme),
