@@ -627,24 +627,6 @@ public class EditorHighlightPainter {
     }
 
     /**
-     * Détermine si un bloc est actif (contient le caret).
-     */
-    private static boolean isBlockActive(boolean indentCountMode,
-            int caretDepth, int blockDepth, int[][] blocks, int idx) {
-        int[] block = blocks[idx];
-        // Pour C_LIKE : caretDepth = profondeur d'accolades.
-        // Le bloc est actif si caretDepth == blockDepth + 1.
-        // Pour non C_LIKE : caretDepth = niveau d'indentation.
-        // Le bloc est actif si caretDepth > block.startCol (le caret
-        // est plus profond que le bloc).
-        if (indentCountMode) {
-            return caretDepth >= 0 && caretDepth > block[1];
-        } else {
-            return caretDepth == blockDepth + 1;
-        }
-    }
-
-    /**
      * Largeur des espaces de tête en colonnes, ou -1 pour une ligne VIDE
      * (espaces seuls — aucun caractère visible). Cette sentinelle permet
      * à la couche des guides de faire le pont sur les lignes vides.
@@ -698,24 +680,6 @@ public class EditorHighlightPainter {
             }
         }
         return onlyWhitespace ? -1 : cols;
-    }
-
-    /**
-     * Lot B : calcule l'indentation de pontage d'une ligne vide
-     * (la moins profonde des plus proches voisines non vides,
-     * scan borné à 64 rangées de chaque côté).
-     */
-    private static int bridgeBlank(EditorDocument doc, CharSequence chars, int i) {
-        int up = i - 1, upCapped = 64;
-        while (up >= 0 && upCapped-- > 0 && leadingIndentOrBlank(doc, chars, up) < 0) up--;
-        int lineCount = doc.lineCount();
-        int dn = i + 1, dnCapped = 64;
-        while (dn < lineCount && dnCapped-- > 0 && leadingIndentOrBlank(doc, chars, dn) < 0) dn++;
-        int a = (up >= 0) ? leadingIndentOrBlank(doc, chars, up) : 0;
-        int b = (dn < lineCount) ? leadingIndentOrBlank(doc, chars, dn) : 0;
-        if (a < 0) a = 0;
-        if (b < 0) b = 0;
-        return Math.min(a, b);
     }
 
     /**
