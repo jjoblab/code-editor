@@ -501,3 +501,13 @@ surchargez `EditorMetrics`, laissez cette marge intacte.
 - [`FEATURES.md`](FEATURES.md) — matrice complète des fonctionnalités.
 - [`ARCHITECTURE.md`](ARCHITECTURE.md) — organisation des modules et des packages.
 - [`CHANGELOG.md`](CHANGELOG.md) — historique des versions.
+
+## Droite-à-gauche (RTL)
+
+Non supporté (décision du propriétaire, consignée dans l'ADR-001 du
+plan d'audit 3.69.0). L'éditeur rend toujours ses métriques, sa
+gouttière et son texte de gauche à droite ; aucun comportement n'est
+garanti sous `layoutDirection = rtl` (rendu superposé, gouttière à
+droite non calibrée). Un plan d'implémentation complet — si le besoin
+surgit — est esquissé dans `docs/plans/05-accessibilite-i18n-rtl.md`.
+

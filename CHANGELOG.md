@@ -30,6 +30,12 @@ Les sections antérieures à la période courante sont archivées dans
 - **CHANGELOG scindé** — 76 sections historiques déplacées vers `docs/CHANGELOG-archive.md` (le fichier racine garde les 10 plus récentes : 354 Ko → 38 Ko lisibles en routine, historique inchangé) ; préambule restauré (perdu lors de la résolution du conflit de fusion 3.70.1) avec renvoi vers l'archive.
 - **Exceptions `prebuilt/` retirées du `.gitignore`** — négations pour un répertoire inexistant (aucun chemin `prebuilt/` dans le dépôt).
 
+### Changed (L10 — A-05)
+
+- **Accessibilité : la barre de symboles déclenche ses actions depuis `performClick`** — le dispatch de l'action vit désormais dans la surcharge (`SymbolKey.performClick`), appelée par le chemin tactile ET par les services d'accessibilité (TalkBack déclenche la même action) ; chaque touche porte un `contentDescription` (nœud minimal). L'entrée `ClickableViewAccessibility` de `SymbolBarView` est retirée de la baseline — problème réellement corrigé, pas masqué (l'entrée `EditorView` reste : `performClick` est bien appelé à la résolution du tap, dans le résolveur — l'analyse intra-procédurale de lint ne le voit pas).
+- **Derniers libellés en dur externalisés** — « Go to line » et « Rename "x" » deviennent `cel_goto_line_title` / `cel_rename_title` (l'hôte peut les traduire ou les surcharger).
+- **RTL : non-support documenté** — décision du propriétaire (ADR-001 n° 7) consignée dans `USAGE.md`, avec renvoi au plan d'implémentation existant si le besoin surgit.
+
 ### Fixed (D-09)
 
 - **Documentation dérivée resynchronisée** — README/USAGE annonçaient `3.49.2`, BUILD `3.54.0`, SECURITY `3.49.x` (réalité : `3.70.1`) ; le graphe des modules d'AGENT.md omettait `cel-lsp-api → cel-core (api)` et `cel-lsp → cel-ui (compileOnly)` ; les plans 01/02 citaient les collaborateurs `EditorBarTools` (retiré en B15) et `SurroundWith` (retiré au lot M-02). `check-doc-figures.sh` verrouille désormais l'égalité version README/USAGE/BUILD ↔ `build.gradle.kts` (rouge/vert testé par injection d'une version divergente).

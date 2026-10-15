@@ -67,15 +67,5 @@
             column="20"/>
     </issue>
 
-    <issue
-        id="ClickableViewAccessibility"
-        message="Custom view `SymbolKey` overrides `onTouchEvent` but not `performClick`"
-        errorLine1="        public boolean onTouchEvent(MotionEvent event) {"
-        errorLine2="                       ~~~~~~~~~~~~">
-        <location
-            file="src/main/java/jo/codeeditor/view/chrome/SymbolBarView.java"
-            line="129"
-            column="24"/>
-    </issue>
 
 </issues>

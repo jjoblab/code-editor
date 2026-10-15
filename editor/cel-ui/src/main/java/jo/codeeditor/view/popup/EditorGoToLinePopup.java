@@ -49,7 +49,7 @@ public class EditorGoToLinePopup {
         // Carte glass (un LinearLayout brut theming gutterBg
         // serait sans arrondi ni séparation titre/champ/hint).
         EditorGlassCards.GlassCard card = EditorGlassCards.build(view, ctx,
-                "Go to line",
+                ctx.getString(jo.codeeditor.ui.R.string.cel_goto_line_title),
                 null,
                 "Line 1–" + lineCount + "  (line or line:column)",
                 InputType.TYPE_CLASS_NUMBER);
