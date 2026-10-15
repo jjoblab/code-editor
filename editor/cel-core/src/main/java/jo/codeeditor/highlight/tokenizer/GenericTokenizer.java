@@ -100,8 +100,9 @@ public final class GenericTokenizer {
     }
 
     /**
-     * Mode zones clé=valeur (Properties, TOML) : commentaire,
-     * section, séparateur, clé, valeur mono-jeton ou à jetons.
+     * Mode zones clé=valeur (Properties, TOML, YAML) : commentaire,
+     * marqueurs, ancres, section, séparateur, clé (lookahead), valeur
+     * mono-jeton ou à jetons, repli scalaire ou ponctuation.
      */
     private static StyledLine styleZonedLine(TokenizerTemplate template,
             String line, int entryState) {
@@ -114,11 +115,10 @@ public final class GenericTokenizer {
 
             // Commentaire : en zone clé toujours ; en zone valeur
             // uniquement si le template le déclare (un # après la
-            // valeur commente en TOML, jamais en Properties).
+            // valeur commente en TOML/YAML, jamais en Properties).
             if ((template.commentsAnywhere || !seenSeparator)
                     && commentAt(template, line, pos) != null) {
-                spans.add(new LineSpan(pos, line.length(),
-                        jo.codeeditor.highlight.TokenType.COMMENT));
+                spans.add(new LineSpan(pos, line.length(), TokenType.COMMENT));
                 pos = line.length();
                 continue;
             }
@@ -126,6 +126,44 @@ public final class GenericTokenizer {
             if (Character.isWhitespace(ch)) {
                 pos++;
                 continue;
+            }
+
+            // Marqueur de document (---) — n'importe où.
+            String marker = documentMarkerAt(template, line, pos);
+            if (marker != null) {
+                spans.add(new LineSpan(pos, pos + marker.length(),
+                        template.documentMarkerType));
+                pos += marker.length();
+                continue;
+            }
+
+            // Ancre / alias / tag (&a, *a, !a) — n'importe où.
+            if (template.annotationPrefixes.contains(ch)) {
+                int end = pos + 1;
+                while (end < line.length()
+                        && (Character.isLetterOrDigit(line.charAt(end))
+                                || line.charAt(end) == '_'
+                                || line.charAt(end) == '-')) {
+                    end++;
+                }
+                spans.add(new LineSpan(pos, end, template.annotationType));
+                pos = end;
+                continue;
+            }
+
+            // Chaîne quotée AVANT le séparateur (YAML : les chaînes
+            // vivent dans les deux zones) ; une chaîne fermée peut
+            // réouvrir la zone clé (réinitialisation afterColon
+            // historique). Orpheline : retombée plus bas.
+            if (template.stringsInKeyZone && template.valueQuotes.contains(ch)) {
+                int end = SpanUtils.findStringEnd(line, pos + 1, ch);
+                if (end >= 0) {
+                    SpanUtils.addStringSpans(spans, line, pos, end + 1,
+                            template.valueType);
+                    pos = end + 1;
+                    if (template.stringReopensKeyZone) seenSeparator = false;
+                    continue;
+                }
             }
 
             // En-tête de section [nom] / [[nom]] — uniquement AVANT le
@@ -160,23 +198,54 @@ public final class GenericTokenizer {
                 continue;
             }
 
-            if (!seenSeparator) {
-                // Clé : jusqu'au prochain séparateur ou blanc.
+            // Indicateur de scalaire de bloc (| >) — zone clé.
+            if (!seenSeparator && template.blockIndicators.contains(ch)) {
+                spans.add(new LineSpan(pos, pos + 1, template.blockIndicatorType));
+                pos++;
+                continue;
+            }
+
+            // Clé : jusqu'au prochain séparateur, blanc ou stop ; si le
+            // template filtre les départs, un caractère hors jeu
+            // n'ouvre pas une clé. Avec lookahead (YAML), la clé
+            // n'est confirmée que si un séparateur la suit — sans
+            // quoi le candidat retombe en scalaire et la suite de la
+            // ligne devient zone valeur.
+            if (!seenSeparator && (template.keyStartExtras.isEmpty()
+                    || Character.isLetter(ch)
+                    || template.keyStartExtras.contains(ch))) {
                 int end = pos + 1;
                 while (end < line.length()
                         && !template.keyValueSeparators.contains(line.charAt(end))
-                        && !Character.isWhitespace(line.charAt(end))) {
+                        && !Character.isWhitespace(line.charAt(end))
+                        && !template.keyStopChars.contains(line.charAt(end))) {
                     end++;
                 }
-                spans.add(new LineSpan(pos, end, template.keyType));
+                if (template.keyLookahead) {
+                    int lookAhead = end;
+                    while (lookAhead < line.length()
+                            && Character.isWhitespace(line.charAt(lookAhead))) {
+                        lookAhead++;
+                    }
+                    if (lookAhead < line.length()
+                            && template.keyValueSeparators.contains(
+                                    line.charAt(lookAhead))) {
+                        spans.add(new LineSpan(pos, end, template.keyType));
+                    } else {
+                        spans.add(new LineSpan(pos, end, template.valueType));
+                        seenSeparator = true;
+                    }
+                } else {
+                    spans.add(new LineSpan(pos, end, template.keyType));
+                }
                 pos = end;
                 continue;
             }
 
-            if (template.tokenizesValue()) {
+            if (template.tokenizesValue() && seenSeparator) {
                 // Valeur à jetons : chaque jeton reçoit son type déclaré.
                 if (template.valueQuotes.contains(ch)) {
-                    // Chaîne quotée ; orpheline → repli (PUNCT + mots).
+                    // Chaîne quotée ; orpheline → repli (scalaire/mot).
                     int end = SpanUtils.findStringEnd(line, pos + 1, ch);
                     if (end >= 0) {
                         SpanUtils.addStringSpans(spans, line, pos, end + 1,
@@ -186,9 +255,10 @@ public final class GenericTokenizer {
                     }
                 }
 
-                if (Character.isDigit(ch)
-                        || (ch == '-' && pos + 1 < line.length()
-                                && Character.isDigit(line.charAt(pos + 1)))) {
+                if (template.numbersInValue
+                        && (Character.isDigit(ch)
+                                || (ch == '-' && pos + 1 < line.length()
+                                        && Character.isDigit(line.charAt(pos + 1))))) {
                     // Nombre : chiffres + jeu étendu (dates TOML), le
                     // '-' ancré à un chiffre ouvre un nombre.
                     int end = pos + 1;
@@ -203,21 +273,36 @@ public final class GenericTokenizer {
                     continue;
                 }
 
-                if (Character.isLetter(ch)) {
-                    // Mot : reconnu → type de mot-clé, sinon type de valeur.
+                if (Character.isLetter(ch)
+                        || (template.valueWordConsumesDigits && Character.isDigit(ch))
+                        || template.valueWordStartExtras.contains(ch)) {
+                    // Mot de valeur : jeu de départ et de suite déclarés
+                    // (YAML : chiffres, . - _ : /) ; classification
+                    // numérique des mots (YAML) puis mots-clés, sinon
+                    // type de valeur.
                     int end = pos + 1;
                     while (end < line.length()
-                            && Character.isLetter(line.charAt(end))) {
+                            && (Character.isLetter(line.charAt(end))
+                                    || (template.valueWordConsumesDigits
+                                            && Character.isDigit(line.charAt(end)))
+                                    || template.valueWordExtras.contains(
+                                            line.charAt(end)))) {
                         end++;
                     }
                     String word = line.substring(pos, end);
-                    TokenType type = template.valueKeywords.contains(word)
-                            ? template.valueKeywordType : template.valueType;
+                    TokenType type;
+                    if (template.valueWordNumbers && startsLikeNumber(word)) {
+                        type = template.valueNumberType;
+                    } else if (template.valueKeywords.contains(word)) {
+                        type = template.valueKeywordType;
+                    } else {
+                        type = template.valueType;
+                    }
                     spans.add(new LineSpan(pos, end, type));
                     pos = end;
                     continue;
                 }
-            } else {
+            } else if (!template.tokenizesValue() && seenSeparator) {
                 // Valeur mono-jeton — échappements puis texte jusqu'au
                 // prochain backslash (grammaire Properties historique).
                 if (template.escapesInValue && ch == '\\') {
@@ -227,7 +312,7 @@ public final class GenericTokenizer {
                         if (next == 'u' && pos + 5 < line.length()) end = pos + 6;
                     }
                     spans.add(new LineSpan(pos, Math.min(end, line.length()),
-                            jo.codeeditor.highlight.TokenType.ESCAPE));
+                            TokenType.ESCAPE));
                     pos = end;
                     continue;
                 }
@@ -242,13 +327,52 @@ public final class GenericTokenizer {
                 continue;
             }
 
-            // Ponctuation de repli (crochets de flux, virgules,
+            // Ponctuation de flux ([ ] { }) — les deux zones.
+            if (template.flowPunct.contains(ch)) {
+                spans.add(new LineSpan(pos, pos + 1, TokenType.PUNCT));
+                pos++;
+                continue;
+            }
+
+            // Repli : scalaire brut (jusqu'à blanc/séparateur/stop) ou
+            // ponctuation mono-caractère (crochets de flux TOML,
             // guillemet orphelin…).
-            spans.add(new LineSpan(pos, pos + 1,
-                    jo.codeeditor.highlight.TokenType.PUNCT));
+            if (template.scalarFallback) {
+                int end = pos + 1;
+                while (end < line.length()
+                        && !template.keyValueSeparators.contains(line.charAt(end))
+                        && !Character.isWhitespace(line.charAt(end))
+                        && !template.scalarStopChars.contains(line.charAt(end))) {
+                    end++;
+                }
+                spans.add(new LineSpan(pos, end, template.valueType));
+                pos = end;
+                seenSeparator = true;
+                continue;
+            }
+            spans.add(new LineSpan(pos, pos + 1, TokenType.PUNCT));
             pos++;
         }
         return new StyledLine(spans, entryState, LexState.NORMAL);
+    }
+
+    /** Le marqueur de document déclaré démarrant à pos, ou null. */
+    private static String documentMarkerAt(TokenizerTemplate template,
+            String line, int pos) {
+        for (String marker : template.documentMarkers) {
+            if (line.startsWith(marker, pos)) return marker;
+        }
+        return null;
+    }
+
+    /** Vrai si le mot commence comme un nombre (chiffre ou ±chiffre). */
+    private static boolean startsLikeNumber(String word) {
+        if (word.isEmpty()) return false;
+        char c0 = word.charAt(0);
+        if (Character.isDigit(c0)) return true;
+        return word.length() > 1
+                && (c0 == '-' || c0 == '+')
+                && Character.isDigit(word.charAt(1));
     }
 
     /** Le préfixe de commentaire déclaré démarrant à pos, ou null. */

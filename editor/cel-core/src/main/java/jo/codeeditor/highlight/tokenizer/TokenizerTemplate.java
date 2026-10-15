@@ -82,6 +82,37 @@ import java.util.Set;
  *       ({@code |&}, {@code ;;}).</li>
  * </ul>
  *
+ * <p>Champs de l'étape C2-é4 (grammaires à clés par lookahead —
+ * yaml, formats d'inventaire) :</p>
+ * <ul>
+ *   <li>{@link #documentMarkers}/{@link #documentMarkerType} —
+ *       séparateurs de document ({@code ---}) reconnus n'importe où ;</li>
+ *   <li>{@link #annotationPrefixes}/{@link #annotationType} — ancres,
+ *       alias et tags ({@code &a}, {@code *a}, {@code !a}) ;</li>
+ *   <li>{@link #keyStartExtras}/{@link #keyStopChars}/
+ *       {@link #keyLookahead} — la règle de clé : caractères de
+ *       départ au-delà des lettres, fin étendue (un {@code #} coupe),
+ *       et clé confirmée par un séparateur en lookahead (sans quoi le
+ *       candidat retombe en scalaire et la suite devient zone
+ *       valeur) ;</li>
+ *   <li>{@link #stringsInKeyZone}/{@link #stringReopensKeyZone} —
+ *       chaînes quotées reconnues avant le séparateur, une chaîne
+ *       fermée réouvrant la zone clé (comportement YAML historique) ;</li>
+ *   <li>{@link #blockIndicators}/{@link #blockIndicatorType} —
+ *       indicateurs de scalaire de bloc ({@code |}, {@code >}) en
+ *       zone clé ;</li>
+ *   <li>{@link #numbersInValue}, {@link #valueWordStartExtras},
+ *       {@link #valueWordExtras}, {@link #valueWordConsumesDigits},
+ *       {@link #valueWordNumbers} — la règle de mot de valeur : jeu
+ *       de départ, jeu de suite, classification numérique des mots
+ *       (YAML) ou règle numérique autonome (TOML) ;</li>
+ *   <li>{@link #flowPunct} — ponctuation de flux
+ *       ({@code []}{@code {}}), les deux zones ;</li>
+ *   <li>{@link #scalarFallback}/{@link #scalarStopChars} — le repli
+ *       devient un scalaire brut (jusqu'à blanc/séparateur/stop) au
+ *       lieu d'une ponctuation mono-caractère.</li>
+ * </ul>
+ *
  * <p>Dès qu'une règle de jeton de valeur est déclarée (chaîne,
  * nombre ou mot-clé), la zone valeur est tokénisée <b>jeton par
  * jeton</b> ({@link #tokenizesValue()}) et {@link #escapesInValue}
@@ -166,53 +197,119 @@ public final class TokenizerTemplate {
      * {@code | & ; < > ( )}). */
     public final Set<Character> operatorChars;
 
-    private TokenizerTemplate(List<String> lineComments,
-            Set<Character> keyValueSeparators, TokenType keyType,
-            TokenType separatorType, TokenType valueType, boolean escapesInValue,
-            boolean commentsAnywhere, char sectionOpen, char sectionClose,
-            TokenType sectionNameType, TokenType sectionBracketType,
-            Set<Character> valueQuotes, Set<Character> valueNumberExtras,
-            Set<String> valueKeywords, TokenType valueKeywordType,
-            TokenType valueNumberType,
-            boolean freeForm, boolean commentRequiresBoundary,
-            Set<Character> commentAnchors, Set<Character> variablePrefixes,
-            TokenType variableType, Set<Character> plainStringQuotes,
-            char interLineQuote, int interLineState,
-            Set<Character> commandQuotes, TokenType commandQuoteType,
-            Set<Character> wordExtraChars, Set<Character> wordFuncFollowChars,
-            TokenType wordUpperCaseType, TokenType wordFallbackType,
-            Set<Character> operatorChars) {
-        this.lineComments = List.copyOf(lineComments);
-        this.keyValueSeparators = Collections.unmodifiableSet(keyValueSeparators);
-        this.keyType = keyType;
-        this.separatorType = separatorType;
-        this.valueType = valueType;
-        this.escapesInValue = escapesInValue;
-        this.commentsAnywhere = commentsAnywhere;
-        this.sectionOpen = sectionOpen;
-        this.sectionClose = sectionClose;
-        this.sectionNameType = sectionNameType;
-        this.sectionBracketType = sectionBracketType;
-        this.valueQuotes = Collections.unmodifiableSet(valueQuotes);
-        this.valueNumberExtras = Collections.unmodifiableSet(valueNumberExtras);
-        this.valueKeywords = Collections.unmodifiableSet(valueKeywords);
-        this.valueKeywordType = valueKeywordType;
-        this.valueNumberType = valueNumberType;
-        this.freeForm = freeForm;
-        this.commentRequiresBoundary = commentRequiresBoundary;
-        this.commentAnchors = Collections.unmodifiableSet(commentAnchors);
-        this.variablePrefixes = Collections.unmodifiableSet(variablePrefixes);
-        this.variableType = variableType;
-        this.plainStringQuotes = Collections.unmodifiableSet(plainStringQuotes);
-        this.interLineQuote = interLineQuote;
-        this.interLineState = interLineState;
-        this.commandQuotes = Collections.unmodifiableSet(commandQuotes);
-        this.commandQuoteType = commandQuoteType;
-        this.wordExtraChars = Collections.unmodifiableSet(wordExtraChars);
-        this.wordFuncFollowChars = Collections.unmodifiableSet(wordFuncFollowChars);
-        this.wordUpperCaseType = wordUpperCaseType;
-        this.wordFallbackType = wordFallbackType;
-        this.operatorChars = Collections.unmodifiableSet(operatorChars);
+    /** Marqueurs de document ({@code ---}), reconnus n'importe où. */
+    public final List<String> documentMarkers;
+    /** Type d'un marqueur de document. */
+    public final TokenType documentMarkerType;
+    /** Préfixes d'ancre/alias/tag ({@code & * !}). */
+    public final Set<Character> annotationPrefixes;
+    /** Type d'une ancre/alias/tag reconnu. */
+    public final TokenType annotationType;
+    /** Caractères de départ d'une clé au-delà des lettres (YAML :
+     * {@code _ " ' - . /}) — vide : clé non filtrée (historique). */
+    public final Set<Character> keyStartExtras;
+    /** Caractères qui terminent une clé en plus des séparateurs et
+     * des blancs (YAML : {@code #}). */
+    public final Set<Character> keyStopChars;
+    /** Vrai : la clé n'est émise comme telle que si un séparateur la
+     * suit (lookahead) — sinon scalaire brut et bascule en zone
+     * valeur (YAML). */
+    public final boolean keyLookahead;
+    /** Vrai : les chaînes quotées sont reconnues aussi AVANT le
+     * séparateur (YAML) — faux : uniquement en zone valeur (TOML). */
+    public final boolean stringsInKeyZone;
+    /** Vrai : une chaîne quotée fermée réouvre la zone clé
+     * (réinitialisation afterColon du YAML historique). */
+    public final boolean stringReopensKeyZone;
+    /** Indicateurs de scalaire de bloc en zone clé ({@code | >}). */
+    public final Set<Character> blockIndicators;
+    /** Type d'un indicateur de bloc. */
+    public final TokenType blockIndicatorType;
+    /** Vrai : règle numérique autonome en zone valeur (TOML) — la
+     * classification numérique des mots ({@link #valueWordNumbers})
+     * la remplace en YAML. */
+    public final boolean numbersInValue;
+    /** Caractères de départ d'un mot de valeur au-delà des lettres
+     * (et des chiffres si {@link #valueWordConsumesDigits}). */
+    public final Set<Character> valueWordStartExtras;
+    /** Caractères de suite d'un mot de valeur au-delà des lettres
+     * (et des chiffres si {@link #valueWordConsumesDigits}). */
+    public final Set<Character> valueWordExtras;
+    /** Vrai : les chiffres participent au mot de valeur (YAML) —
+     * faux : les mots sont lettres pures (TOML). */
+    public final boolean valueWordConsumesDigits;
+    /** Vrai : un mot de valeur à tête numérique (chiffre ou ±chiffre)
+     * est classé nombre (YAML). */
+    public final boolean valueWordNumbers;
+    /** Ponctuation de flux, les deux zones ({@code [ ] { }}). */
+    public final Set<Character> flowPunct;
+    /** Vrai : le repli est un scalaire brut (jusqu'à blanc /
+     * séparateur / stop) au lieu d'une ponctuation mono-caractère. */
+    public final boolean scalarFallback;
+    /** Caractères qui terminent un scalaire brut en plus des
+     * séparateurs et des blancs (YAML : {@code #}). */
+    public final Set<Character> scalarStopChars;
+
+    private TokenizerTemplate(Builder b) {
+        this.lineComments = List.copyOf(b.lineComments);
+        this.keyValueSeparators = Collections.unmodifiableSet(
+                new HashSet<>(b.keyValueSeparators));
+        this.keyType = b.keyType;
+        this.separatorType = b.separatorType;
+        this.valueType = b.valueType;
+        this.escapesInValue = b.escapesInValue;
+        this.commentsAnywhere = b.commentsAnywhere;
+        this.sectionOpen = b.sectionOpen;
+        this.sectionClose = b.sectionClose;
+        this.sectionNameType = b.sectionNameType;
+        this.sectionBracketType = b.sectionBracketType;
+        this.valueQuotes = Collections.unmodifiableSet(new HashSet<>(b.valueQuotes));
+        this.valueNumberExtras = Collections.unmodifiableSet(
+                new HashSet<>(b.valueNumberExtras));
+        this.valueKeywords = Collections.unmodifiableSet(new HashSet<>(b.valueKeywords));
+        this.valueKeywordType = b.valueKeywordType;
+        this.valueNumberType = b.valueNumberType;
+        this.freeForm = b.freeForm;
+        this.commentRequiresBoundary = b.commentRequiresBoundary;
+        this.commentAnchors = Collections.unmodifiableSet(new HashSet<>(b.commentAnchors));
+        this.variablePrefixes = Collections.unmodifiableSet(
+                new HashSet<>(b.variablePrefixes));
+        this.variableType = b.variableType;
+        this.plainStringQuotes = Collections.unmodifiableSet(
+                new HashSet<>(b.plainStringQuotes));
+        this.interLineQuote = b.interLineQuote;
+        this.interLineState = b.interLineState;
+        this.commandQuotes = Collections.unmodifiableSet(new HashSet<>(b.commandQuotes));
+        this.commandQuoteType = b.commandQuoteType;
+        this.wordExtraChars = Collections.unmodifiableSet(new HashSet<>(b.wordExtraChars));
+        this.wordFuncFollowChars = Collections.unmodifiableSet(
+                new HashSet<>(b.wordFuncFollowChars));
+        this.wordUpperCaseType = b.wordUpperCaseType;
+        this.wordFallbackType = b.wordFallbackType;
+        this.operatorChars = Collections.unmodifiableSet(new HashSet<>(b.operatorChars));
+        this.documentMarkers = List.copyOf(b.documentMarkers);
+        this.documentMarkerType = b.documentMarkerType;
+        this.annotationPrefixes = Collections.unmodifiableSet(
+                new HashSet<>(b.annotationPrefixes));
+        this.annotationType = b.annotationType;
+        this.keyStartExtras = Collections.unmodifiableSet(new HashSet<>(b.keyStartExtras));
+        this.keyStopChars = Collections.unmodifiableSet(new HashSet<>(b.keyStopChars));
+        this.keyLookahead = b.keyLookahead;
+        this.stringsInKeyZone = b.stringsInKeyZone;
+        this.stringReopensKeyZone = b.stringReopensKeyZone;
+        this.blockIndicators = Collections.unmodifiableSet(new HashSet<>(b.blockIndicators));
+        this.blockIndicatorType = b.blockIndicatorType;
+        this.numbersInValue = b.numbersInValue;
+        this.valueWordStartExtras = Collections.unmodifiableSet(
+                new HashSet<>(b.valueWordStartExtras));
+        this.valueWordExtras = Collections.unmodifiableSet(
+                new HashSet<>(b.valueWordExtras));
+        this.valueWordConsumesDigits = b.valueWordConsumesDigits;
+        this.valueWordNumbers = b.valueWordNumbers;
+        this.flowPunct = Collections.unmodifiableSet(new HashSet<>(b.flowPunct));
+        this.scalarFallback = b.scalarFallback;
+        this.scalarStopChars = Collections.unmodifiableSet(
+                new HashSet<>(b.scalarStopChars));
     }
 
     /**
@@ -281,6 +378,55 @@ public final class TokenizerTemplate {
             .operatorChars('|', '&', ';', '<', '>', '(', ')')
             .build();
 
+    /**
+     * Constantes scalaires YAML historiques (booléens oui/non et
+     * variantes de casse, null, tilde) — table locale au tokéniseur :
+     * les mettre dans le profil rendrait ces mots proposés en
+     * complétion intégrée (D5), un arbitrage de comportement à prendre
+     * avec le propriétaire, pas en passant.
+     */
+    private static final java.util.Set<String> YAML_SCALARS = java.util.Set.of(
+            "true", "false", "True", "False",
+            "yes", "no", "Yes", "No",
+            "null", "Null", "~");
+
+    /**
+     * Template YAML intégré (migration C2-é4) : clés confirmées par
+     * lookahead de {@code :}, marqueur de document {@code ---},
+     * ancres/alias/tags, indicateurs de bloc, chaînes quotées dans les
+     * deux zones (une chaîne fermée réouvre la zone clé), mots de
+     * valeur classés (nombre/constant/scalaire), scalaires bruts et
+     * ponctuation de flux — reprend la grammaire historique de
+     * {@code YamlTokenizer} octet pour octet.
+     */
+    public static final TokenizerTemplate YAML = builder()
+            .lineComments("#")
+            .commentsAnywhere(true)
+            .documentMarkers("---")
+            .annotationPrefixes('&', '*', '!')
+            .keyValueSeparators(':')
+            .keyType(TokenType.PROPERTY)
+            .separatorType(TokenType.OPERATOR)
+            .valueType(TokenType.STRING)
+            .keyStartExtras('"', '\'', '-', '.', '/', '_')
+            .keyStopChars('#')
+            .keyLookahead(true)
+            .stringsInKeyZone(true)
+            .stringReopensKeyZone(true)
+            .valueQuotes('"', '\'')
+            .blockIndicators('|', '>')
+            .numbersInValue(false)
+            .valueWordStartExtras('-', '.')
+            .valueWordExtras('.', '_', '-', ':', '/')
+            .valueWordConsumesDigits(true)
+            .valueWordNumbers(true)
+            .valueKeywords(YAML_SCALARS)
+            .valueKeywordType(TokenType.CONSTANT)
+            .flowPunct('[', ']', '{', '}')
+            .scalarFallback(true)
+            .scalarStopChars('#')
+            .build();
+
     /** Vrai si des en-têtes de section sont déclarées. */
     public boolean hasSections() {
         return sectionOpen != 0;
@@ -334,6 +480,25 @@ public final class TokenizerTemplate {
         private TokenType wordUpperCaseType = null;
         private TokenType wordFallbackType = TokenType.PLAIN;
         private final Set<Character> operatorChars = new HashSet<>();
+        private final List<String> documentMarkers = new ArrayList<>();
+        private TokenType documentMarkerType = TokenType.KEYWORD;
+        private final Set<Character> annotationPrefixes = new HashSet<>();
+        private TokenType annotationType = TokenType.ANNOTATION;
+        private final Set<Character> keyStartExtras = new HashSet<>();
+        private final Set<Character> keyStopChars = new HashSet<>();
+        private boolean keyLookahead = false;
+        private boolean stringsInKeyZone = false;
+        private boolean stringReopensKeyZone = false;
+        private final Set<Character> blockIndicators = new HashSet<>();
+        private TokenType blockIndicatorType = TokenType.KEYWORD;
+        private boolean numbersInValue = true;
+        private final Set<Character> valueWordStartExtras = new HashSet<>();
+        private final Set<Character> valueWordExtras = new HashSet<>();
+        private boolean valueWordConsumesDigits = false;
+        private boolean valueWordNumbers = false;
+        private final Set<Character> flowPunct = new HashSet<>();
+        private boolean scalarFallback = false;
+        private final Set<Character> scalarStopChars = new HashSet<>();
 
         /** Préfixes de commentaire de ligne (entrées vides/nulles ignorées). */
         public Builder lineComments(String... prefixes) {
@@ -504,23 +669,125 @@ public final class TokenizerTemplate {
             return this;
         }
 
+        /** Marqueurs de document, reconnus n'importe où (ex. ---). */
+        public Builder documentMarkers(String... markers) {
+            for (String m : markers) {
+                if (m != null && !m.isEmpty()) documentMarkers.add(m);
+            }
+            return this;
+        }
+
+        /** Type d'un marqueur de document. */
+        public Builder documentMarkerType(TokenType type) {
+            this.documentMarkerType = type != null ? type : TokenType.KEYWORD;
+            return this;
+        }
+
+        /** Préfixes d'ancre/alias/tag (&, *, !). */
+        public Builder annotationPrefixes(char... prefixes) {
+            for (char c : prefixes) annotationPrefixes.add(c);
+            return this;
+        }
+
+        /** Type d'une ancre/alias/tag reconnu. */
+        public Builder annotationType(TokenType type) {
+            this.annotationType = type != null ? type : TokenType.ANNOTATION;
+            return this;
+        }
+
+        /** Caractères de départ d'une clé au-delà des lettres. */
+        public Builder keyStartExtras(char... chars) {
+            for (char c : chars) keyStartExtras.add(c);
+            return this;
+        }
+
+        /** Caractères qui terminent une clé (au-delà de séparateur/blancs). */
+        public Builder keyStopChars(char... chars) {
+            for (char c : chars) keyStopChars.add(c);
+            return this;
+        }
+
+        /** Clé confirmée par un séparateur en lookahead (sinon scalaire). */
+        public Builder keyLookahead(boolean enabled) {
+            this.keyLookahead = enabled;
+            return this;
+        }
+
+        /** Chaînes quotées reconnues aussi avant le séparateur. */
+        public Builder stringsInKeyZone(boolean enabled) {
+            this.stringsInKeyZone = enabled;
+            return this;
+        }
+
+        /** Une chaîne fermée réouvre la zone clé. */
+        public Builder stringReopensKeyZone(boolean enabled) {
+            this.stringReopensKeyZone = enabled;
+            return this;
+        }
+
+        /** Indicateurs de scalaire de bloc en zone clé (|, >). */
+        public Builder blockIndicators(char... chars) {
+            for (char c : chars) blockIndicators.add(c);
+            return this;
+        }
+
+        /** Type d'un indicateur de bloc. */
+        public Builder blockIndicatorType(TokenType type) {
+            this.blockIndicatorType = type != null ? type : TokenType.KEYWORD;
+            return this;
+        }
+
+        /** Règle numérique autonome en zone valeur (TOML). */
+        public Builder numbersInValue(boolean enabled) {
+            this.numbersInValue = enabled;
+            return this;
+        }
+
+        /** Caractères de départ d'un mot de valeur (au-delà lettres/chiffres). */
+        public Builder valueWordStartExtras(char... chars) {
+            for (char c : chars) valueWordStartExtras.add(c);
+            return this;
+        }
+
+        /** Caractères de suite d'un mot de valeur (au-delà lettres/chiffres). */
+        public Builder valueWordExtras(char... chars) {
+            for (char c : chars) valueWordExtras.add(c);
+            return this;
+        }
+
+        /** Les chiffres participent au mot de valeur (YAML). */
+        public Builder valueWordConsumesDigits(boolean enabled) {
+            this.valueWordConsumesDigits = enabled;
+            return this;
+        }
+
+        /** Mot de valeur à tête numérique classé nombre (YAML). */
+        public Builder valueWordNumbers(boolean enabled) {
+            this.valueWordNumbers = enabled;
+            return this;
+        }
+
+        /** Ponctuation de flux, les deux zones ([ ] { }). */
+        public Builder flowPunct(char... chars) {
+            for (char c : chars) flowPunct.add(c);
+            return this;
+        }
+
+        /** Le repli devient un scalaire brut (jusqu'à blanc/stop). */
+        public Builder scalarFallback(boolean enabled) {
+            this.scalarFallback = enabled;
+            return this;
+        }
+
+        /** Caractères qui terminent un scalaire brut (au-delà de
+         * séparateur/blancs). */
+        public Builder scalarStopChars(char... chars) {
+            for (char c : chars) scalarStopChars.add(c);
+            return this;
+        }
+
         public TokenizerTemplate build() {
-            return new TokenizerTemplate(
-                    new ArrayList<>(lineComments),
-                    new HashSet<>(keyValueSeparators),
-                    keyType, separatorType, valueType, escapesInValue,
-                    commentsAnywhere, sectionOpen, sectionClose,
-                    sectionNameType, sectionBracketType,
-                    new HashSet<>(valueQuotes), new HashSet<>(valueNumberExtras),
-                    new HashSet<>(valueKeywords), valueKeywordType, valueNumberType,
-                    freeForm, commentRequiresBoundary,
-                    new HashSet<>(commentAnchors), new HashSet<>(variablePrefixes),
-                    variableType, new HashSet<>(plainStringQuotes),
-                    interLineQuote, interLineState,
-                    new HashSet<>(commandQuotes), commandQuoteType,
-                    new HashSet<>(wordExtraChars), new HashSet<>(wordFuncFollowChars),
-                    wordUpperCaseType, wordFallbackType,
-                    new HashSet<>(operatorChars));
+            return new TokenizerTemplate(this);
         }
     }
 
@@ -540,6 +807,9 @@ public final class TokenizerTemplate {
                 + ", variables=" + variablePrefixes
                 + ", littéralInterLignes="
                 + (interLineQuote != 0 ? interLineQuote + "→" + interLineState : "aucun")
+                + (keyLookahead ? ", clésParLookahead" : "")
+                + ", marqueursDocument=" + documentMarkers
+                + ", repliScalaire=" + scalarFallback
                 + ")";
     }
 }

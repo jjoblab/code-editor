@@ -93,6 +93,45 @@ class GenericTokenizerTest {
     private static final TokenizerTemplate SHELL =
             TokenizerTemplate.SHELL;
 
+    /**
+     * Template maison (C2-é4) : format d'inventaire strict façon YAML
+     * — clés identifiées par lookahead de ':', marqueur de document,
+     * ancres, indicateurs de bloc, mots de valeur classés
+     * (nombre/constant/scalaire), scalaires bruts : la grammaire de la
+     * famille YAML sans une ligne de moteur.
+     */
+    private static final TokenizerTemplate FICHIER = TokenizerTemplate.builder()
+            .lineComments("#")
+            .commentsAnywhere(true)
+            .documentMarkers("---")
+            .documentMarkerType(TokenType.KEYWORD)
+            .annotationPrefixes('&', '*', '!')
+            .keyValueSeparators(':')
+            .keyType(TokenType.PROPERTY)
+            .separatorType(TokenType.OPERATOR)
+            .valueType(TokenType.STRING)
+            .keyStartExtras('"', '\'', '-', '.', '/', '_')
+            .keyStopChars('#')
+            .keyLookahead(true)
+            .stringsInKeyZone(true)
+            .stringReopensKeyZone(true)
+            .valueQuotes('"', '\'')
+            .blockIndicators('|', '>')
+            .valueWordStartExtras('-', '.')
+            .valueWordExtras('.', '_', '-', ':', '/')
+            .valueWordConsumesDigits(true)
+            .valueWordNumbers(true)
+            .valueKeywords(java.util.Set.of("vrai", "faux"))
+            .valueKeywordType(TokenType.CONSTANT)
+            .flowPunct('[', ']', '{', '}')
+            .scalarFallback(true)
+            .scalarStopChars('#')
+            .build();
+
+    /** Le template YAML intégré (quatrième migration du cliquet). */
+    private static final TokenizerTemplate YAML =
+            TokenizerTemplate.YAML;
+
     private static TokenType typeAt(StyledLine l, int col) {
         return l.spans.stream().filter(s -> col >= s.startCol && col < s.endCol)
                 .map(s -> s.type).findFirst()
@@ -340,5 +379,82 @@ class GenericTokenizerTest {
     void shell_étatInterLignes() {
         StyledLine l = GenericTokenizer.styleLine(SHELL, "echo 'abc", LexState.NORMAL);
         assertEquals(LexState.SHELL_SINGLE_QUOTE, l.exitState);
+    }
+
+    // ── C2-é4 : lookahead de clé, marqueurs, ancres, scalaires ─────
+
+    @Test
+    void fichierMaison_cléParLookaheadOuScalaire() {
+        StyledLine l = GenericTokenizer.styleLine(FICHIER, "nom: John", 0);
+        assertEquals(TokenType.PROPERTY, typeAt(l, 0), "suivi de ':' → clé");
+        assertEquals(TokenType.OPERATOR, typeAt(l, 3));
+        assertEquals(TokenType.STRING, typeAt(l, 5));
+        StyledLine l2 = GenericTokenizer.styleLine(FICHIER, "scalaire nu", 0);
+        assertEquals(TokenType.STRING, typeAt(l2, 0), "sans ':' → scalaire brut");
+    }
+
+    @Test
+    void fichierMaison_marqueurDeDocumentEtAncres() {
+        StyledLine l = GenericTokenizer.styleLine(FICHIER, "---", 0);
+        assertEquals(TokenType.KEYWORD, typeAt(l, 0));
+        StyledLine l2 = GenericTokenizer.styleLine(FICHIER, "&ancre x: 1", 0);
+        assertEquals(TokenType.ANNOTATION, typeAt(l2, 0));
+        assertEquals(TokenType.PROPERTY, typeAt(l2, 7));
+        assertEquals(TokenType.NUMBER, typeAt(l2, 10));
+    }
+
+    @Test
+    void fichierMaison_indicateurDeBlocEnZoneClé() {
+        StyledLine l = GenericTokenizer.styleLine(FICHIER, "|", 0);
+        assertEquals(TokenType.KEYWORD, typeAt(l, 0));
+    }
+
+    @Test
+    void fichierMaison_motsDeValeurClassés() {
+        StyledLine l = GenericTokenizer.styleLine(FICHIER, "p: 8080", 0);
+        assertEquals(TokenType.NUMBER, typeAt(l, 3), "chiffre en tête → nombre");
+        StyledLine l2 = GenericTokenizer.styleLine(FICHIER, "v: vrai", 0);
+        assertEquals(TokenType.CONSTANT, typeAt(l2, 3), "mot déclaré → constant");
+        StyledLine l3 = GenericTokenizer.styleLine(FICHIER, "u: https://x.org", 0);
+        assertEquals(TokenType.STRING, typeAt(l3, 3), "URL avec ':' → un seul jeton scalaire");
+    }
+
+    @Test
+    void fichierMaison_chaîneRéouvreLaZoneClé() {
+        // Comportement YAML historique : après une chaîne quotée, le
+        // nombre suivant retombe en scalaire brut (pas en nombre).
+        StyledLine l = GenericTokenizer.styleLine(FICHIER, "k: \"x\" 42", 0);
+        assertEquals(TokenType.STRING, typeAt(l, 3));
+        assertEquals(TokenType.STRING, typeAt(l, 7), "42 après chaîne → scalaire STRING");
+    }
+
+    @Test
+    void fichierMaison_scalaireBrutEtFlux() {
+        StyledLine l = GenericTokenizer.styleLine(FICHIER, "l: [a, b]", 0);
+        assertEquals(TokenType.PUNCT, typeAt(l, 3), "crochet de flux → PUNCT");
+        assertEquals(TokenType.STRING, typeAt(l, 5), "mot du flux");
+        StyledLine l2 = GenericTokenizer.styleLine(FICHIER, "- item", 0);
+        assertEquals(TokenType.STRING, typeAt(l2, 0), "tiret de liste → scalaire");
+    }
+
+    // ── Template YAML : la quatrième migration est exacte ──────────
+
+    @Test
+    void yaml_cléEtValeur() {
+        StyledLine l = GenericTokenizer.styleLine(YAML, "name: John", LexState.NORMAL);
+        assertEquals(TokenType.PROPERTY, typeAt(l, 0));
+        assertEquals(TokenType.STRING, typeAt(l, 6));
+    }
+
+    @Test
+    void yaml_séparateurDeDocument() {
+        StyledLine l = GenericTokenizer.styleLine(YAML, "---", LexState.NORMAL);
+        assertEquals(TokenType.KEYWORD, typeAt(l, 0));
+    }
+
+    @Test
+    void yaml_booléen() {
+        StyledLine l = GenericTokenizer.styleLine(YAML, "enabled: true", LexState.NORMAL);
+        assertEquals(TokenType.CONSTANT, typeAt(l, 9));
     }
 }
