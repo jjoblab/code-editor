@@ -352,6 +352,41 @@ public final class TokenizerTemplate {
      * la ligne entière reçoit le type de la première règle qui
      * matche (troisième saveur du moteur). */
     public final List<LineRule> lineRules;
+    /** Vrai : mode balisage (C2-é13, XML/HTML) — quatrième saveur du
+     * moteur : balises, attributs, entités, texte. */
+    public final boolean markup;
+    /** Caractères de nom de balise/attribut au-delà des
+     * alphanumériques (XML : {@code _ : - .}). */
+    public final Set<Character> tagNameChars;
+    /** Séparateur de nom qualifié ns:local (0 : désactivé). */
+    public final char qualifiedNameSeparator;
+    /** Type du préfixe d'un nom qualifié. */
+    public final TokenType namespaceType;
+    /** Type de la partie locale du nom de BALISE. */
+    public final TokenType tagLocalType;
+    /** Type de la partie locale du nom d'ATTRIBUT. */
+    public final TokenType attrLocalType;
+    /** Guillemets ouvrant la valeur d'un attribut. */
+    public final Set<Character> attrQuoteChars;
+    /** Guillemet recherché pour fermer une valeur d'attribut (garde
+     * historique XML : toujours « " », même si l'ouverture fut une
+     * apostrophe). */
+    public final char attrStringCloseChar;
+    /** État d'une valeur d'attribut non fermée (XML_STRING). */
+    public final int attrStringState;
+    /** État d'une balise ouverte non fermée (XML_TAG). */
+    public final int tagState;
+    /** Caractère ouvrant une entité (0 : désactivé). */
+    public final char entityChar;
+    /** Terminateur d'une entité. */
+    public final char entityTerminator;
+    /** Fenêtre maximale d'une entité (le terminateur doit être à moins
+     * de N caractères de l'ouverture). */
+    public final int entityMaxWindow;
+    /** Type d'une entité reconnue. */
+    public final TokenType entityType;
+    /** Type du texte entre balises. */
+    public final TokenType textType;
     /** Guillemets ouvrant un littéral de caractère ({@code 'a'}). */
     public final Set<Character> charQuotes;
     /** Type d'un littéral de caractère. */
@@ -492,6 +527,21 @@ public final class TokenizerTemplate {
                 new HashSet<>(b.operatorSingleChars));
         this.blockLiterals = List.copyOf(b.blockLiterals);
         this.lineRules = List.copyOf(b.lineRules);
+        this.markup = b.markup;
+        this.tagNameChars = Collections.unmodifiableSet(new HashSet<>(b.tagNameChars));
+        this.qualifiedNameSeparator = b.qualifiedNameSeparator;
+        this.namespaceType = b.namespaceType;
+        this.tagLocalType = b.tagLocalType;
+        this.attrLocalType = b.attrLocalType;
+        this.attrQuoteChars = Collections.unmodifiableSet(new HashSet<>(b.attrQuoteChars));
+        this.attrStringCloseChar = b.attrStringCloseChar;
+        this.attrStringState = b.attrStringState;
+        this.tagState = b.tagState;
+        this.entityChar = b.entityChar;
+        this.entityTerminator = b.entityTerminator;
+        this.entityMaxWindow = b.entityMaxWindow;
+        this.entityType = b.entityType;
+        this.textType = b.textType;
         this.charQuotes = Collections.unmodifiableSet(new HashSet<>(b.charQuotes));
         this.charType = b.charType;
         this.templateLiteralLanguages = Collections.unmodifiableSet(
@@ -941,6 +991,30 @@ public final class TokenizerTemplate {
             .build();
 
     /**
+     * Template XML/HTML intégré (migration C2-é13, quatrième saveur du
+     * moteur — mode balisage) : balises au nom qualifié éclaté
+     * ({@code android:text} → NAMESPACE + PUNCT + local, TYPE pour les
+     * balises, PROPERTY pour les attributs), attributs à valeur STRING
+     * (fermante cherchée au guillemet déclaré — garde historique),
+     * états inter-lignes BLOCK_COMMENT ({@code <!-- -->}), XML_CDATA
+     * ({@code <![CDATA[ ]]>}), XML_STRING (valeur d'attribut déborde)
+     * et XML_TAG (balise multi-lignes — les attributs de la ligne de
+     * continuation restent PROPERTY), instruction de traitement sans
+     * état, entités à fenêtre de 12 — reprend la grammaire historique
+     * de {@code XmlTokenizer} octet pour octet.
+     */
+    public static final TokenizerTemplate XML = builder()
+            .markup()
+            .blockLiteral("<!--", "-->", 4, LexState.BLOCK_COMMENT, TokenType.COMMENT)
+            .blockLiteral("<![CDATA[", "]]>", 9, LexState.XML_CDATA, TokenType.STRING)
+            .blockLiteralNoCarry("<?", "?>", 2, TokenType.ANNOTATION)
+            .tagNameChars('_', ':', '-', '.')
+            .qualifiedNameSeparator(':')
+            .markupStates(LexState.XML_STRING, LexState.XML_TAG)
+            .valueType(TokenType.STRING)
+            .build();
+
+    /**
      * Littéral à délimiteurs (C2-é6, famille C) : ouvrant, fermant,
      * offset de recherche de la fermante (l'ouverture {@code /**}
      * cherche sa fermante dès {@code pos+2} — {@code /**&#47;} se referme),
@@ -962,15 +1036,21 @@ public final class TokenizerTemplate {
         public final TokenType type;
         /** Langages qui activent le littéral (vide : tous). */
         public final Set<String> languages;
+        /** Vrai : l'orphaine porte l'état inter-lignes ; faux
+         * (C2-é13, {@code <?…?>}) : elle va jusqu'en fin de ligne sans
+         * propager d'état. */
+        public final boolean carriesState;
 
         private BlockLiteral(String open, String close, int searchOffset,
-                int state, TokenType type, Set<String> languages) {
+                int state, TokenType type, Set<String> languages,
+                boolean carriesState) {
             this.open = open;
             this.close = close;
             this.searchOffset = searchOffset;
             this.state = state;
             this.type = type;
             this.languages = Collections.unmodifiableSet(languages);
+            this.carriesState = carriesState;
         }
 
         /** Vrai si le littéral s'applique au langage donné. */
@@ -1121,6 +1201,22 @@ public final class TokenizerTemplate {
         private final Set<Character> operatorSingleChars = new HashSet<>();
         private final List<BlockLiteral> blockLiterals = new ArrayList<>();
         private final List<LineRule> lineRules = new ArrayList<>();
+        private boolean markup = false;
+        private final Set<Character> tagNameChars = new HashSet<>();
+        private char qualifiedNameSeparator = 0;
+        private TokenType namespaceType = TokenType.NAMESPACE;
+        private TokenType tagLocalType = TokenType.TYPE;
+        private TokenType attrLocalType = TokenType.PROPERTY;
+        private final Set<Character> attrQuoteChars =
+                new HashSet<>(Arrays.asList('"', '\''));
+        private char attrStringCloseChar = '"';
+        private int attrStringState = 0;
+        private int tagState = 0;
+        private char entityChar = '&';
+        private char entityTerminator = ';';
+        private int entityMaxWindow = 12;
+        private TokenType entityType = TokenType.ENTITY;
+        private TokenType textType = TokenType.PLAIN;
         private final Set<Character> charQuotes = new HashSet<>();
         private TokenType charType = TokenType.CHAR;
         private final Set<String> templateLiteralLanguages = new HashSet<>();
@@ -1554,7 +1650,17 @@ public final class TokenizerTemplate {
                 if (l != null && !l.isEmpty()) langs.add(l);
             }
             blockLiterals.add(new BlockLiteral(open, close, searchOffset,
-                    state, type, langs));
+                    state, type, langs, true));
+            return this;
+        }
+
+        /** Littéral à délimiteurs SANS état inter-lignes (C2-é13,
+         * instruction de traitement XML {@code <?…?>} : l'orphaine va
+         * jusqu'en fin de ligne sans propager d'état). */
+        public Builder blockLiteralNoCarry(String open, String close,
+                int searchOffset, TokenType type) {
+            blockLiterals.add(new BlockLiteral(open, close, searchOffset,
+                    0, type, new HashSet<>(), false));
             return this;
         }
 
@@ -1591,6 +1697,35 @@ public final class TokenizerTemplate {
          * comparaison SENSIBLE à la casse (chevron Gradle « &gt; … »). */
         public Builder lineStartsWithCaseSensitive(String text, TokenType type) {
             lineRules.add(new LineRule(LineMatch.STARTS_WITH, text, true, type));
+            return this;
+        }
+
+        // ── Mode balisage (C2-é13, XML/HTML) ──────────────────────────
+
+        /** Mode balisage : balises, attributs, entités, texte. */
+        public Builder markup() {
+            this.markup = true;
+            return this;
+        }
+
+        /** Caractères de nom au-delà des alphanumériques
+         * (XML : « _ : - . »). */
+        public Builder tagNameChars(char... chars) {
+            for (char c : chars) tagNameChars.add(c);
+            return this;
+        }
+
+        /** Séparateur de nom qualifié (XML : « : »). */
+        public Builder qualifiedNameSeparator(char separator) {
+            this.qualifiedNameSeparator = separator;
+            return this;
+        }
+
+        /** État d'une valeur d'attribut non fermée (XML_STRING) et état
+         * d'une balise ouverte non fermée (XML_TAG). */
+        public Builder markupStates(int attrStringState, int tagState) {
+            this.attrStringState = attrStringState;
+            this.tagState = tagState;
             return this;
         }
 

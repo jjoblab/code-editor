@@ -152,6 +152,11 @@ public final class GenericTokenizer {
         if (!template.lineRules.isEmpty()) {
             return styleClassifiedLine(template, line, entryState);
         }
+        // Quatrième saveur (C2-é13) : mode balisage — balises,
+        // attributs, entités, texte (XML/HTML).
+        if (template.markup) {
+            return styleMarkupLine(template, line, entryState);
+        }
         if (template.freeForm) {
             return styleFreeFormLine(template, line, entryState, language);
         }
@@ -192,6 +197,303 @@ public final class GenericTokenizer {
         }
         return new StyledLine(java.util.Collections.emptyList(),
                 entryState, LexState.NORMAL);
+    }
+
+    /**
+     * Mode balisage (C2-é13, XML/HTML) : quatrième saveur du moteur.
+     * Balises ouvrantes/fermantes au nom QUALIFIÉ éclaté (préfixe
+     * NAMESPACE, « : » PUNCT, local TYPE), attributs (nom PROPERTY,
+     * « = » OPERATOR, valeur STRING à échappements apparents),
+     * commentaires/CDATA/instructions de traitement via les littéraux
+     * à délimiteurs (la PI ne porte PAS d'état), entités &amp;… à
+     * fenêtre déclarée, texte brut stoppé par « &lt; » et « &amp; ».
+     *
+     * <p>États inter-lignes : littéral non fermé (commentaire, CDATA),
+     * ATTR_STRING (valeur d'attribut déborde — la fermeture est
+     * cherchée au guillemet DÉCLARÉ, garde historique XML : toujours
+     * « " »), TAG (balise ouverte — la ligne suivante poursuit les
+     * attributs). Reprise octet pour octet de {@code XmlTokenizer}.</p>
+     */
+    private static StyledLine styleMarkupLine(TokenizerTemplate template,
+            String line, int entryState) {
+        List<LineSpan> spans = new ArrayList<>();
+        int pos = 0;
+        int state = entryState;
+
+        // Littéral non fermé à la ligne précédente (commentaire,
+        // CDATA) : consommé jusqu'à la fermante, sinon propagé.
+        for (TokenizerTemplate.BlockLiteral bl : template.blockLiterals) {
+            if (bl.carriesState && state == bl.state) {
+                int end = line.indexOf(bl.close, pos);
+                if (end >= 0) {
+                    spans.add(new LineSpan(pos, end + bl.close.length(), bl.type));
+                    pos = end + bl.close.length();
+                    state = LexState.NORMAL;
+                } else {
+                    spans.add(new LineSpan(pos, line.length(), bl.type));
+                    pos = line.length();
+                }
+                break;
+            }
+        }
+
+        // Valeur d'attribut non fermée à la ligne précédente : ferme
+        // au guillemet de recherche déclaré, retour dans la balise.
+        if (state == template.attrStringState) {
+            int end = line.indexOf(template.attrStringCloseChar, pos);
+            if (end >= 0) {
+                spans.add(new LineSpan(pos, end + 1, template.valueType));
+                pos = end + 1;
+                state = template.tagState;
+            } else {
+                spans.add(new LineSpan(pos, line.length(), template.valueType));
+                pos = line.length();
+            }
+        }
+
+        // Balise ouverte à la ligne précédente : poursuite des
+        // attributs jusqu'au « > » ou « /> » fermant.
+        if (state == template.tagState) {
+            int[] nextState = new int[]{ template.tagState };
+            pos = parseMarkupAttributes(template, line, pos, spans, nextState);
+            state = nextState[0];
+            pos = closeMarkupTag(template, line, pos, spans);
+            if (pos >= 0) {
+                state = LexState.NORMAL;
+            } else {
+                pos = -pos - 1;
+            }
+            if (state != LexState.NORMAL) {
+                return new StyledLine(spans, entryState, state);
+            }
+        }
+
+        while (pos < line.length()) {
+            char ch = line.charAt(pos);
+
+            if (Character.isWhitespace(ch)) {
+                pos++;
+                continue;
+            }
+
+            // Littéral à délimiteurs : commentaire, CDATA, instruction
+            // de traitement (sans état) — ordre de déclaration.
+            TokenizerTemplate.BlockLiteral opened = null;
+            for (TokenizerTemplate.BlockLiteral bl : template.blockLiterals) {
+                if (line.startsWith(bl.open, pos)) {
+                    opened = bl;
+                    break;
+                }
+            }
+            if (opened != null) {
+                int end = line.indexOf(opened.close, pos + opened.searchOffset);
+                if (end >= 0) {
+                    spans.add(new LineSpan(pos, end + opened.close.length(),
+                            opened.type));
+                    pos = end + opened.close.length();
+                } else {
+                    spans.add(new LineSpan(pos, line.length(), opened.type));
+                    pos = line.length();
+                    if (opened.carriesState) {
+                        state = opened.state;
+                    }
+                }
+                continue;
+            }
+
+            // Balise fermante </tag>.
+            if (ch == '<' && pos + 1 < line.length()
+                    && line.charAt(pos + 1) == '/') {
+                int end = pos + 2;
+                while (end < line.length() && isMarkupNameChar(template,
+                        line.charAt(end))) {
+                    end++;
+                }
+                spans.add(new LineSpan(pos, pos + 2, TokenType.PUNCT));
+                addQualifiedNameSpans(template, spans, line, pos + 2, end,
+                        template.tagLocalType);
+                if (end < line.length() && line.charAt(end) == '>') {
+                    spans.add(new LineSpan(end, end + 1, TokenType.PUNCT));
+                    end++;
+                }
+                pos = end;
+                continue;
+            }
+
+            // Balise ouvrante <tag attr="v">.
+            if (ch == '<') {
+                int end = pos + 1;
+                while (end < line.length() && isMarkupNameChar(template,
+                        line.charAt(end))) {
+                    end++;
+                }
+                spans.add(new LineSpan(pos, pos + 1, TokenType.PUNCT));
+                if (end > pos + 1) {
+                    addQualifiedNameSpans(template, spans, line, pos + 1, end,
+                            template.tagLocalType);
+                }
+                pos = end;
+
+                int[] nextState = new int[]{ template.tagState };
+                pos = parseMarkupAttributes(template, line, pos, spans,
+                        nextState);
+                int closed = closeMarkupTag(template, line, pos, spans);
+                if (closed >= 0) {
+                    pos = closed;
+                    state = LexState.NORMAL;
+                } else {
+                    pos = -closed - 1;
+                    state = nextState[0];
+                }
+                continue;
+            }
+
+            // Entité &…; à la fenêtre déclarée ; orpheline → texte.
+            if (ch == template.entityChar) {
+                int end = line.indexOf(template.entityTerminator, pos);
+                if (end >= 0 && end - pos < template.entityMaxWindow) {
+                    spans.add(new LineSpan(pos, end + 1, template.entityType));
+                    pos = end + 1;
+                    continue;
+                }
+                spans.add(new LineSpan(pos, pos + 1, template.textType));
+                pos++;
+                continue;
+            }
+
+            // Texte brut — s'arrête devant « < » et l'entité.
+            int textStart = pos;
+            while (pos < line.length() && line.charAt(pos) != '<'
+                    && line.charAt(pos) != template.entityChar) {
+                pos++;
+            }
+            if (pos > textStart) {
+                spans.add(new LineSpan(textStart, pos, template.textType));
+            }
+        }
+        return new StyledLine(spans, entryState, state);
+    }
+
+    /** Caractère de nom de balise/attribut. */
+    private static boolean isMarkupNameChar(TokenizerTemplate template, char c) {
+        return Character.isLetterOrDigit(c) || template.tagNameChars.contains(c);
+    }
+
+    /**
+     * Ferme une balise en pos si « > » ou « /> » s'y trouve : émet le
+     * PUNCT et renvoie la position APRÈS la fermeture ; sinon renvoie
+     * {@code -(pos + 1)} (pas de fermeture).
+     */
+    private static int closeMarkupTag(TokenizerTemplate template, String line,
+            int pos, List<LineSpan> spans) {
+        if (pos < line.length()) {
+            char c = line.charAt(pos);
+            if (c == '>') {
+                spans.add(new LineSpan(pos, pos + 1, TokenType.PUNCT));
+                return pos + 1;
+            }
+            if (c == '/' && pos + 1 < line.length()
+                    && line.charAt(pos + 1) == '>') {
+                spans.add(new LineSpan(pos, pos + 2, TokenType.PUNCT));
+                return pos + 2;
+            }
+        }
+        return -pos - 1;
+    }
+
+    /**
+     * Analyse les attributs d'une balise (paires nom="valeur") à
+     * partir de pos — s'arrête SANS consommer au « > » ou « /> ».
+     * Renvoie la nouvelle position ; si une valeur de chaîne déborde,
+     * écrit l'état des attributs-chaîne dans nextState[0].
+     */
+    private static int parseMarkupAttributes(TokenizerTemplate template,
+            String line, int pos, List<LineSpan> spans, int[] nextState) {
+        while (pos < line.length()) {
+            char c2 = line.charAt(pos);
+            if (Character.isWhitespace(c2)) {
+                pos++;
+                continue;
+            }
+            if (c2 == '>' || c2 == '/') {
+                break;
+            }
+            // Nom d'attribut.
+            int attrStart = pos;
+            while (pos < line.length() && line.charAt(pos) != '='
+                    && line.charAt(pos) != '>'
+                    && line.charAt(pos) != '/'
+                    && !Character.isWhitespace(line.charAt(pos))) {
+                pos++;
+            }
+            if (pos > attrStart) {
+                addQualifiedNameSpans(template, spans, line, attrStart, pos,
+                        template.attrLocalType);
+            }
+            // Blancs avant « = ».
+            while (pos < line.length()
+                    && Character.isWhitespace(line.charAt(pos))) {
+                pos++;
+            }
+            // Signe « = ».
+            if (pos < line.length() && line.charAt(pos) == '=') {
+                spans.add(new LineSpan(pos, pos + 1, template.separatorType));
+                pos++;
+                // Blancs après « = ».
+                while (pos < line.length()
+                        && Character.isWhitespace(line.charAt(pos))) {
+                    pos++;
+                }
+                // Valeur de chaîne — la fermante est cherchée au
+                // guillemet DÉCLARÉ (garde historique XML).
+                if (pos < line.length()
+                        && template.attrQuoteChars.contains(line.charAt(pos))) {
+                    int strEnd = line.indexOf(template.attrStringCloseChar,
+                            pos + 1);
+                    if (strEnd >= 0) {
+                        SpanUtils.addStringSpans(spans, line, pos, strEnd + 1,
+                                template.valueType);
+                        pos = strEnd + 1;
+                    } else {
+                        spans.add(new LineSpan(pos, line.length(),
+                                template.valueType));
+                        pos = line.length();
+                        nextState[0] = template.attrStringState;
+                        return pos;
+                    }
+                }
+            }
+        }
+        return pos;
+    }
+
+    /**
+     * Éclate un nom qualifié (lot 4 #26) : {@code ns:local} émet le
+     * préfixe en NAMESPACE, le séparateur en PUNCT et le nom local
+     * dans le type de base fourni (TYPE pour les balises, PROPERTY
+     * pour les attributs) ; un nom sans séparateur émet un seul span.
+     */
+    private static void addQualifiedNameSpans(TokenizerTemplate template,
+            List<LineSpan> spans, String line, int start, int end,
+            TokenType localType) {
+        int separator = -1;
+        for (int i = start; i < end; i++) {
+            if (line.charAt(i) == template.qualifiedNameSeparator) {
+                separator = i;
+                break;
+            }
+        }
+        if (separator < 0) {
+            spans.add(new LineSpan(start, end, localType));
+            return;
+        }
+        if (separator > start) {
+            spans.add(new LineSpan(start, separator, template.namespaceType));
+        }
+        spans.add(new LineSpan(separator, separator + 1, TokenType.PUNCT));
+        if (separator + 1 < end) {
+            spans.add(new LineSpan(separator + 1, end, localType));
+        }
     }
 
     /**
