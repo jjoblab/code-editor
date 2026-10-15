@@ -19,7 +19,8 @@ import java.util.Set;
  * tokéniseur intégré écrit à la main migre sur ce moteur au rythme
  * du cliquet de démantèlement (migration tokéniseur par tokéniseur,
  * la suite existante gardant ses assertions). Migrations livrées :
- * Properties ({@link #PROPERTIES}), TOML ({@link #TOML}). Les
+ * Properties ({@link #PROPERTIES}), TOML ({@link #TOML}), Shell
+ * ({@link #SHELL}), YAML ({@link #YAML}), JSON ({@link #JSON}). Les
  * suivantes étendront ce modèle au fur et à mesure — chaque champ
  * documente ce que le moteur sait exploiter aujourd'hui.</p>
  *
@@ -111,6 +112,25 @@ import java.util.Set;
  *   <li>{@link #scalarFallback}/{@link #scalarStopChars} — le repli
  *       devient un scalaire brut (jusqu'à blanc/séparateur/stop) au
  *       lieu d'une ponctuation mono-caractère.</li>
+ * </ul>
+ *
+ * <p>Champs de l'étape C2-é5 (grammaires balisées en flux libre
+ * — json, formats de données structurées) :</p>
+ * <ul>
+ *   <li>{@link #valueQuotes} — chaînes quotées EN FLUX LIBRE :
+ *       échappements apparents (ESCAPE), fermante trouvée en sautant
+ *       les échappements, orpheline → fin de ligne et état
+ *       inter-lignes propagé ;</li>
+ *   <li>{@link #stringKeyLookahead} — une chaîne fermée suivie
+ *       (après blancs) d'un séparateur est requalifiée en clé
+ *       ({@link #keyType}) : la clé JSON ;</li>
+ *   <li>{@link #wordConsumesDigits} — faux : mots de lettres pures
+ *       (JSON) ; un chiffre collé à un mot ouvre alors un nombre ;</li>
+ *   <li>{@link #numberRequiresBoundary}/{@link #numberLeadingMinus}
+ *       — la frontière de mot des nombres est déclarée, et le signe
+ *       moins ancré à un chiffre peut ouvrir un nombre (JSON) ;</li>
+ *   <li>{@link #operatorSingleChars} — opérateurs mono-caractère,
+ *       jamais fusionnés en course ({@code :}, {@code ,}).</li>
  * </ul>
  *
  * <p>Dès qu'une règle de jeton de valeur est déclarée (chaîne,
@@ -250,6 +270,22 @@ public final class TokenizerTemplate {
      * séparateurs et des blancs (YAML : {@code #}). */
     public final Set<Character> scalarStopChars;
 
+    /** Vrai : une chaîne quotée fermée suivie (après blancs) d'un
+     * séparateur est requalifiée en clé (JSON). */
+    public final boolean stringKeyLookahead;
+    /** Vrai (flux libre) : les chiffres participent au mot — faux :
+     * mots de lettres pures (JSON), un chiffre collé ouvre un nombre. */
+    public final boolean wordConsumesDigits;
+    /** Vrai : un chiffre n'ouvre un nombre qu'en frontière de mot
+     * (pas collé à un mot) — faux : partout (JSON historique). */
+    public final boolean numberRequiresBoundary;
+    /** Vrai : un signe moins ancré à un chiffre ouvre un nombre
+     * (JSON : {@code -4.2}). */
+    public final boolean numberLeadingMinus;
+    /** Caractères émis en opérateurs mono-caractère, jamais fusionnés
+     * en course (JSON : {@code :}, {@code ,}). */
+    public final Set<Character> operatorSingleChars;
+
     private TokenizerTemplate(Builder b) {
         this.lineComments = List.copyOf(b.lineComments);
         this.keyValueSeparators = Collections.unmodifiableSet(
@@ -310,6 +346,12 @@ public final class TokenizerTemplate {
         this.scalarFallback = b.scalarFallback;
         this.scalarStopChars = Collections.unmodifiableSet(
                 new HashSet<>(b.scalarStopChars));
+        this.stringKeyLookahead = b.stringKeyLookahead;
+        this.wordConsumesDigits = b.wordConsumesDigits;
+        this.numberRequiresBoundary = b.numberRequiresBoundary;
+        this.numberLeadingMinus = b.numberLeadingMinus;
+        this.operatorSingleChars = Collections.unmodifiableSet(
+                new HashSet<>(b.operatorSingleChars));
     }
 
     /**
@@ -427,6 +469,33 @@ public final class TokenizerTemplate {
             .scalarStopChars('#')
             .build();
 
+    /**
+     * Template JSON intégré (migration C2-é5) : chaînes quotées à
+     * échappements apparents, clé requalifiée par lookahead de
+     * deux-points, nombres signés collés aux mots de lettres pures,
+     * booléens/null du registre en KEYWORD, deux-points et virgules
+     * en opérateurs mono-caractère, chaîne orpheline propagée par
+     * l'état inter-lignes — reprend la grammaire historique de
+     * {@code JsonTokenizer} octet pour octet.
+     */
+    public static final TokenizerTemplate JSON = builder()
+            .freeForm()
+            .valueQuotes('"')
+            .stringKeyLookahead(true)
+            .keyValueSeparators(':')
+            .keyType(TokenType.PROPERTY)
+            .valueType(TokenType.STRING)
+            .interLineString('"', LexState.XML_STRING)
+            .valueNumberChars('.', 'e', 'E', '+', '-')
+            .numberLeadingMinus(true)
+            .numberRequiresBoundary(false)
+            .wordConsumesDigits(false)
+            .valueKeywords(KeywordTables.JSON_KEYWORDS)
+            .valueKeywordType(TokenType.KEYWORD)
+            .wordFallbackType(TokenType.PLAIN)
+            .operatorSingleChars(':', ',')
+            .build();
+
     /** Vrai si des en-têtes de section sont déclarées. */
     public boolean hasSections() {
         return sectionOpen != 0;
@@ -499,6 +568,11 @@ public final class TokenizerTemplate {
         private final Set<Character> flowPunct = new HashSet<>();
         private boolean scalarFallback = false;
         private final Set<Character> scalarStopChars = new HashSet<>();
+        private boolean stringKeyLookahead = false;
+        private boolean wordConsumesDigits = true;
+        private boolean numberRequiresBoundary = true;
+        private boolean numberLeadingMinus = false;
+        private final Set<Character> operatorSingleChars = new HashSet<>();
 
         /** Préfixes de commentaire de ligne (entrées vides/nulles ignorées). */
         public Builder lineComments(String... prefixes) {
@@ -786,6 +860,38 @@ public final class TokenizerTemplate {
             return this;
         }
 
+        /** Chaîne quotée fermée suivie d'un séparateur → clé (JSON). */
+        public Builder stringKeyLookahead(boolean enabled) {
+            this.stringKeyLookahead = enabled;
+            return this;
+        }
+
+        /** Les chiffres participent au mot (flux libre) — faux :
+         * mots de lettres pures, un chiffre collé ouvre un nombre. */
+        public Builder wordConsumesDigits(boolean enabled) {
+            this.wordConsumesDigits = enabled;
+            return this;
+        }
+
+        /** Un chiffre n'ouvre un nombre qu'en frontière de mot. */
+        public Builder numberRequiresBoundary(boolean required) {
+            this.numberRequiresBoundary = required;
+            return this;
+        }
+
+        /** Un signe moins ancré à un chiffre ouvre un nombre (JSON). */
+        public Builder numberLeadingMinus(boolean enabled) {
+            this.numberLeadingMinus = enabled;
+            return this;
+        }
+
+        /** Opérateurs mono-caractère, jamais fusionnés en course
+         * (JSON : ':' et ','). */
+        public Builder operatorSingleChars(char... chars) {
+            for (char c : chars) operatorSingleChars.add(c);
+            return this;
+        }
+
         public TokenizerTemplate build() {
             return new TokenizerTemplate(this);
         }
@@ -810,6 +916,7 @@ public final class TokenizerTemplate {
                 + (keyLookahead ? ", clésParLookahead" : "")
                 + ", marqueursDocument=" + documentMarkers
                 + ", repliScalaire=" + scalarFallback
+                + ", opérateursMono=" + operatorSingleChars
                 + ")";
     }
 }

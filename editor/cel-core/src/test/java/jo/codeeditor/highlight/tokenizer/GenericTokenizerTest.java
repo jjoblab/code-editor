@@ -457,4 +457,128 @@ class GenericTokenizerTest {
         StyledLine l = GenericTokenizer.styleLine(YAML, "enabled: true", LexState.NORMAL);
         assertEquals(TokenType.CONSTANT, typeAt(l, 9));
     }
+
+    // ── C2-é5 : chaînes quotées, clés par lookahead, flux libre ────
+
+    /**
+     * Template maison (C2-é5) : format de fiches balisées façon JSON —
+     * chaînes quotées à échappements apparents, clé requalifiée par
+     * lookahead de ':' (guillemets fermants), mots-clés, nombres à
+     * signe collés aux mots, opérateurs mono-caractère, chaîne
+     * orpheline à état inter-lignes : la grammaire de la famille JSON
+     * sans une ligne de moteur.
+     */
+    private static final TokenizerTemplate FICHE = TokenizerTemplate.builder()
+            .freeForm()
+            .valueQuotes('"')
+            .stringKeyLookahead(true)
+            .keyValueSeparators(':')
+            .keyType(TokenType.PROPERTY)
+            .valueType(TokenType.STRING)
+            .interLineString('"', 42)
+            .valueNumberChars('.', 'e', '+')
+            .numberLeadingMinus(true)
+            .numberRequiresBoundary(false)
+            .wordConsumesDigits(false)
+            .valueKeywords(java.util.Set.of("vrai", "faux"))
+            .valueKeywordType(TokenType.KEYWORD)
+            .wordFallbackType(TokenType.PLAIN)
+            .operatorSingleChars(':', ',')
+            .build();
+
+    /** Le template JSON intégré (cinquième migration du cliquet). */
+    private static final TokenizerTemplate JSON =
+            TokenizerTemplate.JSON;
+
+    @Test
+    void ficheMaison_cléChaîneParLookahead() {
+        StyledLine l = GenericTokenizer.styleLine(FICHE, "\"nom\": \"valeur\"", 0);
+        assertEquals(TokenType.PROPERTY, typeAt(l, 0), "chaîne suivie de ':' → clé");
+        assertEquals(TokenType.OPERATOR, typeAt(l, 5), "le ':' lui-même");
+        assertEquals(TokenType.STRING, typeAt(l, 7), "chaîne sans ':' → valeur");
+    }
+
+    @Test
+    void ficheMaison_lookaheadSauteLesBlancs() {
+        StyledLine l = GenericTokenizer.styleLine(FICHE, "\"a\"  : vrai", 0);
+        assertEquals(TokenType.PROPERTY, typeAt(l, 0), "blancs sautés avant le ':'");
+        assertEquals(TokenType.KEYWORD, typeAt(l, 8), "mot-clé de valeur");
+    }
+
+    @Test
+    void ficheMaison_chaîneNonSuivieDeSéparateur() {
+        StyledLine l = GenericTokenizer.styleLine(FICHE, "\"a\" , \"b\"", 0);
+        assertEquals(TokenType.STRING, typeAt(l, 0), "suivie de ',' → pas une clé");
+        assertEquals(TokenType.OPERATOR, typeAt(l, 4), "',' mono-caractère");
+        assertEquals(TokenType.STRING, typeAt(l, 7));
+    }
+
+    @Test
+    void ficheMaison_échappementsApparentsDansLaChaîne() {
+        StyledLine l = GenericTokenizer.styleLine(FICHE, "\"a\\nb\"", 0);
+        assertEquals(TokenType.STRING, typeAt(l, 0));
+        assertEquals(TokenType.ESCAPE, typeAt(l, 2), "échappement apparent en flux libre");
+        assertEquals(TokenType.STRING, typeAt(l, 4));
+    }
+
+    @Test
+    void ficheMaison_chaîneOrpheline_étatInterLignes() {
+        StyledLine l = GenericTokenizer.styleLine(FICHE, "\"abc", 0);
+        assertEquals(42, l.exitState, "chaîne non fermée → état déclaré");
+        StyledLine l2 = GenericTokenizer.styleLine(FICHE, "x\" suite", 42);
+        assertEquals(TokenType.STRING, typeAt(l2, 0), "continuation consommée jusqu'à la fermante");
+        assertEquals(LexState.NORMAL, l2.exitState);
+        assertEquals(TokenType.PLAIN, typeAt(l2, 4), "la suite de la ligne reprend le flux");
+    }
+
+    @Test
+    void ficheMaison_motsLettresPurs_etNombresSansFrontière() {
+        StyledLine l = GenericTokenizer.styleLine(FICHE, "abc123", 0);
+        assertEquals(TokenType.PLAIN, typeAt(l, 0), "mot de lettres pures");
+        assertEquals(TokenType.NUMBER, typeAt(l, 3), "chiffre collé au mot → nombre (pas de frontière)");
+    }
+
+    @Test
+    void ficheMaison_moinsAncréÀUnChiffre() {
+        StyledLine l = GenericTokenizer.styleLine(FICHE, "-4.2", 0);
+        assertEquals(TokenType.NUMBER, typeAt(l, 0), "signe moins ancré à un chiffre");
+        assertEquals(TokenType.NUMBER, typeAt(l, 3));
+    }
+
+    @Test
+    void ficheMaison_opérateursMonoCaractèreJamaisFusionnés() {
+        StyledLine l = GenericTokenizer.styleLine(FICHE, ":,", 0);
+        assertEquals(2, l.spans.size(), "deux opérateurs mono-caractère, pas une course");
+        assertEquals(TokenType.OPERATOR, l.spans.get(0).type);
+        assertEquals(TokenType.OPERATOR, l.spans.get(1).type);
+    }
+
+    // ── Template JSON : la cinquième migration est exacte ──────────
+
+    @Test
+    void json_cléValeurEtNombres() {
+        StyledLine l = GenericTokenizer.styleLine(JSON, "{\"a\": -2.5e3}", 0);
+        assertEquals(TokenType.PUNCT, typeAt(l, 0));
+        assertEquals(TokenType.PROPERTY, typeAt(l, 1), "clé par lookahead");
+        assertEquals(TokenType.OPERATOR, typeAt(l, 4));
+        assertEquals(TokenType.NUMBER, typeAt(l, 6));
+        assertEquals(TokenType.PUNCT, typeAt(l, 12));
+    }
+
+    @Test
+    void json_booléensNullEnMotsClés() {
+        StyledLine l = GenericTokenizer.styleLine(JSON, "[true, null]", 0);
+        assertEquals(TokenType.KEYWORD, typeAt(l, 1));
+        assertEquals(TokenType.OPERATOR, typeAt(l, 5), "virgule mono-caractère");
+        assertEquals(TokenType.KEYWORD, typeAt(l, 7));
+    }
+
+    @Test
+    void json_chaîneOrphine_étatXMLString() {
+        StyledLine l = GenericTokenizer.styleLine(JSON, "\"x", 0);
+        assertEquals(LexState.XML_STRING, l.exitState);
+        StyledLine l2 = GenericTokenizer.styleLine(JSON, "y\"", LexState.XML_STRING);
+        assertEquals(LexState.NORMAL, l2.exitState);
+        assertEquals(TokenType.STRING, typeAt(l2, 0));
+    }
 }

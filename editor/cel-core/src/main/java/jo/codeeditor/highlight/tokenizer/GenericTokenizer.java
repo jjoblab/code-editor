@@ -79,6 +79,27 @@ import java.util.List;
  *   <li>repli : un caractère en PUNCT.</li>
  * </ol>
  *
+ * <p><b>Extensions de l'étape C2-é5</b> (migration JSON —
+ * comportement de {@code JsonTokenizer} repris octet pour octet) :</p>
+ * <ol>
+ *   <li>les chaînes quotées vivent aussi en flux libre
+ *       ({@link TokenizerTemplate#valueQuotes}) : fermante trouvée
+ *       en sautant les échappements, séquences internes en ESCAPE,
+ *       orpheline → fin de ligne et état inter-lignes propagé ;</li>
+ *   <li>le lookahead de clé
+ *       ({@link TokenizerTemplate#stringKeyLookahead}) requalifie une
+ *       chaîne fermée suivie d'un séparateur en clé (la clé JSON) ;</li>
+ *   <li>mots de lettres pures
+ *       ({@link TokenizerTemplate#wordConsumesDigits} à faux) : un
+ *       chiffre collé ouvre un nombre, sans frontière
+ *       ({@link TokenizerTemplate#numberRequiresBoundary} à faux) ;</li>
+ *   <li>le signe moins ancré à un chiffre ouvre un nombre si déclaré
+ *       ({@link TokenizerTemplate#numberLeadingMinus}) ;</li>
+ *   <li>les opérateurs mono-caractère
+ *       ({@link TokenizerTemplate#operatorSingleChars}) ne fusionnent
+ *       jamais en course ({@code :}, {@code ,}).</li>
+ * </ol>
+ *
  * <p>Les migrations suivantes du cliquet étendront la machine
  * (marqueurs de document, clés à lookahead) tokéniseur par
  * tokéniseur, chaque suite existante restant verte sans modification
@@ -470,6 +491,40 @@ public final class GenericTokenizer {
                 continue;
             }
 
+            // Chaîne quotée à échappements apparents (C2-é5, JSON) :
+            // la fermante est recherchée en sautant les échappements,
+            // les séquences internes reçoivent ESCAPE ; le lookahead
+            // de clé requalifie une chaîne fermée suivie d'un
+            // séparateur ; orpheline → fin de ligne et l'état
+            // inter-lignes se propage si le guillemet le déclare.
+            if (template.valueQuotes.contains(ch)) {
+                int end = SpanUtils.findStringEnd(line, pos + 1, ch);
+                if (end >= 0) {
+                    TokenType type = template.valueType;
+                    if (template.stringKeyLookahead) {
+                        int after = end + 1;
+                        while (after < line.length()
+                                && Character.isWhitespace(line.charAt(after))) {
+                            after++;
+                        }
+                        if (after < line.length()
+                                && template.keyValueSeparators.contains(
+                                        line.charAt(after))) {
+                            type = template.keyType;
+                        }
+                    }
+                    SpanUtils.addStringSpans(spans, line, pos, end + 1, type);
+                    pos = end + 1;
+                } else {
+                    spans.add(new LineSpan(pos, line.length(), template.valueType));
+                    pos = line.length();
+                    if (ch == template.interLineQuote) {
+                        state = template.interLineState;
+                    }
+                }
+                continue;
+            }
+
             // Littéral à guillemet simple : paire → jeton ; orpheline →
             // fin de ligne et l'état inter-lignes se propage.
             if (template.interLineQuote != 0 && ch == template.interLineQuote) {
@@ -495,9 +550,18 @@ public final class GenericTokenizer {
                 }
             }
 
-            // Nombre : chiffre en frontière de mot (pas collé à un mot).
-            if (Character.isDigit(ch) && (pos == 0
-                    || !Character.isLetterOrDigit(line.charAt(pos - 1)))) {
+            // Nombre : chiffre en frontière de mot (pas collé à un
+            // mot) sauf dérogation (JSON historique colle aux mots) ;
+            // le signe moins ancré à un chiffre ouvre aussi un nombre
+            // si le template le déclare (JSON : -4.2).
+            boolean numberAtBoundary = !template.numberRequiresBoundary
+                    || pos == 0
+                    || !Character.isLetterOrDigit(line.charAt(pos - 1));
+            if ((Character.isDigit(ch)
+                    || (template.numberLeadingMinus && ch == '-'
+                            && pos + 1 < line.length()
+                            && Character.isDigit(line.charAt(pos + 1))))
+                    && numberAtBoundary) {
                 int end = pos + 1;
                 while (end < line.length()
                         && (Character.isDigit(line.charAt(end))
@@ -511,12 +575,13 @@ public final class GenericTokenizer {
             }
 
             // Mot : mot-clé, appel de fonction, initiale majuscule,
-            // repli — caractères supplémentaires déclarés inclus.
+            // repli — caractères supplémentaires déclarés inclus ;
+            // les chiffres participent au mot sauf dérogation (JSON :
+            // mots de lettres pures, le chiffre collé ouvre un nombre).
             if (Character.isLetter(ch) || template.wordExtraChars.contains(ch)) {
                 int end = pos + 1;
                 while (end < line.length()
-                        && (Character.isLetterOrDigit(line.charAt(end))
-                                || template.wordExtraChars.contains(line.charAt(end)))) {
+                        && wordContinues(template, line.charAt(end))) {
                     end++;
                 }
                 String word = line.substring(pos, end);
@@ -549,11 +614,34 @@ public final class GenericTokenizer {
                 continue;
             }
 
+            // Opérateurs mono-caractère (C2-é5, JSON) : jamais
+            // fusionnés en course — ':' et ',' restent des spans
+            // distincts même adjacents.
+            if (template.operatorSingleChars.contains(ch)) {
+                spans.add(new LineSpan(pos, pos + 1, TokenType.OPERATOR));
+                pos++;
+                continue;
+            }
+
             // Repli : un caractère en ponctuation.
             spans.add(new LineSpan(pos, pos + 1, TokenType.PUNCT));
             pos++;
         }
         return new StyledLine(spans, entryState, state);
+    }
+
+    /**
+     * Caractère de suite d'un mot en flux libre : le template décide
+     * si les chiffres participent au mot (Shell) ou si les mots sont
+     * de lettres pures et laissent les chiffres ouvrir des nombres
+     * (JSON).
+     */
+    private static boolean wordContinues(TokenizerTemplate template, char c) {
+        if (template.wordConsumesDigits) {
+            return Character.isLetterOrDigit(c)
+                    || template.wordExtraChars.contains(c);
+        }
+        return Character.isLetter(c) || template.wordExtraChars.contains(c);
     }
 
     /**
