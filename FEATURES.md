@@ -90,7 +90,7 @@ par responsabilité.
 | Paires de brackets | ✅ | `edit/BracketPairs.java` | Table ouvrant/fermant |
 | Word boundaries (left, right, rangeAt) | ✅ | `edit/WordBounds.java` | Bornes de mot |
 | detectIndentUnit / detectTabSize | ✅ | `edit/IndentDetection.java` | Tab vs 2/4/8 espaces |
-| Contexte de langage | ✅ | `edit/CodeContext.java`, `edit/LanguageIds.java` | Familles de langage pour les smart edits |
+| Contexte de langage | ✅ | `edit/CodeContext.java`, `edit/LanguageIds.java` | Chaînes/commentaires par les délimiteurs du profil (ADR-002 C1) |
 | Utilitaires texte | ✅ | `edit/EditTextUtils.java` | Analyse de contexte d'appel, extra word chars |
 | Syntaxe de commentaires | ✅ | `edit/CommentSyntax.java` | Ligne/bloc par langage |
 

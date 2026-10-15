@@ -1,5 +1,7 @@
 package jo.codeeditor.edit;
 
+import jo.codeeditor.languages.LanguageRegistry;
+
 /**
  * Façade d'édition intelligente sous forme de fonctions pures sur CharSequence.
  * Éditions intelligentes (paires, indentation, skip-over).
@@ -140,6 +142,21 @@ public final class EditOps {
      */
     public static boolean isInStringOrComment(CharSequence text, int pos) {
         return CodeContext.isInStringOrComment(text, pos);
+    }
+
+    /**
+     * ADR-002 (C1-é4) — variante profilée : les délimiteurs de
+     * chaîne/commentaire viennent du {@code LanguageProfile} du
+     * langage donné (résolu par le registre). Un commentaire
+     * {@code #} Python, un bloc Lua {@code --[[ ]]}, une backtick
+     * déclarée par un hôte sont désormais vus — l'ancien scanner ne
+     * connaissait que les délimiteurs C. Un langage inconnu ou
+     * {@code null} retombe sur les délimiteurs C historiques
+     * (compatibilité des appelants existants).
+     */
+    public static boolean isInStringOrComment(CharSequence text, int pos, String language) {
+        return CodeContext.isInStringOrComment(text, pos,
+                language != null ? LanguageRegistry.forName(language) : null);
     }
 
     /**

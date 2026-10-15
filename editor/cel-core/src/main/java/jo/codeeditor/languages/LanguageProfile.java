@@ -141,6 +141,35 @@ public final class LanguageProfile {
      * défaut, sans code dédié.
      */
     public final List<NewlineTrigger> newlineTriggers;
+    /**
+     * Guillemets ouvrant les littéraux de chaîne pour le contexte
+     * lexical (ADR-002, C1-é4) — consommés par les prédicats
+     * {@code CodeContext.isInString}/isInStringOrComment et leurs
+     * gardes d'auto-close/complétion. Défaut uniforme {@code "} et
+     * {@code '} (comportement historique du scanner, y compris pour
+     * XML — les valeurs d'attribut sont des chaînes). Distinct du
+     * trait d'édition {@link #autoCloseQuotes} : un langage peut
+     * déclarer une backtick comme chaîne sans l'auto-fermer.
+     */
+    public final Set<Character> stringQuotes;
+    /**
+     * Ouvreur du commentaire de documentation (ADR-002, C1-é4), ou
+     * null quand le langage n'en distingue pas. Défaut famille
+     * C_LIKE : {@code /**}. Consommé par le motif « ouverture de doc +
+     * Entrée » de la newline C-like (continuation) ; servira de
+     * source de vérité au tokéniseur DOC_COMMENT (chantiers C2/C3).
+     */
+    public final String docCommentStart;
+    /** Fermeur du commentaire de documentation (souvent = le fermeur de bloc), ou null. */
+    public final String docCommentEnd;
+    /**
+     * Préfixe de continuation inséré au saut de ligne dans un
+     * commentaire de bloc / de documentation (ADR-002, C1-é4), ou
+     * null quand la newline doit rester simple. Défaut : «&#160;*&#160;» quand
+     * la syntaxe de bloc est C ({@code /* *&#47;}), null sinon (XML,
+     * Lua…). Un langage maison le déclare ({@code ///}…).
+     */
+    public final String blockCommentContinuation;
 
     private LanguageProfile(String name, SyntaxFamily family,
             Set<String> aliases, Set<String> extensions,
@@ -148,7 +177,9 @@ public final class LanguageProfile {
             Set<Character> autoCloseQuotes, Set<Character> autoCloseBrackets,
             FoldStrategy foldStrategy, Predicate<CharSequence> stickyHeaderTest,
             CompletionGate completionGate, List<String> snippets,
-            NewlineStrategy newlineStrategy, List<NewlineTrigger> newlineTriggers) {
+            NewlineStrategy newlineStrategy, List<NewlineTrigger> newlineTriggers,
+            Set<Character> stringQuotes, String docCommentStart, String docCommentEnd,
+            String blockCommentContinuation) {
         this.name = name;
         this.family = family;
         this.aliases = aliases;
@@ -163,6 +194,10 @@ public final class LanguageProfile {
         this.snippets = snippets;
         this.newlineStrategy = newlineStrategy;
         this.newlineTriggers = newlineTriggers;
+        this.stringQuotes = stringQuotes;
+        this.docCommentStart = docCommentStart;
+        this.docCommentEnd = docCommentEnd;
+        this.blockCommentContinuation = blockCommentContinuation;
     }
 
     /** Builder fluent — voir la javadoc de la classe pour un exemple d'utilisation. */
@@ -263,6 +298,12 @@ public final class LanguageProfile {
         // build() depuis la famille.
         private NewlineStrategy newlineStrategy;
         private final List<NewlineTrigger> newlineTriggers = new ArrayList<>();
+        // ADR-002 (C1-é4) : délimiteurs du contexte lexical + doc.
+        private Set<Character> stringQuotes;
+        private String docCommentStart;
+        private String docCommentEnd;
+        private boolean docCommentOverridden;
+        private String blockCommentContinuation;
 
         private Builder(String name) {
             if (name == null) throw new IllegalArgumentException("name is null");
@@ -431,6 +472,47 @@ public final class LanguageProfile {
             return this;
         }
 
+        /**
+         * ADR-002 (C1-é4) : guillemets ouvrant les littéraux pour le
+         * CONTEXTE LEXICAL (scanner de chaînes des prédicats
+         * d'édition et de complétion). Si non appelé : {@code "} et
+         * {@code '} (comportement historique, uniforme). Passer une
+         * liste vide pour un langage sans chaîne (le scanner ne verra
+         * plus aucun littéral). Distinct de
+         * {@link #autoCloseQuotes(char...)} (trait d'édition).
+         */
+        public Builder stringQuotes(char... quotes) {
+            this.stringQuotes = new HashSet<>();
+            for (char c : quotes) this.stringQuotes.add(c);
+            return this;
+        }
+
+        /**
+         * ADR-002 (C1-é4) : délimiteur de commentaire de documentation
+         * du langage (ex. {@code /**}/{@code *&#47;} en C-like,
+         * {@code ///} pour un langage maison). Si non appelé : défaut
+         * de famille (C_LIKE → {@code /**}/{@code *&#47;}, autres →
+         * null). Passer {@code (null, null)} pour désactiver
+         * explicitement.
+         */
+        public Builder docComment(String start, String end) {
+            this.docCommentStart = start;
+            this.docCommentEnd = end;
+            this.docCommentOverridden = true;
+            return this;
+        }
+
+        /**
+         * ADR-002 (C1-é4) : préfixe de continuation inséré au saut de
+         * ligne dans un commentaire de bloc/doc (null = newline
+         * simple). Défaut : «&#160;*&#160;» quand le bloc est C
+         * ({@code /* *&#47;}), null sinon.
+         */
+        public Builder blockCommentContinuation(String prefix) {
+            this.blockCommentContinuation = prefix;
+            return this;
+        }
+
         public LanguageProfile build() {
             // Lot 2 : valeurs par défaut par famille (quand le builder
             // n'a pas été appelé explicitement pour ces traits).
@@ -448,6 +530,20 @@ public final class LanguageProfile {
                     ? newlineStrategy : defaultNewlineStrategy(family);
             List<NewlineTrigger> finalTriggers = Collections.unmodifiableList(
                     new ArrayList<>(newlineTriggers));
+            Set<Character> finalStringQuotes = stringQuotes != null
+                    ? stringQuotes : defaultStringQuotes();
+            String finalDocStart;
+            String finalDocEnd;
+            if (docCommentOverridden) {
+                finalDocStart = docCommentStart;
+                finalDocEnd = docCommentEnd;
+            } else {
+                finalDocStart = family == SyntaxFamily.C_LIKE ? "/**" : null;
+                finalDocEnd = family == SyntaxFamily.C_LIKE ? "*/" : null;
+            }
+            String finalContinuation = blockCommentContinuation != null
+                    ? blockCommentContinuation
+                    : ("/*".equals(commentSyntax.blockStart) ? " * " : null);
             return new LanguageProfile(name, family,
                     Collections.unmodifiableSet(new HashSet<>(aliases)),
                     Collections.unmodifiableSet(new HashSet<>(extensions)),
@@ -460,7 +556,11 @@ public final class LanguageProfile {
                     finalGate,
                     finalSnippets,
                     finalNewline,
-                    finalTriggers);
+                    finalTriggers,
+                    Collections.unmodifiableSet(new HashSet<>(finalStringQuotes)),
+                    finalDocStart,
+                    finalDocEnd,
+                    finalContinuation);
         }
 
         /** Valeurs par défaut pour autoCloseQuotes selon la famille. */
@@ -573,6 +673,14 @@ public final class LanguageProfile {
         private static NewlineStrategy defaultNewlineStrategy(SyntaxFamily family) {
             return family == SyntaxFamily.XML
                     ? NewlineStrategy.XML : NewlineStrategy.C_LIKE;
+        }
+
+        /** Défaut uniforme des guillemets du contexte lexical (ADR-002, C1-é4). */
+        private static Set<Character> defaultStringQuotes() {
+            Set<Character> s = new HashSet<>();
+            s.add('"');
+            s.add('\'');
+            return s;
         }
 
         private static Set<String> normalize(String... values) {

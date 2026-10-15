@@ -1,10 +1,20 @@
 package jo.codeeditor.edit;
 
+import jo.codeeditor.languages.LanguageProfile;
+
 /**
  * Détection du contexte lexical à une position du document : dans un littéral
  * de chaîne, dans un commentaire de bloc, sur un opérateur en suspension, sur
  * un label {@code case}, sur une ligne d'annotation seule. Les gestionnaires de
  * saut de ligne s'appuient sur ces prédicats pour choisir l'indentation correcte.
+ *
+ * <p><b>ADR-002 (C1-é4)</b> : les délimiteurs ne sont plus codés en dur
+ * ({@code //}, {@code /* *&#47;}, {@code "} {@code '}) mais lus du
+ * {@link LanguageProfile} : commentaire de ligne/bloc via
+ * {@code commentSyntax}, guillemets via {@code stringQuotes}. Les variantes
+ * sans profil ({@link #isInString(CharSequence, int)}…) conservent les
+ * délimiteurs C historiques — repli des appelants qui ne connaissent pas
+ * le langage (compatibilité binaire et comportement octet pour octet).</p>
  */
 final class CodeContext {
 
@@ -50,17 +60,40 @@ final class CodeContext {
         return pos >= 1 && text.charAt(pos) == '>' && text.charAt(pos - 1) == '-';
     }
 
+    // ── ADR-002 (C1-é4) : délimiteurs du profil ou repli C ─────────
+
+    /** Préfixe de commentaire de ligne du profil (ou {@code //} en repli). */
+    private static String lineCommentOf(LanguageProfile profile) {
+        return profile != null ? profile.commentSyntax.lineComment : "//";
+    }
+
+    /** Ouvreur de commentaire de bloc du profil (ou {@code /*} en repli). */
+    private static String blockStartOf(LanguageProfile profile) {
+        return profile != null ? profile.commentSyntax.blockStart : "/*";
+    }
+
+    /** Fermeur de commentaire de bloc du profil (ou {@code *&#47;} en repli). */
+    private static String blockEndOf(LanguageProfile profile) {
+        return profile != null ? profile.commentSyntax.blockEnd : "*/";
+    }
+
+    /** Vrai si c est un guillemet de chaîne du profil (ou {@code "}/{@code '} en repli). */
+    private static boolean isQuote(char c, LanguageProfile profile) {
+        return profile != null ? profile.stringQuotes.contains(c)
+                : (c == '"' || c == '\'');
+    }
+
     /**
      * Indique si la position {@code pos} se trouve à l'intérieur d'un
-     * commentaire de bloc {@code /* … *\/}. Le prédicat est conscient
-     * des littéraux de chaîne/char et des commentaires de ligne :
-     * un {@code /*} apparaissant dans une chaîne ({@code "/*"}), dans
-     * un glob shell ({@code /tmp/*}), ou dans un commentaire de ligne
-     * ({@code // /*}) n'ouvre pas un commentaire de bloc.
+     * commentaire de bloc selon les délimiteurs du profil (repli C :
+     * {@code /* … *&#47;}). Le prédicat est conscient des littéraux de
+     * chaîne/char et des commentaires de ligne : un ouvreur de bloc
+     * apparaissant dans une chaîne ou un commentaire de ligne
+     * n'ouvre pas un commentaire de bloc.
      *
      * <p><b>Lot 1 (audit v3.41.0)</b> : l'ancien code balayait depuis
-     * l'offset 0 sans tenir compte des chaînes ni des commentaires de
-     * ligne ; un seul {@code /*} dans une chaîne activait
+     * l'offset 0 sans tenir compte des chaînes ni des commentaires
+     * de ligne ; un seul ouvreur de bloc dans une chaîne activait
      * {@code foundOpen = true} et marquait toutes les lignes suivantes
      * comme dans un commentaire de bloc — chaque Entrée insérait
      * alors {@code " * "} jusqu'à la fin du fichier. Le prédicat est
@@ -70,7 +103,17 @@ final class CodeContext {
      * avant), mais le résultat est correct.</p>
      */
     static boolean isInBlockComment(CharSequence text, int pos) {
+        return isInBlockComment(text, pos, null);
+    }
+
+    /** Variante profilée (ADR-002, C1-é4) — délimiteurs du profil. */
+    static boolean isInBlockComment(CharSequence text, int pos,
+            LanguageProfile profile) {
         if (pos <= 0) return false;
+        String lineComment = lineCommentOf(profile);
+        String blockStart = blockStartOf(profile);
+        String blockEnd = blockEndOf(profile);
+        if (blockStart == null || blockEnd == null) return false;
         boolean inString = false;
         char quoteChar = '\0';
         boolean inLineComment = false;
@@ -89,9 +132,9 @@ final class CodeContext {
                 continue;
             }
             if (inBlockComment) {
-                if (ch == '*' && i + 1 < text.length() && text.charAt(i + 1) == '/') {
+                if (startsWithAt(text, blockEnd, i)) {
                     inBlockComment = false;
-                    i++; // sauter le '/'
+                    i += blockEnd.length() - 1;
                 }
                 continue;
             }
@@ -104,20 +147,19 @@ final class CodeContext {
                 continue;
             }
             // Hors chaîne/commentaire : détecter les ouvertures.
-            if (ch == '/' && i + 1 < text.length()) {
-                char next = text.charAt(i + 1);
-                if (next == '/') {
-                    inLineComment = true;
-                    i++; // sauter le second '/'
-                    continue;
-                }
-                if (next == '*') {
-                    inBlockComment = true;
-                    i++; // sauter le '*'
-                    continue;
-                }
+            // Bloc AVANT ligne : le préfixe le plus long gagne (Lua :
+            // « --[[ » est un bloc, pas un commentaire de ligne « -- »).
+            if (startsWithAt(text, blockStart, i)) {
+                inBlockComment = true;
+                i += blockStart.length() - 1;
+                continue;
             }
-            if (ch == '"' || ch == '\'') {
+            if (lineComment != null && startsWithAt(text, lineComment, i)) {
+                inLineComment = true;
+                i += lineComment.length() - 1;
+                continue;
+            }
+            if (isQuote(ch, profile)) {
                 inString = true;
                 quoteChar = ch;
             }
@@ -127,17 +169,28 @@ final class CodeContext {
 
     /**
      * Indique si la position {@code pos} se trouve à l'intérieur d'un
-     * commentaire de ligne {@code // …}. Conscient des littéraux de
-     * chaîne/char et des commentaires de bloc pour ne pas confondre
-     * un {@code //} dans une chaîne avec un commentaire de ligne.
+     * commentaire de ligne selon le profil (repli C : {@code // …}).
+     * Conscient des littéraux de chaîne/char et des commentaires de
+     * bloc pour ne pas confondre un préfixe de ligne dans une chaîne
+     * avec un commentaire de ligne.
      *
      * <p><b>Lot 1 (audit v3.41.0)</b> : ajouté pour le garde-fou
      * d'auto-close des crochets dans {@link SmartTyping} — sans lui,
-     * un {@code (} tapé dans un commentaire de ligne insérait une
-     * paire {@code ()} dans du texte mort.</p>
+     * un crochet tapé dans un commentaire de ligne insérait une
+     * paire dans du texte mort.</p>
      */
     static boolean isInLineComment(CharSequence text, int pos) {
+        return isInLineComment(text, pos, null);
+    }
+
+    /** Variante profilée (ADR-002, C1-é4) — délimiteurs du profil. */
+    static boolean isInLineComment(CharSequence text, int pos,
+            LanguageProfile profile) {
         if (pos <= 0) return false;
+        String lineComment = lineCommentOf(profile);
+        if (lineComment == null) return false;
+        String blockStart = blockStartOf(profile);
+        String blockEnd = blockEndOf(profile);
         boolean inString = false;
         char quoteChar = '\0';
         boolean inLineComment = false;
@@ -151,9 +204,9 @@ final class CodeContext {
                 continue;
             }
             if (inBlockComment) {
-                if (ch == '*' && i + 1 < text.length() && text.charAt(i + 1) == '/') {
+                if (blockEnd != null && startsWithAt(text, blockEnd, i)) {
                     inBlockComment = false;
-                    i++;
+                    i += blockEnd.length() - 1;
                 }
                 continue;
             }
@@ -165,20 +218,17 @@ final class CodeContext {
                 }
                 continue;
             }
-            if (ch == '/' && i + 1 < text.length()) {
-                char next = text.charAt(i + 1);
-                if (next == '/') {
-                    inLineComment = true;
-                    i++;
-                    continue;
-                }
-                if (next == '*') {
-                    inBlockComment = true;
-                    i++;
-                    continue;
-                }
+            if (blockStart != null && startsWithAt(text, blockStart, i)) {
+                inBlockComment = true;
+                i += blockStart.length() - 1;
+                continue;
             }
-            if (ch == '"' || ch == '\'') {
+            if (startsWithAt(text, lineComment, i)) {
+                inLineComment = true;
+                i += lineComment.length() - 1;
+                continue;
+            }
+            if (isQuote(ch, profile)) {
                 inString = true;
                 quoteChar = ch;
             }
@@ -196,12 +246,27 @@ final class CodeContext {
      * {@link SmartTyping}.</p>
      */
     static boolean isInStringOrComment(CharSequence text, int pos) {
-        return isInString(text, pos)
-                || isInBlockComment(text, pos)
-                || isInLineComment(text, pos);
+        return isInStringOrComment(text, pos, null);
+    }
+
+    /** Variante profilée (ADR-002, C1-é4) — délimiteurs du profil. */
+    static boolean isInStringOrComment(CharSequence text, int pos,
+            LanguageProfile profile) {
+        return isInString(text, pos, profile)
+                || isInBlockComment(text, pos, profile)
+                || isInLineComment(text, pos, profile);
     }
 
     static boolean isInString(CharSequence text, int pos) {
+        return isInString(text, pos, null);
+    }
+
+    /** Variante profilée (ADR-002, C1-é4) — guillemets du profil. */
+    static boolean isInString(CharSequence text, int pos,
+            LanguageProfile profile) {
+        String lineComment = lineCommentOf(profile);
+        String blockStart = blockStartOf(profile);
+        String blockEnd = blockEndOf(profile);
         boolean inString = false;
         char quoteChar = '\0';
         // Lot 3 : borne du scan à SCAN_LIMIT caractères en arrière.
@@ -212,22 +277,23 @@ final class CodeContext {
         for (int i = start; i < pos; i++) {
             char ch = text.charAt(i);
             if (!inString) {
+                // Bloc AVANT ligne (préfixe le plus long — Lua --[[
+                // prime sur --), même priorité que isInBlockComment.
+                if (blockStart != null && blockEnd != null
+                        && startsWithAt(text, blockStart, i)) {
+                    int close = EditTextUtils.indexOf(text, blockEnd, i + blockStart.length());
+                    if (close < 0 || close >= pos) return false; // bloc non fermé avant pos → pas dans une chaîne
+                    i = close + blockEnd.length() - 1; // passer le fermeur ; le i++ de la boucle avance encore d'un
+                    continue;
+                }
                 // Commentaire de ligne : sauter jusqu'à la fin de ligne, jamais dans une chaîne à cet endroit.
-                if (ch == '/' && i + 1 < text.length() && text.charAt(i + 1) == '/') {
+                if (lineComment != null && startsWithAt(text, lineComment, i)) {
                     // avancer jusqu'à la fin de ligne
                     while (i < pos && text.charAt(i) != '\n') i++;
                     // le i++ de la boucle passera le saut de ligne (ou pos)
                     continue;
                 }
-                // Ouverture de commentaire de bloc : sauter jusqu'au */ correspondant
-                // (borné à pos, pour rester dans la fenêtre de scan)
-                if (ch == '/' && i + 1 < text.length() && text.charAt(i + 1) == '*') {
-                    int close = EditTextUtils.indexOf(text, "*/", i + 2);
-                    if (close < 0 || close >= pos) return false; // bloc non fermé avant pos → pas dans une chaîne
-                    i = close + 1; // passer "*/" ; le i++ de la boucle avance encore d'un
-                    continue;
-                }
-                if (ch == '"' || ch == '\'') {
+                if (isQuote(ch, profile)) {
                     inString = true;
                     quoteChar = ch;
                 }
@@ -240,6 +306,17 @@ final class CodeContext {
             }
         }
         return inString;
+    }
+
+    /** {@code text.startsWith(needle, at)} tolérant sur les bornes. */
+    private static boolean startsWithAt(CharSequence text, String needle, int at) {
+        if (needle == null || at < 0 || at + needle.length() > text.length()) {
+            return false;
+        }
+        for (int k = 0; k < needle.length(); k++) {
+            if (text.charAt(at + k) != needle.charAt(k)) return false;
+        }
+        return true;
     }
 
     /**

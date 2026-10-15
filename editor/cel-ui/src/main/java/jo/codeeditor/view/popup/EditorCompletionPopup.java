@@ -338,8 +338,11 @@ public class EditorCompletionPopup {
         // complétion. CodeContext est package-private dans cel-core — on
         // utilise un wrapper public exposé par EditOps (même prédicat,
         // déjà utilisé par SmartTyping pour l'auto-close : chaînes,
-        // commentaires de ligne et de bloc).
-        return !jo.codeeditor.edit.EditOps.isInStringOrComment(text, caret);
+        // commentaires de ligne et de bloc). ADR-002 (C1-é4) : la
+        // variante avec langage lit les délimiteurs du profil (un
+        // commentaire # Python est désormais vu, plus seulement les
+        // délimiteurs C).
+        return !jo.codeeditor.edit.EditOps.isInStringOrComment(text, caret, lang);
     }
 
     /** Point d'entrée hôte (Ctrl+Espace / bouton Cmplt) — SANS debounce,

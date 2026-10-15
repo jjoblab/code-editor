@@ -50,7 +50,7 @@ final class SmartNewline {
             return XmlNewline.xmlNewline(text, pos, language);
         }
         if (strategy == NewlineStrategy.KOTLIN) {
-            return kotlinNewline(text, pos, language);
+            return kotlinNewline(text, pos, language, profile);
         }
         // Stratégie C_LIKE : indent triggers du profil (Python, YAML,
         // Shell, Lua — et tout langage maison qui en déclare),
@@ -65,7 +65,7 @@ final class SmartNewline {
                     pos + 1 + deeperIndent.length());
         }
         // Java et défaut
-        return javaNewline(text, pos, language);
+        return javaNewline(text, pos, language, profile);
     }
 
     /**
@@ -95,9 +95,12 @@ final class SmartNewline {
     }
 
     /**
-     * Gestionnaire de saut de ligne Java/Kotlin.
+     * Gestionnaire de saut de ligne Java/Kotlin. ADR-002 (C1-é4) :
+     * les délimiteurs (chaîne, doc, continuation de bloc) viennent du
+     * profil — repli C historique quand le langage est inconnu.
      */
-    private static RangeEdit javaNewline(CharSequence text, int pos, String language) {
+    private static RangeEdit javaNewline(CharSequence text, int pos, String language,
+            LanguageProfile profile) {
         boolean isKotlin = "kotlin".equals(language);
         int lineStart = EditTextUtils.lineStartForOffset(text, pos);
         String currentIndent = EditTextUtils.extractIndent(text, lineStart);
@@ -108,7 +111,7 @@ final class SmartNewline {
         String indentUnit = IndentDetection.detectIndentUnit(text);
 
         // Vérifier si on est dans un littéral de chaîne — pas de saut de ligne intelligent
-        if (!isKotlin && CodeContext.isInString(text, pos)) {
+        if (!isKotlin && CodeContext.isInString(text, pos, profile)) {
             return plainNewline(text, pos, currentIndent);
         }
 
@@ -128,6 +131,25 @@ final class SmartNewline {
             return new RangeEdit(pos, pos, "\n" + deeperIndent, pos + 1 + deeperIndent.length());
         }
 
+        // ADR-002 (C1-é4) : continuation de commentaire doc/bloc par les
+        // DONNÉES du profil, AVANT le test d'opérateur en suspension —
+        // historiquement le motif (charBefore == '*' && …) était placé
+        // APRÈS isDanglingOperator, qui matche aussi '*' : il était donc
+        // court-circuité et « /** + Entrée » produisait une indentation
+        // d'opérateur au lieu de la continuation documentée. Le profil
+        // porte désormais l'ouvreur de doc ("/**", ou "///" pour un
+        // langage maison) et le préfixe de continuation (" * " pour les
+        // blocs C, null = newline simple). Le caret suit le texte
+        // inséré comme historiquement (un caractère avant la fin).
+        String blockStart = profile != null ? profile.commentSyntax.blockStart : "/*";
+        String docStart = profile != null ? profile.docCommentStart : "/**";
+        String cont = profile != null ? profile.blockCommentContinuation : " * ";
+        if (cont != null
+                && (endsWithAt(text, pos, blockStart) || endsWithAt(text, pos, docStart))) {
+            return new RangeEdit(pos, pos, "\n" + currentIndent + cont,
+                    pos + 1 + currentIndent.length() + cont.length() - 1);
+        }
+
         // Poursuite de l'indentation : saut de ligne avec la même indentation
         // Vérifier aussi l'indentation de continuation (opérateurs en suspension)
         if (CodeContext.isDanglingOperator(text, pos - 1)) {
@@ -135,21 +157,15 @@ final class SmartNewline {
             return new RangeEdit(pos, pos, "\n" + continuationIndent, pos + 1 + continuationIndent.length());
         }
 
-        // Continuation de commentaire doc/bloc : /** ... */ ou /* ... */
-        if (charBefore == '*' && pos >= 2 && text.charAt(pos - 2) == '/' &&
-            (charAfter == '*' || charAfter == ' ')) {
-            // Commentaire doc : insérer *  avec indentation
-            return new RangeEdit(pos, pos, "\n" + currentIndent + " * ", pos + 1 + currentIndent.length() + 2);
-        }
-        if (charBefore == '*' && pos >= 2 && text.charAt(pos - 2) == '/' ) {
-            return new RangeEdit(pos, pos, "\n" + currentIndent + " * ", pos + 1 + currentIndent.length() + 2);
-        }
-
         // Vérifier si dans un commentaire de bloc quand l'utilisateur appuie sur Entrée
-        if (CodeContext.isInBlockComment(text, pos)) {
-            // Chercher le motif * en début
-            // Insérer *  avec une espace
-            return new RangeEdit(pos, pos, "\n" + currentIndent + " * ", pos + 1 + currentIndent.length() + 2);
+        if (CodeContext.isInBlockComment(text, pos, profile)) {
+            // Chercher le motif * en début — la continuation du profil
+            // (" * " pour les blocs C ; null → newline simple).
+            if (cont != null) {
+                return new RangeEdit(pos, pos, "\n" + currentIndent + cont,
+                        pos + 1 + currentIndent.length() + cont.length() - 1);
+            }
+            return plainNewline(text, pos, currentIndent);
         }
 
         // Continuation de puce de liste (- ou * en début de ligne)
@@ -181,8 +197,10 @@ final class SmartNewline {
 
     /**
      * Gestionnaire de saut de ligne Kotlin (pas de découpe de chaîne, pas de labels case, indentation flèche).
+     * ADR-002 (C1-é4) : la continuation de bloc lit le profil.
      */
-    private static RangeEdit kotlinNewline(CharSequence text, int pos, String language) {
+    private static RangeEdit kotlinNewline(CharSequence text, int pos, String language,
+            LanguageProfile profile) {
         int lineStart = EditTextUtils.lineStartForOffset(text, pos);
         String currentIndent = EditTextUtils.extractIndent(text, lineStart);
         String indentUnit = IndentDetection.detectIndentUnit(text);
@@ -215,9 +233,14 @@ final class SmartNewline {
             return new RangeEdit(pos, pos, "\n" + continuationIndent, pos + 1 + continuationIndent.length());
         }
 
-        // Continuation de commentaire de bloc
-        if (CodeContext.isInBlockComment(text, pos)) {
-            return new RangeEdit(pos, pos, "\n" + currentIndent + " * ", pos + 1 + currentIndent.length() + 2);
+        // Continuation de commentaire de bloc — profilée (C1-é4).
+        if (CodeContext.isInBlockComment(text, pos, profile)) {
+            String cont = profile != null ? profile.blockCommentContinuation : " * ";
+            if (cont != null) {
+                return new RangeEdit(pos, pos, "\n" + currentIndent + cont,
+                        pos + 1 + currentIndent.length() + cont.length() - 1);
+            }
+            return plainNewline(text, pos, currentIndent);
         }
 
         // Expansion de paire vide avec ouvreurs
@@ -239,6 +262,12 @@ final class SmartNewline {
      */
     private static RangeEdit plainNewline(CharSequence text, int pos, String indent) {
         return new RangeEdit(pos, pos, "\n" + indent, pos + 1 + indent.length());
+    }
+
+    /** Vrai quand le texte avant {@code pos} se termine par {@code needle} (null → faux). */
+    private static boolean endsWithAt(CharSequence text, int pos, String needle) {
+        return needle != null && pos >= needle.length()
+                && EditTextUtils.startsWith(text, needle, pos - needle.length());
     }
 
     // ── smartEnter (complétion d'instruction) ──────────────────

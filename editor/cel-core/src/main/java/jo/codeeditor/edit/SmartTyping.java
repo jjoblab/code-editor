@@ -67,7 +67,7 @@ final class SmartTyping {
             // ou dans une chaîne/commentaire).
             boolean nextIsIdent = pos < text.length()
                     && EditTextUtils.isIdentChar(text.charAt(pos));
-            boolean inStringOrComment = CodeContext.isInStringOrComment(text, pos);
+            boolean inStringOrComment = CodeContext.isInStringOrComment(text, pos, profile);
             int balance = BracketPairs.docBalance(text, ch, closer);
             if (!nextIsIdent && !inStringOrComment
                     && balance < BracketPairs.BALANCE_SCAN_LIMIT) {
@@ -88,7 +88,10 @@ final class SmartTyping {
                 && profile.autoCloseQuotes.contains(ch);
         if (quotesEnabled && (ch == '"' || ch == '\'')) {
             boolean afterIdent = pos > 0 && EditTextUtils.isIdentChar(text.charAt(pos - 1));
-            boolean inStringOrComment = CodeContext.isInStringOrComment(text, pos);
+            // ADR-002 (C1-é4) : garde profilée — le scanner de contexte
+            // lit les délimiteurs du profil (commentaire #, bloc Lua,
+            // guillemets déclarés).
+            boolean inStringOrComment = CodeContext.isInStringOrComment(text, pos, profile);
             if (!afterIdent && !inStringOrComment) {
                 char closer = BracketPairs.closerFor(ch);
                 return new RangeEdit(pos, pos, "" + ch + closer, pos + 1);
