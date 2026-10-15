@@ -18,7 +18,11 @@
 | L7 | P-01…P-06 performance | ✅ terminé |
 | L8 | D-09 documentation dérivée | ✅ terminé |
 | L9 | A-06 tests | ✅ terminé |
-| L10 | A-01…A-08 structure | ⬜ à faire |
+| L10 | A-01…A-08 structure | ✅ terminé |
+
+> **EXÉCUTION INTÉGRALE TERMINÉE** — lots L0→L10 fermés, branche
+> poussée après chaque changement. Aucune publication d'artefact (JitPack
+> ou Maven) : le propriétaire publie lorsqu'il le décide.
 
 > Exécution reprise en session 2 (environnement de travail réinitialisé
 > entre-temps) : re-clone, toolchain JDK 17 + SDK Android reconstruite en
@@ -113,3 +117,19 @@ README/USAGE : 3.49.2 → 3.70.1 (8 occurrences) ; BUILD : 3.54.0 → 3.70.1 (5)
 - **Couverture CI en mode rapport** : `enableUnitTestCoverage = true` (4 modules) + étape CI de génération/téléversement des rapports Jacoco — JAMAIS bloquante (aucun seuil).
 - **Stabilité** : suite complète exécutée 5× consécutives sur cet environnement — 5/5 verte, aucun échec intermittent.
 - Contrats cel-lsp-api : couverts par les tests existants (LanguageSPITest, defaults des providers, CompletionItemFieldsTest du lot L1).
+
+---
+
+## L10 — A-01…A-08 structure (commits d5fe088, 3d9af4f, d902046, 4c79aa1, 0615726)
+
+| Point | Action réalisée | Écarts assumés |
+|---|---|---|
+| A-01 | Première extraction d'EditorView (état Parcelable → `EditorSavedState`) ; 3840 → 3799 lignes ; **plafond ABAISSÉ 4100 → 3810** ; règle consignée dans le script de budget (tout relèvement = décision propriétaire) | Une extraction (60 l.) — la décomposition complète reste le chantier long de docs/plans/01, petits commits à suivre |
+| A-02 | Minimum du plan atteint : AGENT.md aligné sur le graphe réel des build files (fait au lot L8) | L'inversion complète de la dépendance cel-lsp→cel-ui (plan 03) reste un chantier d'architecture futur |
+| A-03 | Catalogue de versions centralisé (`gradle/libs.versions.toml`, demo incluse) ; 7 dépendances au courant (suite verte) ; 18 entrées baseline périmées retirées ; retenues DÉLIBÉRÉES documentées (lsp4j 0.22.0 : la 1.0.0 rompt le contrat — éditions snippet = lot de fonctionnalité ; appcompat/material : exigent compileSdk 35+ ; compileSdk 34) | lsp4j 1.0.0 reporté (voir le commentaire du catalogue) |
+| A-04 | Vérification minifiée : les 4 modules assemblent en release R8 (optimize par défaut) — vert, zéro classe manquante ; état non-minifié rétabli (publication = décision propriétaire) | Les règles consommateur ne sont pas écrites — elles partiront des faits établis |
+| A-05 | SymbolBarView : dispatch depuis `performClick` (TalkBack = même action) + `contentDescription` par touche ; entrée baseline ClickableViewAccessibility retirée (corrigée réellement) ; « Go to line » / « Rename » en ressources ; RTL non-support documenté (décision n° 7) | L'entrée EditorView reste (performClick appelé dans le résolveur — faux positif intra-procédural documenté) |
+| A-07 | Politique de dépréciation/compatibilité dans CONTRIBUTING.md ; nullité annotée sur les 6 modèles les plus échangés de cel-lsp-api (champs + constructeurs, androidx compileOnly) | cel-core : adoption progressive ; compat binaire CI : différé (revue humaine en attendant — documenté dans la politique) |
+| A-08 | CHANGELOG scindé (76 sections historiques → `docs/CHANGELOG-archive.md`, préambule restauré) ; exceptions `prebuilt/` retirées du .gitignore | — |
+
+**Validation de clôture** : `./gradlew assembleDebug test lint` vert (1 871 tests / 0 échec — 961+32+180+671+27), `check-external-refs.sh` / `check-class-budgets.sh` / `check-doc-figures.sh` (chiffres ET versions) conformes, suite 5× sans échec intermittent (lot L9), figures README/AGENT resynchronisées (1 871).
