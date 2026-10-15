@@ -295,7 +295,15 @@ final class BuiltinLanguages {
         LanguageRegistry.put(LanguageProfile.builder("markdown")
                 .family(SyntaxFamily.MARKDOWN).alias("md")
                 .extension("md", "markdown")
-                .commentSyntax(XML_BLOCK).build());
+                .commentSyntax(XML_BLOCK)
+                // ADR-002 (C1, D5) : la liste historique de snippets de
+                // complétion (qui vivait en dur dans l'UI) descend dans
+                // la table — mêmes entrées, même ordre.
+                .snippets("# ", "## ", "### ", "- ", "* ", "1. ", "> ",
+                        "```", "```java", "```kotlin", "```xml",
+                        "[", "](", "![", "*italic*", "**bold**",
+                        "---", "| ", "---|---")
+                .build());
         LanguageRegistry.put(LanguageProfile.builder("json")
                 .family(SyntaxFamily.JSON).extension("json")
                 .keywordSet(JSON_KEYWORDS)

@@ -605,27 +605,22 @@ public class EditorCompletionPopup {
         // complétion de mots-clés — ils n'étaient que 4 avant
         // (java, kotlin, xml, markdown).
         String lowerPrefix = prefix.toLowerCase(java.util.Locale.ROOT);
-        // Snippets Markdown : liste hardcoded conservée car les
-        // « mots-clés » Markdown sont des snippets (# , ## , - , etc.)
-        // qui ne sont pas des mots-clés au sens du registre.
-        if ("markdown".equals(language) || "md".equals(language)) {
-            String[] mdSnippets = {
-                "# ", "## ", "### ", "- ", "* ", "1. ", "> ", "```", "```java", "```kotlin",
-                "```xml", "[", "](", "![", "*italic*", "**bold**", "---", "| ", "---|---"
-            };
-            for (String s : mdSnippets) {
-                if (s.toLowerCase(java.util.Locale.ROOT).startsWith(lowerPrefix)
-                        && s.length() > prefix.length()) {
-                    out.add(new jo.codeeditor.completion.CompletionSession.Item(
-                        s, "snippet", s, "s", 15, 0, false, false, null));
-                }
-            }
-            return out;
-        }
-        // Mots-clés du registre : tous langages enregistrés.
+        // ADR-002 (C1, D5 « source unique ») : les snippets vivent
+        // dans le profil (la liste Markdown historique est descendue
+        // dans la table intégrée — mêmes entrées, même ordre). Tout
+        // langage enregistré peut déclarer les siens, aucun code UI
+        // dédié. Même filtre par préfixe, même format d'item.
         jo.codeeditor.languages.LanguageProfile profile =
                 jo.codeeditor.languages.LanguageRegistry.forName(language);
         if (profile == null) return out;
+        for (String s : profile.snippets) {
+            if (s.toLowerCase(java.util.Locale.ROOT).startsWith(lowerPrefix)
+                    && s.length() > prefix.length()) {
+                out.add(new jo.codeeditor.completion.CompletionSession.Item(
+                    s, "snippet", s, "s", 15, 0, false, false, null));
+            }
+        }
+        // Mots-clés du registre : tous langages enregistrés.
         if (profile.keywords == null || profile.keywords.isEmpty()) {
             return out;
         }

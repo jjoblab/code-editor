@@ -3,8 +3,10 @@ package jo.codeeditor.languages;
 import jo.codeeditor.edit.CommentSyntax;
 
 import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -102,13 +104,22 @@ public final class LanguageProfile {
      * {@link Builder#completionGate(CompletionGate)}.
      */
     public final CompletionGate completionGate;
+    /**
+     * Snippets de complétion intégrée (ADR-002, C1 — D5 « source
+     * unique »). Liste immuable ordonnée, vide par défaut. Markdown
+     * déclare la liste historique (« # », « ## », « - », clôtures de
+     * blocs de code…) ; un hôte peut déclarer les siens par langage —
+     * la complétion intégrée les propose au même titre que les
+     * mots-clés, sans code dédié dans l'UI.
+     */
+    public final List<String> snippets;
 
     private LanguageProfile(String name, SyntaxFamily family,
             Set<String> aliases, Set<String> extensions,
             Set<String> keywords, CommentSyntax commentSyntax,
             Set<Character> autoCloseQuotes, Set<Character> autoCloseBrackets,
             FoldStrategy foldStrategy, Predicate<CharSequence> stickyHeaderTest,
-            CompletionGate completionGate) {
+            CompletionGate completionGate, List<String> snippets) {
         this.name = name;
         this.family = family;
         this.aliases = aliases;
@@ -120,6 +131,7 @@ public final class LanguageProfile {
         this.foldStrategy = foldStrategy;
         this.stickyHeaderTest = stickyHeaderTest;
         this.completionGate = completionGate;
+        this.snippets = snippets;
     }
 
     /** Builder fluent — voir la javadoc de la classe pour un exemple d'utilisation. */
@@ -212,6 +224,9 @@ public final class LanguageProfile {
         // ADR-002 (C1) : politique de la porte de complétion — donnée
         // par langage, défaut calculé dans build() depuis la famille.
         private CompletionGate completionGate;
+        // ADR-002 (C1, D5) : snippets de complétion intégrée — même
+        // table que les mots-clés (source unique).
+        private final List<String> snippets = new ArrayList<>();
 
         private Builder(String name) {
             if (name == null) throw new IllegalArgumentException("name is null");
@@ -332,6 +347,23 @@ public final class LanguageProfile {
             return this;
         }
 
+        /**
+         * ADR-002 (C1, D5) : snippets de complétion intégrée pour CE
+         * langage (même table que les mots-clés — source unique). La
+         * complétion intégrée les propose filtrés par préfixe, au
+         * format snippet (badge « s », sans tri particulier — l'ordre
+         * déclaré est l'ordre de proposition). Les entrées nulles ou
+         * vides sont ignorées. Vide par défaut.
+         */
+        public Builder snippets(String... entries) {
+            if (entries != null) {
+                for (String s : entries) {
+                    if (s != null && !s.isEmpty()) snippets.add(s);
+                }
+            }
+            return this;
+        }
+
         public LanguageProfile build() {
             // Lot 2 : valeurs par défaut par famille (quand le builder
             // n'a pas été appelé explicitement pour ces traits).
@@ -343,6 +375,8 @@ public final class LanguageProfile {
                     ? foldStrategy : defaultFoldStrategy(family);
             CompletionGate finalGate = completionGate != null
                     ? completionGate : defaultCompletionGate(family);
+            List<String> finalSnippets = Collections.unmodifiableList(
+                    new ArrayList<>(snippets));
             return new LanguageProfile(name, family,
                     Collections.unmodifiableSet(new HashSet<>(aliases)),
                     Collections.unmodifiableSet(new HashSet<>(extensions)),
@@ -352,7 +386,8 @@ public final class LanguageProfile {
                     Collections.unmodifiableSet(new HashSet<>(finalBrackets)),
                     finalFold,
                     stickyHeaderTest,
-                    finalGate);
+                    finalGate,
+                    finalSnippets);
         }
 
         /** Valeurs par défaut pour autoCloseQuotes selon la famille. */
