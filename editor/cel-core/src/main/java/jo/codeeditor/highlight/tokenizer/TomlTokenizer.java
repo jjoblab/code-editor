@@ -1,115 +1,41 @@
 package jo.codeeditor.highlight.tokenizer;
 
-import jo.codeeditor.highlight.LexState;
-import jo.codeeditor.highlight.LineSpan;
 import jo.codeeditor.highlight.StyledLine;
-import jo.codeeditor.highlight.TokenType;
-
-import java.util.ArrayList;
-import java.util.List;
 
 /**
- * Tokéniseur TOML du parser maison : commentaires, en-têtes de section
- * [table] et [[table de tableaux]], paires clé = valeur (chaînes,
- * nombres, dates, booléens). Extrait de SyntaxHighlighter pour isoler
- * cette grammaire du dispatcher de coloration.
+ * Tokéniseur TOML — <b>migré sur le moteur générique</b> (ADR-002,
+ * chantier C2, étape 2) : la grammaire (commentaires {@code #} partout,
+ * en-têtes {@code [table]}/{@code [[table]]}, paires {@code clé = valeur},
+ * chaînes basiques et littérales, nombres/dates, booléens) vit désormais
+ * dans le template déclaratif {@link TokenizerTemplate#TOML}, exécuté par
+ * {@link GenericTokenizer}. Le dispatcher ({@code SyntaxHighlighter})
+ * continue d'appeler cette entrée — signature inchangée, comportement
+ * repris octet pour octet de l'implémentation historique écrite à la
+ * main (verrouillé par {@code TomlTokenizerTest}).
+ *
+ * <p>Historique : tokéniseur écrit à la main extrait de
+ * SyntaxHighlighter (v3.4x) ; le cliquet de démantèlement (C2) remplace
+ * le corps par la table — les suites {@code SyntaxHighlighterTest} et
+ * {@code TomlTokenizerTest} restent vertes sans modification de leurs
+ * assertions.</p>
  */
 public final class TomlTokenizer {
 
-    // ── Tokéniseur TOML ──────────────────────────────────
-
     /**
-     * Tokénise une ligne TOML.
+     * Tokénise une ligne TOML — délégation au moteur générique avec le
+     * template {@link TokenizerTemplate#TOML}.
      *
-     * <p>Reconnaît :
+     * <p>Reconnaît (comportement historique inchangé) :
      * <ul>
-     *   <li>commentaires {@code #} → COMMENT</li>
+     *   <li>commentaires {@code #} (y compris après la valeur) → COMMENT</li>
      *   <li>en-têtes {@code [section]} et {@code [[tableau-de-tableaux]]} → TYPE</li>
-     *   <li>{@code clé = valeur} — clé en PROPERTY, valeur en STRING/NUMBER/CONSTANT</li>
-     *   <li>chaînes (basique, littérale, basique multi-lignes, littérale multi-lignes) → STRING</li>
-     *   <li>nombres, booléens, dates → NUMBER/CONSTANT</li>
-     * </ul>
+     *   <li>{@code clé = valeur} — clé en PROPERTY, valeur tokénisée
+     *       (chaînes STRING, nombres/dates NUMBER, booléens CONSTANT)</li>
+     *   <li>séquences d'échappement dans les chaînes → ESCAPE</li>
+     * </ul></p>
      */
     public static StyledLine styleToml(String line, int entryState) {
-        List<LineSpan> spans = new ArrayList<>();
-        int pos = 0;
-        boolean seenEquals = false;
-
-        while (pos < line.length()) {
-            char ch = line.charAt(pos);
-
-            // Commentaire
-            if (ch == '#') {
-                spans.add(new LineSpan(pos, line.length(), TokenType.COMMENT));
-                pos = line.length();
-                continue;
-            }
-
-            if (Character.isWhitespace(ch)) { pos++; continue; }
-
-            // En-tête de section [nom] ou [[nom]]
-            if (!seenEquals && ch == '[') {
-                int closeCount = 0;
-                while (pos < line.length() && line.charAt(pos) == '[') { closeCount++; pos++; }
-                int end = pos;
-                while (end < line.length() && line.charAt(end) != ']') end++;
-                if (end < line.length()) {
-                    spans.add(new LineSpan(pos, end, TokenType.TYPE));
-                    spans.add(new LineSpan(end, end + closeCount, TokenType.PUNCT));
-                    pos = end + closeCount;
-                    continue;
-                }
-            }
-
-            // Signe égal
-            if (ch == '=' && !seenEquals) {
-                spans.add(new LineSpan(pos, pos + 1, TokenType.OPERATOR));
-                pos++;
-                seenEquals = true;
-                continue;
-            }
-
-            if (!seenEquals) {
-                // Clé
-                int end = pos + 1;
-                while (end < line.length() && line.charAt(end) != '=' && !Character.isWhitespace(line.charAt(end))) end++;
-                spans.add(new LineSpan(pos, end, TokenType.PROPERTY));
-                pos = end;
-                continue;
-            }
-
-            // Valeur
-            if (ch == '"' || ch == '\'') {
-                int end = SpanUtils.findStringEnd(line, pos + 1, ch);
-                if (end >= 0) {
-                    SpanUtils.addStringSpans(spans, line, pos, end + 1, TokenType.STRING);
-                    pos = end + 1;
-                    continue;
-                }
-            }
-
-            if (Character.isDigit(ch) || (ch == '-' && pos + 1 < line.length() && Character.isDigit(line.charAt(pos + 1)))) {
-                int end = pos + 1;
-                while (end < line.length() && (Character.isDigit(line.charAt(end)) || line.charAt(end) == '.' || line.charAt(end) == '-' || line.charAt(end) == ':' || line.charAt(end) == 'T' || line.charAt(end) == 'Z')) end++;
-                spans.add(new LineSpan(pos, end, TokenType.NUMBER));
-                pos = end;
-                continue;
-            }
-
-            if (Character.isLetter(ch)) {
-                int end = pos + 1;
-                while (end < line.length() && Character.isLetter(line.charAt(end))) end++;
-                String word = line.substring(pos, end);
-                TokenType type = KeywordTables.TOML_KEYWORDS.contains(word) ? TokenType.CONSTANT : TokenType.STRING;
-                spans.add(new LineSpan(pos, end, type));
-                pos = end;
-                continue;
-            }
-
-            spans.add(new LineSpan(pos, pos + 1, TokenType.PUNCT));
-            pos++;
-        }
-        return new StyledLine(spans, entryState, LexState.NORMAL);
+        return GenericTokenizer.styleLine(TokenizerTemplate.TOML, line, entryState);
     }
 
     private TomlTokenizer() {}
