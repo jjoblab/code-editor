@@ -194,6 +194,7 @@ par responsabilité.
 |----------------|------|---------|-------------|
 | Coloration incrémentale par ligne | ✅ | `highlight/SyntaxHighlighter.java` | État de sortie + cascade stop-rule |
 | Tokéniseurs intégrés (14) | ✅ | `highlight/tokenizer/` | CLike, Xml, Json, Python, Lua, Css, Shell, Yaml, Sql, Properties, Toml, Smali, Log, Markdown |
+| Voie grammaires optionnelle | ✅ | `:cel-textmate` (module optionnel, ADR-002 C3) | Moteur de grammaires TextMate-like (`TextMateTokenizerImpl`, `GrammarTokenizer`, `ScopeMapper`), grammaire C# embarquée, registration hôte par fichier |
 | Utilitaires de tokénisation | ✅ | `highlight/tokenizer/SpanUtils.java`, `highlight/tokenizer/KeywordTables.java` | Découpage de spans, tables de mots-clés |
 | Distinctions fines de tokens (lot 4 #26) | ✅ | `highlight/TokenType.java`, `tokenizer/CLikeTokenizer.java`, `tokenizer/XmlTokenizer.java`, `tokenizer/MarkdownTokenizer.java` | DOC_COMMENT (état porté), KEYWORD_CONTROL/KEYWORD_MODIFIER (tables partagées), CHAR, RAW_STRING, NAMESPACE, ENTITY (fenêtre 12), EMPHASIS (règle intra-mot `_` vs `*`) — héritent du parent tant qu'un scheme ne les sépare |
 | Interface TextMate optionnelle | ✅ | `highlight/TextMateTokenizer.java` | Point d'extension pour un module TextMate ; repli sur les tokéniseurs intégrés |

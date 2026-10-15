@@ -263,6 +263,28 @@ final class BuiltinLanguages {
         "true", "false"
     )));
 
+    // ADR-002 (C3) : C# — langage « grammaire-only ». Aucun
+    // tokéniseur intégré dédié : la coloration passe par la
+    // grammaire embarquée du module optionnel :cel-textmate
+    // (textmate/csharp.tmg.json) ; sans le module, le repli est le
+    // C_LIKE générique (mots-clés ci-dessous pour la complétion
+    // intégrée, D5 « source unique »).
+    static final Set<String> CSHARP_KEYWORDS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
+        "abstract", "as", "async", "await", "base", "bool", "break", "byte",
+        "case", "catch", "char", "checked", "class", "const", "continue",
+        "decimal", "default", "delegate", "do", "double", "dynamic", "else",
+        "enum", "event", "explicit", "extern", "false", "finally", "fixed",
+        "float", "for", "foreach", "get", "goto", "if", "implicit", "in",
+        "init", "int", "interface", "internal", "is", "lock", "long", "namespace",
+        "new", "null", "object", "operator", "out", "override", "params",
+        "partial", "private", "protected", "public", "readonly", "record",
+        "ref", "remove", "return", "sbyte", "sealed", "set", "short", "sizeof",
+        "stackalloc", "static", "string", "struct", "switch", "this", "throw",
+        "true", "try", "typeof", "uint", "ulong", "unchecked", "unsafe",
+        "ushort", "using", "value", "var", "virtual", "void", "volatile",
+        "when", "where", "while", "yield"
+    )));
+
     // ═════════════════════════════════════════════════════════════
     // Raccourcis de syntaxes de commentaire (mêmes instances que le
     // switch forLanguage de CommentSyntax).
@@ -442,6 +464,13 @@ final class BuiltinLanguages {
         LanguageRegistry.put(LanguageProfile.builder("scala")
                 .family(SyntaxFamily.C_LIKE).extension("scala")
                 .keywordSet(JAVA_KEYWORDS)
+                .commentSyntax(CommentSyntax.C_STYLE).build());
+        // ADR-002 (C3) : C#, langage « grammaire-only » — la coloration
+        // vient de la grammaire embarquée :cel-textmate quand le module
+        // est branché ; le C_LIKE générique reste le repli hors-ligne.
+        LanguageRegistry.put(LanguageProfile.builder("csharp")
+                .family(SyntaxFamily.C_LIKE).alias("cs", "c#")
+                .extension("cs").keywordSet(CSHARP_KEYWORDS)
                 .commentSyntax(CommentSyntax.C_STYLE).build());
 
         // ── Lot 1 (audit v3.41.0) — texte brut ─────────────────────

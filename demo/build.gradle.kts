@@ -50,6 +50,11 @@ dependencies {
     // La bibliothèque locale — cel-ui embarque transitivement cel-core
     // (moteur) et cel-lsp-api (SPI langage).
     implementation(project(":cel-ui"))
+    // ADR-002 (C3) : voie grammaires — l'app de démo croche le module
+    // optionnel :cel-textmate au démarrage (C# « grammaire-only »,
+    // grammaire textmate/csharp.tmg.json embarquée). Un hôte qui
+    // n'embarque PAS ce module garde la coloration intégrée.
+    implementation(project(":cel-textmate"))
 
     implementation(libs.androidx.appcompat)
     implementation(libs.material)

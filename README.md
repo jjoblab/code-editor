@@ -16,6 +16,7 @@ ce projet.
 | `:cel-core` | Moteur pur (sans Android UI) : Rope, EditorDocument, EditorSession, EditOps, FindReplace, DiagnosticShift, SnippetSession, FoldModel, WrapModel, LineRenderCache, SyntaxHighlighter, complétion, registre de langages | — |
 | `:cel-lsp-api` | SPI langage : `Language`, 17 interfaces de providers (completion, hover, diagnostics, definition, rename, format, inlay hints…) et 15 classes de données | `:cel-core` |
 | `:cel-lsp` | Intégration LSP4J : `LspProject`, `LspEditor`, serveurs in-process/socket/process | `:cel-core`, `:cel-lsp-api` (compileOnly) — contrat `EditorHost` |
+| `:cel-textmate` | **Optionnel** — voie grammaires (ADR-002 C3) : moteur de grammaires TextMate-like (`TextMateTokenizerImpl`, mapping portées → `TokenType`, grammaires embarquées `textmate/*.tmg.json` — C#) | `:cel-core` seul |
 | `:cel-ui` | Vues Android : `EditorView` (Canvas), renderer et painters, gutter, popups, IME bridge, bar tools, breadcrumb, minimap | `:cel-core`, `:cel-lsp-api` |
 
 ## Installation
@@ -64,6 +65,13 @@ dependencies {
     // gardez la ligne cel-ui ci-dessus (l'adaptateur LspEditorViewHost
     // du pont LSP y vit — plan 03 : le client LSP ne dépend plus de la vue).
     implementation("jo.codeeditor:cel-lsp:3.71.0")
+
+    // Optionnel — voie grammaires (ADR-002 C3) : coloration par
+    // grammaires TextMate-like, grammaires embarquées + registration
+    // hôte (supporter un langage de plus = un FICHIER, pas du Java).
+    implementation("jo.codeeditor:cel-textmate:3.71.0")
+    // … puis UNE fois au démarrage, avant toute vue éditeur :
+    // SyntaxHighlighter.setTextMateTokenizer(TextMateTokenizerImpl.create());
 }
 ```
 
@@ -81,6 +89,7 @@ maven { url = uri("https://jitpack.io") }
 dependencies {
     implementation("com.github.jjoblab.code-editor:cel-ui:v3.71.0")
     implementation("com.github.jjoblab.code-editor:cel-lsp:v3.71.0") // optionnel
+    implementation("com.github.jjoblab.code-editor:cel-textmate:v3.71.0") // optionnel (voie grammaires)
 }
 ```
 
@@ -88,11 +97,12 @@ dependencies {
 
 ```kotlin
 // settings.gradle.kts
-include(":cel-core", ":cel-lsp-api", ":cel-lsp", ":cel-ui")
+include(":cel-core", ":cel-lsp-api", ":cel-lsp", ":cel-ui", ":cel-textmate")
 project(":cel-core").projectDir = file("code-editor/editor/cel-core")
 project(":cel-lsp-api").projectDir = file("code-editor/editor/cel-lsp-api")
 project(":cel-lsp").projectDir = file("code-editor/editor/cel-lsp")
 project(":cel-ui").projectDir = file("code-editor/editor/cel-ui")
+project(":cel-textmate").projectDir = file("code-editor/editor/cel-textmate")
 
 // app/build.gradle.kts
 dependencies {

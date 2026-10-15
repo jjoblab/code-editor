@@ -22,7 +22,9 @@ import java.util.Map;
 import java.util.Set;
 
 import jo.codeeditor.document.EditorDocument;
+import jo.codeeditor.highlight.SyntaxHighlighter;
 import jo.codeeditor.session.EditorSession;
+import jo.codeeditor.textmate.TextMateTokenizerImpl;
 import jo.codeeditor.view.EditorView;
 import jo.codeeditor.view.GutterAction;
 import jo.codeeditor.view.chrome.BreadcrumbBar;
@@ -57,6 +59,11 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        // ADR-002 (C3) : voie grammaires — crochage du module optionnel
+        // :cel-textmate (une seule fois, avant toute vue éditeur) : les
+        // langages couverts par une grammaire embarquée (C#) passent au
+        // moteur de grammaires, les autres gardent le tokéniseur intégré.
+        SyntaxHighlighter.setTextMateTokenizer(TextMateTokenizerImpl.create());
         buildUi();
         loadLanguage("Java", "java");
     }

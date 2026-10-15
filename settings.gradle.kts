@@ -26,6 +26,10 @@ project(":cel-lsp-api").projectDir = file("editor/cel-lsp-api")
 include(":cel-ui")
 project(":cel-ui").projectDir = file("editor/cel-ui")
 
+// ADR-002 (C3) : module optionnel de grammaires — dépend de :cel-core
+// seul, implémente jo.codeeditor.highlight.TextMateTokenizer.
+include(":cel-textmate")
+project(":cel-textmate").projectDir = file("editor/cel-textmate")
 
 include(":cel-lsp")
 project(":cel-lsp").projectDir = file("editor/cel-lsp")

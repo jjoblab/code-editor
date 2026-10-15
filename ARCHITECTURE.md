@@ -23,6 +23,7 @@ code-editor/
     ├── cel-core/                    — moteur pur Java
     ├── cel-lsp-api/                 — SPI langage
     ├── cel-lsp/                     — client LSP4J
+    ├── cel-textmate/                — voie grammaires optionnelle (ADR-002 C3)
     └── cel-ui/                      — vues Android
 ```
 
@@ -65,6 +66,14 @@ Notes :
   implémentation.
 - `:cel-core` et `:cel-lsp-api` sont **purs** (utilisables sur la JVM hôte,
   sans Android).
+- `:cel-textmate` (ADR-002, C3) est **optionnel** : il implémente
+  `jo.codeeditor.highlight.TextMateTokenizer` (crochet
+  `SyntaxHighlighter.setTextMateTokenizer`) et ne dépend que de
+  `:cel-core`. Grammaires embarquées en classpath
+  (`textmate/*.tmg.json`, écrites pour le moteur — aucune attribution
+  tierce), mapping portées → `TokenType` (`ScopeMapper`, amorce du
+  chantier C4). Sans le module, le tokéniseur intégré par famille
+  reste le repli — chemin strictement additif.
 
 ## Organisation interne des modules
 

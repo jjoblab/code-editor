@@ -26,7 +26,7 @@ import jo.codeeditor.languages.SyntaxFamily;
  * les chaînes XML, les chaînes brutes Kotlin, les commentaires/chaînes CSS,
  * les chaînes Shell entre apostrophes et les blocs de code clôturés Markdown.
  *
- * <p><b>Parser maison (intégré, sans :textmate requis) :</b>
+ * <p><b>Parser maison (intégré, sans :cel-textmate requis) :</b>
  * les langages suivants sont pris en charge nativement :
  * <ul>
  *   <li><b>Syntaxe C</b> (machine à états partagée dans {@link CLikeTokenizer#styleCLike}) :
@@ -37,7 +37,8 @@ import jo.codeeditor.languages.SyntaxFamily;
  * </ul>
  *
  * <p>Pour une coloration plus riche (héritage de portées, injections,
- * constructions multi-lignes), le module optionnel {@code :textmate} peut être
+ * constructions multi-lignes), le module optionnel {@code :cel-textmate}
+ * (dans ce dépôt, ADR-002 C3) peut être
  * ajouté — il implémente {@link TextMateTokenizer} et s'enregistre via
  * {@link #setTextMateTokenizer(TextMateTokenizer)}. Quand TextMate signale
  * {@link TextMateTokenizer#isAvailable(String)} pour un langage, le

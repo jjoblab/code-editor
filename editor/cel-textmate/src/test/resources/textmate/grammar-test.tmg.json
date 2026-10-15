@@ -1,0 +1,15 @@
+{
+  "scopeName": "source.t",
+  "name": "Grammar Test",
+  "patterns": [
+    { "match": "//[^\\n]*", "name": "comment.line.t" },
+    { "begin": "/\\*\\*", "end": "\\*/", "name": "comment.block.documentation.t",
+      "patterns": [] },
+    { "begin": "\"", "end": "\"", "name": "string.quoted.double.t",
+      "contentName": "string.quoted.double.t",
+      "patterns": [ { "match": "\\\\.", "name": "constant.character.escape.t" } ] },
+    { "match": "\\b(?:if|else|return)\\b", "name": "keyword.control.t" },
+    { "match": "\\b[0-9]+\\b", "name": "constant.numeric.t" },
+    { "match": "\\b[a-z_][a-z0-9_]*(?=\\()", "name": "entity.name.function.t" }
+  ]
+}

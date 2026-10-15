@@ -38,6 +38,10 @@ dependencies {
 
     // Optionnel — intégration Language Server Protocol (LSP4J).
     implementation("jo.codeeditor:cel-lsp:3.71.0")
+
+    // Optionnel — voie grammaires (ADR-002 C3) : coloration par
+    // grammaires TextMate-like + grammaires embarquées (C#).
+    implementation("jo.codeeditor:cel-textmate:3.71.0")
 }
 ```
 
@@ -367,6 +371,54 @@ editorView.setSymbolResolver((text) -> {
 `setDocumentHighlightResolver` — même principe : la vue appelle le résolveur
 à la commande clavier correspondante et affiche le résultat dans le popup
 adapté.
+
+## Coloration par grammaires — module optionnel `:cel-textmate` (ADR-002)
+
+La voie grammaires ajoute la coloration « TextMate-like » PAR FICHIER de
+grammaire déclarative, sans écrire de tokéniseur Java. Le module ne dépend
+que de `:cel-core` : l'hôte qui ne l'embarque pas garde le tokéniseur intégré
+(repli hors-ligne) — le chemin est strictement additif.
+
+```java
+import jo.codeeditor.highlight.SyntaxHighlighter;
+import jo.codeeditor.textmate.TextMateTokenizerImpl;
+
+// Une seule fois au démarrage, AVANT toute vue éditeur :
+SyntaxHighlighter.setTextMateTokenizer(TextMateTokenizerImpl.create());
+```
+
+Les grammaires embarquées du dépôt se chargent paresseusement (classpath
+`textmate/*.tmg.json` — C# aujourd'hui : langage « grammaire-only », aucun
+tokéniseur intégré dédié). Pour vos langages :
+
+```java
+TextMateTokenizerImpl tm = TextMateTokenizerImpl.create();
+tm.registerGrammar("mylang", """
+        {
+          "scopeName": "source.mylang",
+          "patterns": [
+            { "match": "#[^\\n]*", "name": "comment.line.mylang" },
+            { "begin": "\\"", "end": "\\"", "name": "string.quoted.double.mylang",
+              "contentName": "string.quoted.double.mylang" }
+          ]
+        }
+        """);
+SyntaxHighlighter.setTextMateTokenizer(tm);
+```
+
+Format : règles `match` (portée `name` + `captures` par groupe), blocs
+`begin`/`end` (multilignes, `contentName`, backreferences `\1` du `end`),
+`include` (`#règle` du repository, `$self`). Les regex doivent être
+tables par `java.util.regex` (le sous-ensemble du moteur, documenté dans
+la javadoc de `TextMateGrammar`) — une grammaire invalide échoue à
+l'ENREGISTREMENT (exception), jamais en cours de coloration.
+
+Les portées standard se mappent sur les `TokenType` existants
+(`comment.block.documentation` → `DOC_COMMENT`, `keyword.control` →
+`KEYWORD_CONTROL`, `string.quoted.triple` → `RAW_STRING`… voir
+`ScopeMapper`) — un thème les colore sans clé par langage. La porte des
+800 lignes (`TEXTMATE_LINE_LIMIT`) reste décidée par `EditorSession`, hors
+module.
 
 ## Raccourcis clavier
 

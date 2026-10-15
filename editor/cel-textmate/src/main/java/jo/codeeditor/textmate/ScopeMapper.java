@@ -1,0 +1,113 @@
+package jo.codeeditor.textmate;
+
+import jo.codeeditor.highlight.TokenType;
+
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+/**
+ * Mapping portées de grammaire → {@link TokenType} (ADR-002, C3 —
+ * amorce du chantier C4 « schéma de portées »).
+ *
+ * <p>Les portées TextMate sont des hiérarchies pointées
+ * ({@code comment.block.documentation.csharp}). Le mapper applique la
+ * correspondance du segment le plus précis connu : il parcourt les
+ * préfixes de la portée du plus long au plus court —
+ * {@code comment.block.documentation} (→ {@code DOC_COMMENT}) avant
+ * {@code comment} (→ {@code COMMENT}). Les types fins déjà présents
+ * dans {@link TokenType} ({@code DOC_COMMENT}, {@code KEYWORD_CONTROL},
+ * {@code RAW_STRING}, {@code ENTITY}…) sont exploités ; un thème qui ne
+ * les distingue pas les voit hériter du champ parent.</p>
+ *
+ * <p>Table calibrée sur les catégories standard des grammaires de
+ * l'écosystème (celles des portées « TextMate Language Grammars ») :
+ * commentaire, chaîne, mot-clé, constante, entité, variable, support,
+ * stockage, ponctuation. Une portée inconnue retombe sur
+ * {@link TokenType#PLAIN}.</p>
+ */
+public final class ScopeMapper {
+
+    private ScopeMapper() {}
+
+    /** Correspondances préfixe → type (l'ordre d'insertion documente la priorité). */
+    private static final Map<String, TokenType> BY_PREFIX = build();
+
+    private static Map<String, TokenType> build() {
+        Map<String, TokenType> m = new LinkedHashMap<>();
+        // ── Commentaires : ligne, bloc, documentation ─────────────
+        m.put("comment.block.documentation", TokenType.DOC_COMMENT);
+        m.put("comment.line.double-slash.documentation", TokenType.DOC_COMMENT);
+        m.put("comment.block", TokenType.COMMENT);
+        m.put("comment.line", TokenType.COMMENT);
+        m.put("comment", TokenType.COMMENT);
+        // ── Chaînes : variété et finesse ──────────────────────────
+        m.put("string.quoted.triple", TokenType.RAW_STRING);
+        m.put("string.quoted.other.literal", TokenType.RAW_STRING);
+        m.put("string.quoted.double.verbatim", TokenType.RAW_STRING);
+        m.put("string.quoted.single", TokenType.CHAR);
+        m.put("string.regexp", TokenType.REGEXP);
+        m.put("string", TokenType.STRING);
+        // ── Échappements et entités ───────────────────────────────
+        m.put("constant.character.escape", TokenType.ESCAPE);
+        m.put("constant.character.entity", TokenType.ENTITY);
+        // ── Mots-clés : contrôle, modificateur, other ─────────────
+        m.put("keyword.control", TokenType.KEYWORD_CONTROL);
+        m.put("keyword.operator", TokenType.OPERATOR);
+        m.put("keyword.other.modifier", TokenType.KEYWORD_MODIFIER);
+        m.put("storage.modifier", TokenType.KEYWORD_MODIFIER);
+        m.put("keyword", TokenType.KEYWORD);
+        m.put("storage.type", TokenType.TYPE);
+        m.put("storage", TokenType.KEYWORD);
+        // ── Constantes et nombres ─────────────────────────────────
+        m.put("constant.numeric", TokenType.NUMBER);
+        m.put("constant.language", TokenType.CONSTANT);
+        m.put("constant.character", TokenType.CHAR);
+        m.put("constant", TokenType.CONSTANT);
+        // ── Entités : fonctions, types, tags, noms ─────────────────
+        m.put("entity.name.function", TokenType.FUNC);
+        m.put("entity.name.type", TokenType.TYPE);
+        m.put("entity.name.tag", TokenType.TYPE);
+        m.put("entity.name.namespace", TokenType.NAMESPACE);
+        m.put("entity.name", TokenType.TYPE);
+        m.put("entity.other.attribute-name", TokenType.PROPERTY);
+        // ── Variables et paramètres ───────────────────────────────
+        m.put("variable.language", TokenType.KEYWORD);
+        m.put("variable.parameter", TokenType.VARIABLE);
+        m.put("variable.other", TokenType.VARIABLE);
+        m.put("variable", TokenType.VARIABLE);
+        // ── Support (bibliothèques) ───────────────────────────────
+        m.put("support.function", TokenType.FUNC);
+        m.put("support.type", TokenType.TYPE);
+        m.put("support.constant", TokenType.CONSTANT);
+        m.put("support.class", TokenType.TYPE);
+        // ── Divers ────────────────────────────────────────────────
+        m.put("meta.annotation", TokenType.ANNOTATION);
+        m.put("meta.preprocessor", TokenType.ANNOTATION);
+        m.put("punctuation.definition.annotation", TokenType.ANNOTATION);
+        m.put("meta.tag", TokenType.TYPE);
+        m.put("punctuation", TokenType.PUNCT);
+        m.put("invalid", TokenType.ERROR);
+        return m;
+    }
+
+    /**
+     * Mappe une portée (potentiellement multi-segments) vers le type
+     * le plus précis connu. {@code null} ou vide → {@code PLAIN}.
+     */
+    public static TokenType tokenTypeFor(String scope) {
+        if (scope == null || scope.isBlank()) return TokenType.PLAIN;
+        String s = scope.trim();
+        // Préfixe le plus long d'abord : les segments se retirent un
+        // à un jusqu'à une correspondance (comment.block.documentation
+        // → comment.block → comment).
+        String candidate = s;
+        while (!candidate.isEmpty()) {
+            TokenType t = BY_PREFIX.get(candidate);
+            if (t != null) return t;
+            int dot = candidate.lastIndexOf('.');
+            if (dot < 0) break;
+            candidate = candidate.substring(0, dot);
+        }
+        return TokenType.PLAIN;
+    }
+}

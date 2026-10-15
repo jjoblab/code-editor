@@ -1,0 +1,106 @@
+{
+  // Grammaire C# du dépôt code-editor (Apache-2.0) — écrite pour le
+  // moteur :cel-textmate (sous-ensemble java.util.regex). Langage
+  // « grammaire-only » : aucun tokéniseur intégré dédié (critère (ii)
+  // de l'ADR-002 — le repli est le C_LIKE générique de :cel-core).
+  "scopeName": "source.csharp",
+  "name": "C#",
+  "patterns": [
+    { "include": "#doc-comments" },
+    { "include": "#comments" },
+    { "include": "#verbatim-strings" },
+    { "include": "#strings" },
+    { "include": "#chars" },
+    { "include": "#numbers" },
+    { "include": "#annotations" },
+    { "include": "#keywords" },
+    { "include": "#types" },
+    { "include": "#functions" },
+    { "include": "#operators" }
+  ],
+  "repository": {
+    "doc-comments": {
+      "begin": "/\\*\\*",
+      "end": "\\*/",
+      "name": "comment.block.documentation.csharp",
+      "patterns": []
+    },
+    "comments": {
+      "patterns": [
+        {
+          "match": "//[^\\n]*",
+          "name": "comment.line.double-slash.csharp"
+        },
+        {
+          "begin": "/\\*",
+          "end": "\\*/",
+          "name": "comment.block.csharp"
+        }
+      ]
+    },
+    "verbatim-strings": {
+      "begin": "@\"",
+      "end": "\"",
+      "name": "string.quoted.double.verbatim.csharp",
+      "contentName": "string.quoted.double.verbatim.csharp",
+      "patterns": [
+        {
+          "match": "\"\"",
+          "name": "constant.character.escape.verbatim.csharp"
+        }
+      ]
+    },
+    "strings": {
+      "begin": "\"",
+      "end": "\"",
+      "name": "string.quoted.double.csharp",
+      "contentName": "string.quoted.double.csharp",
+      "patterns": [
+        {
+          "match": "\\\\(?:[abfnrtv'\"\\\\0]|x[0-9a-fA-F]{1,4}|u[0-9a-fA-F]{4})",
+          "name": "constant.character.escape.csharp"
+        }
+      ]
+    },
+    "chars": {
+      "match": "'(?:\\\\(?:[abfnrtv'\"\\\\0]|x[0-9a-fA-F]{1,4}|u[0-9a-fA-F]{4})|[^'\\\\])'",
+      "name": "constant.character.csharp"
+    },
+    "numbers": {
+      "match": "\\b(?:0x[0-9a-fA-F_]+|0b[01_]+|(?:[0-9][0-9_]*\\.?[0-9_]*)(?:[eE][+-]?[0-9_]+)?)(?:[uUlLfdDFmM]+)?\\b",
+      "name": "constant.numeric.csharp"
+    },
+    "annotations": {
+      "match": "\\[[A-Z][A-Za-z0-9_]*(?:\\.[A-Z][A-Za-z0-9_]*)*(?:\\([^\\)]*\\))?\\]",
+      "name": "meta.annotation.csharp"
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "match": "\\b(?:if|else|for|foreach|while|do|switch|case|default|break|continue|return|yield|throw|try|catch|finally|goto|in|when)\\b",
+          "name": "keyword.control.csharp"
+        },
+        {
+          "match": "\\b(?:public|private|protected|internal|static|sealed|abstract|virtual|override|readonly|const|new|partial|async|await|unsafe|extern|volatile|ref|out|in|params)\\b",
+          "name": "storage.modifier.csharp"
+        },
+        {
+          "match": "\\b(?:class|struct|interface|enum|record|delegate|namespace|using|get|set|init|value|var|dynamic|object|string|int|long|short|byte|uint|ulong|ushort|sbyte|char|float|double|decimal|bool|void|this|base|null|true|false|operator|implicit|explicit|event|add|remove|fixed|lock|sizeof|typeof|is|as)\\b",
+          "name": "keyword.other.csharp"
+        }
+      ]
+    },
+    "types": {
+      "match": "\\b[A-Z][A-Za-z0-9_]*\\b",
+      "name": "entity.name.type.csharp"
+    },
+    "functions": {
+      "match": "\\b[a-z_][A-Za-z0-9_]*(?=\\s*\\()",
+      "name": "entity.name.function.csharp"
+    },
+    "operators": {
+      "match": "=>|\\.{2,3}|[+\\-*/%&|^!~<>=?:]+",
+      "name": "keyword.operator.csharp"
+    }
+  }
+}

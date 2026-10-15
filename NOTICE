@@ -39,3 +39,16 @@ fermer dessinés maison en famille STROKE). Conformément à l'Apache
 2.0, cette notice tient lieu d'attribution ; la licence complète est
 disponible à
 https://www.apache.org/licenses/LICENSE-2.0.html
+
+## Grammaires embarquées (module `cel-textmate`)
+
+Les grammaires embarquées du module `:cel-textmate`
+(`src/main/resources/textmate/*.tmg.json` — aujourd'hui
+`csharp.tmg.json`) sont des fichiers ORIGINAUX de ce dépôt, écrits
+pour le moteur interne (sous-ensemble `java.util.regex`), sous
+licence **Apache License 2.0** — aucune attribution tierce n'est due
+(décision D3 de l'ADR-002 : vérification fichier par fichier AVANT
+tout embarquement ; si une grammaire tierce entre un jour au dépôt,
+sa licence et son attribution seront consignées ICI, même discipline
+que LSP4J/Gson/Material Symbols). Le module n'embarque AUCUNE
+dépendance supplémentaire (`:cel-core` seul, parseur JSON interne).
