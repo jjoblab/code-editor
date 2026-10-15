@@ -1,3 +1,9 @@
+# Notice
+
+**code-editor-lib** — Copyright 2024-2026 code-editor-lib contributors.
+Distribué sous licence **Apache License 2.0** — texte complet dans
+[`LICENSE`](LICENSE).
+
 # Notices tierces
 
 Ce fichier ne documente que les dépendances **réellement embarquées** par
@@ -11,7 +17,8 @@ Le module `cel-lsp` embarque `org.eclipse.lsp4j:org.eclipse.lsp4j` et
 licence **Eclipse Public License 2.0 (EPL-2.0)**. LSP4J n'est pas tiré
 par les modules `cel-core`, `cel-lsp-api` et `cel-ui` : seuls les
 consommateurs qui ajoutent la dépendance `cel-lsp` l'obtiennent.
-L'EPL-2.0 est compatible avec la licence MIT pour les œuvres combinées.
+L'EPL-2.0 (copyleft faible) autorise l'œuvre combinée avec de l'Apache-2.0 :
+chaque licence demeure applicable à ses fichiers d'origine.
 
 ## Gson 2.10.1 (module `cel-lsp`)
 

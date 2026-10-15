@@ -130,6 +130,17 @@ afterEvaluate {
                 groupId = project.group.toString()
                 artifactId = "cel-lsp"
                 version = project.version.toString()
+                // Licence du projet (migration Apache 2.0) : consignée dans le
+                // POM pour que les consommateurs la voient d'un coup d'œil
+                // (affichage Gradle, scans de conformité).
+                pom {
+                    licenses {
+                        license {
+                            name = "Apache-2.0"
+                            url = "https://www.apache.org/licenses/LICENSE-2.0.txt"
+                        }
+                    }
+                }
             }
         }
         // Dépôt GitHub Packages — activé par les propriétés gpr.user /

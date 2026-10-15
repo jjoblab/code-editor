@@ -268,4 +268,5 @@ tests avant publication — voir [`BUILD.md`](BUILD.md)).
 
 ## Licence
 
-MIT
+Apache License 2.0 — texte complet dans [`LICENSE`](LICENSE),
+attributions embarquées dans [`NOTICE`](NOTICE).

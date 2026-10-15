@@ -51,6 +51,10 @@ Les sections antérieures à la période courante sont archivées dans
 
 - **Clivet A-01 : le plafond DESCEND** — première extraction de la décomposition d'`EditorView` : l'état Parcelable (`SavedState`, 60 lignes imbriquées) devient `EditorSavedState`, classe de package dédiée ; la vue conserve les points d'attache View. `EditorView` : 3840 → 3799 lignes (276/280 méthodes publiques) ; **plafond abaissé de 4100 à 3810** — tout relèvement futur exige la décision du propriétaire, chaque extraction accompagne désormais son abaissement. Le test d'état d'instance (parcellisation, restauration) couvre l'extraction.
 
+### Changed (post-plan — décisions du propriétaire)
+
+- **Licence du projet : MIT → Apache 2.0** — `LICENSE` porte désormais le texte canonique Apache License 2.0 ; la mention de copyright du projet (2024-2026, code-editor-lib contributors) vit dans `NOTICE`, qui documente en sus le régime des œuvres combinées avec l'EPL-2.0 de la dépendance LSP embarquée par `cel-lsp` ; les POM des quatre modules publiés consignent la licence (`Apache-2.0`) pour les consommateurs et les scans de conformité ; le README est aligné.
+
 ### Fixed (D-09)
 
 - **Documentation dérivée resynchronisée** — README/USAGE annonçaient `3.49.2`, BUILD `3.54.0`, SECURITY `3.49.x` (réalité : `3.70.1`) ; le graphe des modules d'AGENT.md omettait `cel-lsp-api → cel-core (api)` et `cel-lsp → cel-ui (compileOnly)` ; les plans 01/02 citaient les collaborateurs `EditorBarTools` (retiré en B15) et `SurroundWith` (retiré au lot M-02). `check-doc-figures.sh` verrouille désormais l'égalité version README/USAGE/BUILD ↔ `build.gradle.kts` (rouge/vert testé par injection d'une version divergente).
