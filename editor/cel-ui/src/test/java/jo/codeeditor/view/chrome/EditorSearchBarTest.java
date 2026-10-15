@@ -73,7 +73,7 @@ public class EditorSearchBarTest {
         bar.close();
         assertEquals(View.GONE, bar.getVisibility());
         assertFalse(bar.isOpen());
-        assertTrue("close purge le surlignage", view.findHighlights.isEmpty());
+        assertTrue("close purge le surlignage", view.find.highlights.isEmpty());
     }
 
     @Test
@@ -82,7 +82,7 @@ public class EditorSearchBarTest {
         bar.open();
         assertEquals("beta", bar.queryFieldText());
         // Le compte est déjà vivant après l'ouverture.
-        assertEquals(2, view.findHighlights.size());
+        assertEquals(2, view.find.highlights.size());
     }
 
     @Test
@@ -91,7 +91,7 @@ public class EditorSearchBarTest {
         bar.setQueryFieldText("alpha");
         // Le watcher passe par le différé (160 ms) — avance le looper.
         idleMainLooper();
-        assertEquals(2, view.findHighlights.size());
+        assertEquals(2, view.find.highlights.size());
     }
 
     @Test
@@ -102,7 +102,7 @@ public class EditorSearchBarTest {
         bar.close();
         bar.open();
         assertEquals("gamma", bar.queryFieldText());
-        assertEquals(2, view.findHighlights.size());
+        assertEquals(2, view.find.highlights.size());
     }
 
     @Test
@@ -112,7 +112,7 @@ public class EditorSearchBarTest {
         idleMainLooper();
         // Enter du champ = action SEARCH = occurrence suivante.
         bar.pressQueryAction();
-        assertEquals(1, view.findCurrentIndex);
+        assertEquals(1, view.find.currentIndex);
     }
 
     @Test
@@ -120,17 +120,17 @@ public class EditorSearchBarTest {
         bar.open();
         bar.setQueryFieldText("ALPHA");
         idleMainLooper();
-        assertEquals("insensible par défaut", 2, view.findHighlights.size());
+        assertEquals("insensible par défaut", 2, view.find.highlights.size());
 
         bar.toggleCaseChip();
-        assertEquals("Aa = sensible : plus rien", 0, view.findHighlights.size());
+        assertEquals("Aa = sensible : plus rien", 0, view.find.highlights.size());
         bar.toggleCaseChip();
-        assertEquals(2, view.findHighlights.size());
+        assertEquals(2, view.find.highlights.size());
 
         bar.toggleRegexChip();
         bar.setQueryFieldText("al(pha)");
         idleMainLooper();
-        assertEquals(2, view.findHighlights.size());
+        assertEquals(2, view.find.highlights.size());
     }
 
     @Test
@@ -161,14 +161,14 @@ public class EditorSearchBarTest {
         bar.open();
         bar.setQueryFieldText("beta");
         idleMainLooper();
-        assertEquals(2, view.findHighlights.size());
+        assertEquals(2, view.find.highlights.size());
 
         EditorSession autre = new EditorSession(
                 EditorDocument.of("beta beta beta"));
         view.setSession(autre);
-        assertTrue(view.findHighlights.isEmpty());
+        assertTrue(view.find.highlights.isEmpty());
 
         bar.refresh();
-        assertEquals(3, view.findHighlights.size());
+        assertEquals(3, view.find.highlights.size());
     }
 }

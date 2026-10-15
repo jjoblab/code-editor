@@ -257,7 +257,7 @@ public class EditorRenderer {
         // 6. Surlignages de recherche (chaque occurrence teintée ; l'occurrence
         //    courante plus fortement). Dessinés AVANT le texte pour que les
         //    couleurs de syntaxe soient au-dessus.
-        if (!view.findHighlights.isEmpty()) {
+        if (!view.find.highlights.isEmpty()) {
             try {
                 highlights.drawFindHighlights(canvas, doc, textAreaLeft, lineHeight, paddingTop,
                                     firstDocVisible, lastDocVisible);

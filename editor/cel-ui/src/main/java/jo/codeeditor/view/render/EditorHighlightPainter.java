@@ -58,8 +58,8 @@ public class EditorHighlightPainter {
     void drawFindHighlights(Canvas canvas, EditorDocument doc,
                              float textAreaLeft, float lineHeight, float paddingTop,
                              int firstVisible, int lastVisible) {
-        for (int i = 0; i < view.findHighlights.size(); i++) {
-            Match m = view.findHighlights.get(i);
+        for (int i = 0; i < view.find.highlights.size(); i++) {
+            Match m = view.find.highlights.get(i);
             int line = doc.lineForOffset(m.start);
             if (line < firstVisible || line > lastVisible) continue;
             // Sauter les surlignages de recherche des lignes cachées (repliées).
@@ -68,7 +68,7 @@ public class EditorHighlightPainter {
             int startCol = EditorView.clamp(m.start - lineStart, 0, doc.lineEnd(line) - lineStart);
             int endCol = EditorView.clamp(m.end - lineStart, 0, doc.lineEnd(line) - lineStart);
             if (endCol <= startCol) endCol = startCol + 1;
-            view.selPaint.setColor(i == view.findCurrentIndex ? view.theme.findCurrent : view.theme.findMatch);
+            view.selPaint.setColor(i == view.find.currentIndex ? view.theme.findCurrent : view.theme.findMatch);
             // Bande consciente du wrap (une rect par rangée visuelle).
             drawColRangeBand(canvas, doc, line, startCol, endCol, textAreaLeft, lineHeight);
         }

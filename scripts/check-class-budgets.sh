@@ -57,6 +57,10 @@ budget() {
 # invariants possédés) — 3799 → 3779 lignes, 180 → 170 champs,
 # 276 → 274 méthodes publiques ; plafonds abaissés à 3790 lignes et
 # 180 champs (marge 11 lignes, style maison).
+# Plan 01, étape 3 (post-plan) : FindState extrait (surlignages de
+# recherche : occurrences + courante, invariant de bornes possédé) —
+# 3779 → 3777 lignes, 170 → 169 champs ; plafond abaissé à 3788 lignes
+# (marge 11) et 179 champs.
 # Écart au ratchet : plafonds CHAMPS (170→190) et MÉTHODES PUBLIQUES
 # (255→280) d'EditorView relevés par décision explicite du propriétaire
 # (2026-10, session J3 — « Go pour J3, tu peux aussi augmenter le
@@ -65,7 +69,7 @@ budget() {
 # marge conservée pour J4 (T2 actions socle) ; les 4100 lignes restent
 # le plafond de décomposition — le relèvement ne dispense PAS de
 # décomposer via les collaborateurs existants.
-budget editor/cel-ui/src/main/java/jo/codeeditor/view/EditorView.java 3790 180 280
+budget editor/cel-ui/src/main/java/jo/codeeditor/view/EditorView.java 3788 179 280
 budget editor/cel-core/src/main/java/jo/codeeditor/session/EditorSession.java 1600 15 100
 
 if [ "$echec" -ne 0 ]; then

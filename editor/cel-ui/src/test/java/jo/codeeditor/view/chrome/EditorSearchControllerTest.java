@@ -21,7 +21,7 @@ import static org.junit.Assert.assertTrue;
 
 /**
  * B10 — le contrôleur de recherche/remplacement : occurrences poussées
- * dans le viewport ({@code findHighlights}), navigation bouclante avec
+ * dans le viewport ({@code view.find.highlights}), navigation bouclante avec
  * caret suivant, remplacement de l'occurrence courante (plain et regex
  * avec groupes), remplacement de TOUT en une seule entrée d'annulation,
  * ré-accrochage au changement de session.
@@ -71,9 +71,9 @@ public class EditorSearchControllerTest {
         controller.setQuery("beta");
         controller.refresh();
         assertEquals(2, controller.getMatchCount());
-        assertEquals(2, view.findHighlights.size());
-        assertEquals(6, view.findHighlights.get(0).start);
-        assertEquals(17, view.findHighlights.get(1).start);
+        assertEquals(2, view.find.highlights.size());
+        assertEquals(6, view.find.highlights.get(0).start);
+        assertEquals(17, view.find.highlights.get(1).start);
     }
 
     @Test
@@ -82,7 +82,7 @@ public class EditorSearchControllerTest {
         controller.refresh();
         controller.setQuery("");
         controller.refresh();
-        assertTrue(view.findHighlights.isEmpty());
+        assertTrue(view.find.highlights.isEmpty());
         assertEquals(0, controller.getMatchCount());
     }
 
@@ -121,7 +121,7 @@ public class EditorSearchControllerTest {
         controller.refresh();
         assertEquals(0, controller.getCurrentIndex());
         assertEquals("courante = première à partir du caret 0", 0,
-                view.findHighlights.get(view.findCurrentIndex).start);
+                view.find.highlights.get(view.find.currentIndex).start);
 
         controller.next();
         assertEquals(1, controller.getCurrentIndex());
@@ -168,7 +168,7 @@ public class EditorSearchControllerTest {
         assertEquals("la courante suit : première occurrence ≥ fin du remplacement",
                 0, controller.getCurrentIndex());
         // « alpha ALPHA gamma\n » = 18 caractères : le beta restant @18.
-        assertEquals(18, view.findHighlights.get(0).start);
+        assertEquals(18, view.find.highlights.get(0).start);
     }
 
     @Test
@@ -244,13 +244,13 @@ public class EditorSearchControllerTest {
         controller.setQuery("alpha");
         controller.refresh();
         assertEquals(2, controller.getMatchCount());
-        assertFalse(view.findHighlights.isEmpty());
+        assertFalse(view.find.highlights.isEmpty());
 
         EditorSession nouvelle = new EditorSession(
                 EditorDocument.of("alpha seul ici"));
         view.setSession(nouvelle);
         assertTrue("setSession purge le surlignage périmé",
-                view.findHighlights.isEmpty());
+                view.find.highlights.isEmpty());
 
         controller.refresh();
         assertEquals(1, controller.getMatchCount());
@@ -266,7 +266,7 @@ public class EditorSearchControllerTest {
         controller.setQuery("alpha");
         controller.refresh();
         controller.close();
-        assertTrue(view.findHighlights.isEmpty());
+        assertTrue(view.find.highlights.isEmpty());
         assertEquals("la requête survit à la fermeture", "alpha",
                 controller.getQuery());
     }

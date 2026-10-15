@@ -159,11 +159,12 @@ public class EditorView extends View {
     // ── Surlignages de recherche (décoration visuelle) ────────────
     // Renseignés par l'hôte (ex. barre Rechercher/Remplacer) — chaque
     // occurrence dans le viewport est teintée theme.findMatch, la
-    // courante theme.findCurrent.
+    // courante theme.findCurrent. Objet d'état extrait (plan 01,
+    // étape 3) : l'invariant « index courant dans les bornes » est
+    // possédé et testé par FindState.
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
-    public final List<Match> findHighlights = new ArrayList<>();
-    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
-    public int findCurrentIndex = -1;
+    public final jo.codeeditor.view.state.FindState find =
+            new jo.codeeditor.view.state.FindState();
 
     // ── Popup de complétion ────────────────────────────────────────
     // Complétion intégrée par mots-clés ; l'hôte peut piloter un
@@ -1263,8 +1264,7 @@ public class EditorView extends View {
         // contrôleur de recherche recalcule et repousse les siens via
         // sa méthode refresh ; sans purge, des bandes pouvaient rester
         // dessinées aux offsets hasardeux du fichier précédent).
-        findHighlights.clear();
-        findCurrentIndex = -1;
+        find.clear();
         // ★ B11 : les marqueurs de la bande d'erreurs décrivent
         // l'ANCIEN document (le pusher les repoussera aux diagnostics
         // de la nouvelle session) et le pouce du fast-scroller n'a plus
@@ -1654,9 +1654,7 @@ public class EditorView extends View {
      * avec {@code theme.findCurrent} au lieu de {@code theme.findMatch}.
      */
     public void setFindHighlights(List<Match> matches, int currentIndex) {
-        findHighlights.clear();
-        if (matches != null) findHighlights.addAll(matches);
-        findCurrentIndex = currentIndex;
+        find.set(matches, currentIndex);
         invalidate();
     }
 

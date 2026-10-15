@@ -55,9 +55,10 @@ Les sections antérieures à la période courante sont archivées dans
 
 - **Licence du projet : MIT → Apache 2.0** — `LICENSE` porte désormais le texte canonique Apache License 2.0 ; la mention de copyright du projet (2024-2026, code-editor-lib contributors) vit dans `NOTICE`, qui documente en sus le régime des œuvres combinées avec l'EPL-2.0 de la dépendance LSP embarquée par `cel-lsp` ; les POM des quatre modules publiés consignent la licence (`Apache-2.0`) pour les consommateurs et les scans de conformité ; le README est aligné.
 
-### Changed (plan 01 — décomposition d'EditorView, étape 2)
+### Changed (plan 01 — décomposition d'EditorView, étapes 2 et 3)
 
 - **`CompletionState` : l'état du popup de complétion quitte la vue** — liste affichée, sélection, fenêtre de scroll, token/préfixe, visibilité et cache de filtrage par token vivent désormais dans `view/state/CompletionState`, qui POSSÈDE les invariants (fenêtre solidaire de la sélection dans les deux sens, survie de l'item sélectionné par libellé au refiltrage, bornes du drag, cohérence visibilité/contenu). Le popup, l'input handler, le hit-tester et les painters consomment l'objet d'état ; les invariants sont testés en JVM pure (`CompletionStateTest`, zéro Robolectric — le gain de testabilité visé par le plan). `EditorView` : 3799 → 3779 lignes, 180 → 170 champs ; **plafonds abaissés 3810 → 3790 lignes et 190 → 180 champs** (cliquet, marge 11 lignes, style maison). API publique inchangée : `setCompletionItems` délègue à l'état.
+- **`FindState` : l'état de rendu des surlignages de recherche quitte la vue** — occurrences teintées et occurrence courante vivent dans `view/state/FindState`, qui possède l'invariant « index courant toujours dans les bornes » (un index hors bornes venant d'un hôte est ramené à la dernière occurrence, jamais de teinte courante fantôme) et copie défensivement la liste poussée (le contrôleur peut muter sa copie sans corrompre le rendu). La purge au changement de document (B10) passe par l'état ; le painter de surlignage et le renderer lisent `view.find`. Tests JVM purs (`FindStateTest`). `EditorView` : 3779 → 3777 lignes, 170 → 169 champs ; **plafonds abaissés 3790 → 3788 lignes et 180 → 179 champs**. API publique inchangée : `setFindHighlights` délègue à l'état.
 
 ### Fixed (D-09)
 

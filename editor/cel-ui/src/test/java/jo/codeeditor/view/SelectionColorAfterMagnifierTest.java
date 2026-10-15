@@ -213,7 +213,7 @@ public class SelectionColorAfterMagnifierTest {
         selectName(view);
         EditorDocument doc = view.getSession().getDocument();
         int wordStart = doc.lineStart(2) + doc.lineText(2).indexOf("name");
-        view.findHighlights.add(new jo.codeeditor.find.Match(wordStart, wordStart + 4));
+        view.find.highlights.add(new jo.codeeditor.find.Match(wordStart, wordStart + 4));
 
         // Référence : l'occurrence est visible sans loupe.
         Bitmap ref = Bitmap.createBitmap(W, H, Bitmap.Config.ARGB_8888);
