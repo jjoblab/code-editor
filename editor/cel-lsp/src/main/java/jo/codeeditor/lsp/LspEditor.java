@@ -133,8 +133,23 @@ public class LspEditor {
                     editorView.setLanguage(lang);
                     // Utilise addOnTextEditListener (et non set) pour ne pas
                     // remplacer l'écouteur existant de l'application.
-                    editorView.getSession().addOnTextEditListener((s, e, t) -> {
-                        self.onTextChanged(editorView.getSession().getText());
+                    // ★ P-02 : la variante 4-arg porte le texte RETIRÉ —
+                    // le synchroniseur calcule les positions LSP au moment
+                    // de l'édition (O(log n)) et capture la rope (O(1)) :
+                    // plus AUCUNE matérialisation du document par frappe
+                    // (l'ancien pont appelait getText() à chaque édition).
+                    editorView.getSession().addOnTextEditListener(
+                            new jo.codeeditor.session.EditorSession.OnTextEditListener() {
+                        @Override
+                        public void onTextEdit(int start, int end, String inserted) {
+                            // Variante héritée — le pont surcharge la 4-arg.
+                        }
+                        @Override
+                        public void onTextEdit(int start, int end,
+                                String inserted, String removed) {
+                            self.onTextEdit(editorView.getSession(),
+                                    start, end, inserted, removed);
+                        }
                     });
                     // Le SPI est posé — les folds serveur peuvent désormais
                     // s'appliquer sans être écrasés par le detectFolds lexical
@@ -222,9 +237,27 @@ public class LspEditor {
      * bloquer le thread UI. Le didChange est envoyé via l'exécuteur LSP4J
      * (asynchrone) — le serveur le traite sur son propre thread et pousse
      * les diagnostics en retour via publishDiagnostics (asynchrone aussi).</p>
+     *
+     * @deprecated depuis 3.71.0 (P-02) : le pont câble désormais le suivi
+     *             AUTOMATIQUE des éditions ({@code OnTextEditListener} 4-arg)
+     *             — plus besoin de pousser le texte complet à chaque
+     *             frappe. Conservé pour compatibilité : force une
+     *             resynchronisation plein texte avec le texte fourni.
+     *             Retrait prévu au palier suivant (voir CHANGELOG).
      */
+    @Deprecated
     public void onTextChanged(CharSequence text) {
-        synchronizer.onTextChanged(text);
+        synchronizer.resyncFull(text);
+    }
+
+    /**
+     * ★ P-02 : relaie une édition suivie de la session au synchroniseur —
+     * positions LSP et vue de rope capturées au moment de l'édition,
+     * aucune copie du document. Accès package (le pont interne).
+     */
+    void onTextEdit(jo.codeeditor.session.EditorSession session,
+            int start, int end, String inserted, String removed) {
+        synchronizer.onTextEdit(session, start, end, inserted, removed);
     }
 
     /**

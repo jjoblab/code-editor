@@ -134,6 +134,19 @@ public class EditorSession {
 
     public interface OnTextEditListener {
         void onTextEdit(int start, int end, String inserted);
+
+        /**
+         * Variante ENRICHIE (P-02, audit 3.69.0) : porte en plus le texte
+         * RETIRÉ par l'édition — nécessaire aux ponts qui calculent des
+         * positions dans l'état PRÉ-édition (p. ex. sync incrémentale LSP),
+         * le document ayant déjà muté à la notification. Délègue par défaut
+         * à la variante 3-arg (compatibilité, y compris lambdas).
+         *
+         * @param removed texte qui occupait la plage (vide si insertion pure)
+         */
+        default void onTextEdit(int start, int end, String inserted, String removed) {
+            onTextEdit(start, end, inserted);
+        }
     }
 
     public interface OnSnippetEditListener {
@@ -598,12 +611,20 @@ public class EditorSession {
         // garde son propre tampon de composition (le préfixe pré-acceptation)
         // et la frappe suivante le réinsérerait sans restart.
         boolean wasComposing = ime.isComposing();
+        // P-02 : texte retiré, capturé AVANT l'épissure (le document
+        // substitue sa rope — l'arrière-garde n'est plus lisible après).
+        // Bornes miroir de doReplaceRange (bornage au document) : la
+        // plage notifiée est exactement celle que l'épissure appliquera.
+        int boundedStart = Math.max(0, Math.min(start, doc.length()));
+        int boundedEnd = Math.max(boundedStart, Math.min(end, doc.length()));
+        String removedText = (boundedEnd > boundedStart)
+                ? doc.subText(boundedStart, boundedEnd) : "";
         EditSpan span = doReplaceRange(start, end, insertion, caretAfter);
         // Notifier tous les listeners chaînés.
         if (!onTextEditListeners.isEmpty()) {
             int s = span.start, e = span.start + span.removed;
             for (OnTextEditListener l : onTextEditListeners) {
-                l.onTextEdit(s, e, insertion);
+                l.onTextEdit(s, e, insertion, removedText);
             }
         }
         if (ime.listener() != null) {
@@ -1369,7 +1390,7 @@ public class EditorSession {
             EditOp op = step.edits.get(i).inverse();
             EditSpan span = doReplaceRange(op.start, op.start + op.removed.length(),
                     op.inserted, op.start + op.inserted.length(), false);
-            notifyTextEditListeners(span, op.inserted);
+            notifyTextEditListeners(span, op.inserted, op.removed);
         }
         selection = Selection.cursor(step.selBefore);
         restyleAllAsync();
@@ -1390,7 +1411,7 @@ public class EditorSession {
         for (EditOp op : step.edits) {
             EditSpan span = doReplaceRange(op.start, op.start + op.removed.length(),
                     op.inserted, op.start + op.inserted.length(), false);
-            notifyTextEditListeners(span, op.inserted);
+            notifyTextEditListeners(span, op.inserted, op.removed);
         }
         selection = Selection.cursor(step.selAfter);
         restyleAllAsync();
@@ -1399,12 +1420,13 @@ public class EditorSession {
     }
 
     /** Notifie les listeners d'édition chaînés (pont LSP) d'une édition
-     *  appliquée par undo/redo. */
-    private void notifyTextEditListeners(EditSpan span, String insertion) {
+     *  appliquée par undo/redo — le texte retiré (pré-état) est porté par
+     *  l'EditOp inversée (P-02). */
+    private void notifyTextEditListeners(EditSpan span, String insertion, String removed) {
         if (onTextEditListeners.isEmpty()) return;
         int s = span.start, e = span.start + span.removed;
         for (OnTextEditListener l : onTextEditListeners) {
-            l.onTextEdit(s, e, insertion);
+            l.onTextEdit(s, e, insertion, removed);
         }
     }
 

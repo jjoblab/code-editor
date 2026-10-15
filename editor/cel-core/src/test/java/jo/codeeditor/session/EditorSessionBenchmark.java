@@ -86,6 +86,71 @@ class EditorSessionBenchmark {
     }
 
     @Test
+    void benchmark_p02_cheminÉcouteParFrappe_25kLignes() {
+        // P-02 (audit 3.69.0) : coût du PONT D'ÉDITION par frappe sur un
+        // document ~1 M caractères (25 000 lignes), caret vers la fin.
+        // ANCIEN chemin (avant correctif) : le pont LSP matérialisait le
+        // document ENTIER à chaque frappe — listener → getText() (le cache
+        // est invalidé par chaque édition) ; et au moment de l'ENVOI :
+        // diff préfixe/suffixe sur les textes entiers (2 passes O(n)) +
+        // reconstruction de vérification (3 copies O(n) + comparaison) +
+        // 2 conversions de position (2 passes O(n)) + toString.
+        // NOUVEAU chemin : 2 recherches binaires (positions LSP) + capture
+        // O(1) de la rope par frappe ; à l'envoi, les événements enregistrés
+        // partent tels quels (O(événements)).
+        final int LINES = 25_000;
+        EditorDocument doc = buildDocument(LINES);
+        int pos = doc.length() - 10;
+        // Échauffement des deux chemins.
+        for (int i = 0; i < 50; i++) {
+            doc = doc.replace(pos, pos, "x");
+            doc.getText();
+            doc.lineForOffset(pos);
+            doc.lineStart(doc.lineForOffset(pos));
+            doc.charSequence();
+        }
+        // -- ANCIEN chemin par frappe : édition + getText() (cache invalidé).
+        long t0 = System.nanoTime();
+        for (int i = 0; i < 200; i++) {
+            doc = doc.replace(pos, pos, "x");
+            String ignored = doc.getText();
+            if (ignored.isEmpty()) fail();
+        }
+        long ancienNs = System.nanoTime() - t0;
+        // -- NOUVEAU chemin par frappe : édition + positions + capture rope.
+        long t1 = System.nanoTime();
+        for (int i = 0; i < 200; i++) {
+            doc = doc.replace(pos, pos, "x");
+            int line = doc.lineForOffset(pos);
+            int col = pos - doc.lineStart(line);
+            CharSequence vue = doc.charSequence();
+            if (col < 0 || vue.length() < 0) fail();
+        }
+        long nouveauNs = System.nanoTime() - t1;
+        // -- ANCIEN envoi (une salve de 200 événements sur 1 M) : diff + VÉRIFICATION.
+        String base = doc.getText();
+        String texte = base.substring(0, pos) + "xyz" + base.substring(pos);
+        long t2 = System.nanoTime();
+        jo.codeeditor.shift.EditSpan edit =
+                jo.codeeditor.shift.DiagnosticShift.diffEdit(base, texte);
+        String insertion = texte.substring(edit.start,
+                Math.min(edit.start + edit.added, texte.length()));
+        String reconstruit = base.substring(0, edit.start) + insertion
+                + base.substring(edit.end());
+        if (!reconstruit.equals(texte)) fail();
+        long ancienEnvoiNs = System.nanoTime() - t2;
+        System.out.printf("[benchmark] P-02 pont d'édition (25k lignes, 200 frappes) : "
+                + "ancien (getText par frappe) %d ns/op, nouveau (positions+rope) %d ns/op, "
+                + "gain x%.1f ; ancien envoi (diff+vérif, 1 M ch) %d ns (%.2f ms)%n",
+            ancienNs / 200, nouveauNs / 200, (double) ancienNs / Math.max(1, nouveauNs),
+            ancienEnvoiNs, ancienEnvoiNs / 1e6);
+        // Le nouveau chemin par frappe doit dominer nettement l'ancien.
+        assertTrue(nouveauNs < ancienNs,
+            "le chemin d'écoute P-02 doit battre getText() par frappe : "
+                + nouveauNs + " vs " + ancienNs + " ns");
+    }
+
+    @Test
     void benchmark_undoRedo_largeDoc() {
         EditorSession s = buildSession(LARGE_DOC_LINES);
         // Appliquer 100 éditions à des positions différentes.
