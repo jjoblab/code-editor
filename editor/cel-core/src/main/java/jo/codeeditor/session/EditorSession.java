@@ -726,6 +726,14 @@ public class EditorSession {
     }
 
     /**
+     * Rabat la durée de vie du thread de restyle inactif (30 s en
+     * production) — réservé aux tests de la borne de fuite D-02.
+     */
+    void setRestyleThreadKeepAliveMs(long ms) {
+        restyle.setThreadKeepAliveMs(ms);
+    }
+
+    /**
      * Attend (bloquant) la complétion de tout restyle asynchrone en attente.
      *
      * <p>Pour les tests : garantit que les assertions sur styledLines voient
@@ -1525,23 +1533,25 @@ public class EditorSession {
     /**
      * Libère les ressources d'arrière-plan de la session.
      *
-     * <p>Sans cet appel, l'exécuteur mono-thread
-     * ({@link #restyleExecutor}) n'est jamais arrêté : une app ouvrant un
-     * éditeur par onglet fuirait un thread (et sa file de tâches en attente)
-     * par session pendant toute la vie du process. Les threads sont des
-     * démons donc la JVM sort quand même, mais sur Android chaque thread
-     * fui garde le rope du document de sa session fortement référençable —
-     * une fuite mémoire lente et invisible pour les longues sessions d'édition.
+     * <p>Sans cet appel, le thread de restyle vivait autrefois aussi
+     * longtemps que le process — une app ouvrant un éditeur par onglet
+     * fuirait un thread (et sa file de tâches en attente) par session.
+     * Depuis le correctif D-02 (audit 3.69.0), le thread expire de lui-
+     * même après ~30 s d'inactivité (cœur expirable) : la fuite à vie
+     * est impossible même si l'hôte oublie dispose(). L'appel reste le
+     * moyen propre et immédiat d'arrêter : annulation du restyle en
+     * vol, arrêt de l'exécuteur.
      *
-     * <p>Appeler quand l'éditeur est détruit définitivement (typiquement
-     * depuis {@code EditorView.onDetachedFromWindow} après un
-     * {@code onAttachStateChangeListener#onViewDetachedFromWindow} non suivi
-     * d'un re-attach — l'{@code EditorView} intégré l'appelle pour vous).
-     * Après {@code dispose()} : les restyles asynchrones en attente sont
-     * annulés, l'exécuteur est arrêté, et tout {@code setLanguage}/undo/redo
-     * ultérieur retombe sur le chemin SYNCHRONE {@code restyleAll()} du
-     * moteur (correct, simplement bloquant). Les éditions de texte restent
-     * pleinement fonctionnelles.
+     * <p><b>La libération est à la charge de l'HÔTE</b> — l'{@code EditorView}
+     * NE l'appelle PAS pour vous (le détachement de vue est réversible,
+     * une session survit à plusieurs attachements) ; le moment juste est
+     * la destruction définitive de l'éditeur (p. ex. {@code onDestroy}
+     * de l'activité, voir USAGE.md §5). Après {@code dispose()} : les
+     * restyles asynchrones en attente sont annulés, l'exécuteur est
+     * arrêté, et tout {@code setLanguage}/undo/redo ultérieur retombe sur
+     * le chemin SYNCHRONE {@code restyleAll()} du moteur (correct,
+     * simplement bloquant). Les éditions de texte restent pleinement
+     * fonctionnelles.
      */
     public void dispose() {
         restyle.dispose();

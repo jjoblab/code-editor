@@ -7,9 +7,10 @@ import jo.codeeditor.highlight.SyntaxHighlighter;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -209,13 +210,49 @@ final class RestyleEngine {
      *
      * <p>Démon pour ne pas bloquer l'arrêt de la JVM. Priorité sous NORM
      * pour que le thread UI gagne les conflits CPU.
+     *
+     * <p><b>D-02 (audit 3.69.0) — expiration de l'inactivité</b> :
+     * contrairement à l'ancien {@code Executors.newSingleThreadExecutor}
+     * (délégué scellé, sans API de durée de vie), l'exécuteur est un
+     * {@link ThreadPoolExecutor} nu portant {@code allowCoreThreadTimeOut(true)} :
+     * le thread meurt après {@link #THREAD_KEEP_ALIVE_MS} d'inactivité et
+     * renaît à la demande suivante. La fuite « un thread par session à
+     * vie » quand l'hôte oublie {@code EditorSession#dispose()} devient
+     * impossible — mesure L0 : 201 threads vivants après 200 sessions
+     * sans dispose.</p>
      */
-    private final ExecutorService restyleExecutor = Executors.newSingleThreadExecutor(r -> {
-        Thread t = new Thread(r, "EditorSession-restyle");
-        t.setPriority(Thread.NORM_PRIORITY - 1);
-        t.setDaemon(true);
-        return t;
-    });
+    private final ThreadPoolExecutor restyleExecutor = new ThreadPoolExecutor(
+            1, 1, THREAD_KEEP_ALIVE_MS, TimeUnit.MILLISECONDS,
+            new LinkedBlockingQueue<>(),
+            r -> {
+                Thread t = new Thread(r, "EditorSession-restyle");
+                t.setPriority(Thread.NORM_PRIORITY - 1);
+                t.setDaemon(true);
+                return t;
+            });
+
+    /**
+     * Durée de vie du thread de restyle INACTIF (30 s) — la valeur de
+     * production absorbe les pauses d'édition sans tuer/recréer le
+     * thread à chaque frappe. Les tests la rabattent via
+     * {@link #setThreadKeepAliveMs(long)}.
+     */
+    private static final long THREAD_KEEP_ALIVE_MS = 30_000;
+
+    {
+        // Cœur expirable : DOIT être posé avant toute soumission — c'est
+        // la condition de la borne de fuite D-02 (sans lui, le thread
+        // survit tant que l'exécuteur existe, keep-alive ou non).
+        restyleExecutor.allowCoreThreadTimeOut(true);
+    }
+
+    /**
+     * Rabat la durée de vie du thread inactif — réservé aux tests
+     * (mesure de l'expiration sans attendre 30 s).
+     */
+    void setThreadKeepAliveMs(long ms) {
+        restyleExecutor.setKeepAliveTime(Math.max(1, ms), TimeUnit.MILLISECONDS);
+    }
 
     /**
      * Restyle asynchrone en attente, le cas échéant. Sert à annuler un
