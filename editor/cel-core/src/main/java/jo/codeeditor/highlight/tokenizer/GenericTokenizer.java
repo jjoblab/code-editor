@@ -146,10 +146,52 @@ public final class GenericTokenizer {
      */
     public static StyledLine styleLine(TokenizerTemplate template, String line,
             int entryState, String language) {
+        // Troisième saveur (C2-é12) : classifieur de ligne — la ligne
+        // entière reçoit le type de la PREMIÈRE règle qui matche
+        // (consoles, logs : aucune tokénisation par caractère).
+        if (!template.lineRules.isEmpty()) {
+            return styleClassifiedLine(template, line, entryState);
+        }
         if (template.freeForm) {
             return styleFreeFormLine(template, line, entryState, language);
         }
         return styleZonedLine(template, line, entryState);
+    }
+
+    /**
+     * Mode classifieur de ligne (C2-é12, langage « log ») : règles
+     * contient/commence/finit évaluées dans l'ordre de déclaration,
+     * premier match gagnant, la ligne entière devient UNE span du type
+     * déclaré ; aucune règle → PLAIN sans span (chemin rapide — les
+     * consoles reçoivent des milliers de lignes). Les règles sont
+     * insensibles à la casse par défaut (minuscule Locale.ROOT), une
+     * règle déclarée sensible matche sur la ligne originale.
+     */
+    private static StyledLine styleClassifiedLine(TokenizerTemplate template,
+            String line, int entryState) {
+        String lower = line.toLowerCase(java.util.Locale.ROOT);
+        for (TokenizerTemplate.LineRule rule : template.lineRules) {
+            String subject = rule.caseSensitive ? line : lower;
+            boolean hit;
+            switch (rule.kind) {
+                case STARTS_WITH:
+                    hit = subject.startsWith(rule.text);
+                    break;
+                case ENDS_WITH:
+                    hit = subject.endsWith(rule.text);
+                    break;
+                default:
+                    hit = subject.contains(rule.text);
+                    break;
+            }
+            if (hit) {
+                List<LineSpan> spans = new ArrayList<>(1);
+                spans.add(new LineSpan(0, line.length(), rule.type));
+                return new StyledLine(spans, entryState, LexState.NORMAL);
+            }
+        }
+        return new StyledLine(java.util.Collections.emptyList(),
+                entryState, LexState.NORMAL);
     }
 
     /**

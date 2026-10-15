@@ -1118,4 +1118,58 @@ class GenericTokenizerTest {
         StyledLine l4 = GenericTokenizer.styleLine(FEUILLE, "x: 'ouvert", 0);
         assertEquals(6, l4.exitState);
     }
+
+    // ── C2-é12 : classifieur de ligne (troisième saveur) ───────────
+
+    /**
+     * Template maison (C2-é12) : mini-console façon Gradle — règles de
+     * ligne contient/commence/finit, insensibles à la casse par défaut,
+     * une règle sensible pour le chevron, premier match gagnant, repli
+     * PLAIN sans span : la grammaire du langage « log » sans une ligne
+     * de moteur.
+     */
+    private static final TokenizerTemplate CONSOLE = TokenizerTemplate.builder()
+            .lineContains("error", TokenType.ERROR)
+            .lineStartsWith("w:", TokenType.WARNING)
+            .lineContains("succès", TokenType.SUCCESS)
+            .lineStartsWithCaseSensitive("> ", TokenType.TYPE)
+            .lineStartsWith("[outil]", TokenType.INFO)
+            .build();
+
+    @Test
+    void consoleMaison_premierMatchGagnant() {
+        // « [outil] terminé avec succès » : la règle SUCCESS (déclarée
+        // AVANT la règle INFO) gagne.
+        StyledLine l = GenericTokenizer.styleLine(CONSOLE, "[outil] avec succès", 0);
+        assertEquals(1, l.spans.size());
+        assertEquals(TokenType.SUCCESS, l.spans.get(0).type);
+        // Sans succès dans la ligne : INFO.
+        StyledLine l2 = GenericTokenizer.styleLine(CONSOLE, "[outil] prêt", 0);
+        assertEquals(TokenType.INFO, l2.spans.get(0).type);
+    }
+
+    @Test
+    void consoleMaison_insensibleÀLaCasse() {
+        // ERROR en majuscules matche « error » minuscule.
+        StyledLine l = GenericTokenizer.styleLine(CONSOLE, "ÉCHEC ERROR GRAVE", 0);
+        assertEquals(TokenType.ERROR, l.spans.get(0).type);
+    }
+
+    @Test
+    void consoleMaison_règleSensibleÀLaCasse() {
+        // « > … » : matche sur la ligne ORIGINALE — « x> » ne matche
+        // pas, ni une ligne commençant par autre chose.
+        StyledLine l = GenericTokenizer.styleLine(CONSOLE, "> Tâche :app", 0);
+        assertEquals(TokenType.TYPE, l.spans.get(0).type);
+        StyledLine l2 = GenericTokenizer.styleLine(CONSOLE, "x> rien", 0);
+        assertEquals(0, l2.spans.size(), "pas de règle → PLAIN sans span");
+    }
+
+    @Test
+    void consoleMaison_repliPlainSansSpan() {
+        // Le repli est le chemin rapide : AUCUNE span, état NORMAL.
+        StyledLine l = GenericTokenizer.styleLine(CONSOLE, "sortie standard", 0);
+        assertEquals(0, l.spans.size());
+        assertEquals(LexState.NORMAL, l.exitState);
+    }
 }

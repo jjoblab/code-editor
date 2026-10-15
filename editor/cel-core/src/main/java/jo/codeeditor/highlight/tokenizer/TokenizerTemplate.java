@@ -348,6 +348,10 @@ public final class TokenizerTemplate {
     /** Littéraux à délimiteurs (famille C) : commentaires de
      * bloc/documentation, chaîne brute Kotlin. */
     public final List<BlockLiteral> blockLiterals;
+    /** Règles de classification de ligne (C2-é12, log) — non vide :
+     * la ligne entière reçoit le type de la première règle qui
+     * matche (troisième saveur du moteur). */
+    public final List<LineRule> lineRules;
     /** Guillemets ouvrant un littéral de caractère ({@code 'a'}). */
     public final Set<Character> charQuotes;
     /** Type d'un littéral de caractère. */
@@ -487,6 +491,7 @@ public final class TokenizerTemplate {
         this.operatorSingleChars = Collections.unmodifiableSet(
                 new HashSet<>(b.operatorSingleChars));
         this.blockLiterals = List.copyOf(b.blockLiterals);
+        this.lineRules = List.copyOf(b.lineRules);
         this.charQuotes = Collections.unmodifiableSet(new HashSet<>(b.charQuotes));
         this.charType = b.charType;
         this.templateLiteralLanguages = Collections.unmodifiableSet(
@@ -884,6 +889,58 @@ public final class TokenizerTemplate {
             .build();
 
     /**
+     * Template « log » intégré (migration C2-é12) : classifieur de
+     * ligne pour les consoles Gradle/JVM embarquées — erreurs
+     * (messages, stacktraces, préfixes Kotlin « e: », échec),
+     * avertissements (« warning: », préfixe « w: », [warn]),
+     * succès (BUILD/Sync SUCCESSFUL, statuts de tâche «  UP-TO-DATE »,
+     * « prêt »), en-têtes de section «&nbsp;&gt;&nbsp;…&nbsp;» (SENSIBLES à la
+     * casse), lignes bracketées [Tooling]/[Sync]/[JVM] — l'ordre
+     * d'évaluation est historique : ERROR avant SUCCESS avant INFO,
+     * WARNING avant TYPE. Repli PLAIN SANS span (chemin rapide des
+     * consoles). Reprend la grammaire de {@code LogTokenizer} octet
+     * pour octet.
+     */
+    public static final TokenizerTemplate LOG = builder()
+            // 1. Erreurs — messages d'échec javac/Gradle/JVM, stacktraces.
+            .lineContains("error", TokenType.ERROR)
+            .lineContains("failed", TokenType.ERROR)
+            .lineContains("failure", TokenType.ERROR)
+            .lineContains("severe", TokenType.ERROR)
+            .lineContains("exception", TokenType.ERROR)
+            .lineStartsWith("e:", TokenType.ERROR)
+            .lineStartsWith("erreur", TokenType.ERROR)
+            .lineContains("échec", TokenType.ERROR)
+            .lineContains("what went wrong", TokenType.ERROR)
+            // 2. Avertissements, y compris le préfixe Kotlin « w: ».
+            .lineStartsWith("warning:", TokenType.WARNING)
+            .lineContains("warning:", TokenType.WARNING)
+            .lineStartsWith("> warning", TokenType.WARNING)
+            .lineStartsWith("w:", TokenType.WARNING)
+            .lineContains("[warn]", TokenType.WARNING)
+            // 3. Succès — résumés de build/sync, état prêt, statuts de
+            //    tâche « sans travail » (précédés d'un espace).
+            .lineContains("build successful", TokenType.SUCCESS)
+            .lineContains("sync successful", TokenType.SUCCESS)
+            .lineContains("succeeded", TokenType.SUCCESS)
+            .lineContains("succès", TokenType.SUCCESS)
+            .lineEndsWith("prêt", TokenType.SUCCESS)
+            .lineContains("operation completed successfully", TokenType.SUCCESS)
+            .lineStartsWith(" up-to-date", TokenType.SUCCESS)
+            .lineStartsWith(" from-cache", TokenType.SUCCESS)
+            .lineStartsWith(" skipped", TokenType.SUCCESS)
+            .lineStartsWith(" no-source", TokenType.SUCCESS)
+            // 4. En-têtes de section Gradle « > … » — sensibles à la casse.
+            .lineStartsWithCaseSensitive("> ", TokenType.TYPE)
+            // 5. Lignes bracketées simples.
+            .lineStartsWith("[tooling]", TokenType.INFO)
+            .lineStartsWith("[sync]", TokenType.INFO)
+            .lineStartsWith("[jvm]", TokenType.INFO)
+            .lineStartsWith("[jvm-out]", TokenType.INFO)
+            .lineStartsWith("[cancel]", TokenType.INFO)
+            .build();
+
+    /**
      * Littéral à délimiteurs (C2-é6, famille C) : ouvrant, fermant,
      * offset de recherche de la fermante (l'ouverture {@code /**}
      * cherche sa fermante dès {@code pos+2} — {@code /**&#47;} se referme),
@@ -931,6 +988,52 @@ public final class TokenizerTemplate {
     /** Vrai si des en-têtes de section sont déclarées. */
     public boolean hasSections() {
         return sectionOpen != 0;
+    }
+
+    /**
+     * Règle de classification de ligne (C2-é12, troisième saveur du
+     * moteur) : la ligne entière reçoit le type de la première règle
+     * qui matche — l'ordre de déclaration est l'ordre d'évaluation.
+     *
+     * <p>Insensible à la casse par défaut (comparaison sur la ligne
+     * minuscule en {@code Locale.ROOT}) ; une règle sensible matche
+     * sur la ligne originale (chevron Gradle «&nbsp;&gt;&nbsp;…&nbsp;»).</p>
+     *
+     * <p>Immuable et thread-safe.</p>
+     */
+    public static final class LineRule {
+        /** Genre de la règle. */
+        public final LineMatch kind;
+        /** Texte recherché. */
+        public final String text;
+        /** Vrai : comparaison sur la ligne originale (casse comprise). */
+        public final boolean caseSensitive;
+        /** Type de la span couvrant la ligne entière. */
+        public final TokenType type;
+
+        private LineRule(LineMatch kind, String text, boolean caseSensitive,
+                TokenType type) {
+            this.kind = kind;
+            this.text = text;
+            this.caseSensitive = caseSensitive;
+            this.type = type;
+        }
+
+        @Override
+        public String toString() {
+            return kind + "('" + text + "') → " + type
+                    + (caseSensitive ? " (sensible)" : "");
+        }
+    }
+
+    /** Genre d'une {@link LineRule règle de classification de ligne}. */
+    public enum LineMatch {
+        /** La ligne contient le texte. */
+        CONTAINS,
+        /** La ligne commence par le texte. */
+        STARTS_WITH,
+        /** La ligne finit par le texte. */
+        ENDS_WITH
     }
 
     /**
@@ -1017,6 +1120,7 @@ public final class TokenizerTemplate {
         private boolean numberUnitSuffix = false;
         private final Set<Character> operatorSingleChars = new HashSet<>();
         private final List<BlockLiteral> blockLiterals = new ArrayList<>();
+        private final List<LineRule> lineRules = new ArrayList<>();
         private final Set<Character> charQuotes = new HashSet<>();
         private TokenType charType = TokenType.CHAR;
         private final Set<String> templateLiteralLanguages = new HashSet<>();
@@ -1457,6 +1561,36 @@ public final class TokenizerTemplate {
         /** Guillemets ouvrant un littéral de caractère ('a'). */
         public Builder charQuotes(char... quotes) {
             for (char q : quotes) charQuotes.add(q);
+            return this;
+        }
+
+        // ── Règles de classification de ligne (C2-é12, log) ─────────
+
+        /** Règle : la ligne CONTENANT le texte reçoit le type (casse
+         * ignorée, minuscule Locale.ROOT). */
+        public Builder lineContains(String text, TokenType type) {
+            lineRules.add(new LineRule(LineMatch.CONTAINS, text, false, type));
+            return this;
+        }
+
+        /** Règle : la ligne COMMENÇANT par le texte reçoit le type
+         * (casse ignorée). */
+        public Builder lineStartsWith(String text, TokenType type) {
+            lineRules.add(new LineRule(LineMatch.STARTS_WITH, text, false, type));
+            return this;
+        }
+
+        /** Règle : la ligne FINISSANT par le texte reçoit le type
+         * (casse ignorée). */
+        public Builder lineEndsWith(String text, TokenType type) {
+            lineRules.add(new LineRule(LineMatch.ENDS_WITH, text, false, type));
+            return this;
+        }
+
+        /** Règle : la ligne COMMENÇANT par le texte reçoit le type,
+         * comparaison SENSIBLE à la casse (chevron Gradle « &gt; … »). */
+        public Builder lineStartsWithCaseSensitive(String text, TokenType type) {
+            lineRules.add(new LineRule(LineMatch.STARTS_WITH, text, true, type));
             return this;
         }
 
