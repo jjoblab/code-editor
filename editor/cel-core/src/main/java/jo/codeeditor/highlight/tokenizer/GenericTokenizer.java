@@ -157,6 +157,11 @@ public final class GenericTokenizer {
         if (template.markup) {
             return styleMarkupLine(template, line, entryState);
         }
+        // Cinquième saveur (C2-é14) : balisage EN LIGNE — clôtures,
+        // emphases appariées, code, liens (Markdown).
+        if (template.inlineMarkup) {
+            return styleInlineMarkupLine(template, line, entryState);
+        }
         if (template.freeForm) {
             return styleFreeFormLine(template, line, entryState, language);
         }
@@ -377,6 +382,172 @@ public final class GenericTokenizer {
     /** Caractère de nom de balise/attribut. */
     private static boolean isMarkupNameChar(TokenizerTemplate template, char c) {
         return Character.isLetterOrDigit(c) || template.tagNameChars.contains(c);
+    }
+
+    /**
+     * Mode balisage EN LIGNE (C2-é14, Markdown) : cinquième saveur du
+     * moteur. Clôture de bloc dont la ligne (après blancs) BASCULE
+     * l'état ; corps de bloc en bloc ; titres en tête de ligne ; gras
+     * apparié sans règle de flanc ; emphase à ouverture intra-mot
+     * paramétrée et fermante « right-flank » (contenu non blanc
+     * avant) ; code en ligne par paires (règle des substitutions) ;
+     * motif de lien [texte](url) ; marqueurs de liste en tête de
+     * ligne ; texte brut stoppé aux caractères déclarés, dont un run
+     * d'UN caractère suit et étend le dernier span de texte (garde
+     * historique du styleur). Reprise octet pour octet de
+     * {@code MarkdownTokenizer}.
+     */
+    private static StyledLine styleInlineMarkupLine(TokenizerTemplate template,
+            String line, int entryState) {
+        List<LineSpan> spans = new ArrayList<>();
+        int state = entryState;
+
+        // Clôture de bloc : la ligne (après blancs) porte le marqueur →
+        // ligne entière, l'état BASCULE.
+        if (template.fenceMarker != null
+                && trimStart(line).startsWith(template.fenceMarker)) {
+            state = state == template.fenceState
+                    ? LexState.NORMAL : template.fenceState;
+            spans.add(new LineSpan(0, line.length(), template.fenceLineType));
+            return new StyledLine(spans, entryState, state);
+        }
+
+        // Dans un bloc clôturé : la ligne entière est du corps.
+        if (state == template.fenceState) {
+            spans.add(new LineSpan(0, line.length(), template.fenceBodyType));
+            return new StyledLine(spans, entryState, state);
+        }
+
+        int pos = 0;
+        while (pos < line.length()) {
+            char ch = line.charAt(pos);
+
+            // Titre : le caractère déclaré en tête de ligne, en course.
+            if (pos == 0 && template.headerChar != 0
+                    && ch == template.headerChar) {
+                int end = pos;
+                while (end < line.length()
+                        && line.charAt(end) == template.headerChar) {
+                    end++;
+                }
+                spans.add(new LineSpan(pos, end, template.headerType));
+                pos = end;
+                continue;
+            }
+
+            // Gras : paire EXACTE, sans règle de flanc ; sans fermante,
+            // les règles suivantes reprennent.
+            if (template.boldMarker != null
+                    && line.startsWith(template.boldMarker, pos)) {
+                int close = line.indexOf(template.boldMarker,
+                        pos + template.boldMarker.length());
+                if (close >= 0) {
+                    spans.add(new LineSpan(pos,
+                            close + template.boldMarker.length(),
+                            template.emphasisType));
+                    pos = close + template.boldMarker.length();
+                    continue;
+                }
+            }
+
+            // Emphase : ouverture intra-mot paramétrée (« * » oui,
+            // « _ » non), fermante précédée d'un contenu non blanc.
+            if (template.emphasisMarkers.contains(ch)) {
+                boolean intraWordOk =
+                        template.emphasisIntraWordOpen.contains(ch);
+                boolean prevWord = pos > 0
+                        && Character.isLetterOrDigit(line.charAt(pos - 1));
+                if (!prevWord || intraWordOk) {
+                    int close = findEmphasisClose(line, pos + 1, ch);
+                    if (close >= 0) {
+                        spans.add(new LineSpan(pos, close + 1,
+                                template.emphasisType));
+                        pos = close + 1;
+                        continue;
+                    }
+                }
+            }
+
+            // Code en ligne : paire de backticks (règle des
+            // substitutions par paires).
+            if (template.commandQuotes.contains(ch)) {
+                int end = line.indexOf(ch, pos + 1);
+                if (end >= 0) {
+                    spans.add(new LineSpan(pos, end + 1,
+                            template.commandQuoteType));
+                    pos = end + 1;
+                    continue;
+                }
+            }
+
+            // Lien : [texte](url) en un jeton.
+            if (template.linkPattern && ch == '[') {
+                int closeBracket = line.indexOf(']', pos + 1);
+                if (closeBracket >= 0 && closeBracket + 1 < line.length()
+                        && line.charAt(closeBracket + 1) == '(') {
+                    int closeParen = line.indexOf(')', closeBracket + 2);
+                    if (closeParen >= 0) {
+                        spans.add(new LineSpan(pos, closeParen + 1,
+                                template.linkType));
+                        pos = closeParen + 1;
+                        continue;
+                    }
+                }
+            }
+
+            // Marqueur de liste en tête de ligne.
+            if (pos == 0 && template.listMarkerChars.contains(ch)) {
+                spans.add(new LineSpan(pos, pos + 1, template.listMarkerType));
+                pos++;
+                continue;
+            }
+
+            // Texte brut — s'arrête aux caractères déclarés ; un run
+            // d'UN caractère suit le dernier span de texte en
+            // l'ÉTENDANT (garde historique).
+            int end = pos + 1;
+            while (end < line.length()) {
+                char c = line.charAt(end);
+                if (template.plainStopChars.contains(c)) break;
+                end++;
+            }
+            if (end > pos + 1 || spans.isEmpty()
+                    || spans.get(spans.size() - 1).type != template.textType) {
+                spans.add(new LineSpan(pos, end, template.textType));
+            } else {
+                LineSpan last = spans.get(spans.size() - 1);
+                spans.set(spans.size() - 1,
+                        new LineSpan(last.startCol, end, template.textType));
+            }
+            pos = end;
+        }
+        return new StyledLine(spans, entryState, state);
+    }
+
+    /**
+     * Position du marqueur d'emphase fermant (lot 4 #26) : le fermant
+     * doit être PRÉCÉDÉ d'un contenu non blanc (right-flank
+     * simplifié) ; la lettre qui suit n'importe PAS.
+     */
+    private static int findEmphasisClose(String line, int from, char marker) {
+        int i = from;
+        while (i < line.length()) {
+            char c = line.charAt(i);
+            if (c == marker) {
+                boolean prevContent = i > from
+                        && !Character.isWhitespace(line.charAt(i - 1));
+                if (prevContent) return i;
+            }
+            i++;
+        }
+        return -1;
+    }
+
+    /** Supprime les blancs de tête. */
+    private static String trimStart(String s) {
+        int i = 0;
+        while (i < s.length() && Character.isWhitespace(s.charAt(i))) i++;
+        return s.substring(i);
     }
 
     /**

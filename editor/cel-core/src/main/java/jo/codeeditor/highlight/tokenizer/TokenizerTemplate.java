@@ -355,6 +355,43 @@ public final class TokenizerTemplate {
     /** Vrai : mode balisage (C2-é13, XML/HTML) — quatrième saveur du
      * moteur : balises, attributs, entités, texte. */
     public final boolean markup;
+    /** Vrai : mode balisage EN LIGNE (C2-é14, Markdown) — cinquième
+     * saveur : clôtures de bloc, emphases appariées, code en ligne,
+     * liens, titres, marqueurs de liste. */
+    public final boolean inlineMarkup;
+    /** Marqueur de clôture de bloc (Markdown : {@code ```}) — null :
+     * désactivé. La ligne (après blancs) qui le porte BASCULE l'état. */
+    public final String fenceMarker;
+    /** État basculé par la clôture (Markdown : BLOCK_COMMENT). */
+    public final int fenceState;
+    /** Type de la ligne de clôture. */
+    public final TokenType fenceLineType;
+    /** Type du corps du bloc clôturé. */
+    public final TokenType fenceBodyType;
+    /** Caractère de titre en tête de ligne (0 : désactivé). */
+    public final char headerChar;
+    /** Type d'un titre. */
+    public final TokenType headerType;
+    /** Marqueur de gras apparié sans règle de flanc (Markdown :
+     * {@code **}) — null : désactivé. */
+    public final String boldMarker;
+    /** Type d'un gras/une emphase. */
+    public final TokenType emphasisType;
+    /** Marqueurs d'emphase ({@code *}, {@code _}). */
+    public final Set<Character> emphasisMarkers;
+    /** Marqueurs d'emphase autorisés à ouvrir DANS un mot ({@code *}
+     * oui, {@code _} non — snake_case reste du texte). */
+    public final Set<Character> emphasisIntraWordOpen;
+    /** Vrai : motif de lien [texte](url) en un jeton. */
+    public final boolean linkPattern;
+    /** Type d'un lien reconnu. */
+    public final TokenType linkType;
+    /** Marqueurs de liste en tête de ligne ({@code -}, {@code *}). */
+    public final Set<Character> listMarkerChars;
+    /** Type d'un marqueur de liste. */
+    public final TokenType listMarkerType;
+    /** Caractères arrêtant le texte brut ({@code * ` [ # _}). */
+    public final Set<Character> plainStopChars;
     /** Caractères de nom de balise/attribut au-delà des
      * alphanumériques (XML : {@code _ : - .}). */
     public final Set<Character> tagNameChars;
@@ -528,6 +565,26 @@ public final class TokenizerTemplate {
         this.blockLiterals = List.copyOf(b.blockLiterals);
         this.lineRules = List.copyOf(b.lineRules);
         this.markup = b.markup;
+        this.inlineMarkup = b.inlineMarkup;
+        this.fenceMarker = b.fenceMarker;
+        this.fenceState = b.fenceState;
+        this.fenceLineType = b.fenceLineType;
+        this.fenceBodyType = b.fenceBodyType;
+        this.headerChar = b.headerChar;
+        this.headerType = b.headerType;
+        this.boldMarker = b.boldMarker;
+        this.emphasisType = b.emphasisType;
+        this.emphasisMarkers = Collections.unmodifiableSet(
+                new HashSet<>(b.emphasisMarkers));
+        this.emphasisIntraWordOpen = Collections.unmodifiableSet(
+                new HashSet<>(b.emphasisIntraWordOpen));
+        this.linkPattern = b.linkPattern;
+        this.linkType = b.linkType;
+        this.listMarkerChars = Collections.unmodifiableSet(
+                new HashSet<>(b.listMarkerChars));
+        this.listMarkerType = b.listMarkerType;
+        this.plainStopChars = Collections.unmodifiableSet(
+                new HashSet<>(b.plainStopChars));
         this.tagNameChars = Collections.unmodifiableSet(new HashSet<>(b.tagNameChars));
         this.qualifiedNameSeparator = b.qualifiedNameSeparator;
         this.namespaceType = b.namespaceType;
@@ -1015,6 +1072,34 @@ public final class TokenizerTemplate {
             .build();
 
     /**
+     * Template Markdown intégré (migration C2-é14, cinquième saveur du
+     * moteur — balisage en ligne) : clôtures de bloc de code
+     * {@code ```} (bascule de l'état BLOCK_COMMENT — seul un début de
+     * ligne, après blancs, ferme le bloc), titres {@code #} en tête de
+     * ligne, gras {@code **} apparié sans règle de flanc, emphase
+     * {@code *}/{@code _} (astérisque intra-mot autorisé, souligné
+     * refusé — snake_case reste du texte ; fermante right-flank), code
+     * en ligne par paires de backticks, liens {@code [t](u)}, marqueurs
+     * de liste en tête de ligne, texte brut stoppé aux caractères
+     * déclarés dont le run d'un caractère ÉTEND le span précédent —
+     * reprend la grammaire historique de {@code MarkdownTokenizer}
+     * octet pour octet.
+     */
+    public static final TokenizerTemplate MARKDOWN = builder()
+            .inlineMarkup()
+            .fence("```", LexState.BLOCK_COMMENT, TokenType.KEYWORD, TokenType.COMMENT)
+            .headerChar('#', TokenType.KEYWORD)
+            .boldMarker("**", TokenType.EMPHASIS)
+            .emphasisMarker('*', true)
+            .emphasisMarker('_', false)
+            .commandQuotes('`')
+            .commandQuoteType(TokenType.STRING)
+            .linkPattern(TokenType.FUNC)
+            .listMarkerChars('-', '*')
+            .plainStopChars('*', '`', '[', '#', '_')
+            .build();
+
+    /**
      * Littéral à délimiteurs (C2-é6, famille C) : ouvrant, fermant,
      * offset de recherche de la fermante (l'ouverture {@code /**}
      * cherche sa fermante dès {@code pos+2} — {@code /**&#47;} se referme),
@@ -1202,6 +1287,22 @@ public final class TokenizerTemplate {
         private final List<BlockLiteral> blockLiterals = new ArrayList<>();
         private final List<LineRule> lineRules = new ArrayList<>();
         private boolean markup = false;
+        private boolean inlineMarkup = false;
+        private String fenceMarker = null;
+        private int fenceState = 0;
+        private TokenType fenceLineType = TokenType.KEYWORD;
+        private TokenType fenceBodyType = TokenType.COMMENT;
+        private char headerChar = 0;
+        private TokenType headerType = TokenType.KEYWORD;
+        private String boldMarker = null;
+        private TokenType emphasisType = TokenType.EMPHASIS;
+        private final Set<Character> emphasisMarkers = new HashSet<>();
+        private final Set<Character> emphasisIntraWordOpen = new HashSet<>();
+        private boolean linkPattern = false;
+        private TokenType linkType = TokenType.FUNC;
+        private final Set<Character> listMarkerChars = new HashSet<>();
+        private TokenType listMarkerType = TokenType.PUNCT;
+        private final Set<Character> plainStopChars = new HashSet<>();
         private final Set<Character> tagNameChars = new HashSet<>();
         private char qualifiedNameSeparator = 0;
         private TokenType namespaceType = TokenType.NAMESPACE;
@@ -1726,6 +1827,66 @@ public final class TokenizerTemplate {
         public Builder markupStates(int attrStringState, int tagState) {
             this.attrStringState = attrStringState;
             this.tagState = tagState;
+            return this;
+        }
+
+        // ── Mode balisage en ligne (C2-é14, Markdown) ────────────────
+
+        /** Mode balisage en ligne : clôtures, emphases, code, liens. */
+        public Builder inlineMarkup() {
+            this.inlineMarkup = true;
+            return this;
+        }
+
+        /** Clôture de bloc de code (Markdown : « ``` ») — la ligne qui
+         * la porte (après blancs) BASCULE l'état déclaré. */
+        public Builder fence(String marker, int state, TokenType lineType,
+                TokenType bodyType) {
+            this.fenceMarker = marker;
+            this.fenceState = state;
+            this.fenceLineType = lineType;
+            this.fenceBodyType = bodyType;
+            return this;
+        }
+
+        /** Caractère de titre en tête de ligne (Markdown : « # »). */
+        public Builder headerChar(char c, TokenType type) {
+            this.headerChar = c;
+            this.headerType = type;
+            return this;
+        }
+
+        /** Marqueur de gras apparié sans règle de flanc (« ** »). */
+        public Builder boldMarker(String marker, TokenType type) {
+            this.boldMarker = marker;
+            this.emphasisType = type;
+            return this;
+        }
+
+        /** Marqueur d'emphase ; {@code openIntraWord} : le marqueur peut
+         * ouvrir à l'intérieur d'un mot (« * » oui, « _ » non). */
+        public Builder emphasisMarker(char marker, boolean openIntraWord) {
+            emphasisMarkers.add(marker);
+            if (openIntraWord) emphasisIntraWordOpen.add(marker);
+            return this;
+        }
+
+        /** Motif de lien [texte](url) en un jeton. */
+        public Builder linkPattern(TokenType type) {
+            this.linkPattern = true;
+            this.linkType = type;
+            return this;
+        }
+
+        /** Marqueurs de liste en tête de ligne (Markdown : « - », « * »). */
+        public Builder listMarkerChars(char... chars) {
+            for (char c : chars) listMarkerChars.add(c);
+            return this;
+        }
+
+        /** Caractères arrêtant le texte brut (Markdown : * ` [ # _). */
+        public Builder plainStopChars(char... chars) {
+            for (char c : chars) plainStopChars.add(c);
             return this;
         }
 
