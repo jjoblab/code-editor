@@ -145,11 +145,24 @@ public class LspEditor {
                     scheduleFoldPull();
                     log(logSink, "connect: setLanguage done, didChange forwarder wired");
                 };
-                if (editorView.post(applyLanguage)) {
-                    // post réussi — la vue est attachée, exécution sur le
-                    // thread UI.
+                if (editorView.isAttachedToWindow()) {
+                    // Vue attachée — exécution sur le thread UI (une View
+                    // mutée depuis un thread de fond concurrence les
+                    // lectures du thread UI de rendu).
+                    editorView.post(applyLanguage);
                 } else {
-                    // Vue non attachée — exécution en ligne (au mieux).
+                    // Vue NON attachée — exécution en ligne. Bug découvert
+                    // par le test dédié : View.post() sur une vue détachée
+                    // n'échoue PAS — il met l'action en file d'attente
+                    // JUSQU'À L'ATTACHEMENT. L'ancien code comptait sur le
+                    // retour de post() pour détecter la non-attache
+                    // (branche réputée morte : post() retourne vrai même
+                    // détaché) : une vue jamais attachée (usage headless,
+                    // tests) ne posait NI le langage NI le pont d'éditions
+                    // suivies — le LSP restait silencieusement mort alors
+                    // que connect() avait annoncé SUCCESS. Une vue détachée
+                    // n'a pas de thread de rendu qui la lise : la pose en
+                    // ligne est sûre.
                     applyLanguage.run();
                     log(logSink, "connect: setLanguage done inline (view not attached)");
                 }
