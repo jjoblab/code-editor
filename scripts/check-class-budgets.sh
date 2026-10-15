@@ -61,6 +61,12 @@ budget() {
 # recherche : occurrences + courante, invariant de bornes possédé) —
 # 3779 → 3777 lignes, 170 → 169 champs ; plafond abaissé à 3788 lignes
 # (marge 11) et 179 champs.
+# Plan 01, étape 5 (post-plan) : ScrollState extrait (vOffset/hOffset,
+# invariant [0, max] possédé, restauration bornée/brute) —
+# 3777 → 3775 lignes, 169 → 168 champs ; plafond abaissé à 3786 lignes
+# et 178 champs. (Étape 4 FoldViewState : constat vide — l'état de pli
+# était déjà intégralement déménagé vers cel-core/FoldRegions et
+# l'EditorFoldIndex lors des lots B14 : rien à extraire.)
 # Écart au ratchet : plafonds CHAMPS (170→190) et MÉTHODES PUBLIQUES
 # (255→280) d'EditorView relevés par décision explicite du propriétaire
 # (2026-10, session J3 — « Go pour J3, tu peux aussi augmenter le
@@ -69,7 +75,7 @@ budget() {
 # marge conservée pour J4 (T2 actions socle) ; les 4100 lignes restent
 # le plafond de décomposition — le relèvement ne dispense PAS de
 # décomposer via les collaborateurs existants.
-budget editor/cel-ui/src/main/java/jo/codeeditor/view/EditorView.java 3788 179 280
+budget editor/cel-ui/src/main/java/jo/codeeditor/view/EditorView.java 3786 178 280
 budget editor/cel-core/src/main/java/jo/codeeditor/session/EditorSession.java 1600 15 100
 
 if [ "$echec" -ne 0 ]; then

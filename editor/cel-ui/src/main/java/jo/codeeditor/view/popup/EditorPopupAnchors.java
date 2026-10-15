@@ -329,15 +329,15 @@ public final class EditorPopupAnchors {
                         + (rowEnd - rowStart) * charWidth
                         + charWidth * EditorView.DIAG_CHIP_GAP_CHARS;
             }
-            y = view.docLineToY(line) + lastRow * lineHeight - view.vOffset;
+            y = view.docLineToY(line) + lastRow * lineHeight - view.scroll.vOffset;
         } else {
             // Longueur visuelle tenant compte des inlays pour que la chip
             // ne recouvre jamais un hint.
             int visualLen = view.visualColFor(line, lineLen);
             chipX = view.metrics.getGutterWidth() + view.metrics.getPadLeft()
-                    + visualLen * charWidth - view.hOffset
+                    + visualLen * charWidth - view.scroll.hOffset
                     + charWidth * EditorView.DIAG_CHIP_GAP_CHARS;
-            y = view.docLineToY(line) - view.vOffset;
+            y = view.docLineToY(line) - view.scroll.vOffset;
         }
         if (y + lineHeight < 0 || y > view.getHeight()) return null;
         // Hauteur de pill dimensionnée au contenu (~1.24em)
@@ -560,7 +560,7 @@ public final class EditorPopupAnchors {
         // ── Ancrage : au-dessus de la ligne du diagnostic, sinon dessous ──
         DiagnosticShift.Diagnostic anchor = listMode ? m.choices.get(0) : item;
         int anchorLine = doc.lineForOffset(anchor.start);
-        float lineTop = view.docLineToY(anchorLine) - view.vOffset;
+        float lineTop = view.docLineToY(anchorLine) - view.scroll.vOffset;
         float lineBottom = lineTop + view.metrics.getLineHeight();
         float gap = SQUIGGLE_POPUP_GAP_DP * density;
 
@@ -576,7 +576,7 @@ public final class EditorPopupAnchors {
         float charWidth = view.metrics.getCharWidth();
         float midX = textAreaLeft
                 + view.visualColFor(anchorLine, (startCol + endCol) / 2) * charWidth
-                - view.hOffset;
+                - view.scroll.hOffset;
         // D2 : pattern « popup ancré » factorisé — préfère AU-DESSUS de la
         // ligne (flip dessous), marge 4 dp, ancre centrée sur le mot,
         // borne gauche = gouttière + 4 dp. Paramétrage identique au
@@ -954,7 +954,7 @@ public final class EditorPopupAnchors {
         float anchorX = Math.max(
                 view.metrics.getGutterWidth() + EditorView.NAV_MENU_MARGIN_DP * density,
                 caret[0]);
-        float lineTop = view.docLineToY(view.navMenuLine) - view.vOffset;
+        float lineTop = view.docLineToY(view.navMenuLine) - view.scroll.vOffset;
         float lineBottom = lineTop + view.metrics.getLineHeight();
         // D2 : pattern « popup ancré » factorisé — préfère SOUS la ligne,
         // bascule AU-DESSUS (jamais sur la ligne d'ancre), marges

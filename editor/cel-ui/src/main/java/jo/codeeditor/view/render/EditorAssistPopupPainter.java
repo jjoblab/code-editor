@@ -150,8 +150,8 @@ public class EditorAssistPopupPainter {
         int line = EditorView.clamp(doc.lineForOffset(sel.start), 0, doc.lineCount() - 1);
         int col = sel.start - doc.lineStart(line);
         float anchorX = view.metrics.getGutterWidth() + view.metrics.getPadLeft()
-            + view.visualColFor(line, col) * view.metrics.getCharWidth() - view.hOffset;
-        float caretY = view.docLineToY(line) - view.vOffset;
+            + view.visualColFor(line, col) * view.metrics.getCharWidth() - view.scroll.hOffset;
+        float caretY = view.docLineToY(line) - view.scroll.vOffset;
         // Par défaut : le popup se place AU-DESSUS de la ligne du curseur.
         float anchorY = caretY - 4 - popupH;
         // S'il ne tient pas au-dessus, basculer en dessous.
@@ -384,8 +384,8 @@ public class EditorAssistPopupPainter {
         int col = safeOffset - doc.lineStart(line);
         float charX = view.metrics.getGutterWidth() + view.metrics.getPadLeft()
                 + (view.visualColFor(line, col) + 0.5f) * view.metrics.getCharWidth()
-                - view.hOffset;
-        float lineTopY = view.docLineToY(line) - view.vOffset;
+                - view.scroll.hOffset;
+        float lineTopY = view.docLineToY(line) - view.scroll.vOffset;
         float lineBottomY = lineTopY + view.rowsForDocLine(line)
                 * view.metrics.getLineHeight();
         // L'ancre sort du viewport → le popup ne se dessine pas (il
@@ -599,7 +599,7 @@ public class EditorAssistPopupPainter {
             if (line < firstVisible || line > lastVisible) continue;
             // Sauter l'ampoule des lignes cachées (repliées) + Y sensible aux plis.
             if (view.isLineFoldedCached(line)) continue;
-            float cy = view.docLineToY(line) - view.vOffset + lineHeight * 0.5f; // sensible aux plis
+            float cy = view.docLineToY(line) - view.scroll.vOffset + lineHeight * 0.5f; // sensible aux plis
             // Dessiner le glyphe d'ampoule : cercle rempli (l'ampoule) + petit
             // rectangle de base (le culot) en ambre.
             view.selPaint.setColor(android.graphics.Color.rgb(255, 193, 7)); // ambre 500
@@ -642,7 +642,7 @@ public class EditorAssistPopupPainter {
         float lineHeight = view.metrics.getLineHeight();
         float paddingTop = view.metrics.getPadTop();
         float anchorX = view.metrics.getGutterWidth() + 4 * density;
-        float anchorY = view.docLineToY(view.codeActionsPopupLine) - view.vOffset; // sensible aux plis
+        float anchorY = view.docLineToY(view.codeActionsPopupLine) - view.scroll.vOffset; // sensible aux plis
         if (anchorY + popupH > view.getHeight()) {
             anchorY = Math.max(0, anchorY - popupH + lineHeight);
         }

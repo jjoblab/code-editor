@@ -138,7 +138,7 @@ public class EditorChromePainter {
         // minimap. On rend ~height/rowH lignes en commençant par celle en haut
         // du viewport de l'éditeur.
         float editorLineHeight = view.metrics.getLineHeight();
-        int firstVisibleDocLine = Math.max(0, (int) (view.vOffset / editorLineHeight) - 5);
+        int firstVisibleDocLine = Math.max(0, (int) (view.scroll.vOffset / editorLineHeight) - 5);
         int visibleRows = (int) (height / rowH) + 10;
         int lastVisibleDocLine = Math.min(lineCount - 1, firstVisibleDocLine + visibleRows);
 
@@ -149,7 +149,7 @@ public class EditorChromePainter {
         float maxCharsPerRow = Math.max(1, minimapWidth / Math.max(1, charWidth));
 
         for (int i = firstVisibleDocLine; i <= lastVisibleDocLine; i++) {
-            float y = i * rowH - (view.vOffset / editorLineHeight) * rowH;
+            float y = i * rowH - (view.scroll.vOffset / editorLineHeight) * rowH;
             if (y < -rowH || y > height) continue;
             if (i >= styledLines.size()) break;
             jo.codeeditor.highlight.StyledLine sl = styledLines.get(i);
@@ -385,7 +385,7 @@ public class EditorChromePainter {
             magnifierPaint.setColor(view.theme.textColor);
             for (int i = firstLine; i <= lastLine; i++) {
                 if (view.isLineFoldedCached(i)) continue;
-                float lineY = view.docLineToY(i) - view.vOffset;
+                float lineY = view.docLineToY(i) - view.scroll.vOffset;
                 String lineText = doc.lineText(i);
                 jo.codeeditor.highlight.StyledLine styled = null;
                 java.util.List<jo.codeeditor.highlight.StyledLine> styledLines = view.session.getStyledLines();
@@ -394,12 +394,12 @@ public class EditorChromePainter {
                     // Chemin de la loupe — tisser aussi les inlays de la ligne
                     // pour que la vue zoomée corresponde au rendu réel.
                     LineRenderCache.LineCacheEntry layout = view.layoutForLine(i, lineText);
-                    text.drawStyledLine(canvas, styled, lineText, textAreaLeft - view.hOffset, lineY, magnifierPaint,
+                    text.drawStyledLine(canvas, styled, lineText, textAreaLeft - view.scroll.hOffset, lineY, magnifierPaint,
                         layout != null ? layout.inlays : null,
                         layout != null ? layout.rawToVisual : null);
                 } else {
                     magnifierPaint.setColor(view.theme.textColor);
-                    canvas.drawText(lineText, textAreaLeft - view.hOffset, lineY + lineHeight * 0.78f, magnifierPaint);
+                    canvas.drawText(lineText, textAreaLeft - view.scroll.hOffset, lineY + lineHeight * 0.78f, magnifierPaint);
                 }
             }
 
@@ -420,7 +420,7 @@ public class EditorChromePainter {
                 if (caretDocLine >= firstLine && caretDocLine <= lastLine
                         && !view.isLineFoldedCached(caretDocLine)) {
                     float[] caretPos = view.caretScreenPos(sel.start);
-                    float lineTop = view.docLineToY(caretDocLine) - view.vOffset;
+                    float lineTop = view.docLineToY(caretDocLine) - view.scroll.vOffset;
                     view.caretPaint.setColor(view.theme.caret);
                     view.caretPaint.setStyle(Paint.Style.STROKE);
                     view.caretPaint.setStrokeWidth(2f);
@@ -441,7 +441,7 @@ public class EditorChromePainter {
                 if (dropDocLine >= firstLine && dropDocLine <= lastLine
                         && !view.isLineFoldedCached(dropDocLine)) {
                     float[] dropPos = view.caretScreenPos(dropOff);
-                    float dropTop = view.docLineToY(dropDocLine) - view.vOffset;
+                    float dropTop = view.docLineToY(dropDocLine) - view.scroll.vOffset;
                     view.caretPaint.setColor(view.theme.caret);
                     view.caretPaint.setStyle(Paint.Style.STROKE);
                     view.caretPaint.setStrokeWidth(3f * density);
@@ -689,7 +689,7 @@ public class EditorChromePainter {
             int startLine = doc.lineForOffset(region.start);
             if (startLine < firstVisible || startLine > lastVisible) continue;
             if (!region.collapsed && startLine != caretLine) continue;
-            float y = view.docLineToY(startLine) - view.vOffset + lineHeight * 0.5f;
+            float y = view.docLineToY(startLine) - view.scroll.vOffset + lineHeight * 0.5f;
             // Appliquer un alpha de 0.8 à la couleur gutterText.
             int baseColor = view.theme.gutterText;
             view.caretPaint.setColor(applyAlpha(baseColor, 0.8f));

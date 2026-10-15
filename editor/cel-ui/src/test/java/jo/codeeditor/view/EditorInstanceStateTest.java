@@ -96,7 +96,7 @@ public class EditorInstanceStateTest {
         // d'environnement ; setWordWrap(true) remet hOffset à 0, le dernier
         // écrit est celui capturé).
         view.setWordWrap(true);
-        view.vOffset = 300f;
+        view.scroll.vOffset = 300f;
 
         EditorSavedState saved = (EditorSavedState) view.onSaveInstanceState();
         assertEquals("pré-condition : l'offset sauvegardé n'est pas écrasé",
@@ -112,8 +112,8 @@ public class EditorInstanceStateTest {
 
         assertTrue("le wrap doit être restauré", view2.wordWrap);
         assertTrue("le scroll vertical doit être restauré (borné au contenu)"
-                        + " — vOffset=" + view2.vOffset,
-                view2.vOffset > 0 && view2.vOffset <= view2.maxV() + 0.5f);
+                        + " — vOffset=" + view2.scroll.vOffset,
+                view2.scroll.vOffset > 0 && view2.scroll.vOffset <= view2.maxV() + 0.5f);
     }
 
     @Test
@@ -131,15 +131,15 @@ public class EditorInstanceStateTest {
         view2.onRestoreInstanceState(restored);
         assertEquals("le zoom doit être restauré", 1.5f, view2.zoom.fontScale, 0.001f);
         assertTrue("l'offset restauré reste borné [0, maxV] (invariant)"
-                        + " — vOffset=" + view2.vOffset + " maxV=" + view2.maxV(),
-                view2.vOffset >= 0 && view2.vOffset <= view2.maxV() + 0.5f);
+                        + " — vOffset=" + view2.scroll.vOffset + " maxV=" + view2.maxV(),
+                view2.scroll.vOffset >= 0 && view2.scroll.vOffset <= view2.maxV() + 0.5f);
     }
 
     @Test
     public void restore_withoutRealSession_keepsRawOffsets() throws Exception {
         EditorSession session = new EditorSession(EditorDocument.of(DOC));
         EditorView view = newView(session);
-        view.vOffset = 500f;
+        view.scroll.vOffset = 500f;
 
         EditorSavedState saved = (EditorSavedState) view.onSaveInstanceState();
         assertEquals("pré-condition : capture de l'offset",
@@ -154,7 +154,7 @@ public class EditorInstanceStateTest {
         view2.setSession(null);
         view2.onRestoreInstanceState(restored);
         assertEquals("offsets bruts conservés sans session",
-                500f, view2.vOffset, 0.001f);
+                500f, view2.scroll.vOffset, 0.001f);
     }
 
     @Test

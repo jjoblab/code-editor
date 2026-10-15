@@ -80,7 +80,7 @@ public class DragSelectionShakeTest {
     }
 
     private static float lineCenterY(EditorView view, int line) {
-        return view.docLineToY(line) - view.vOffset + LINE_H * 0.5f;
+        return view.docLineToY(line) - view.scroll.vOffset + LINE_H * 0.5f;
     }
 
     private static void send(EditorView view, int action, long down, long when,
@@ -138,22 +138,22 @@ public class DragSelectionShakeTest {
         // B9, le recentrage tirait vOffset en arrière dès qu'il dépassait
         // le Y de l'ancre (≈ ligne 2, Y contenu 100) → dent de scie
         // 100 → 60 → 68 → … → 100 → 60 : la secousse.
-        float prev = view.vOffset;
+        float prev = view.scroll.vOffset;
         int regressions = 0;
         for (int i = 0; i < 30; i++) {
             SystemClock.sleep(33);
             idle();
-            if (view.vOffset < prev - 0.001f) {
+            if (view.scroll.vOffset < prev - 0.001f) {
                 regressions++;
             }
-            prev = view.vOffset;
+            prev = view.scroll.vOffset;
         }
         assertEquals("vOffset doit être monotone pendant le drag (le recentrage "
                 + "est suspendu — " + regressions + " retours en arrière observés, "
-                + "vOffset final " + view.vOffset + ")",
+                + "vOffset final " + view.scroll.vOffset + ")",
                 0, regressions);
-        assertTrue("l'auto-scroll a bien défilé (vOffset=" + view.vOffset + ")",
-                view.vOffset > 0f);
+        assertTrue("l'auto-scroll a bien défilé (vOffset=" + view.scroll.vOffset + ")",
+                view.scroll.vOffset > 0f);
 
         // La sélection s'est étendue vers le bas pendant ce temps.
         Selection sel = view.getSession().getSelection();
@@ -179,8 +179,8 @@ public class DragSelectionShakeTest {
         int low = text.indexOf("filler60");
         view.getSession().setSelection(Selection.range(low, low + 8));
         assertTrue("une sélection programmatique sous le viewport recentre "
-                + "(vOffset=" + view.vOffset + ", attendu > 0)",
-                view.vOffset > 0f);
+                + "(vOffset=" + view.scroll.vOffset + ", attendu > 0)",
+                view.scroll.vOffset > 0f);
         assertTrue(start >= 0); // sanity du document
     }
 }

@@ -129,7 +129,7 @@ public final class EditorGutterActions {
         int line = view.docLineForScreenY(y);
         GutterAction action = actionForLine(line);
         if (action == null) return null;
-        float rowTop = view.docLineToY(line) - view.vOffset;
+        float rowTop = view.docLineToY(line) - view.scroll.vOffset;
         float lineHeight = view.metrics.getLineHeight();
         // Rangée hors écran (repliée au-dessus ou en dessous du
         // viewport) : la pill n'est pas visible — pas de zone tactile

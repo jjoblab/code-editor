@@ -135,10 +135,12 @@ public class EditorView extends View {
     public final EditorBlockDragController blockDragCtl;
 
     // ── État de défilement ────────────────────────────────────────
+    // Objet d'état extrait (plan 01, étape 5) : l'invariant « offsets
+    // dans [0, max] » est possédé par ScrollState (clampTo après toute
+    // mutation non bornée).
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
-    public float vOffset = 0;
-    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
-    public float hOffset = 0;
+    public final jo.codeeditor.view.state.ScrollState scroll =
+            new jo.codeeditor.view.state.ScrollState();
 
     // ── Zoom ───────────────────────────────────────────────────────
     // L'état de zoom (fontScale + mutations d'échelle) vit dans
@@ -1244,8 +1246,7 @@ public class EditorView extends View {
         caretAnim.reset();
         // Réinitialise le scroll pour qu'un offset périmé du document
         // précédent ne laisse pas le viewport échoué.
-        vOffset = 0;
-        hOffset = 0;
+        scroll.reset();
         // ★ B8 (retour terrain n°5) : le modèle de wrap décrit l'ANCIEN
         // document — sans reconstruction, il survit au changement de
         // session et WrapModel.topRow() clampe toute ligne au-delà de
@@ -1462,7 +1463,7 @@ public class EditorView extends View {
         OnScrollPositionListener l = scrollPositionListener;
         if (l != null) {
             float max = maxV();
-            l.onScrollPosition(vOffset, max);
+            l.onScrollPosition(scroll.vOffset, max);
         }
         // Préfetch du viewport au repos — ré-armé à chaque scroll pour que
         // la tâche ne se déclenche qu'après 150 ms de scroll CALME (jamais
@@ -1498,8 +1499,8 @@ public class EditorView extends View {
     public EditorMetrics getMetrics() { return metrics; }
     public EditorTheme getTheme() { return theme; }
     public float getFontScale() { return zoom.fontScale; }
-    public float getVOffset() { return vOffset; }
-    public float getHOffset() { return hOffset; }
+    public float getVOffset() { return scroll.vOffset; }
+    public float getHOffset() { return scroll.hOffset; }
 
     @Override
     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
@@ -1508,8 +1509,7 @@ public class EditorView extends View {
         // au changement de taille.
         if (wordWrap) rebuildWrapModel();
         // Re-borne le scroll au nouveau max.
-        vOffset = clamp(vOffset, 0, maxV());
-        hOffset = clamp(hOffset, 0, maxH());
+        scroll.clampTo(maxV(), maxH());
         // Redimensionne la feuille d'aperçu pour correspondre aux nouvelles
         // bornes de l'éditeur. La feuille est ancrée à notre position de
         // fenêtre ; on lui demande de ré-évaluer sa taille en ré-appliquant
@@ -1675,7 +1675,7 @@ public class EditorView extends View {
         if (this.wordWrap == enabled) return;
         this.wordWrap = enabled;
         if (enabled) {
-            this.hOffset = 0;
+            scroll.hOffset = 0;
             rebuildWrapModel();
         } else {
             this.wrapModel = null;
@@ -1924,7 +1924,7 @@ public class EditorView extends View {
         java.util.List<int[]> active = new java.util.ArrayList<>();
         for (int i = sticky.size() - 1; i >= 0; i--) {
             int[] pair = sticky.get(i);
-            float lineY = docLineToY(pair[0]) - vOffset;
+            float lineY = docLineToY(pair[0]) - scroll.vOffset;
             // Active = scrollée au-dessus de la zone de texte, non
             // repliée (même règle que le rendu, avant factorisation).
             if (lineY < paddingTop - 1f && !isLineFoldedCached(pair[0])) {
@@ -2151,7 +2151,7 @@ public class EditorView extends View {
         if (doc.lineCount() <= 0) return false;
         Selection sel = clampSelection(session.getSelection(), doc);
         int currentLine = clamp(doc.lineForOffset(sel.start), 0, doc.lineCount() - 1);
-        float rowTop = docLineToY(currentLine) - vOffset;
+        float rowTop = docLineToY(currentLine) - scroll.vOffset;
         float lineHeight = metrics.getLineHeight();
         // Rangée hors écran (repliée au-dessus ou en dessous du viewport) :
         // l'icône n'est pas visible — pas de zone tactile fantôme.
@@ -2850,8 +2850,8 @@ public class EditorView extends View {
     protected Parcelable onSaveInstanceState() {
         Parcelable superState = super.onSaveInstanceState();
         EditorSavedState ss = new EditorSavedState(superState);
-        ss.vOffset = vOffset;
-        ss.hOffset = hOffset;
+        ss.vOffset = scroll.vOffset;
+        ss.hOffset = scroll.hOffset;
         ss.fontScale = zoom.fontScale;
         ss.wordWrap = wordWrap;
         return ss;
@@ -2874,11 +2874,9 @@ public class EditorView extends View {
         // encore posée, maxV()/maxH() valent 0 : garder les valeurs brutes
         // — elles seront bornées au premier usage (scroll/setSession).
         if (session != null) {
-            vOffset = clamp(ss.vOffset, 0, maxV());
-            hOffset = clamp(ss.hOffset, 0, maxH());
+            scroll.restore(ss.vOffset, ss.hOffset, maxV(), maxH());
         } else {
-            vOffset = ss.vOffset;
-            hOffset = ss.hOffset;
+            scroll.restoreUnclamped(ss.vOffset, ss.hOffset);
         }
         invalidate();
     }

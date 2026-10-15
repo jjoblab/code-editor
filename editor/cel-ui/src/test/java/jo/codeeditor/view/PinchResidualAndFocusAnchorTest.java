@@ -187,8 +187,8 @@ public class PinchResidualAndFocusAnchorTest {
                 + view.getFontScale() + ")",
                 Math.abs(view.getFontScale() - 1f) > 0.01f);
 
-        float vBefore = view.vOffset;
-        float hBefore = view.hOffset;
+        float vBefore = view.scroll.vOffset;
+        float hBefore = view.scroll.hOffset;
 
         // Doigt 2 relevé (ACTION_POINTER_UP) PUIS le doigt 1 traîne
         // — la traînée résiduelle ne doit RIEN défiler (engloutie).
@@ -198,10 +198,10 @@ public class PinchResidualAndFocusAnchorTest {
         idle();
 
         assertEquals("les traînées post-pincement ne défileront pas le viewport "
-                + "verticalement (v " + vBefore + " → " + view.vOffset + ")",
-                vBefore, view.vOffset, 0.01f);
-        assertEquals("ni horizontalement (h " + hBefore + " → " + view.hOffset + ")",
-                hBefore, view.hOffset, 0.01f);
+                + "verticalement (v " + vBefore + " → " + view.scroll.vOffset + ")",
+                vBefore, view.scroll.vOffset, 0.01f);
+        assertEquals("ni horizontalement (h " + hBefore + " → " + view.scroll.hOffset + ")",
+                hBefore, view.scroll.hOffset, 0.01f);
 
         // Le geste se termine proprement.
         send(view, MotionEvent.ACTION_UP, down, down + 380, 230f, 845f);
@@ -239,18 +239,18 @@ public class PinchResidualAndFocusAnchorTest {
         // Lecture seule : PAS de caret ancrable — le point focal prend
         // le relais (avant B9 : aucun ancrage, contenu sauvage).
         view.getSession().setReadOnly(true);
-        view.vOffset = 2000f;
+        view.scroll.vOffset = 2000f;
 
         // Ligne sous le point focal (focus au centre de l'écran).
         float focusX = VIEW_W * 0.5f;
         float focusY = VIEW_H * 0.5f;
         int anchorLine = view.docLineForScreenY(focusY);
-        float lineTopBefore = view.docLineToY(anchorLine) - view.vOffset;
+        float lineTopBefore = view.docLineToY(anchorLine) - view.scroll.vOffset;
 
         // Pincement ×1.4 centré sur le point focal.
         view.applyPinchScale(1.4f, focusX, focusY);
 
-        float lineTopAfter = view.docLineToY(anchorLine) - view.vOffset;
+        float lineTopAfter = view.docLineToY(anchorLine) - view.scroll.vOffset;
         assertEquals("le HAUT de la ligne sous le point focal reste fixe "
                 + "(avant " + lineTopBefore + ", après " + lineTopAfter + ")",
                 lineTopBefore, lineTopAfter, 0.5f);
@@ -260,16 +260,16 @@ public class PinchResidualAndFocusAnchorTest {
     public void readOnly_pinchSansFocus_centreDuViewportCommeAncre() {
         EditorView view = newViewWithFakeMetrics();
         view.getSession().setReadOnly(true);
-        view.vOffset = 1000f;
+        view.scroll.vOffset = 1000f;
 
         // API historique (sans focus) : l'ancre de repli = centre du
         // viewport — le contrat ne change pas (pas de saut sauvage).
         int anchorLine = view.docLineForScreenY(VIEW_H * 0.5f);
-        float lineTopBefore = view.docLineToY(anchorLine) - view.vOffset;
+        float lineTopBefore = view.docLineToY(anchorLine) - view.scroll.vOffset;
 
         view.applyPinchScale(1.25f);
 
-        float lineTopAfter = view.docLineToY(anchorLine) - view.vOffset;
+        float lineTopAfter = view.docLineToY(anchorLine) - view.scroll.vOffset;
         assertEquals("l'API historique ancre le centre du viewport",
                 lineTopBefore, lineTopAfter, 0.5f);
     }

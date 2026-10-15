@@ -177,7 +177,7 @@ public class InlayViewportRangeTest {
         // Scroll de 300 px (< maxV ~560, pas de clamp) : vOffset → 300.
         view.scrollBy(300f);
         assertEquals("sanity : le scroll a bien eu lieu", 300f,
-                view.vOffset, 0.01f);
+                view.scroll.vOffset, 0.01f);
         // Le scroll a ré-armé la tâche de repos — 200 ms de calme
         // déclenchent la re-requête.
         écroulerScrollIdle();

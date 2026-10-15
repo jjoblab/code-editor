@@ -33,9 +33,9 @@ public class EditorTouchScroller {
         if (scroller.computeScrollOffset()) {
             int ny = scroller.getCurrY();
             int nx = scroller.getCurrX();
-            if (ny != (int) view.vOffset || nx != (int) view.hOffset) {
-                view.vOffset = EditorView.clamp(ny, 0, view.maxV());
-                view.hOffset = EditorView.clamp(nx, 0, view.maxH());
+            if (ny != (int) view.scroll.vOffset || nx != (int) view.scroll.hOffset) {
+                view.scroll.vOffset = EditorView.clamp(ny, 0, view.maxV());
+                view.scroll.hOffset = EditorView.clamp(nx, 0, view.maxH());
                 // ★ Notifie le sticky-bottom des consoles.
                 view.notifyScrollPositionChanged();
                 view.postInvalidateOnAnimation();
@@ -49,7 +49,7 @@ public class EditorTouchScroller {
         int maxVInt = (int) view.maxV();
         int maxHInt = (int) view.maxH();
         scroller.fling(
-            (int) view.hOffset, (int) view.vOffset,
+            (int) view.scroll.hOffset, (int) view.scroll.vOffset,
             (int) vx, (int) vy,
             0, maxHInt,
             0, maxVInt,
@@ -59,8 +59,8 @@ public class EditorTouchScroller {
     }
 
     void scrollByInternal(float dy, float dx) {
-        view.vOffset = EditorView.clamp(view.vOffset + dy, 0, view.maxV());
-        view.hOffset = EditorView.clamp(view.hOffset + dx, 0, view.maxH());
+        view.scroll.vOffset = EditorView.clamp(view.scroll.vOffset + dy, 0, view.maxV());
+        view.scroll.hOffset = EditorView.clamp(view.scroll.hOffset + dx, 0, view.maxH());
         // ★ Notifie le sticky-bottom des consoles.
         view.notifyScrollPositionChanged();
         view.invalidate();

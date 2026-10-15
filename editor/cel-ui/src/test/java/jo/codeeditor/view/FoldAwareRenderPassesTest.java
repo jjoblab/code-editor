@@ -91,7 +91,7 @@ public class FoldAwareRenderPassesTest {
         EditorView view = newView();
 
         // Sanity : la ligne 95 est bien visible à l'écran (rangée ~14).
-        float y95 = view.docLineToY(95) - view.vOffset;
+        float y95 = view.docLineToY(95) - view.scroll.vOffset;
         assertTrue("la ligne 95 doit être à l'écran (y=" + y95 + ")",
                 y95 >= 0 && y95 < 1920);
 

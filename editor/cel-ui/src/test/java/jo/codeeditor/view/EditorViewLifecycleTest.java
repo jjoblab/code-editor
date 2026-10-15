@@ -81,8 +81,8 @@ public class EditorViewLifecycleTest {
     public void setSession_resetsScroll() {
         EditorView view = createEditor();
         // Simule un scroll
-        view.vOffset = 100;
-        view.hOffset = 50;
+        view.scroll.vOffset = 100;
+        view.scroll.hOffset = 50;
         EditorSession session = new EditorSession(EditorDocument.of("test"));
         view.setSession(session);
         assertEquals(0f, view.getVOffset(), 0.01f);

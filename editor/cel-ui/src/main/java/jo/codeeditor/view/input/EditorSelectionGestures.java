@@ -130,15 +130,15 @@ public class EditorSelectionGestures {
             float speedX = (EDGE_MIN_SPEED_DP
                     + (EDGE_MAX_SPEED_DP - EDGE_MIN_SPEED_DP) * penX) * density;
 
-            float beforeV = view.vOffset;
-            float beforeH = view.hOffset;
+            float beforeV = view.scroll.vOffset;
+            float beforeH = view.scroll.hOffset;
             if (penY > 0f) {
                 view.scrollManager.scrollBy(lastDragY < edge ? -speedY : speedY);
             }
             if (penX > 0f) {
                 view.scrollManager.scrollHorizontallyBy(lastDragX < edge ? -speedX : speedX);
             }
-            if (view.vOffset == beforeV && view.hOffset == beforeH) {
+            if (view.scroll.vOffset == beforeV && view.scroll.hOffset == beforeH) {
                 return; // borné sur les DEUX axes (début/fin/gauche/droite) — stop
             }
             // Le contenu a défilé sous le doigt : ré-applique la
@@ -704,7 +704,7 @@ public class EditorSelectionGestures {
         // Colonne VISUELLE du doigt (même formule que offsetAt hors wrap).
         float charWidth = view.metrics.getCharWidth();
         float textAreaLeft = view.metrics.getGutterWidth() + view.metrics.getPadLeft();
-        int visCol = (int) ((x - (textAreaLeft - view.hOffset)) / charWidth + 0.5f);
+        int visCol = (int) ((x - (textAreaLeft - view.scroll.hOffset)) / charWidth + 0.5f);
         int lineStart = doc.lineStart(line);
         for (jo.codeeditor.cache.LineRenderCache.InlayPiece p : entry.inlays) {
             int hintStart = entry.rawToVisual[Math.min(p.col,

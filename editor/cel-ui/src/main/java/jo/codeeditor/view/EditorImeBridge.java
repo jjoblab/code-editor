@@ -126,8 +126,8 @@ public class EditorImeBridge {
         float charWidth = view.metrics.getCharWidth();
         float lineHeight = view.metrics.getLineHeight();
         float textAreaLeft = view.metrics.getGutterWidth() + view.metrics.getPadLeft();
-        float caretX = textAreaLeft + col * charWidth - view.hOffset;
-        float caretY = view.metrics.getPadTop() + line * lineHeight - view.vOffset;
+        float caretX = textAreaLeft + col * charWidth - view.scroll.hOffset;
+        float caretY = view.metrics.getPadTop() + line * lineHeight - view.scroll.vOffset;
         android.graphics.Matrix matrix = new android.graphics.Matrix();
         if (view.getMatrix() != null) matrix.set(view.getMatrix());
         android.view.inputmethod.CursorAnchorInfo.Builder builder =

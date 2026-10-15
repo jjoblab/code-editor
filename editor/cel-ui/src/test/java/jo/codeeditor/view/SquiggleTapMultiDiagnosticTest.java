@@ -123,7 +123,7 @@ public class SquiggleTapMultiDiagnosticTest {
         // — flip en dessous sinon), jamais par-dessus le texte de la ligne
         // elle-même. 3 rangées × 34dp ne tiennent pas au-dessus de la ligne
         // 2 (haut à y=100) → la mini-liste est basculée SOUS la ligne.
-        float line2Top = view.docLineToY(2) - view.vOffset;
+        float line2Top = view.docLineToY(2) - view.scroll.vOffset;
         boolean above = m.y + m.h <= line2Top + 0.5f;
         boolean below = m.y >= line2Top + view.metrics.getLineHeight() - 0.5f;
         assertTrue("ancrée au-dessus OU sous la ligne (flip), pas par-dessus",

@@ -72,7 +72,7 @@ public class EditorTextPainter {
             return new int[]{0, lineLen};
         }
         int firstCol = Math.max(0,
-                (int) Math.floor(view.hOffset / charWidth) - VISIBLE_COL_MARGIN);
+                (int) Math.floor(view.scroll.hOffset / charWidth) - VISIBLE_COL_MARGIN);
         int viewportCols = (int) Math.ceil(view.getWidth() / charWidth);
         int lastCol = Math.min(lineLen, firstCol
                 + Math.max(viewportCols + 2 * VISIBLE_COL_MARGIN, VISIBLE_COL_MIN));
@@ -333,8 +333,8 @@ public class EditorTextPainter {
             // Sauter les inlay hints des lignes cachées (repliées).
             if (view.isLineFoldedCached(line)) continue;
             int col = h.offset - doc.lineStart(line);
-            float x = textAreaLeft + col * charWidth - view.hOffset;
-            float y = view.docLineToY(line) - view.vOffset; // Y sensible aux plis
+            float x = textAreaLeft + col * charWidth - view.scroll.hOffset;
+            float y = view.docLineToY(line) - view.scroll.vOffset; // Y sensible aux plis
             float w = view.textPaint.measureText(h.text);
             // Fond de chip
             view.selPaint.setAlpha(120);
@@ -446,7 +446,7 @@ public class EditorTextPainter {
             }
             int vis = (rawToVisual != null && p.col >= 0 && p.col < rawToVisual.length)
                 ? rawToVisual[p.col] : p.col;
-            float x = textAreaLeft + vis * charWidth - view.hOffset;
+            float x = textAreaLeft + vis * charWidth - view.scroll.hOffset;
             if (x + p.text.length() * charWidth >= view.metrics.getGutterWidth()) {
                 canvas.drawText(p.text, x + charWidth * 0.08f, lineY + lineHeight * 0.75f, paint);
             }

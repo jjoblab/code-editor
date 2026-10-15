@@ -58,8 +58,8 @@ public final class EditorZoomController {
         // (lignes débordant à droite, Y des lignes suivants faux).
         if (view.wordWrap) view.rebuildWrapModel();
         // Re-borne les offsets de défilement — la taille du contenu a changé.
-        view.vOffset = EditorView.clamp(view.vOffset, 0, view.maxV());
-        view.hOffset = EditorView.clamp(view.hOffset, 0, view.maxH());
+        view.scroll.vOffset = EditorView.clamp(view.scroll.vOffset, 0, view.maxV());
+        view.scroll.hOffset = EditorView.clamp(view.scroll.hOffset, 0, view.maxH());
         view.requestLayout();
         view.invalidate();
     }
@@ -137,7 +137,7 @@ public final class EditorZoomController {
             if (view.session != null && view.session.getDocument() != null
                     && view.session.getDocument().lineCount() > 0) {
                 anchorLine = view.docLineForScreenY(focusY);
-                ay = view.docLineToY(anchorLine) - view.vOffset;
+                ay = view.docLineToY(anchorLine) - view.scroll.vOffset;
             }
             // Ancre focale COLONNE (hors wrap) : la colonne visuelle sous
             // le point focal. En wrap il n'y a aucun défilement
@@ -148,9 +148,9 @@ public final class EditorZoomController {
                     float textAreaLeft = view.metrics.getGutterWidth()
                             + view.metrics.getPadLeft();
                     anchorCol = Math.max(0,
-                            Math.round((focusX - textAreaLeft + view.hOffset)
+                            Math.round((focusX - textAreaLeft + view.scroll.hOffset)
                                     / charWidth));
-                    ax = textAreaLeft + anchorCol * charWidth - view.hOffset;
+                    ax = textAreaLeft + anchorCol * charWidth - view.scroll.hOffset;
                 }
             }
         }
@@ -183,25 +183,25 @@ public final class EditorZoomController {
             // (et symétriquement hOffset_new = hOffset_old + (newPos_x - ax))
             // — "combien l'ancre a bougé à cause du scale → compenser".
             float[] newPos = view.caretScreenPos(caretOffset);
-            view.hOffset += newPos[0] - ax;
-            view.vOffset += newPos[1] - ay;
+            view.scroll.hOffset += newPos[0] - ax;
+            view.scroll.vOffset += newPos[1] - ay;
         } else if (anchorLine >= 0) {
             // Ligne focale : le HAUT de la ligne ancrée revient à ay.
-            view.vOffset += (view.docLineToY(anchorLine) - view.vOffset) - ay;
+            view.scroll.vOffset += (view.docLineToY(anchorLine) - view.scroll.vOffset) - ay;
         }
         if (!anchorCaret && anchorCol >= 0 && !view.wordWrap) {
             // Colonne focale : la colonne ancrée revient à ax.
             float textAreaLeft = view.metrics.getGutterWidth()
                     + view.metrics.getPadLeft();
-            view.hOffset += (textAreaLeft + anchorCol * view.metrics.getCharWidth()
-                    - view.hOffset) - ax;
+            view.scroll.hOffset += (textAreaLeft + anchorCol * view.metrics.getCharWidth()
+                    - view.scroll.hOffset) - ax;
         }
 
         // (5) Borne à la plage de défilement valide (après changement
         // d'échelle). Au bord du document l'ancre glisse du minimum
         // inévitable (pas de contenu au-dessus de la ligne 0).
-        view.vOffset = EditorView.clamp(view.vOffset, 0, view.maxV());
-        view.hOffset = EditorView.clamp(view.hOffset, 0, view.maxH());
+        view.scroll.vOffset = EditorView.clamp(view.scroll.vOffset, 0, view.maxV());
+        view.scroll.hOffset = EditorView.clamp(view.scroll.hOffset, 0, view.maxH());
 
         // (6) Annule tout glissement de caret en cours — l'ancre est
         // maintenue par notre ajustement d'offset, un glissement le

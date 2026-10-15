@@ -139,7 +139,7 @@ public class EditorPopupHitTester {
         float popupH = rowH * rowsToShow;
         float anchorX = view.metrics.getGutterWidth() + 4 * density;
         // Utilise un Y fold-aware (et non le brut padTop + line * lineHeight).
-        float anchorY = view.docLineToY(view.codeActionsPopupLine) - view.vOffset;
+        float anchorY = view.docLineToY(view.codeActionsPopupLine) - view.scroll.vOffset;
         if (anchorY + popupH > view.getHeight()) {
             anchorY = Math.max(0, anchorY - popupH + view.metrics.getLineHeight());
         }

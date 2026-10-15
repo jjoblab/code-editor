@@ -137,7 +137,7 @@ public class SquiggleTapOpensAnchoredPopupTest {
         assertNotNull("les métriques du popup doivent exister quand il est visible", m);
         assertEquals("l'item détaillé est le diagnostic tapé",
                 view.squigglePopupItem, m.item);
-        float line2Top = view.docLineToY(2) - view.vOffset;
+        float line2Top = view.docLineToY(2) - view.scroll.vOffset;
         assertTrue("ancré AU-DESSUS de la ligne (bas du popup ≤ haut de la ligne + 0.5px)",
                 m.y + m.h <= line2Top + 0.5f);
         assertTrue("largeur positive", m.w > 0);

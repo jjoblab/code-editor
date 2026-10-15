@@ -66,7 +66,7 @@ public class StickyMaxLinesTest {
         view.layout(0, 0, VIEW_W, VIEW_H);
         injectMetrics(view, LINE_H, CHAR_W);
         // Scroller profondément : les 4 en-têtes (0-3) passent au-dessus.
-        view.vOffset = 2200f;
+        view.scroll.vOffset = 2200f;
         return view;
     }
 

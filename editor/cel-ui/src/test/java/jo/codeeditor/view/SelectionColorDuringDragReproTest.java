@@ -299,7 +299,7 @@ public class SelectionColorDuringDragReproTest {
         int rows = view.rowsForDocLine(0);
         int totalRowsWithBand = 0;
         for (int r = 0; r < rows; r++) {
-            float rowY = view.docLineToY(0) - view.vOffset + r * LINE_H;
+            float rowY = view.docLineToY(0) - view.scroll.vOffset + r * LINE_H;
             if (rowY < 0 || rowY + LINE_H > H) continue;
             int n = countSelectionPixels(bmp, 0, (int) rowY, W,
                     (int) (rowY + LINE_H), view.theme.selection);

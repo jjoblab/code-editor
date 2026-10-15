@@ -306,8 +306,8 @@ public class GutterView {
             //
             // Lot 0 (audit v3.41.0) : docLineForScreenY prend une
             // coordonnée Y ÉCRAN (0 = haut du viewport) et AJOUTE
-            // déjà view.vOffset en interne (cf. EditorWrapGeometry,
-            // {@code contentY = screenY + view.vOffset - padTop}).
+            // déjà view.scroll.vOffset en interne (cf. EditorWrapGeometry,
+            // {@code contentY = screenY + view.scroll.vOffset - padTop}).
             // Passer {@code scrollTop} (= vOffset) comme argument
             // décalait donc le calcul deux fois — à mi-document,
             // {@code first} dépassait {@code totalLines} et la boucle

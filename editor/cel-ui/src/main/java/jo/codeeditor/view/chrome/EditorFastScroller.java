@@ -123,10 +123,10 @@ public class EditorFastScroller {
         float thumbH = thumbHeight();
         float span = viewH - thumbH;
         if (span <= 0f) {
-            view.vOffset = 0f;
+            view.scroll.vOffset = 0f;
         } else {
             float top = EditorView.clamp(y - thumbH * 0.5f, 0f, span);
-            view.vOffset = EditorView.clamp(top / span * maxV, 0f, maxV);
+            view.scroll.vOffset = EditorView.clamp(top / span * maxV, 0f, maxV);
         }
         view.notifyScrollPositionChanged();
         view.invalidate();
@@ -183,7 +183,7 @@ public class EditorFastScroller {
         float maxV = view.maxV();
         float thumbH = thumbHeight();
         float top = maxV > 0f && viewH > thumbH
-                ? (viewH - thumbH) * (view.vOffset / maxV) : 0f;
+                ? (viewH - thumbH) * (view.scroll.vOffset / maxV) : 0f;
         float w = THUMB_WIDTH_DP * density();
         out.set(view.getWidth() - w, top, view.getWidth(), top + thumbH);
     }

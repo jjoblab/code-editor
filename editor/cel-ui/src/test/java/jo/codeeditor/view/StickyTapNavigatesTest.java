@@ -98,7 +98,7 @@ public class StickyTapNavigatesTest {
 
     /** La ligne {@code doc} est-elle centrée à ±1 px dans le viewport ? */
     private static boolean lineIsCentered(EditorView view, int line) {
-        float lineCenterY = view.docLineToY(line) + LINE_H * 0.5f - view.vOffset;
+        float lineCenterY = view.docLineToY(line) + LINE_H * 0.5f - view.scroll.vOffset;
         return Math.abs(lineCenterY - VIEW_H * 0.5f) <= 1f;
     }
 
@@ -107,7 +107,7 @@ public class StickyTapNavigatesTest {
         EditorView view = newView();
         // Scroller assez loin : les en-têtes 40 (classe) et 41 (méthode)
         // passent au-dessus du viewport → bande sticky active.
-        view.vOffset = 2600f;
+        view.scroll.vOffset = 2600f;
         java.util.List<int[]> active = view.activeStickyLines();
         assertEquals("deux lignes collées : classe + méthode",
                 2, active.size());
@@ -125,7 +125,7 @@ public class StickyTapNavigatesTest {
     @Test
     public void tapSurLaRangéeClasse_centreLaLigneOrigine() {
         EditorView view = newView();
-        view.vOffset = 2600f;
+        view.scroll.vOffset = 2600f;
 
         // Rangée 0 (la classe) : centre de la 1re cellule de la bande.
         float y = PAD_TOP + 0 * LINE_H + LINE_H * 0.5f;
@@ -140,7 +140,7 @@ public class StickyTapNavigatesTest {
         EditorView view = newView();
         // Haut du document : les en-têtes (40-41) sont visibles, bien
         // en dessous du haut → aucune bande collée.
-        view.vOffset = 0f;
+        view.scroll.vOffset = 0f;
         assertTrue(view.activeStickyLines().isEmpty());
         view.getSession().setSelection(0);
 
@@ -151,6 +151,6 @@ public class StickyTapNavigatesTest {
 
         assertTrue("la sélection est réduite au caret (placement)",
                 view.getSession().getSelection().isCursor());
-        assertEquals("aucun défilement", 0f, view.vOffset, 0.01f);
+        assertEquals("aucun défilement", 0f, view.scroll.vOffset, 0.01f);
     }
 }

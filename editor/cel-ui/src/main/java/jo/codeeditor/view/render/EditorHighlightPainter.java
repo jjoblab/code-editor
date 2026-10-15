@@ -137,8 +137,8 @@ public class EditorHighlightPainter {
             if (view.isLineFoldedCached(line)) continue;
             int lineStart = doc.lineStart(line);
             int col = EditorView.clamp(off - lineStart, 0, doc.lineEnd(line) - lineStart);
-            float y = view.docLineToY(line) - view.vOffset;
-            float x1 = textAreaLeft + view.visualColFor(line, col) * charWidth - view.hOffset;
+            float y = view.docLineToY(line) - view.scroll.vOffset;
+            float x1 = textAreaLeft + view.visualColFor(line, col) * charWidth - view.scroll.hOffset;
             float x2 = x1 + charWidth;
             // Sauter quand entièrement défilée hors de la plage de colonnes visibles.
             if (x2 <= view.metrics.getGutterWidth() || x1 >= canvas.getWidth()) continue;
@@ -189,11 +189,11 @@ public class EditorHighlightPainter {
             // rangées de continuation démarrent à wrapIndentCols).
             EditorView.WrapRows wr = view.wrapRowsFor(line, lineLen);
             float charWidth = view.metrics.getCharWidth();
-            float lineTop = view.docLineToY(line) - view.vOffset;
+            float lineTop = view.docLineToY(line) - view.scroll.vOffset;
             if (colStart >= colEnd) {
                 // Ligne vide couverte par une sélection multi-lignes :
                 // marqueur de traîne pour que la rangée reste visible.
-                float x = textAreaLeft - view.hOffset;
+                float x = textAreaLeft - view.scroll.hOffset;
                 canvas.drawRect(x, lineTop, x + charWidth * 0.6f,
                         lineTop + lineHeight, view.selPaint);
                 return;
@@ -206,8 +206,8 @@ public class EditorHighlightPainter {
                 if (e <= s) continue;
                 float rowX = textAreaLeft
                         + (r > 0 ? wr.wrapIndentCols * charWidth : 0);
-                float x1 = rowX + (s - rowStart) * charWidth - view.hOffset;
-                float x2 = rowX + (e - rowStart) * charWidth - view.hOffset;
+                float x1 = rowX + (s - rowStart) * charWidth - view.scroll.hOffset;
+                float x2 = rowX + (e - rowStart) * charWidth - view.scroll.hOffset;
                 float y = lineTop + r * lineHeight;
                 canvas.drawRect(x1, y, Math.max(x1 + 1, x2), y + lineHeight,
                         view.selPaint);
@@ -217,9 +217,9 @@ public class EditorHighlightPainter {
         // Hors wrap : bande unique, colonnes visuelles tissées d'inlays
         // (chemin historique, inchangé).
         float charWidth = view.metrics.getCharWidth();
-        float y = view.docLineToY(line) - view.vOffset;
-        float x1 = textAreaLeft + view.visualColFor(line, colStart) * charWidth - view.hOffset;
-        float x2 = textAreaLeft + view.visualColFor(line, colEnd) * charWidth - view.hOffset;
+        float y = view.docLineToY(line) - view.scroll.vOffset;
+        float x1 = textAreaLeft + view.visualColFor(line, colStart) * charWidth - view.scroll.hOffset;
+        float x2 = textAreaLeft + view.visualColFor(line, colEnd) * charWidth - view.scroll.hOffset;
         // Marqueur de traîne après la fin de ligne pour qu'une ligne
         // sélectionnée vide montre quand même une bande.
         float trailing = (colEnd == colStart) ? charWidth * 0.6f : 0;
@@ -430,7 +430,7 @@ public class EditorHighlightPainter {
             }
         }
 
-        float offsetX = textAreaLeft - view.hOffset;
+        float offsetX = textAreaLeft - view.scroll.hOffset;
 
         // Recherche binaire : premier bloc dont startLine >= firstVisible.
         // On balaye à partir de là — les blocs avant sont hors viewport.
@@ -459,12 +459,12 @@ public class EditorHighlightPainter {
             // Y : du BAS de la ligne d'ouverture au HAUT de la
             // ligne de fermeture (C_LIKE) ou au BAS de la dernière
             // ligne (non C_LIKE).
-            float top = view.docLineToY(startLine) - view.vOffset + lineHeight;
+            float top = view.docLineToY(startLine) - view.scroll.vOffset + lineHeight;
             float bottom;
             if (indentCountMode) {
-                bottom = view.docLineToY(endLine) - view.vOffset + lineHeight;
+                bottom = view.docLineToY(endLine) - view.scroll.vOffset + lineHeight;
             } else {
-                bottom = view.docLineToY(endLine) - view.vOffset;
+                bottom = view.docLineToY(endLine) - view.scroll.vOffset;
             }
             if (top >= bottom) continue;
 
@@ -565,7 +565,7 @@ public class EditorHighlightPainter {
         float segmentTop = top;
 
         for (int li = startLine + 1; li <= endLine; li++) {
-            float lineY = view.docLineToY(li) - view.vOffset;
+            float lineY = view.docLineToY(li) - view.scroll.vOffset;
             if (lineY > top && lineY < bottom) {
                 // Vérifier si cette ligne est une continuation de
                 // soft wrap (rangée > 0 de la ligne précédente).

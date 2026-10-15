@@ -74,13 +74,13 @@ public class EditorDiagnosticsPainter {
             int startCol = EditorView.clamp(d.start - lineStart, 0, lineEnd - lineStart);
             int endCol = EditorView.clamp(d.end - lineStart, 0, lineEnd - lineStart);
             if (endCol <= startCol) endCol = startCol + 1;
-            float y = view.docLineToY(line) - view.vOffset; // Y sensible aux plis
+            float y = view.docLineToY(line) - view.scroll.vOffset; // Y sensible aux plis
             float baseY = y + lineHeight - 2;
             // Colonnes visuelles sensibles aux inlays — le soulignement
             // couvre la même plage écran que le texte (décalé) qu'il
             // souligne.
-            float x1 = textAreaLeft + view.visualColFor(line, startCol) * charWidth - view.hOffset;
-            float x2 = textAreaLeft + view.visualColFor(line, endCol) * charWidth - view.hOffset;
+            float x1 = textAreaLeft + view.visualColFor(line, startCol) * charWidth - view.scroll.hOffset;
+            float x2 = textAreaLeft + view.visualColFor(line, endCol) * charWidth - view.scroll.hOffset;
             // Tag Unnecessary (code inutilisé) : peinture ESTOMPÉE de la
             // plage (voile gris, texte atténué — le grisé Android Studio
             // des imports morts) AU LIEU du soulignement de sévérité :
@@ -219,7 +219,7 @@ public class EditorDiagnosticsPainter {
             // ★ Étendue CONTENU (hors gouttière, indépendante du scroll :
             // +hOffset annule la soustraction écran) de la chip — maxH()
             // l'utilise pour rendre scrollable le débordement.
-            float extent = x - view.metrics.getGutterWidth() + view.hOffset
+            float extent = x - view.metrics.getGutterWidth() + view.scroll.hOffset
                     + padX + iconR * 2 + iconGap + textW
                     + (badgeD > 0 ? badgeGap + badgeD : 0f) + padX;
             if (extent > view.chipExtentContentX) {

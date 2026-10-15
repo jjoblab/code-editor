@@ -467,7 +467,7 @@ public class EditorCompletionPopup {
         EditorDocument doc = view.session.getDocument();
         int line = EditorView.clamp(doc.lineForOffset(view.completion.tokenStart),
                 0, doc.lineCount() - 1);
-        float top = view.docLineToY(line) - view.vOffset;
+        float top = view.docLineToY(line) - view.scroll.vOffset;
         float bottom = top + view.rowsForDocLine(line) * view.metrics.getLineHeight();
         return new float[]{top, bottom};
     }
@@ -510,7 +510,7 @@ public class EditorCompletionPopup {
         int col = view.completion.tokenStart - doc.lineStart(line);
         // Ancrage tenant compte des inlays — le popup suit le X du caret tissé.
         float anchorX = view.metrics.getGutterWidth() + view.metrics.getPadLeft()
-            + view.visualColFor(line, col) * view.metrics.getCharWidth() - view.hOffset;
+            + view.visualColFor(line, col) * view.metrics.getCharWidth() - view.scroll.hOffset;
         // Bas/haut de la ligne fold+wrap-aware (l'ancienne formule brute
         // padTop + (line+1)*lineHeight plaçait l'ancre au-dessus de la
         // rangée visuelle réelle dès qu'une ligne précédente était wrappée

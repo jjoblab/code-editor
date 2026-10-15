@@ -126,7 +126,7 @@ public class FastScrollGutterDragTest {
         assertTrue("le pouce du fast-scroller est actif pendant le drag",
                 view.fastScroller.isActive());
         assertEquals("vOffset suit la proportion ABSOLUE du doigt",
-                expected, view.vOffset, 0.5f);
+                expected, view.scroll.vOffset, 0.5f);
     }
 
     // ── 2. Sous le slop : rien ─────────────────────────────────────
@@ -143,7 +143,7 @@ public class FastScrollGutterDragTest {
         assertFalse("aucun pouce pour un mouvement sous le slop",
                 view.fastScroller.isActive());
         assertEquals("aucun défilement pour un mouvement sous le slop",
-                0f, view.vOffset, 0.01f);
+                0f, view.scroll.vOffset, 0.01f);
     }
 
     // ── 3. Tap de gouttière sans mouvement = un tap ────────────────
@@ -159,7 +159,7 @@ public class FastScrollGutterDragTest {
         assertFalse("un tap (sans mouvement) n'affiche jamais le pouce",
                 view.fastScroller.isActive());
         assertEquals("un tap de gouttière ne défile pas",
-                0f, view.vOffset, 0.01f);
+                0f, view.scroll.vOffset, 0.01f);
     }
 
     // ── 4. Relâchement : arrêt sans fling ──────────────────────────
@@ -188,7 +188,7 @@ public class FastScrollGutterDragTest {
         // telle quelle — un fling la casserait (geste de navigation, pas
         // d'inertie).
         assertEquals("la position absolue est conservée, sans fling",
-                expected, view.vOffset, 0.5f);
+                expected, view.scroll.vOffset, 0.5f);
     }
 
     // ── 5. Annulation : disparition immédiate ──────────────────────

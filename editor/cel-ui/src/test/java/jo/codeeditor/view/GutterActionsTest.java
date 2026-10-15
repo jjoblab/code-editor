@@ -120,7 +120,7 @@ public class GutterActionsTest {
 
     /** Y écran du centre de la rangée donnée (wrap et plis OFF). */
     private static float rowCy(EditorView view, int line) {
-        return view.docLineToY(line) - view.vOffset + LINE_H * 0.5f;
+        return view.docLineToY(line) - view.scroll.vOffset + LINE_H * 0.5f;
     }
 
     private static GutterAction action(int line, Runnable perform) {
@@ -233,7 +233,7 @@ public class GutterActionsTest {
         // y=300 avec vOffset=4000 (clamp au document : ligne 4).
         GutterAction a = action(4, null);
         view.gutterActions.add(a);
-        view.vOffset = 4000f;
+        view.scroll.vOffset = 4000f;
         assertNull("rangée hors écran (repliée au-dessus du viewport) → null",
                 view.gutterActions.hitTest(pillCx(), 300f));
     }

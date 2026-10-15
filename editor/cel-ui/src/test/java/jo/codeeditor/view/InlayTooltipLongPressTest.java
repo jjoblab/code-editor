@@ -73,7 +73,7 @@ public class InlayTooltipLongPressTest {
         float charWidth = view.metrics.getCharWidth();
         float textAreaLeft = view.metrics.getGutterWidth() + view.metrics.getPadLeft();
         float x = textAreaLeft + (visStart + len * 0.5f) * charWidth;
-        float y = view.docLineToY(line) - view.vOffset + LINE_H * 0.5f;
+        float y = view.docLineToY(line) - view.scroll.vOffset + LINE_H * 0.5f;
         long down = SystemClock.uptimeMillis();
         MotionEvent d = MotionEvent.obtain(down, down, MotionEvent.ACTION_DOWN, x, y, 0);
         view.onTouchEvent(d);

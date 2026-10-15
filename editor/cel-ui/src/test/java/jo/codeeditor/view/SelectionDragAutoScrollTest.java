@@ -85,7 +85,7 @@ public class SelectionDragAutoScrollTest {
 
     /** Y écran du CENTRE de la ligne doc donnée. */
     private static float lineCenterY(EditorView view, int line) {
-        return view.docLineToY(line) - view.vOffset + LINE_H * 0.5f;
+        return view.docLineToY(line) - view.scroll.vOffset + LINE_H * 0.5f;
     }
 
     /** DOWN + attente de l'appui long (le GestureDetector le déclenche
@@ -155,12 +155,12 @@ public class SelectionDragAutoScrollTest {
             move(view, x, y, 20);
             SystemClock.sleep(20);
         }
-        assertEquals(0f, view.vOffset, 0f);
+        assertEquals(0f, view.scroll.vOffset, 0f);
         runAutoScrollFrames(view, 30);
 
         assertTrue("l'auto-scroll a défilé le document vers le bas (vOffset="
-                + view.vOffset + ")",
-                view.vOffset > 0f);
+                + view.scroll.vOffset + ")",
+                view.scroll.vOffset > 0f);
         Selection sel = view.getSession().getSelection();
         int endLine = lineOfOffset(text, Math.max(sel.start, sel.end));
         assertTrue("la sélection s'est étendue bien au-delà de la ligne 2"
@@ -176,7 +176,7 @@ public class SelectionDragAutoScrollTest {
 
         // Document déjà défilé (l'appui long se fait sur une ligne visible
         // après ce défilement).
-        view.vOffset = 800f;
+        view.scroll.vOffset = 800f;
         longPressDown(view, x, lineCenterY(view, 30));
 
         // Doigt tenu à 10 px du bord HAUT.
@@ -187,12 +187,12 @@ public class SelectionDragAutoScrollTest {
             move(view, x, y, 20);
             SystemClock.sleep(20);
         }
-        float before = view.vOffset;
+        float before = view.scroll.vOffset;
         runAutoScrollFrames(view, 30);
 
         assertTrue("l'auto-scroll remonte le document (vOffset " + before
-                + " → " + view.vOffset + ")",
-                view.vOffset < before);
+                + " → " + view.scroll.vOffset + ")",
+                view.scroll.vOffset < before);
         up(view, x, edgeY);
     }
 
@@ -211,7 +211,7 @@ public class SelectionDragAutoScrollTest {
         }
         runAutoScrollFrames(view, 20);
 
-        assertEquals("aucun auto-scroll hors zone de bord", 0f, view.vOffset, 0f);
+        assertEquals("aucun auto-scroll hors zone de bord", 0f, view.scroll.vOffset, 0f);
         up(view, x, midY);
     }
 
@@ -247,8 +247,8 @@ public class SelectionDragAutoScrollTest {
         runAutoScrollFrames(view, 30);
 
         assertTrue("l'auto-scroll a défilé pendant la traînée de poignée"
-                + " (vOffset=" + view.vOffset + ")",
-                view.vOffset > 0f);
+                + " (vOffset=" + view.scroll.vOffset + ")",
+                view.scroll.vOffset > 0f);
         Selection sel = view.getSession().getSelection();
         int endLine = lineOfOffset(text, Math.max(sel.start, sel.end));
         assertTrue("la borne de sélection suit le défilement (fin ligne "
@@ -315,14 +315,14 @@ public class SelectionDragAutoScrollTest {
             move(view, mx, y, 20);
             SystemClock.sleep(20);
         }
-        assertEquals(0f, view.hOffset, 0f);
+        assertEquals(0f, view.scroll.hOffset, 0f);
         runAutoScrollFrames(view, 30);
 
         assertTrue("l'auto-scroll horizontal a défilé vers la droite"
-                + " (hOffset=" + view.hOffset + ")",
-                view.hOffset > 0f);
+                + " (hOffset=" + view.scroll.hOffset + ")",
+                view.scroll.hOffset > 0f);
         assertEquals("le doigt est verticalement au centre : AUCUN défilement vertical",
-                0f, view.vOffset, 0f);
+                0f, view.scroll.vOffset, 0f);
         Selection sel = view.getSession().getSelection();
         int selEndCol = Math.max(sel.start, sel.end) - line2Start;
         assertTrue("la sélection s'étend au-delà des colonnes visibles"
@@ -336,7 +336,7 @@ public class SelectionDragAutoScrollTest {
         EditorView view = newLongLineView();
         // Document déjà défilé à droite : seules les colonnes ≥ 60 sont
         // visibles — l'appui long se fait sur le remplissage visible.
-        view.hOffset = 600f;
+        view.scroll.hOffset = 600f;
         float y = lineCenterY(view, 2);
         float x = view.metrics.getGutterWidth() + view.metrics.getPadLeft()
                 + (70 - 60) * CHAR_W; // colonne 70 à l'écran
@@ -349,12 +349,12 @@ public class SelectionDragAutoScrollTest {
             move(view, mx, y, 20);
             SystemClock.sleep(20);
         }
-        float before = view.hOffset;
+        float before = view.scroll.hOffset;
         runAutoScrollFrames(view, 30);
 
         assertTrue("l'auto-scroll ramène vers la gauche (hOffset " + before
-                + " → " + view.hOffset + ")",
-                view.hOffset < before);
+                + " → " + view.scroll.hOffset + ")",
+                view.scroll.hOffset < before);
         up(view, 10f, y);
     }
 
@@ -378,10 +378,10 @@ public class SelectionDragAutoScrollTest {
         }
         runAutoScrollFrames(view, 30);
 
-        assertTrue("le coin défile horizontalement (hOffset=" + view.hOffset + ")",
-                view.hOffset > 0f);
-        assertTrue("le coin défile verticalement (vOffset=" + view.vOffset + ")",
-                view.vOffset > 0f);
+        assertTrue("le coin défile horizontalement (hOffset=" + view.scroll.hOffset + ")",
+                view.scroll.hOffset > 0f);
+        assertTrue("le coin défile verticalement (vOffset=" + view.scroll.vOffset + ")",
+                view.scroll.vOffset > 0f);
         Selection sel = view.getSession().getSelection();
         int selEndCol = Math.max(sel.start, sel.end) - line2Start;
         assertTrue("la sélection suit la diagonale (colonne fin " + selEndCol + ")",
@@ -407,7 +407,7 @@ public class SelectionDragAutoScrollTest {
         runAutoScrollFrames(view, 20);
 
         assertEquals("en retour à la ligne, rien ne défile horizontalement",
-                0f, view.hOffset, 0f);
+                0f, view.scroll.hOffset, 0f);
         up(view, edgeX, y);
     }
 }

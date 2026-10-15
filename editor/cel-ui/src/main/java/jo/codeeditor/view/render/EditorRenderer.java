@@ -175,9 +175,9 @@ public class EditorRenderer {
         // la plage de lignes via le mappeur sensible aux plis
         // docLineForScreenY (comme le retour à la ligne le fait).
         boolean hasCollapsedFolds = view.session.hasCollapsedFolds(); // ★ B21d : sans allocation
-        final int firstVisible = Math.max(0, (int) Math.floor(view.vOffset / lineHeight) - 1);
+        final int firstVisible = Math.max(0, (int) Math.floor(view.scroll.vOffset / lineHeight) - 1);
         final int lastVisible  = Math.min(doc.lineCount() - 1,
-                                          (int) Math.ceil((view.vOffset + height) / lineHeight) + 1);
+                                          (int) Math.ceil((view.scroll.vOffset + height) / lineHeight) + 1);
         // Quand le retour à la ligne automatique est actif, la plage de lignes
         // visibles du document est plus large car chaque ligne s'étale sur
         // plusieurs rangées visuelles. Calculer une plage inclusive de lignes
@@ -210,7 +210,7 @@ public class EditorRenderer {
 
         // 2. Bande de ligne courante (seulement curseur réduit — pas de bande pendant une sélection)
         if (sel.isCursor()) {
-            float lineY = view.docLineToY(currentLine) - view.vOffset;
+            float lineY = view.docLineToY(currentLine) - view.scroll.vOffset;
             int rows = view.wordWrap ? view.rowsForDocLine(currentLine) : 1;
             float bandH = lineHeight * rows;
             if (lineY < height && lineY + bandH > 0) {
@@ -321,14 +321,14 @@ public class EditorRenderer {
             // Plis : sauter entièrement les lignes cachées. Elles n'occupent
             // aucune rangée visuelle.
             if (view.isLineFoldedCached(i)) continue;
-            float lineY = view.docLineToY(i) - view.vOffset;
+            float lineY = view.docLineToY(i) - view.scroll.vOffset;
             String lineText = doc.lineText(i);
 
             // Texte composite pour la ligne de DÉBUT d'un pli réduit :
             // "if (x) {" + "…" + "}" sur une seule rangée visuelle.
             DiagnosticShift.FoldRegion collapsed = view.collapsedFoldStartingAtLine(i);
             if (collapsed != null) {
-                text.drawCompositeFoldLine(canvas, doc, collapsed, textAreaLeft - view.hOffset, lineY, view.textPaint);
+                text.drawCompositeFoldLine(canvas, doc, collapsed, textAreaLeft - view.scroll.hOffset, lineY, view.textPaint);
                 continue;
             }
 
@@ -342,11 +342,11 @@ public class EditorRenderer {
                 LineRenderCache.LineCacheEntry layout = view.layoutForLine(i, lineText);
                 StyledLine styled = layout != null ? (StyledLine) layout.layout : null;
                 if (styled != null) {
-                    text.drawStyledLine(canvas, styled, lineText, textAreaLeft - view.hOffset, lineY, view.textPaint,
+                    text.drawStyledLine(canvas, styled, lineText, textAreaLeft - view.scroll.hOffset, lineY, view.textPaint,
                         layout.inlays, layout.rawToVisual);
                     // Dessiner les caractères non imprimables si activé.
                     if (view.showNonPrintable) {
-                        text.drawNonPrintableChars(canvas, lineText, textAreaLeft - view.hOffset, lineY,
+                        text.drawNonPrintableChars(canvas, lineText, textAreaLeft - view.scroll.hOffset, lineY,
                             view.metrics.getCharWidth(), lineHeight, layout.inlays, layout.rawToVisual);
                     }
                     // Overlay de tokens sémantiques (recolore des plages
@@ -355,7 +355,7 @@ public class EditorRenderer {
                     // ligne mis en cache.
                     if (layout.semSpans != null && !layout.semSpans.isEmpty()) {
                         text.drawCachedSemSpans(canvas, layout.semSpans, lineText,
-                            textAreaLeft - view.hOffset, lineY, view.textPaint,
+                            textAreaLeft - view.scroll.hOffset, lineY, view.textPaint,
                             layout.inlays, layout.rawToVisual);
                     }
                     // Inlay hints : texte fantôme tissé DANS la ligne (le texte
@@ -368,7 +368,7 @@ public class EditorRenderer {
                     // Fenêtré : une ligne minifiée sans
                     // style ne dessine que sa tranche visible.
                     text.drawPlainLine(canvas, lineText,
-                            textAreaLeft - view.hOffset,
+                            textAreaLeft - view.scroll.hOffset,
                             lineY + lineHeight * 0.78f, view.textPaint);
                 }
             }
@@ -428,7 +428,7 @@ public class EditorRenderer {
         // EditorView.hitTestGutterPreviewAction (même rectangle déterministe).
         view.gutterView.setPreviewAction(view.previewable,
                 view.previewMode != EditorView.PreviewMode.NONE);
-        view.gutterView.draw(canvas, view.vOffset, height, doc.lineCount(), currentLine);
+        view.gutterView.draw(canvas, view.scroll.vOffset, height, doc.lineCount(), currentLine);
         chrome.drawFoldChevrons(canvas, doc, firstDocVisible, lastDocVisible, lineHeight, paddingTop);
         canvas.restore();
 
@@ -590,13 +590,13 @@ public class EditorRenderer {
                     jo.codeeditor.view.ColorPicker.findColorsInLine(lineText);
             if (matches.isEmpty()) continue;
 
-            float y = view.docLineToY(i) - view.vOffset;
+            float y = view.docLineToY(i) - view.scroll.vOffset;
 
             for (jo.codeeditor.view.ColorPicker.ColorMatch m : matches) {
                 // Position X du début et de la fin du code couleur.
-                float startX = textAreaLeft - view.hOffset
+                float startX = textAreaLeft - view.scroll.hOffset
                         + m.start * charWidth - padX;
-                float endX = textAreaLeft - view.hOffset
+                float endX = textAreaLeft - view.scroll.hOffset
                         + m.end * charWidth + padX;
                 float topY = y + padY;
                 float botY = y + lineHeight - padY;
@@ -726,7 +726,7 @@ public class EditorRenderer {
         // ★ S2 : texte stylé — la couleur de chaque span de syntaxe
         // (mot-clé, commentaire, nombre…) est appliquée par
         // drawStyledLine via le paint dédié.
-        float textX = textAreaLeft - view.hOffset;
+        float textX = textAreaLeft - view.scroll.hOffset;
         java.util.List<StyledLine> styledLines = view.session.getStyledLines();
         StyledLine styled = docLine < styledLines.size()
                 ? styledLines.get(docLine) : null;
@@ -749,7 +749,7 @@ public class EditorRenderer {
         float charWidth = view.metrics.getCharWidth();
         if (charWidth > 0f) {
             float lastVisibleCol = (view.getWidth() - textAreaLeft
-                    + view.hOffset) / charWidth;
+                    + view.scroll.hOffset) / charWidth;
             if (lineText.length() > lastVisibleCol) {
                 float ellX = Math.min(
                         textX + Math.max(0f, lastVisibleCol - 1f) * charWidth,
@@ -796,7 +796,7 @@ public class EditorRenderer {
             int endLine = doc.lineForOffset(Math.max(start, end - 1));
             for (int line = startLine; line <= endLine; line++) {
                 if (view.isLineFoldedCached(line)) continue;
-                float lineY = view.docLineToY(line) - view.vOffset;
+                float lineY = view.docLineToY(line) - view.scroll.vOffset;
                 if (lineY + lineHeight < 0 || lineY > view.getHeight()) continue;
                 int lineStart = doc.lineStart(line);
                 int lineEnd = doc.lineEnd(line);
@@ -816,8 +816,8 @@ public class EditorRenderer {
                     if (re <= rs) continue;
                     float rowY = lineY + row * lineHeight;
                     float rowIndent = row == 0 ? 0f : wr.wrapIndentCols * charWidth;
-                    float x1 = textAreaLeft - view.hOffset + rowIndent + rs * charWidth;
-                    float x2 = textAreaLeft - view.hOffset + rowIndent + re * charWidth;
+                    float x1 = textAreaLeft - view.scroll.hOffset + rowIndent + rs * charWidth;
+                    float x2 = textAreaLeft - view.scroll.hOffset + rowIndent + re * charWidth;
                     switch (td.style) {
                         case EditorDecorations.DecorationStyles.BOX:
                             view.selPaint.setStyle(Paint.Style.STROKE);
@@ -867,7 +867,7 @@ public class EditorRenderer {
                         + (rowEnd - rowStart) * charWidth + charWidth;
             } else {
                 int visualLen = view.visualColFor(line, lineLen);
-                x = textAreaLeft + visualLen * charWidth - view.hOffset + charWidth;
+                x = textAreaLeft + visualLen * charWidth - view.scroll.hOffset + charWidth;
             }
             List<DiagnosticShift.Diagnostic> chip = view.chipDiagnosticsForLine(line);
             if (!chip.isEmpty()) {
@@ -876,7 +876,7 @@ public class EditorRenderer {
                     x = cm[0] + cm[2] + 8 * density;
                 }
             }
-            float y = view.docLineToY(line) + lastRow * lineHeight - view.vOffset;
+            float y = view.docLineToY(line) + lastRow * lineHeight - view.scroll.vOffset;
             if (y + lineHeight < 0 || y > view.getHeight()) continue;
             view.textPaint.setTypeface(view.metrics.getTypeface());
             view.textPaint.setTextSize(view.metrics.getTextSize() * 0.85f);
