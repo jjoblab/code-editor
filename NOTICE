@@ -20,10 +20,10 @@ consommateurs qui ajoutent la dépendance `cel-lsp` l'obtiennent.
 L'EPL-2.0 (copyleft faible) autorise l'œuvre combinée avec de l'Apache-2.0 :
 chaque licence demeure applicable à ses fichiers d'origine.
 
-## Gson 2.10.1 (module `cel-lsp`)
+## Gson 2.14.0 (module `cel-lsp`)
 
 Le module `cel-lsp` déclare explicitement
-`com.google.code.gson:gson` en version 2.10.1 (déjà transitif de LSP4J),
+`com.google.code.gson:gson` en version 2.14.0 (déjà transitif de LSP4J),
 sous licence **Apache License 2.0**. Gson sert à la désérialisation des
 réponses des requêtes LSP personnalisées envoyées via RemoteEndpoint.
 
