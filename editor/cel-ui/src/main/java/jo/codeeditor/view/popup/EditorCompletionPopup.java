@@ -324,14 +324,26 @@ public class EditorCompletionPopup {
      */
     private boolean isInCodeContext(CharSequence text, int caret) {
         if (view.session == null) return false;
-        // Fichier de log : pas de complétion.
+        // Fichier de log : pas de complétion. Famille XML (xml, html,
+        // svg) : la porte chaîne/commentaire est ÉCARTÉE — elle est
+        // calibrée pour les littéraux C/Java (une apostrophe dans le
+        // TEXTE français « c'est » basculait l'état « dans une chaîne »
+        // et tuait la complétion sur tout le reste du fichier ; le
+        // curseur entre les guillemets d'une VALEUR d'attribut XML
+        // « android:text="|" est une zone de complétion légitime, pas
+        // un littéral). Le SERVEUR LSP XML tranche déjà lui-même les
+        // zones muettes (texte, fermantes, commentaires <!--, PI <?).
         String lang = view.session.getLanguage();
         if (lang != null) {
             jo.codeeditor.languages.LanguageProfile profile =
                     jo.codeeditor.languages.LanguageRegistry.forName(lang);
-            if (profile != null
-                    && profile.family == jo.codeeditor.languages.SyntaxFamily.LOG) {
-                return false;
+            if (profile != null) {
+                if (profile.family == jo.codeeditor.languages.SyntaxFamily.LOG) {
+                    return false;
+                }
+                if (profile.family == jo.codeeditor.languages.SyntaxFamily.XML) {
+                    return true;
+                }
             }
         }
         // Caret dans une chaîne ou un commentaire : pas de complétion.

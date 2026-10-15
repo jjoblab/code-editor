@@ -5,6 +5,39 @@ All notable changes to **code-editor-lib** are documented in this file.
 Le format suit la convention [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.70.0] — 2026-10-15 — Correctif complétion XML : la porte de contexte respecte la famille XML
+
+Retour utilisateur CodeIDE : « le LSP XML ne propose plus de complétion ».
+L'enquête remonte à la porte de contexte du Lot 3 (audit v3.41.0) : son
+prédicat `isInStringOrComment` (machine à états calibrée pour les
+littéraux C/Java) se trompe systématiquement sur XML :
+
+- le curseur entre les guillemets d'une **valeur d'attribut en frappe**
+  (`android:orientation="|`) — LA zone légitime des propositions de
+  valeurs (énumérations, références `@…`) — était classée « dans une
+  chaîne littérale » → `dismissCompletion()` systématique ;
+- une **apostrophe du texte français** (`Nom d'utilisateur` — hors de
+  tout littéral pour XML) ouvrait un « littéral char » jamais refermé :
+  tout le fichier en dessous était classé « dans une chaîne » → plus
+  AUCUNE complétion (balises ni attributs) sous cette ligne.
+
+### Fixed
+
+- **`EditorCompletionPopup.isInCodeContext`** : pour la famille
+  `SyntaxFamily.XML` (xml, html, htm, svg), la porte
+  chaîne/commentaire est ÉCARTÉE — le SERVEUR LSP tranche déjà
+  lui-même les zones muettes (texte, fermantes, commentaires `<!--`,
+  PI `<?`) ; la porte LOG reste active, et les familles C-like
+  conservent le comportement du Lot 3 inchangé.
+
+### Tests
+
+- +4 (1 776 verts) : `CompletionContextGateXmlTest` ×4 (cel-ui) —
+  valeur d'attribut (char déclencheur `"`), apostrophe française
+  au-dessus du curseur, préfixe de balise (non-régression), littéral
+  Java toujours bloqué (non-régression). Rouges sans le correctif,
+  verts avec.
+
 ## [3.69.0] — 2026-10-14 — Lot B15 : API GutterAction (P2-2) + suppression d'EditorBarTools
 
 Sixième lot de la feuille de route issue de l'analyse des écarts n°6 :
