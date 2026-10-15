@@ -23,7 +23,7 @@ ce projet.
 ### Via GitHub Packages (méthode principale)
 
 Les artefacts sont publiés sur `maven.pkg.github.com` avec les coordonnées
-`jo.codeeditor:<module>:<version>` (version courante : `3.49.2`).
+`jo.codeeditor:<module>:<version>` (version courante : `3.70.1`).
 
 1. Créez un jeton d'accès personnel GitHub avec le droit `read:packages`.
 2. Renseignez vos identifiants dans `~/.gradle/gradle.properties` :
@@ -57,12 +57,12 @@ dependencyResolutionManagement {
 // app/build.gradle.kts
 dependencies {
     // Le module UI embarque transitivement cel-core et cel-lsp-api.
-    implementation("jo.codeeditor:cel-ui:3.49.2")
+    implementation("jo.codeeditor:cel-ui:3.70.1")
 
     // Optionnel — intégration Language Server Protocol (LSP4J).
     // Ses dépendances vers cel-core/cel-lsp-api/cel-ui sont compileOnly :
     // gardez la ligne cel-ui ci-dessus.
-    implementation("jo.codeeditor:cel-lsp:3.49.2")
+    implementation("jo.codeeditor:cel-lsp:3.70.1")
 }
 ```
 
@@ -78,8 +78,8 @@ maven { url = uri("https://jitpack.io") }
 
 ```kotlin
 dependencies {
-    implementation("com.github.jjoblab:cel-ui:v3.49.2")
-    implementation("com.github.jjoblab:cel-lsp:v3.49.2") // optionnel
+    implementation("com.github.jjoblab:cel-ui:v3.70.1")
+    implementation("com.github.jjoblab:cel-lsp:v3.70.1") // optionnel
 }
 ```
 

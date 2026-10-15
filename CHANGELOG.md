@@ -8,6 +8,10 @@
 
 ### Fixed
 
+### Fixed (D-09)
+
+- **Documentation dérivée resynchronisée** — README/USAGE annonçaient `3.49.2`, BUILD `3.54.0`, SECURITY `3.49.x` (réalité : `3.70.1`) ; le graphe des modules d'AGENT.md omettait `cel-lsp-api → cel-core (api)` et `cel-lsp → cel-ui (compileOnly)` ; les plans 01/02 citaient les collaborateurs `EditorBarTools` (retiré en B15) et `SurroundWith` (retiré au lot M-02). `check-doc-figures.sh` verrouille désormais l'égalité version README/USAGE/BUILD ↔ `build.gradle.kts` (rouge/vert testé par injection d'une version divergente).
+
 - **Fuite de thread par session (D-02)** — le thread `EditorSession-restyle` expire après 30 s d'inactivité (`allowCoreThreadTimeOut`) : la fuite à vie quand l'hôte oublie `dispose()` est impossible ; Javadoc de `dispose()` corrigée (l'`EditorView` NE l'appelle pas pour vous — la libération est à la charge de l'hôte).
 - **Recherche regex sûre (D-05)** — une regex catastrophique (`(a+)+b` sur texte adverse) figeait le THREAD UI (ANR) : la vue garde-fou interrompt le backtracking au budget ; les passes de remplacement avortent proprement (document jamais muté à moitié) ; construction du `Pattern` centralisée (duplication supprimée).
 - **Ordre de navigation des snippets** — `SnippetSession` visitait $2 avant $1 (tri décroissant, invisible tant que la classe n'était pas câblée) : ordre LSP correct.

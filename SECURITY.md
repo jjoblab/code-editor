@@ -4,8 +4,8 @@
 
 | Version | Prise en charge |
 |---------|-----------------|
-| 3.49.x  | oui             |
-| < 3.49  | non             |
+| 3.70.x  | oui             |
+| < 3.70  | non             |
 
 ## Signaler une vulnérabilité
 

@@ -9,7 +9,7 @@
 | Lignes | 1 588 |
 | Méthodes publiques | ≈ 92 |
 | Champs | 10 (déjà maigre — l'engraissement est en méthodes) |
-| Collaborateurs déjà extraits | `UndoManager`/`UndoRecorder`, `ImeBridge`, `CommentToggler`, `RestyleEngine`, `SessionAnnotations`, `FoldRegions`, `DiagnosticShift`, `EditOps`, `SnippetSession`, `PostfixCompletion`, `SurroundWith` |
+| Collaborateurs déjà extraits | `UndoManager`/`UndoRecorder`, `ImeBridge`, `CommentToggler`, `RestyleEngine`, `SessionAnnotations`, `FoldRegions`, `DiagnosticShift`, `EditOps`, `SnippetSession`, `PostfixCompletion` (SurroundWith a été retiré au lot M-02 — audit 3.69.0) |
 
 Le pattern « orchestrateur + collaborateurs » est déjà bien avancé ;
 il reste trois familles de méthodes volumineuses dans la session :
