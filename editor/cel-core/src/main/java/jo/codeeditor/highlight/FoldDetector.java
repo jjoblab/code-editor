@@ -57,26 +57,35 @@ public final class FoldDetector {
      */
     public static List<DiagnosticShift.FoldRegion> detect(String text, String language) {
         if (text == null || text.isEmpty()) return new ArrayList<>();
+        // P-03 (audit 3.69.0) : UN SEUL découpage du texte pour toute la
+        // détection — les stratégies composées (imports + accolades,
+        // régions nommées en sus) partageaient chacune leur propre
+        // text.split, jusqu'à trois découpages du document entier par
+        // appel (trois tableaux + trois fois toutes les lignes
+        // allouées). Les cœurs des détecteurs travaillent sur le tableau
+        // partagé ; les entrées publiques mono-détecteur découpent pour
+        // leur compte.
+        String[] lines = splitLines(text);
         FoldStrategy strategy = resolveStrategy(language);
         List<DiagnosticShift.FoldRegion> folds;
         switch (strategy) {
-            case KEYWORD: folds = detectLuaFolds(text); break;
-            case INDENT: folds = detectIndentFolds(text); break;
+            case KEYWORD: folds = detectLuaFolds(lines); break;
+            case INDENT: folds = detectIndentFolds(lines); break;
             case TAG: folds = detectXmlFolds(text); break;
-            case HEADING: folds = detectMarkdownFolds(text); break;
+            case HEADING: folds = detectMarkdownFolds(lines); break;
             case IMPORTS: {
-                folds = detectImportFolds(text);
-                folds.addAll(detectBraceFolds(text));
+                folds = detectImportFolds(lines);
+                folds.addAll(detectBraceFolds(lines));
                 break;
             }
             case OFF: folds = new ArrayList<>(); break;
             case BRACE:
             default:
-                folds = detectBraceFolds(text); break;
+                folds = detectBraceFolds(lines); break;
         }
         // Ajouter les régions nommées (// region ... // endregion,
         // // <editor-fold> ... // </editor-fold>).
-        folds.addAll(detectNamedRegions(text));
+        folds.addAll(detectNamedRegions(lines));
         return folds;
     }
 
@@ -95,6 +104,15 @@ public final class FoldDetector {
     // ── Langages à accolades : Java, Kotlin, JS, C, etc. ──────────────────
 
     /**
+     * Le point de découpage unique (P-03) : lignes du document, marqueurs
+     * de fin conservés (limite -1). Partagé par tous les détecteurs d'un
+     * même appel {@link #detect(String, String)}.
+     */
+    private static String[] splitLines(String text) {
+        return text.split("\n", -1);
+    }
+
+    /**
      * Détecte les blocs { ... } et [ ... ]. Ignore les accolades et
      * crochets dans les chaînes et les commentaires.
      *
@@ -104,13 +122,17 @@ public final class FoldDetector {
      * moins 3 lignes » s'applique aussi aux commentaires.</p>
      */
     public static List<DiagnosticShift.FoldRegion> detectBraceFolds(String text) {
+        return detectBraceFolds(splitLines(text));
+    }
+
+    /** Cœur sur lignes pré-découpées (partagées entre détecteurs). */
+    static List<DiagnosticShift.FoldRegion> detectBraceFolds(String[] lines) {
         List<DiagnosticShift.FoldRegion> folds = new ArrayList<>();
         ArrayDeque<int[]> stack = new ArrayDeque<>(); // [offset, index de ligne]
         // Pile séparée pour les commentaires de bloc : on empile
         // l'offset du /* et on dépile au */. Le filtre « au moins 3
         // lignes » s'applique aussi aux commentaires de bloc.
         ArrayDeque<int[]> commentStack = new ArrayDeque<>();
-        String[] lines = text.split("\n", -1);
         boolean inString = false;
         boolean inLineComment = false;
         boolean inBlockComment = false;
@@ -194,9 +216,13 @@ public final class FoldDetector {
      * Détecte les blocs Lua. Suit les ouvrants function/do/for/while et les fermants end.
      */
     public static List<DiagnosticShift.FoldRegion> detectLuaFolds(String text) {
+        return detectLuaFolds(splitLines(text));
+    }
+
+    /** Cœur sur lignes pré-découpées (partagées entre détecteurs). */
+    static List<DiagnosticShift.FoldRegion> detectLuaFolds(String[] lines) {
         List<DiagnosticShift.FoldRegion> folds = new ArrayList<>();
         ArrayDeque<int[]> stack = new ArrayDeque<>(); // [offsetDébut, ligneDébut]
-        String[] lines = text.split("\n", -1);
         int offset = 0;
 
         for (int li = 0; li < lines.length; li++) {
@@ -248,8 +274,12 @@ public final class FoldDetector {
      * bloc.</p>
      */
     public static List<DiagnosticShift.FoldRegion> detectIndentFolds(String text) {
+        return detectIndentFolds(splitLines(text));
+    }
+
+    /** Cœur sur lignes pré-découpées (partagées entre détecteurs). */
+    static List<DiagnosticShift.FoldRegion> detectIndentFolds(String[] lines) {
         List<DiagnosticShift.FoldRegion> folds = new ArrayList<>();
-        String[] lines = text.split("\n", -1);
         ArrayDeque<int[]> stack = new ArrayDeque<>(); // [index de ligne, indentation, offset]
         int offset = 0;
 
@@ -331,8 +361,12 @@ public final class FoldDetector {
      * </ul>
      */
     public static List<DiagnosticShift.FoldRegion> detectNamedRegions(String text) {
+        return detectNamedRegions(splitLines(text));
+    }
+
+    /** Cœur sur lignes pré-découpées (partagées entre détecteurs). */
+    static List<DiagnosticShift.FoldRegion> detectNamedRegions(String[] lines) {
         List<DiagnosticShift.FoldRegion> folds = new ArrayList<>();
-        String[] lines = text.split("\n", -1);
         int offset = 0;
         // Pile des régions ouvertes : [startOffset, startLine]
         ArrayDeque<int[]> stack = new ArrayDeque<>();
@@ -414,8 +448,12 @@ public final class FoldDetector {
      * moins 3 imports » pour éviter de plier un seul import.
      */
     public static List<DiagnosticShift.FoldRegion> detectImportFolds(String text) {
+        return detectImportFolds(splitLines(text));
+    }
+
+    /** Cœur sur lignes pré-découpées (partagées entre détecteurs). */
+    static List<DiagnosticShift.FoldRegion> detectImportFolds(String[] lines) {
         List<DiagnosticShift.FoldRegion> folds = new ArrayList<>();
-        String[] lines = text.split("\n", -1);
         int offset = 0;
         int firstImportLine = -1;
         int lastImportLine = -1;
@@ -516,8 +554,12 @@ public final class FoldDetector {
      * qui s'étend jusqu'au prochain titre de niveau égal ou supérieur.
      */
     public static List<DiagnosticShift.FoldRegion> detectMarkdownFolds(String text) {
+        return detectMarkdownFolds(splitLines(text));
+    }
+
+    /** Cœur sur lignes pré-découpées (partagées entre détecteurs). */
+    static List<DiagnosticShift.FoldRegion> detectMarkdownFolds(String[] lines) {
         List<DiagnosticShift.FoldRegion> folds = new ArrayList<>();
-        String[] lines = text.split("\n", -1);
         int offset = 0;
         int lastHeadingOffset = -1;
         int lastHeadingLevel = 0;
