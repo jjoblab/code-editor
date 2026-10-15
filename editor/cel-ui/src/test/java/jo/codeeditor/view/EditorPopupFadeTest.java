@@ -99,7 +99,7 @@ public class EditorPopupFadeTest {
         // Le popup disparaît (chemin filtrage vide par ex.) — le fondu
         // d'entrée s'arrête NET, sans fantôme (données possiblement
         // incohérentes à ce stade).
-        view.completionVisible = false;
+        view.completion.visible = false;
         draw(view);
 
         assertEquals("fondu d'entrée interrompu → caché",
@@ -122,7 +122,7 @@ public class EditorPopupFadeTest {
         view.popupManager.dismissCompletion();
 
         assertFalse("l'état logique est mort immédiatement",
-                view.completionVisible);
+                view.completion.visible);
         assertEquals("le fantôme est en vol",
                 EditorPopupFade.Phase.OUT, view.popupFade.phase(
                         EditorPopupFade.Kind.COMPLETION));

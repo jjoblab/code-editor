@@ -4,6 +4,7 @@ import jo.codeeditor.view.EditorView;
 import jo.codeeditor.view.popup.EditorContextMenuHandler;
 import jo.codeeditor.view.popup.EditorPopupAnchors;
 import jo.codeeditor.view.popup.EditorPopupHitTester;
+import jo.codeeditor.view.state.CompletionState;
 
 import androidx.annotation.RestrictTo;
 
@@ -268,7 +269,7 @@ public class EditorInputHandler {
                     scrollerCtl.abortAnimation();
                     return true;
                 }
-                if (view.completionVisible && hitTester.hitTestCompletionPopup(x, y) >= 0) {
+                if (view.completion.visible && hitTester.hitTestCompletionPopup(x, y) >= 0) {
                     completionScrolling = true;
                     return true;
                 }
@@ -432,19 +433,14 @@ public class EditorInputHandler {
                 if (completionScrolling) {
                     float dy = y - lastTouchY;
                     float density = view.getResources().getDisplayMetrics().density;
-                    float rowH = view.COMPLETION_ROW_HEIGHT_DP * density;
+                    float rowH = CompletionState.ROW_HEIGHT_DP * density;
                     int rowDelta = -(int) (dy / rowH);
                     if (rowDelta != 0) {
                         // Bornes de scroll sur les rangées RÉELLEMENT
-                        // visibles (réduites quand le viewport est petit).
-                        int rowsVisible = view.popupManager.completionRowsVisible();
-                        int newOffset = view.completionScrollOffset + rowDelta;
-                        int maxOffset = Math.max(0, view.completionItems.size() - rowsVisible);
-                        newOffset = Math.max(0, Math.min(newOffset, maxOffset));
-                        if (newOffset != view.completionScrollOffset) {
-                            view.completionScrollOffset = newOffset;
-                            view.completionSelected = Math.max(0,
-                                Math.min(view.completionSelected + rowDelta, view.completionItems.size() - 1));
+                        // visibles (réduites quand le viewport est petit) —
+                        // invariant possédé par CompletionState.scrollBy.
+                        if (view.completion.scrollBy(rowDelta,
+                                view.popupManager.completionRowsVisible())) {
                             view.invalidate();
                         }
                         lastTouchY = y;
@@ -869,7 +865,7 @@ public class EditorInputHandler {
         if (view.diagnosticPopupVisible || view.diagnosticListSheetLine >= 0) {
             return true;
         }
-        if (view.completionVisible && hitTester.hitTestCompletionPopup(x, y) >= 0) {
+        if (view.completion.visible && hitTester.hitTestCompletionPopup(x, y) >= 0) {
             return true;
         }
         if (view.quickDocVisible) {

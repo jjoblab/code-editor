@@ -1,6 +1,7 @@
 package jo.codeeditor.view.render;
 
 import jo.codeeditor.view.EditorView;
+import jo.codeeditor.view.state.CompletionState;
 
 import androidx.annotation.RestrictTo;
 
@@ -763,11 +764,11 @@ public class EditorAssistPopupPainter {
      * à droite.</p>
      */
     void drawCompletionPopup(Canvas canvas) {
-        if (!view.completionVisible || view.completionItems.isEmpty()) return;
+        if (!view.completion.visible || view.completion.items.isEmpty()) return;
         float[] anchor = view.completionPopupAnchor();
         float density = view.getResources().getDisplayMetrics().density;
-        float rowH = view.COMPLETION_ROW_HEIGHT_DP * density;
-        float width = view.COMPLETION_WIDTH_DP * density;
+        float rowH = CompletionState.ROW_HEIGHT_DP * density;
+        float width = CompletionState.WIDTH_DP * density;
         float radius = COMPLETION_BORDER_RADIUS_DP * density;
         // L'ancre est la SOURCE UNIQUE — le nombre de rangées dérive de sa
         // hauteur (elle réduit les rangées quand le viewport est petit,
@@ -808,24 +809,24 @@ public class EditorAssistPopupPainter {
         // ★ Thème sombre ? (pour assombrir la palette badge sur glass clair)
         boolean darkTheme = (view.theme.editorBg & 0xFFFFFF) < 0x808080;
         for (int i = 0; i < rowsToShow; i++) {
-            int idx = view.completionScrollOffset + i;
-            if (idx >= view.completionItems.size()) break;
+            int idx = view.completion.scrollOffset + i;
+            if (idx >= view.completion.items.size()) break;
             float y = anchorY + i * rowH;
             // Surligner la rangée sélectionnée
-            if (idx == view.completionSelected) {
+            if (idx == view.completion.selected) {
                 view.selPaint.setColor(view.theme.selection);
                 canvas.drawRect(anchorX + 1, y, anchorX + width - 1, y + rowH, view.selPaint);
             }
-            jo.codeeditor.completion.CompletionSession.Item item = view.completionItems.get(idx);
+            jo.codeeditor.completion.CompletionSession.Item item = view.completion.items.get(idx);
             drawCompletionRow(canvas, item, anchorX, y, width, rowH, padX, density, darkTheme);
         }
         // Réinitialiser la taille du paint de texte
         view.textPaint.setTextSize(view.metrics.getTextSize());
         // Scrollbar s'il y a plus d'éléments que de visibles
-        if (view.completionItems.size() > rowsToShow) {
+        if (view.completion.items.size() > rowsToShow) {
             float sbX = anchorX + width - 3 * density;
-            float sbH = popupH * rowsToShow / (float) view.completionItems.size();
-            float sbY = anchorY + (popupH - sbH) * (view.completionScrollOffset / (float)(view.completionItems.size() - rowsToShow));
+            float sbH = popupH * rowsToShow / (float) view.completion.items.size();
+            float sbY = anchorY + (popupH - sbH) * (view.completion.scrollOffset / (float)(view.completion.items.size() - rowsToShow));
             view.selPaint.setColor(view.theme.gutterBorder);
             canvas.drawRect(sbX, sbY, sbX + 2 * density, sbY + sbH, view.selPaint);
         }
@@ -898,7 +899,7 @@ public class EditorAssistPopupPainter {
             return;
         }
 
-        String prefix = view.completionPrefix != null ? view.completionPrefix : "";
+        String prefix = view.completion.prefix != null ? view.completion.prefix : "";
         java.util.List<Integer> matched = (prefix.isEmpty())
                 ? java.util.Collections.emptyList()
                 : jo.codeeditor.completion.CompletionSession.matchPositions(label, prefix);

@@ -55,6 +55,10 @@ Les sections antérieures à la période courante sont archivées dans
 
 - **Licence du projet : MIT → Apache 2.0** — `LICENSE` porte désormais le texte canonique Apache License 2.0 ; la mention de copyright du projet (2024-2026, code-editor-lib contributors) vit dans `NOTICE`, qui documente en sus le régime des œuvres combinées avec l'EPL-2.0 de la dépendance LSP embarquée par `cel-lsp` ; les POM des quatre modules publiés consignent la licence (`Apache-2.0`) pour les consommateurs et les scans de conformité ; le README est aligné.
 
+### Changed (plan 01 — décomposition d'EditorView, étape 2)
+
+- **`CompletionState` : l'état du popup de complétion quitte la vue** — liste affichée, sélection, fenêtre de scroll, token/préfixe, visibilité et cache de filtrage par token vivent désormais dans `view/state/CompletionState`, qui POSSÈDE les invariants (fenêtre solidaire de la sélection dans les deux sens, survie de l'item sélectionné par libellé au refiltrage, bornes du drag, cohérence visibilité/contenu). Le popup, l'input handler, le hit-tester et les painters consomment l'objet d'état ; les invariants sont testés en JVM pure (`CompletionStateTest`, zéro Robolectric — le gain de testabilité visé par le plan). `EditorView` : 3799 → 3779 lignes, 180 → 170 champs ; **plafonds abaissés 3810 → 3790 lignes et 190 → 180 champs** (cliquet, marge 11 lignes, style maison). API publique inchangée : `setCompletionItems` délègue à l'état.
+
 ### Fixed (D-09)
 
 - **Documentation dérivée resynchronisée** — README/USAGE annonçaient `3.49.2`, BUILD `3.54.0`, SECURITY `3.49.x` (réalité : `3.70.1`) ; le graphe des modules d'AGENT.md omettait `cel-lsp-api → cel-core (api)` et `cel-lsp → cel-ui (compileOnly)` ; les plans 01/02 citaient les collaborateurs `EditorBarTools` (retiré en B15) et `SurroundWith` (retiré au lot M-02). `check-doc-figures.sh` verrouille désormais l'égalité version README/USAGE/BUILD ↔ `build.gradle.kts` (rouge/vert testé par injection d'une version divergente).

@@ -174,10 +174,10 @@ public class EditorTapResolver {
         }
 
         // Test de touche du popup de complétion.
-        if (view.completionVisible) {
+        if (view.completion.visible) {
             int hitRow = hitTester.hitTestCompletionPopup(x, y);
             if (hitRow >= 0) {
-                view.completionSelected = hitRow;
+                view.completion.selected = hitRow;
                 view.invalidate();
                 view.completionAccept();
                 return;

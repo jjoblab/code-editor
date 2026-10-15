@@ -52,6 +52,11 @@ budget() {
 # Parcelable (EditorSavedState) : 3840 → 3799 lignes mesurées, plafond
 # abaissé à 3810. Les relèvements futurs exigent la décision du
 # propriétaire ; chaque extraction doit accompagner son abaissement.
+# Plan 01, étape 2 (post-plan) : CompletionState extrait (popup de
+# complétion : liste, sélection, fenêtre de scroll, cache par token +
+# invariants possédés) — 3799 → 3779 lignes, 180 → 170 champs,
+# 276 → 274 méthodes publiques ; plafonds abaissés à 3790 lignes et
+# 180 champs (marge 11 lignes, style maison).
 # Écart au ratchet : plafonds CHAMPS (170→190) et MÉTHODES PUBLIQUES
 # (255→280) d'EditorView relevés par décision explicite du propriétaire
 # (2026-10, session J3 — « Go pour J3, tu peux aussi augmenter le
@@ -60,7 +65,7 @@ budget() {
 # marge conservée pour J4 (T2 actions socle) ; les 4100 lignes restent
 # le plafond de décomposition — le relèvement ne dispense PAS de
 # décomposer via les collaborateurs existants.
-budget editor/cel-ui/src/main/java/jo/codeeditor/view/EditorView.java 3810 190 280
+budget editor/cel-ui/src/main/java/jo/codeeditor/view/EditorView.java 3790 180 280
 budget editor/cel-core/src/main/java/jo/codeeditor/session/EditorSession.java 1600 15 100
 
 if [ "$echec" -ne 0 ]; then

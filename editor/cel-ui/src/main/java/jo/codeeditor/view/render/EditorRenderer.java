@@ -80,7 +80,7 @@ public class EditorRenderer {
     private void registerPopupFades() {
         jo.codeeditor.view.popup.EditorPopupFade fade = view.popupFade;
         fade.register(jo.codeeditor.view.popup.EditorPopupFade.Kind.COMPLETION,
-                () -> view.completionVisible,
+                () -> view.completion.visible,
                 popupPainter(assist::drawCompletionPopup, () -> {
                     float[] a = view.completionPopupAnchor();
                     return a == null || a.length < 4 ? null

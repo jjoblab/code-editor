@@ -39,12 +39,12 @@ public class CompletionPopupBadgeRenderTest {
         view.setSession(session);
         List<CompletionSession.Item> list = new ArrayList<>();
         for (CompletionSession.Item it : items) list.add(it);
-        view.completionItems.clear();
-        view.completionItems.addAll(list);
-        view.completionVisible = true;
-        view.completionSelected = 0;
-        view.completionScrollOffset = 0;
-        view.completionPrefix = "ob";
+        view.completion.items.clear();
+        view.completion.items.addAll(list);
+        view.completion.visible = true;
+        view.completion.selected = 0;
+        view.completion.scrollOffset = 0;
+        view.completion.prefix = "ob";
         view.measure(1080, 1920);
         view.layout(0, 0, 1080, 1920);
         return view;
@@ -97,7 +97,7 @@ public class CompletionPopupBadgeRenderTest {
     public void drawsPopupWithEmptyPrefixAndNoDetail() {
         EditorView view = viewWithCompletion(
                 new CompletionSession.Item("foo", null, "foo", "m", 2, 4, false, false));
-        view.completionPrefix = "";
+        view.completion.prefix = "";
         drawPopup(view);
     }
 
@@ -106,8 +106,8 @@ public class CompletionPopupBadgeRenderTest {
         Context ctx = RuntimeEnvironment.getApplication();
         EditorView view = new EditorView(ctx);
         view.setSession(new EditorSession(EditorDocument.of("x")));
-        view.completionVisible = false;
+        view.completion.visible = false;
         drawPopup(view); // pas de NPE sur popup invisible
-        assertTrue(view.completionItems.isEmpty());
+        assertTrue(view.completion.items.isEmpty());
     }
 }

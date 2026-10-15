@@ -168,33 +168,13 @@ public class EditorView extends View {
     // ── Popup de complétion ────────────────────────────────────────
     // Complétion intégrée par mots-clés ; l'hôte peut piloter un
     // CompletionController externe via setCompletionItems(items,
-    // tokenStart, prefix).
+    // tokenStart, prefix). L'état affichable (liste, sélection, fenêtre
+    // de scroll, cache par token) vit dans l'objet d'état extrait —
+    // plan 01, étape 2 : les invariants de sélection/scroll sont
+    // possédés et testés là, la vue ne fait que l'héberger.
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
-    public final List<jo.codeeditor.completion.CompletionSession.Item> completionItems = new ArrayList<>();
-    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
-    public int completionSelected = 0;
-    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
-    public int completionScrollOffset = 0;
-    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
-    public int completionTokenStart = -1;
-    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
-    public String completionPrefix = "";
-    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
-    public boolean completionVisible = false;
-    // Cache de filtrage de complétion : le provider retourne un jeu de
-    // base pour un token ; les frappes suivantes du MÊME token filtrent
-    // en cache par préfixe (insensible casse + fuzzy) au lieu de
-    // re-requêter — réactif pendant qu'un serveur lent rattrape.
-    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
-    public List<jo.codeeditor.completion.CompletionSession.Item> completionBaseItems = new ArrayList<>();
-    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
-    public int completionBaseTokenStart = -1;
-    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
-    public static final int COMPLETION_MAX_ROWS = 8;
-    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
-    public static final float COMPLETION_ROW_HEIGHT_DP = 28f;
-    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
-    public static final float COMPLETION_WIDTH_DP = 280f;
+    public final jo.codeeditor.view.state.CompletionState completion =
+            new jo.codeeditor.view.state.CompletionState();
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
     public CompletionProvider completionProvider;
 

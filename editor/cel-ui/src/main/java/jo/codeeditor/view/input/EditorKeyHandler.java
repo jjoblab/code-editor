@@ -77,7 +77,7 @@ public class EditorKeyHandler {
         boolean ctrl = event.isCtrlPressed();
 
         // ── Navigation popup de complétion (quand visible) ─────────────
-        if (view.completionVisible && !ctrl) {
+        if (view.completion.visible && !ctrl) {
             switch (keyCode) {
                 case KeyEvent.KEYCODE_DPAD_UP:
                     if (view.completionSelectUp()) return true;

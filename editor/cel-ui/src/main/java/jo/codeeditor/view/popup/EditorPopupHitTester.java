@@ -26,7 +26,7 @@ public class EditorPopupHitTester {
     }
 
     public int hitTestCompletionPopup(float x, float y) {
-        if (!view.completionVisible || view.completionItems.isEmpty()) return -1;
+        if (!view.completion.visible || view.completion.items.isEmpty()) return -1;
         float[] anchor = view.completionPopupAnchor();
         float anchorX = anchor[0], anchorY = anchor[1];
         float width = anchor[2], popupH = anchor[3], rowH = anchor[4];
@@ -38,7 +38,7 @@ public class EditorPopupHitTester {
         // le hit-test suit la hauteur réelle du popup.
         int rowsToShow = Math.max(1, Math.round(popupH / rowH));
         if (rowInPopup < 0 || rowInPopup >= rowsToShow) return -1;
-        return view.completionScrollOffset + rowInPopup;
+        return view.completion.scrollOffset + rowInPopup;
     }
 
     /**
