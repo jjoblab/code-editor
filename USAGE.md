@@ -625,6 +625,22 @@ est trop petit. Elle ne recouvre **jamais** la ligne où l'utilisateur
 tape — l'algorithme est prouvé par balayage de 18 positions dans les
 tests.
 
+**Cohabitation avec les popups de frappe** (complétion, doc rapide) :
+la carte les traite comme des **obstacles** — elle cherche un creux
+libre hors de la bande de frappe ET des popups vivants, se pose
+**latéralement à droite** de la complétion sur grand écran (entière,
+la tige la relie à l'œil), compacte sinon. Si vraiment rien ne tient
+(petit écran), elle ne cache plus : elle se **voile d'eau** —
+transparence animée (alpha 0,25) tant qu'elle recouvre une part
+significative du popup (≥ 10 %), opaque dès que c'est dégagé, avec
+hystérésis (la complétion change de hauteur à chaque frappe, l'état
+ne tremble pas) ; la tige et l'œil restent opaques. Et la **priorité
+des taps appartient à la frappe** : une rangée de complétion tapée
+sous la carte voilée est acceptée ; un tap ailleurs referme la
+complétion puis continue sa cascade. L'aide de signature (bannière
+passive, sans bornes mesurables exposées) ne compte pas encore comme
+obstacle — la liste est extensible côté bibliothèque.
+
 Le contrat côté hôte (toutes les méthodes ont un défaut raisonnable —
 seules les utiles sont à surcharger) :
 
@@ -673,7 +689,10 @@ Les gestes, câblés par la bibliothèque (aucun code hôte) :
   caret) ; re-tap sur l'œil (resté **gelé** sur l'ancre) → fermeture ;
 - tap sur un **onglet** → bascule + `onPreviewDropTabSelected` ;
 - tap sur **✕** → fermeture ;
-- tap dans le **corps** → englouti (le caret ne bouge pas) ;
+- tap dans le **corps** → englouti (le caret ne bouge pas) — mais si
+  une complétion vit SOUS le doigt, sa rangée gagne d'abord (surface
+  de frappe prioritaire), et un tap hors du popup la referme avant la
+  cascade ;
 - tap **ailleurs** → cascade normale (caret posé), la carte reste
   ouverte et esquive la nouvelle zone de frappe au frame suivant ;
 - fermetures de sûreté : changement de session, fichier devenu
