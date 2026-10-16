@@ -267,7 +267,7 @@ et les barres d'habillage dans `view/chrome/`.
 | Minimap | ✅ | `view/render/EditorChromePainter.java` | Bande latérale, bascule publique |
 | Aperçu XML | ✅ | `view/preview/EditorPreviewController.java`, `view/preview/EditorPreviewHost.java` | Split/full via hôte |
 | Breadcrumb + actions (B5/B6/B7) | ✅ | `view/chrome/BreadcrumbBar.java` | Barre de fil d'Ariane + zone d'actions d'éditeur en haut à droite ; B6 : `addEditorActions()` (undo/redo câblés session + aperçu), boutons-icônes pill 40 dp, aperçu `GONE` si fichier non prévisualisable, bascule ouvrir/fermer, `addAction` texte (compat B5) ; B7 : états rafraîchis par le chemin IME (frappe/clique), plus de boutons morts |
-| Moteur d'icônes vectorielles (B6) | ✅ | `view/icons/EditorIcons.java` | UNDO/REDO/EYE (FILL) + SPLIT/EXPAND/CLOSE (STROKE), paths Material 24×24 parsés une fois puis cachés, teinte du thème, `draw(Canvas, Icon, cx, cy, size, paint)` |
+| Moteur d'icônes vectorielles (B6) | ✅ | `view/icons/EditorIcons.java` | UNDO/REDO/EYE (FILL) + SPLIT/EXPAND/CLOSE (STROKE), paths Material 24×24 parsés une fois puis cachés, teinte du thème, `draw(Canvas, Icon, cx, cy, size, paint)` ; B15 : `BREAKPOINT` (gouttière) ; B16 : DUPLICATE/COMMENT/CASE/SHARE/MOVE_UP/MOVE_DOWN/MOVE_BLOCK (débordement de la pill) ; **B24 : poids léger** — trait STROKE 1,5/24 (≈ Material Weight 300, parité codicon VS Code — retour terrain « icônes trop grasses »), nœuds du SHARE évidés (trou ~65 % du diamètre), disque BREAKPOINT r 6,75 |
 | Feuille d'aperçu carte flottante (B6/B7/B8) | ✅ | `view/preview/EditorPreviewSheet.java` | Élévation 12 dp, coins arrondis 16 dp côté flottant, en-tête œil+nom, segmented control scindé/plein ; B7 : corps clippé aux coins de la carte, entrée/sortie animées ; B8 : un tap hors du cadre referme la feuille (le tap traverse vers l'éditeur) |
 | Fondus de popups (B7) + rejet extérieur (B8) | ✅ | `view/popup/EditorPopupFade.java`, `view/popup/EditorPopupMotion.java` | Popups Canvas : apparition 120 ms (front montant dans le pipeline), disparition 110 ms par photographie au dismiss (complétion, quick doc, menu, pill) ; popups en fenêtre : cartes posées 140 ms / effacées 110 ms ; B8 : `outsideTapDismisses` — la recette Android complète (outside touchable + fond non nul) qui traduit un tap hors cadre en dismiss automatique |
 | Barre de symboles | ✅ | `view/chrome/SymbolBarView.java` | Symboles du document |
@@ -377,7 +377,7 @@ parallèle.
 | Fichiers source | 281 (`:cel-core` 81 · `:cel-lsp-api` 39 · `:cel-lsp` 45 · `:cel-ui` 93 · `:cel-textmate` 7 · `demo` 16) |
 | Fichiers de test | 280 |
 | Lignes de code (main) | ≈ 66 700 (bibliothèques ≈ 60 500 · démo ≈ 6 200) |
-| Tests unitaires | 2 423 (`:cel-core` 1 358 · `:cel-lsp-api` 32 · `:cel-lsp` 185 · `:cel-ui` 706 · `:cel-textmate` 81 · `demo` 61) |
+| Tests unitaires | 2 425 (`:cel-core` 1 358 · `:cel-lsp-api` 32 · `:cel-lsp` 185 · `:cel-ui` 708 · `:cel-textmate` 81 · `demo` 61) |
 | Langages colorés intégrés | 29 |
 | Tokéniseurs intégrés | 14 (+ utilitaires SpanUtils, KeywordTables) |
 | Grammaires embarquées | 10 (`:cel-textmate` : csharp, css, html, java, javascript, kotlin, lua, markdown, python, xml) |
