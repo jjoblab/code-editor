@@ -6,7 +6,6 @@ import jo.codeeditor.view.popup.EditorPopupAnchors;
 import androidx.annotation.RestrictTo;
 
 import android.view.MotionEvent;
-import android.view.inputmethod.InputMethodManager;
 
 import jo.codeeditor.document.Selection;
 import jo.codeeditor.shift.DiagnosticShift;
@@ -221,11 +220,11 @@ public class EditorSelectionGestures {
         // sélection (le seul chemin d'affichage volontaire, avec F1
         // et l'appui long sur un inlay hint). L'appui long retrouve
         // son contrat unique : sélection + poignées + pill.
+        // R8 (plan 09) : politique unifiée du clavier (lecture seule /
+        // clavier matériel) — l'appui long arme comme le tap.
         if (x >= view.metrics.getGutterWidth()) {
-            view.wantsKeyboard = true;
             view.requestFocus();
-            InputMethodManager imm = view.imm();
-            if (imm != null) imm.showSoftInput(view, 0);
+            view.imeBridge.showSoftInputIfEditable();
         }
         view.invalidate();
     }

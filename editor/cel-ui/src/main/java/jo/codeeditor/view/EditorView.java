@@ -25,6 +25,7 @@ import androidx.annotation.Nullable;
 import androidx.annotation.RestrictTo;
 
 import android.content.Context;
+import android.content.res.Configuration;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Rect;
@@ -1054,6 +1055,9 @@ public class EditorView extends View {
     // ── Plafond de fenêtre du texte extrait (sûr pour le Binder) ──
     static final int MAX_EXTRACT_CHARS = 100_000;
     int extractedTextMonitorToken = -1;
+    // R6 (plan 09) : fenêtre demandée par la dernière requête d'extraction
+    // (hintMaxChars) — les mises à jour du moniteur gardent cette taille.
+    int extractedTextMaxChars = MAX_EXTRACT_CHARS;
 
     // ── Infos d'ancre du curseur (G9i, API 21+) ───────────────────
     // Certains IME (japonais/chinois) demandent des mises à jour de
@@ -1165,6 +1169,33 @@ public class EditorView extends View {
 
     public interface OnSelectionChangedListener {
         void onSelectionChanged(int line, int col, boolean isCursor);
+    }
+
+    /**
+     * R9 (plan 09, E9) — personnalisation de l'{@link android.view.inputmethod.EditorInfo}
+     * par l'application hôte : appelé à CHAQUE construction de connexion,
+     * APRÈS les valeurs par défaut de la bibliothèque (inputType verrou code,
+     * imeOptions, sélection initiale, capitales réelles). L'hôte a le
+     * dernier mot — il peut par exemple ajouter
+     * {@link android.view.inputmethod.EditorInfo#IME_FLAG_NO_PERSONALIZED_LEARNING},
+     * une action d'entrée ({@code imeActionLabel/actionId}) ou un
+     * {@code inputType} dédié sans toucher à la bibliothèque.
+     */
+    public interface OnEditorInfoListener {
+        /** Reçoit l'{@code EditorInfo} à muter en place (dernier mot). */
+        void onBuildEditorInfo(android.view.inputmethod.EditorInfo info);
+    }
+
+    /**
+     * R9 (plan 09, E10) — commande privée d'un clavier : certaines IME
+     * propriétaires étendent le protocole via
+     * {@code InputConnection.performPrivateCommand(action, data)}. Sans
+     * ce routage, les commandes tombaient dans le vide ; l'hôte peut
+     * maintenant y répondre (retourner vrai si traitée).
+     */
+    public interface OnImePrivateCommandListener {
+        /** @return vrai si la commande est traitée. */
+        boolean onImePrivateCommand(String action, android.os.Bundle data);
     }
 
     // ════════════════════════════════════════════════════════════════
@@ -1480,6 +1511,16 @@ public class EditorView extends View {
 
     public void setOnSelectionChangedListener(OnSelectionChangedListener l) {
         this.selectionListener = l;
+    }
+
+    /** R9 (plan 09, E9) : règle l'écouteur de personnalisation de l'{@code EditorInfo}. */
+    public void setOnEditorInfoListener(OnEditorInfoListener l) {
+        imeBridge.editorInfoListener = l;
+    }
+
+    /** R9 (plan 09, E10) : règle l'écouteur des commandes privées de l'IME. */
+    public void setOnImePrivateCommandListener(OnImePrivateCommandListener l) {
+        imeBridge.imePrivateCommandListener = l;
     }
 
     /**
@@ -2430,14 +2471,12 @@ public class EditorView extends View {
         wrapGeometry.rebuildWrapModel();
     }
 
-    /** Point d'entrée public « montrer le clavier maintenant » (bouton toolbar / FAB). */
+    /** Point d'entrée public « montrer le clavier maintenant » (bouton toolbar / FAB).
+     * R8 (plan 09) : passe par la politique unifiée — lecture seule ou
+     * clavier matériel exposé → le clavier logiciel ne monte pas. */
     public void showSoftKeyboard() {
-        wantsKeyboard = true;
         requestFocus();
-        InputMethodManager imm = imm();
-        if (imm != null) {
-            imm.showSoftInput(this, 0);
-        }
+        imeBridge.showSoftInputIfEditable();
     }
 
     /** Point d'entrée public « cacher le clavier maintenant ». */
@@ -2713,7 +2752,10 @@ public class EditorView extends View {
 
     @Override
     public boolean onCheckIsTextEditor() {
-        return true;
+        // R8 (plan 09, E8) : en lecture seule, la vue n'est plus un champ
+        // d'édition pour le système — le tap ne fait pas monter un clavier
+        // dont les frappes seraient silencieusement ignorées.
+        return session != null && !session.isReadOnly();
     }
 
     @Override
@@ -2749,8 +2791,20 @@ public class EditorView extends View {
             // … et le sélecteur de couleur (B26).
             if (colorPickerVisible) dismissColorPicker();
         } else if (wantsKeyboard) {
-            InputMethodManager imm = imm();
-            if (imm != null) imm.showSoftInput(this, 0);
+            // R8 (plan 09) : la politique unifiée décide (lecture seule /
+            // clavier matériel) — le flag n'est armé que par elle.
+            imeBridge.showSoftInputIfEditable();
+        }
+    }
+
+    @Override
+    protected void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        // R8 (plan 09, E7) : un clavier matériel vient d'être connecté ou
+        // exposé → masquer le clavier logiciel (l'utilisateur tape
+        // désormais dessus) et désarmer la demande de remontée.
+        if (EditorImeBridge.isHardwareKeyboardVisible(newConfig)) {
+            hideSoftKeyboard();
         }
     }
 

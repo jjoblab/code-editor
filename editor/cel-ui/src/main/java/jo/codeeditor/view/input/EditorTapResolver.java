@@ -6,7 +6,6 @@ import jo.codeeditor.view.popup.EditorPopupHitTester;
 
 import androidx.annotation.RestrictTo;
 
-import android.view.inputmethod.InputMethodManager;
 
 import jo.codeeditor.document.Selection;
 import jo.codeeditor.shift.DiagnosticShift;
@@ -523,11 +522,11 @@ public class EditorTapResolver {
         }
 
         // Arme le clavier au tap dans la zone de texte.
+        // R8 (plan 09) : la politique unifiée décide — lecture seule ou
+        // clavier matériel exposé → le clavier logiciel ne monte pas.
         if (x >= view.metrics.getGutterWidth()) {
-            view.wantsKeyboard = true;
             view.requestFocus();
-            InputMethodManager imm = view.imm();
-            if (imm != null) imm.showSoftInput(view, 0);
+            view.imeBridge.showSoftInputIfEditable();
         }
 
         switch (tapCount) {

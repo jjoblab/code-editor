@@ -94,7 +94,20 @@ budget() {
 # Painter dédiés — miroir des extractions du plan 01). Marge 12 lignes,
 # style maison ; champs 177/178 et méthodes 280/280 inchangés — le
 # relèvement ne dispense pas de la décomposition du plan 01.
-budget editor/cel-ui/src/main/java/jo/codeeditor/view/EditorView.java 3920 178 280
+# Écart au ratchet : plafonds LIGNES 3920 → 3965 et MÉTHODES 280 → 284
+# (R8/R9 du plan 09, passe IME) : +2 relais d'API publique
+# (setOnEditorInfoListener/setOnImePrivateCommandListener — les deux
+# hooks hôte, écouteurs possédés par EditorImeBridge), les interfaces
+# publiques imbriquées OnEditorInfoListener/OnImePrivateCommandListener
+# (façade — l'état vit dans le pont), la politique clavier logiciel
+# unifiée déléguée au pont (lecture seule E8 + clavier matériel E7,
+# onCheckIsTextEditor/onConfigurationChanged/onFocusChanged) et le champ
+# extractedTextMaxChars (R6, fenêtre hintMaxChars du moniteur) ; la
+# LOGIQUE est hors vue (EditorImeBridge : politique, instantané,
+# capitales, stylet). Marge 5 lignes, style maison ; champs 177/178
+# inchangés — le relèvement ne dispense pas de la décomposition du
+# plan 01.
+budget editor/cel-ui/src/main/java/jo/codeeditor/view/EditorView.java 3965 178 284
 # Écart au ratchet : plafonds LIGNES 1600 → 1610 et MÉTHODES 100 → 102
 # (R2 du plan 09, IME) : +1 méthode publique (imeSelectedText — la voie
 # IME bornée au plafond Binder, distincte de selectedText interne) et
