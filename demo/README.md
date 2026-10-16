@@ -4,11 +4,12 @@
 > application `com.android.application`, **non publiée sur Maven** —
 > c'est une vitrine et un banc d'essai, pas un artefact.
 
-L'application de démonstration exerce les quatre modules publiables en
-situation réelle : elle branche `EditorView` sur un échantillon, un
-analyseur synthétique et l'aperçu XML, et croche le module optionnel
-`:cel-textmate` au démarrage. Tout ce qui s'y voit est censé
-fonctionner — c'est le contrat d'une démo.
+L'application de démonstration exerce en situation réelle quatre des
+cinq modules publiables (`:cel-lsp` excepté — l'analyseur synthétique
+tient lieu de serveur de langage) : elle branche `EditorView` sur un
+échantillon, un analyseur synthétique et l'aperçu XML, et croche le
+module optionnel `:cel-textmate` au démarrage. Tout ce qui s'y voit
+est censé fonctionner — c'est le contrat d'une démo.
 
 ## Position dans l'ensemble
 

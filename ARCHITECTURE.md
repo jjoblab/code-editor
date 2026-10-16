@@ -12,7 +12,7 @@ entourés de collaborateurs spécialisés par responsabilité.
 
 ```
 code-editor/
-├── settings.gradle.kts              — inclut les 4 modules editor/
+├── settings.gradle.kts              — inclut les 5 modules editor/
 ├── build.gradle.kts                 — AGP 9.0.0, group/version Maven
 ├── gradle/wrapper/                  — Gradle 9.5.1
 ├── gradle.properties                — jvmargs, parallélisme, cache
@@ -70,9 +70,10 @@ Notes :
   `jo.codeeditor.highlight.TextMateTokenizer` (crochet
   `SyntaxHighlighter.setTextMateTokenizer`) et ne dépend que de
   `:cel-core`. Grammaires embarquées en classpath
-  (`textmate/*.tmg.json`, écrites pour le moteur — aucune attribution
-  tierce), mapping portées → `TokenType` (`ScopeMapper`, amorce du
-  chantier C4). Sans le module, le tokéniseur intégré par famille
+  (`textmate/` : `csharp.tmg.json` originale du dépôt + 9 grammaires
+  tierces VERBATIM inactives par défaut — attributions dans `NOTICE`),
+  mapping portées → `TokenType` (`ScopeMapper`, chantier C4). Sans le
+  module, le tokéniseur intégré par famille
   reste le repli — chemin strictement additif.
 
 ## Organisation interne des modules
@@ -112,7 +113,7 @@ jo.codeeditor/
 │                    Sql, Properties, Toml, Smali, Log, Markdown)
 │                    + SpanUtils + KeywordTables
 └── languages/    — LanguageRegistry (registre observable),
-                    BuiltinLanguages (27 langages), LanguageProfile,
+                    BuiltinLanguages (29 langages), LanguageProfile,
                     SyntaxFamily
 ```
 
@@ -333,7 +334,7 @@ editorView.setFileName("layout.xml");
    collaborateurs vivent dans le sous-package de leur orchestrateur
    (render/, input/, popup/, preview/), reliés par des scells
    `@RestrictTo(LIBRARY_GROUP)` quand l'état partagé l'exige.
-3. **Testabilité** — 1 370 tests unitaires JVM (JUnit 5, Robolectric pour le
+3. **Testabilité** — 2 385 tests unitaires JVM (JUnit 5, Robolectric pour le
    cycle de vie des vues) ; aucun test instrumenté requis.
 4. **Défensif côté rendu** — tous les offsets sont clampés à
    `[0, doc.length()]` dans le chemin de dessin ; un painter de plugin qui

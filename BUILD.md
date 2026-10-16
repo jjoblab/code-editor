@@ -121,7 +121,7 @@ un jar de sources :
 Deux chemins, au choix :
 
 **A. Workflow GitHub Actions (automatique sur tag)** —
-`.github/workflows/publish.yml` publie les 4 modules dès qu'un tag de
+`.github/workflows/publish.yml` publie les 5 modules dès qu'un tag de
 version strict `vX.Y.Z` est poussé (les tags atypiques `vX.Y.Z.n` ne
 publient pas). Un garde-fou échoue si le tag ne correspond pas
 exactement à la `version` de `build.gradle.kts` (GitHub Packages refuse
@@ -157,7 +157,7 @@ gpr.key=<votre-jeton-d-acces>
 ```
 
 Le dépôt `GitHubPackages` est déjà configuré dans le bloc `publishing` des
-4 modules — il s'active uniquement quand les propriétés `gpr.user`/`gpr.key`
+5 modules — il s'active uniquement quand les propriétés `gpr.user`/`gpr.key`
 (ou les variables d'environnement `GPR_USERNAME`/`GPR_TOKEN`) sont
 renseignées ; `publishToMavenLocal` reste utilisable sans identifiants.
 

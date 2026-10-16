@@ -108,10 +108,11 @@ scroll, pinch-zoom, undo/redo (Ctrl+Z / Ctrl+Y), etc.
 
 ### 2. Définir le langage
 
-Le colorateur syntaxique reconnaît 27 langages intégrés (java, kotlin,
+Le colorateur syntaxique reconnaît 29 langages intégrés (java, kotlin,
 javascript, typescript, c, cpp, go, rust, swift, dart, php, ruby, scala,
-groovy, python, lua, xml/html, css, json, yaml, sql, shell, properties,
-toml, smali, log, markdown) :
+groovy, csharp (grammaire-only — coloré par la voie grammaires, repli
+C_LIKE sans `cel-textmate`), python, lua, xml/html, css, json, yaml,
+sql, shell, properties, toml, smali, log, markdown, text) :
 
 ```java
 session.setLanguage("java");

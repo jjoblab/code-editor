@@ -55,10 +55,10 @@ sdk.dir=/path/to/your/android-sdk
 ### Compiler et tester
 
 ```bash
-# Suite de tests complète (1 370 tests, contrôle d'écart en CI).
+# Suite de tests complète (2 385 tests, contrôle d'écart en CI).
 ./gradlew test
 
-# AARs des 4 modules.
+# AARs des 5 modules.
 ./gradlew assembleDebug
 
 # Le contrôle canonique « tout passe » :

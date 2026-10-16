@@ -1,5 +1,5 @@
-# Publication Maven vers GitHub Packages — les 4 AAR (cel-core,
-# cel-lsp-api, cel-lsp, cel-ui).
+# Publication Maven vers GitHub Packages — les 5 AAR (cel-core,
+# cel-lsp-api, cel-lsp, cel-ui, cel-textmate).
 #
 # Déclenchement :
 #   * pousser un tag de version STRICT `vX.Y.Z` — le filtre de tag ci-dessous
@@ -15,7 +15,7 @@
 # tests ci-dessous constituent la répétition générale de publication).
 #
 # Version : lue dans `build.gradle.kts` (racine), ligne `version = "…"` —
-# propagée aux 4 modules par le build racine. Garde-fou : sur un
+# propagée aux 5 modules par le build racine. Garde-fou : sur un
 # déclenchement par tag, le workflow échoue si le tag ne correspond pas
 # exactement à `v` + version du build (GitHub Packages refuse le
 # remplacement d'une version déjà publiée : un tag qui ne correspond pas,
@@ -58,7 +58,7 @@ concurrency:
 
 jobs:
   publish:
-    name: publish (4 modules AAR)
+    name: publish (5 modules AAR)
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -100,7 +100,7 @@ jobs:
       - name: Tests avant publication (un tag rouge ne publie jamais)
         run: ./gradlew assembleRelease test --stacktrace
 
-      - name: Publish cel-core, cel-lsp-api, cel-lsp, cel-ui
+      - name: Publish cel-core, cel-lsp-api, cel-lsp, cel-ui, cel-textmate
         run: >-
           ./gradlew publish --stacktrace
           -Pgpr.user=${{ github.actor }}

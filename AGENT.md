@@ -47,7 +47,7 @@ Tests : JUnit 5 sur `cel-core` ; JUnit 4 + **Robolectric** sur `cel-ui` ;
 ```bash
 export JAVA_HOME=<jdk-17-avec-javac>
 export ANDROID_HOME=<sdk>          # + local.properties : sdk.dir=<sdk>
-./gradlew assembleDebug            # 4 AAR debug
+./gradlew assembleDebug            # 5 AAR debug
 ./gradlew test                     # tous les tests unitaires
 ./gradlew :cel-core:test           # un module
 ./gradlew :cel-ui:testDebugUnitTest --tests "jo.codeeditor.view.EditorMagnifierHandleDragTest"   # un seul test

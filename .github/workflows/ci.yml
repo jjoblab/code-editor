@@ -1,7 +1,7 @@
 # Intégration continue.
 #
 # Un job :
-#   build — chaque push (main/master) et chaque PR : assemble les 4 AAR,
+#   build — chaque push (main/master) et chaque PR : assemble les 5 AAR,
 #           exécute la suite complète de tests unitaires, lance lint
 #           (bloquant), contrôle les références externes et l'écart entre
 #           les chiffres annoncés dans la documentation et la réalité.
@@ -73,7 +73,7 @@ jobs:
           FORBIDDEN_REFS_EXTRA: ${{ secrets.FORBIDDEN_REFS_EXTRA }}
         run: sh scripts/check-external-refs.sh --all
 
-      - name: Assemblage (debug, 4 modules)
+      - name: Assemblage (debug, 5 modules)
         run: ./gradlew assembleDebug --stacktrace
 
       - name: Tests unitaires (variante debug, tous les modules)
