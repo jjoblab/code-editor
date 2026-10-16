@@ -3,16 +3,16 @@ package jo.codeeditor.textmate.internal;
 /**
  * Traduction des regex du dialecte Oniguruma (TextMate) vers
  * {@link java.util.regex.Pattern} (C3-bis, compatibilité
- * sora-editor/VS Code).
+ * grammaires tierces réelles).
  *
  * <p>Deux écarts signalés par les grammaires réelles :</p>
  * <ul>
  *   <li><b>commentaires inline {@code (?# …)}</b> — supportés par
- *       Oniguruma (python de sora-editor en usage), REJETÉS par
+ *       Oniguruma (python tierce en usage), REJETÉS par
  *       java.util.regex ({@code Unknown inline modifier}) : retirés
  *       (groupe non capturant de largeur nulle) ;</li>
  *   <li><b>accolade seule {@code {}</b> — littérale en Oniguruma
- *       (java de sora-editor l'utilise pour les initialiseurs),
+ *       (java tierce l'utilise pour les initialiseurs),
  *       « Illegal repetition » en java.util.regex : échappée en
  *       {@code \\{} SAUF quand elle ouvre un quantificateur valide
  *       ({@code {n}}, {@code {n,}}, {@code {n,m}}) ou qu'elle est
@@ -36,13 +36,14 @@ public final class RegexCompat {
     public static String translate(String regex) {
         if (regex == null
                 || (regex.indexOf("(?#") < 0 && regex.indexOf('{') < 0
+                        && regex.indexOf("[:") < 0
                         && (!startsWithExtended(regex) || regex.indexOf('#') < 0))) {
             return regex;
         }
         // Mode étendu (?x) en tête : Java y traite un « # » DANS une
         // classe de caractères comme un début de commentaire (classe
         // jamais refermée) alors qu'Oniguruma le protège — python de
-        // sora-editor en usage (« [-+#0 ] »). Les « # » de classe sont
+        // tierce en usage (« [-+#0 ] »). Les « # » de classe sont
         // échappés.
         boolean extended = startsWithExtended(regex);
         StringBuilder out = new StringBuilder(regex.length() + 8);
@@ -68,7 +69,7 @@ public final class RegexCompat {
                 } else if (c == '#' && extended) {
                     out.append("\\#");
                 } else if (c == '[' && regex.startsWith(":", i + 1)) {
-                    // Classe POSIX [:alpha:] (python de sora-editor) —
+                    // Classe POSIX [:alpha:] (python tierce) —
                     // java.util.regex ne les connait PAS dans [\[…]] :
                     // traduites en \p{…} (la fermante de la classe POSIX
                     // ne referme donc pas la classe englobante).

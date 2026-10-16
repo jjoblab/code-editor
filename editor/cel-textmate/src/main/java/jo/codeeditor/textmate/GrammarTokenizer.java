@@ -31,7 +31,8 @@ import java.util.regex.PatternSyntaxException;
  *   <li><b>Matchs de largeur nulle</b> : les fermantes en lookahead
  *       ({@code (?=\))} python, {@code ($)}) DÉPILENT et retentent à
  *       la MÊME position (le parent peut consommer) ; les ouvrantes en
- *       lookahead (wrappers VS Code) EMPILENT et retentent aussi —
+ *       lookahead (wrappers des grammaires réelles) EMPILENT et
+ *       retentent aussi —
  *       une garde anti-récursion par (règle, position) et un
  *       disjoncteur bornent les grammaires dégénérées.</li>
  *   <li><b>Pile de contextes</b> : une règle begin/end non fermée en
@@ -46,7 +47,7 @@ import java.util.regex.PatternSyntaxException;
  *       referment leur cadre, sans que le terminateur ne fuite dans
  *       les spans.</li>
  *   <li><b>Idiome {@code (?!\G)}</b> : les wrappers « blancs de tête +
- *       lookahead » des grammaires VS Code (java/html/lua) portent leur
+ *       lookahead » des grammaires réelles (java/html/lua) portent leur
  *       garde par le CADRE (la fermante ne matche qu'au-delà du début
  *       du contenu) — en java.util.regex, {@code \G} vaut toujours la
  *       position courante et l'idiome ne matcherait jamais.</li>
@@ -89,7 +90,7 @@ public final class GrammarTokenizer {
         final Pattern endPattern;
         /** Position de fin du begin (début du contenu) — ancre de
          * l'idiome {@code (?!\G)} : la fermante ne matche qu'une fois
-         * le scan DÉPASSÉ ce point (idiome VS Code des wrappers
+         * le scan DÉPASSÉ ce point (idiome des wrappers
          * « blancs de tête + lookahead », java/html/lua). */
         final int contentStart;
         /** Vrai quand le end source commence par {@code (?!\G)} (idiome
@@ -153,7 +154,7 @@ public final class GrammarTokenizer {
 
     /**
      * Tokénise une ligne avec la grammaire et un registre de grammaires
-     * EXTERNES (C3-bis, compatibilité sora-editor) : les includes
+     * EXTERNES (C3-bis, compatibilité grammaires tierces) : les includes
      * {@code source.css} et consorts de la grammaire y sont résolus —
      * portée par portée, la carte est {@code scopeName → grammaire}
      * (l'hôte construit la vue depuis ses grammaires enregistrées).
@@ -226,7 +227,7 @@ public final class GrammarTokenizer {
          * position (BitSet par règle, index = position) : un lookahead
          * begin qui vient de pousser un cadre ne doit pas se
          * ré-empiler à la MÊME position (récursion dégénérée des
-         * grammaires VS Code à wrapper lookahead — java class, python
+         * grammaires tierces à wrapper lookahead — java class, python
          * docstring). */
         final Map<Rule, java.util.BitSet> emptyPushedAt = new java.util.IdentityHashMap<>();
         /** Fin du DERNIER begin de la ligne (C3-sexties) : l'ancre
@@ -287,7 +288,7 @@ public final class GrammarTokenizer {
      * Boucle d'une ligne. Le stepping avance position par position ;
      * à chaque pos, la première règle (ordre de déclaration) qui
      * matche ANCRÉE à pos l'emporte. Les matchs DE LARGEUR NULLE
-     * (begin/end en lookahead — sémantique VS Code : java
+     * (begin/end en lookahead — sémantique TextMate : java
      * {@code (?={\s*class...)} , python {@code (?=\'''})}) ne
      * consomment RIEN : une fermante vide DÉPILE et RETENTE À LA MÊME
      * POSITION (le parent peut alors consommer — ex. le « ) » vu par
@@ -314,7 +315,8 @@ public final class GrammarTokenizer {
         // Succès NON VIDE → le préfixe de continuation est consommé
         // (le « > » d'une citation) et émis avec la portée de la règle
         // (whileCaptures absent des grammaires réelles — markdown de
-        // sora : 64 while, 0 whileCaptures — simplification documentée).
+        // grammaires réelles : 64 while, 0 whileCaptures — simplification
+        // documentée).
         while (!stack.isEmpty()) {
             Frame top = stack.get(stack.size() - 1);
             if (top.whilePattern == null) break;
@@ -439,7 +441,7 @@ public final class GrammarTokenizer {
         if (rule.begin != null) {
             // Dédoublonnage : un begin de largeur nulle déjà poussé à
             // cette position ne se ré-empile pas (récursion dégénérée
-            // des wrappers lookahead des grammaires VS Code).
+            // des wrappers lookahead des grammaires réelles).
             boolean empty = ctx.pushedEmptyAt(rule, pos);
             // Idiomes \G / (?!\G) en tête de begin (C3-sexties) :
             // la garde d'ancre est portée par le moteur — \G ne
@@ -593,6 +595,21 @@ public final class GrammarTokenizer {
     /**
      * Émet les spans d'un match : captures nommées si présentes, sinon
      * la portée de la règle.
+     *
+     * <p>Deux idiomes des grammaires réelles sont honorés :</p>
+     * <ul>
+     *   <li><b>capture VIDE</b> ({@code (:)(:*)} sans second « : » —
+     *       pseudo-classes CSS, groupes optionnels) : elle ne colore
+     *       RIEN. L'inflation à un caractère posait un span fantôme
+     *       (une portée {@code invalid.illegal} tombait sur le
+     *       caractère SUIVANT, un séparateur de paramètres recevait le
+     *       scope d'un opérateur optionnel non participante) ;</li>
+     *   <li><b>captures IMBRIQUÉES de même plage</b> ({@code ((@))} —
+     *       décorateurs python, {@code ((self)|(cls))} — paramètres
+     *       spéciaux) : TextMate superpose les deux portées, le modèle
+     *       plat garde UNE — la plus INTERNE (indice le plus élevé,
+     *       traitée en dernier) remplace l'externe.</li>
+     * </ul>
      */
     private void emitWithCaptures(Matcher m, Map<Integer, String> captures,
             String name, List<LineSpan> spans, int limit) {
@@ -612,17 +629,32 @@ public final class GrammarTokenizer {
             if (idx < 0 || idx > m.groupCount()) continue;
             int gs = Math.min(m.start(idx), limit);
             int ge = Math.min(m.end(idx), limit);
-            if (gs < 0) continue; // groupe non participante
+            if (ge <= gs) continue; // capture vide ou non participante
+            // Le trou AVANT la capture reçoit la portée de la règle
+            // (posé d'abord : la liste reste triée par position).
             if (gs > cursor) {
                 spans.add(new LineSpan(cursor, gs, ScopeMapper.tokenTypeFor(name)));
             }
-            int gEnd = Math.max(ge, gs + 1);
-            spans.add(new LineSpan(gs, gEnd, ScopeMapper.tokenTypeFor(captures.get(idx))));
-            cursor = Math.max(cursor, gEnd);
+            replaceSameRange(spans, new LineSpan(gs, ge,
+                    ScopeMapper.tokenTypeFor(captures.get(idx))));
+            cursor = Math.max(cursor, ge);
         }
         if (cursor < end) {
             spans.add(new LineSpan(cursor, end, ScopeMapper.tokenTypeFor(name)));
         }
+    }
+
+    /** Remplace un span déjà émis de MÊME plage par {@code cap} —
+     * l'idiome des captures imbriquées ((@)) : le plus interne gagne. */
+    private static void replaceSameRange(List<LineSpan> spans, LineSpan cap) {
+        for (int i = spans.size() - 1; i >= 0; i--) {
+            LineSpan s = spans.get(i);
+            if (s.startCol == cap.startCol && s.endCol == cap.endCol) {
+                spans.set(i, cap);
+                return;
+            }
+        }
+        spans.add(cap);
     }
 
     /** Portée de contenu du sommet de pile, ou PLAIN. */

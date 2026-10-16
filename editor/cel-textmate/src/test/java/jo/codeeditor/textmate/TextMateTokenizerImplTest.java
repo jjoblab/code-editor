@@ -66,7 +66,9 @@ class TextMateTokenizerImplTest {
         impl.loadEmbeddedGrammar("python");
         String line = "def ma_fonction(x):  # commentaire";
         StyledLine l = impl.tokenize(line, 0, "python");
-        assertEquals(TokenType.TYPE, typeAt(l, line.indexOf("def")));
+        // Calibrage C4 : « def » (storage.type.function.python) est un
+        // MOT-CLÉ côté voie intégrée — pas un TYPE.
+        assertEquals(TokenType.KEYWORD, typeAt(l, line.indexOf("def")));
         assertEquals(TokenType.COMMENT, typeAt(l, line.indexOf("#")));
     }
 
@@ -115,7 +117,8 @@ class TextMateTokenizerImplTest {
         // grammaire JAVA — la clause while du bloc embarqué (garde de
         // continuation de ligne) et la résolution des #ref de
         // L'INVITÉE dans SON repository (owner) font toute la chaîne
-        // travailler : int TYPE, x VARIABLE, = OPERATOR, 1 NUMBER.
+        // travailler : int KEYWORD (primitif — calibrage C4), x
+        // VARIABLE, = OPERATOR, 1 NUMBER.
         TextMateTokenizerImpl impl = TextMateTokenizerImpl.create();
         impl.loadEmbeddedGrammar("markdown");
         impl.loadEmbeddedGrammar("java");
@@ -123,7 +126,8 @@ class TextMateTokenizerImplTest {
         assertTrue(l1.exitState != 0, "le bloc de code est ouvert");
         String line = "int x = 1;";
         StyledLine l2 = impl.tokenize(line, l1.exitState, "markdown");
-        assertEquals(TokenType.TYPE, typeAt(l2, line.indexOf("int")));
+        assertEquals(TokenType.KEYWORD, typeAt(l2, line.indexOf("int")),
+                "primitif = mot-clé (convergence voie intégrée)");
         assertEquals(TokenType.VARIABLE, typeAt(l2, line.indexOf("x")));
         assertEquals(TokenType.OPERATOR, typeAt(l2, line.indexOf("=")));
         assertEquals(TokenType.NUMBER, typeAt(l2, line.indexOf("1")));
@@ -235,8 +239,8 @@ class TextMateTokenizerImplTest {
 
     @Test
     void grammaireCss_activeParAppel_tokéniseUnVraiStyle() {
-        // CSS embarquée (microsoft/vscode, MIT — conversion du grammar
-        // vscode-css) : opt-in par loadEmbeddedGrammar, sélecteur en
+        // CSS embarquée (grammaire tierce, MIT) : opt-in par
+        // loadEmbeddedGrammar, sélecteur en
         // TYPE (entity.name.tag), propriété en TYPE (support.type via
         // la liste de portées), valeur de couleur en CONSTANT.
         TextMateTokenizerImpl impl = TextMateTokenizerImpl.create();
@@ -279,7 +283,7 @@ class TextMateTokenizerImplTest {
     void grammaireKotlinPlist_activeParAppel_tokénise() {
         // Option (b) : la grammaire KOTLIN (format plist XML, le
         // TextMate historique) rejoint l'inventaire embarqué. La
-        // copie est l'originale du dépôt vscode-kotlin SANS le prolog
+        // copie est l'originale du dépôt d'origine SANS le prolog
         // XML plist (DOCTYPE refusé par le parseur du module,
         // protection XXE) — UUID et contenu identiques à l'amont.
         // fun → keyword.other → KEYWORD, chaîne → STRING ; val →
@@ -328,5 +332,97 @@ class TextMateTokenizerImplTest {
             if (col >= s.startCol && col < s.endCol) return s.type;
         }
         throw new AssertionError("aucun span en colonne " + col + " : " + l.spans);
+    }
+
+    // ── Régressions retour terrain 3.72.0 : idiomes des grammaires
+    // réelles (bugs vus dans la démo après activation par langage) ──
+
+    @Test
+    void grammaireJavascript_nomDeFonctionComplet() {
+        // [_$[:alpha:]] du javascript réel : sans traduction POSIX, la
+        // classe devenait une union littérale et le nom de fonction
+        // était coupé (« ajouter » → « a » en FUNC). Le nom doit être
+        // couvert ENTIÈREMENT.
+        TextMateTokenizerImpl impl = TextMateTokenizerImpl.create();
+        impl.loadEmbeddedGrammar("javascript");
+        String line = "function ajouter(a, b) {";
+        StyledLine l = impl.tokenize(line, 0, "javascript");
+        int col = line.indexOf("ajouter");
+        LineSpan span = null;
+        for (LineSpan s : l.spans) {
+            if (s.startCol == col) span = s;
+        }
+        assertNotNull(span, "un span commence sur « ajouter » : " + l.spans);
+        assertEquals(TokenType.FUNC, span.type);
+        assertEquals(col + "ajouter".length(), span.endCol,
+                "le nom de fonction est couvert ENTIÈREMENT : " + l.spans);
+        // Aucun span ERROR fantôme (captures vides gonflées).
+        for (LineSpan s : l.spans) {
+            assertTrue(s.type != TokenType.ERROR, "pas de span ERROR : " + l.spans);
+        }
+    }
+
+    @Test
+    void grammaireCss_pseudoClasseRootSansErreur() {
+        // (:)(:*) du CSS réel : la capture vide gonflée à un caractère
+        // colorait le « r » de :root en invalid.illegal (ERROR rouge).
+        TextMateTokenizerImpl impl = TextMateTokenizerImpl.create();
+        impl.loadEmbeddedGrammar("css");
+        String line = ":root {";
+        StyledLine l = impl.tokenize(line, 0, "css");
+        for (LineSpan s : l.spans) {
+            assertTrue(s.type != TokenType.ERROR,
+                    "aucun span ERROR sur une pseudo-classe valide : " + l.spans);
+        }
+    }
+
+    @Test
+    void grammairePython_décorateurEtNomDeFonction() {
+        // ((@)) du python réel : captures imbriquées de même plage —
+        // un SEUL span pour « @ » ; le décorateur converge vers
+        // ANNOTATION (voie intégrée) ; « def » est KEYWORD (calibrage).
+        TextMateTokenizerImpl impl = TextMateTokenizerImpl.create();
+        impl.loadEmbeddedGrammar("python");
+        String line = "@dataclass";
+        StyledLine l = impl.tokenize(line, 0, "python");
+        int spansSurArobase = 0;
+        for (LineSpan s : l.spans) {
+            if (s.startCol == 0) spansSurArobase++;
+        }
+        assertEquals(1, spansSurArobase, "un SEUL span sur « @ » : " + l.spans);
+        assertEquals(TokenType.ANNOTATION, typeAt(l, 0), "le décorateur est ANNOTATION");
+    }
+
+    @Test
+    void grammaireKotlin_cheminDImportEnProperty() {
+        // La grammaire kotlin type le chemin d'import en
+        // storage.modifier.import.java : le calibrage le ramène en
+        // PROPERTY (convergence segment-après-point), pas un bloc
+        // KEYWORD_MODIFIER sur tout le chemin.
+        TextMateTokenizerImpl impl = TextMateTokenizerImpl.create();
+        impl.loadEmbeddedGrammar("kotlin");
+        String line = "import kotlinx.coroutines.launch";
+        StyledLine l = impl.tokenize(line, 0, "kotlin");
+        int col = line.indexOf("kotlinx");
+        assertEquals(TokenType.PROPERTY, typeAt(l, col),
+                "le chemin d'import est PROPERTY : " + l.spans);
+    }
+
+    @Test
+    void grammaireJava_javadocEnDocComment() {
+        // Le corps du javadoc java (comment.block.javadoc.java) doit
+        // converger vers DOC_COMMENT comme la voie intégrée (/** */).
+        // Les DÉLIMITEURS portent la portée de la grammaire tierce
+        // punctuation.definition.comment (→ COMMENT, deux gris contre
+        // le jade du corps) : choix de la grammaire tierce, documenté
+        // dans les limites du module.
+        TextMateTokenizerImpl impl = TextMateTokenizerImpl.create();
+        impl.loadEmbeddedGrammar("java");
+        String line = "/** Documentation de la classe. */";
+        StyledLine l = impl.tokenize(line, 0, "java");
+        assertEquals(TokenType.COMMENT, typeAt(l, line.indexOf("/**")));
+        assertEquals(TokenType.DOC_COMMENT, typeAt(l, line.indexOf("Documentation")),
+                "le CORPS du javadoc est DOC_COMMENT (javadoc calibré)");
+        assertEquals(TokenType.COMMENT, typeAt(l, line.indexOf("*/")));
     }
 }

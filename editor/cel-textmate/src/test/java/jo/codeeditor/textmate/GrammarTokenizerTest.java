@@ -216,7 +216,7 @@ class GrammarTokenizerTest {
         assertEquals(TokenType.NUMBER, type(l, line, "1"));
     }
 
-    // ── C3-bis : includes externes (compatibilité sora-editor) ───
+    // ── C3-bis : includes externes (compatibilité grammaires tierces) ──
 
     /**
      * Grammaire hôte : une règle locale (mot-clé) + un include
@@ -261,9 +261,9 @@ class GrammarTokenizerTest {
     // ── C3-ter : matchs de largeur nulle, idiome (?!\\G), « \\n » virtuel ──
 
     /**
-     * Grammaire de travail pour les idiomes VS Code : wrapper de
+     * Grammaire de travail pour les idiomes réels : wrapper de
      * commentaire « blancs de tête + lookahead » à fermante
-     * {@code (?!\G)} (java/html/lua de sora-editor), appel de fonction
+     * {@code (?!\G)} (java/html/lua réels), appel de fonction
      * à begin lookahead + fermante lookahead {@code (?=\\))}.
      */
     private static final TextMateGrammar LOOKAHEAD = load(
@@ -457,7 +457,7 @@ class GrammarTokenizerTest {
 
     // ── C3-sexties : idiome \G / (?!\\G) en tête de begin ─────────
 
-    /** Grammaire de travail : la paire d'idiomes des wrappers VS Code
+    /** Grammaire de travail : la paire d'idiomes des wrappers
      * (html &lt;style&gt;/&lt;script&gt; &gt; contenu intégré). */
     private static final TextMateGrammar G_GRAMMAR =
             load("textmate/g-anchor-test.tmg.json");
@@ -508,5 +508,82 @@ class GrammarTokenizerTest {
         StyledLine s3 = tokG("code", s2.exitState);
         assertEquals(TokenType.KEYWORD_CONTROL, type(s3, "code", "code"),
                 "le contenu est coloré par la règle du contenu");
+    }
+
+    // ── Idiomes de captures des grammaires réelles ──────────────
+
+    @Test
+    void capturesImbriquéesMêmePlage_laPlusInterneGagne() {
+        // Idiome ((@)) des décorateurs python : les groupes 1 (externe)
+        // et 2 (interne) couvrent la MÊME plage — TextMate superpose
+        // les portées, le modèle plat garde UNE : l'interne (indice le
+        // plus élevé) remplace l'externe. Avant : deux spans
+        // superposés (FUNC + PUNCT sur le même « @ »).
+        String source = "{\"scopeName\": \"source.test\", \"patterns\": [{"
+                + "\"match\": \"((@))([a-z]+)\","
+                + "\"name\": \"meta.function.decorator\","
+                + "\"captures\": {"
+                + "\"1\": {\"name\": \"entity.name.function.decorator\"},"
+                + "\"2\": {\"name\": \"keyword.operator\"},"
+                + "\"3\": {\"name\": \"entity.name.function\"}}}]}";
+        TextMateGrammar grammar = TextMateGrammar.parse(source);
+        String line = "@deco";
+        StyledLine l = engine.tokenize(grammar, line, 0);
+        assertEquals(2, l.spans.size(), "deux spans attendus (@ interne + nom) : " + l.spans);
+        assertEquals(TokenType.OPERATOR, l.spans.get(0).type,
+                "le (@) interne porte la portée operator — l'externe (decorator) est REMPLACÉE");
+        assertEquals(0, l.spans.get(0).startCol);
+        assertEquals(1, l.spans.get(0).endCol);
+        assertEquals(TokenType.FUNC, l.spans.get(1).type);
+        assertEquals(1, l.spans.get(1).startCol);
+        assertEquals(5, l.spans.get(1).endCol);
+    }
+
+    @Test
+    void captureVide_neColoreRien() {
+        // Idiome (:)(:*) des pseudo-classes CSS : la seconde capture
+        // VIDE ne doit pas être gonflée à un caractère — l'inflation
+        // posait un span invalid.illegal sur le caractère SUIVANT (le
+        // « r » de :root coloré en ERREUR).
+        String source = "{\"scopeName\": \"source.test\", \"patterns\": [{"
+                + "\"match\": \"(:)(:*)([a-z]+)\","
+                + "\"name\": \"entity.other.attribute-name.pseudo-class\","
+                + "\"captures\": {"
+                + "\"1\": {\"name\": \"punctuation.definition.entity\"},"
+                + "\"2\": {\"name\": \"invalid.illegal.colon\"},"
+                + "\"3\": {\"name\": \"entity.name.tag\"}}}]}";
+        TextMateGrammar grammar = TextMateGrammar.parse(source);
+        String line = ":root";
+        StyledLine l = engine.tokenize(grammar, line, 0);
+        for (LineSpan s : l.spans) {
+            assertTrue(s.type != TokenType.ERROR,
+                    "aucune portée invalid ne doit apparaître : " + l.spans);
+        }
+        assertEquals(TokenType.PUNCT, l.spans.get(0).type);
+        assertEquals(0, l.spans.get(0).startCol);
+        assertEquals(1, l.spans.get(0).endCol);
+        assertEquals(TokenType.TYPE, l.spans.get(1).type, "« root » : " + l.spans);
+    }
+
+    @Test
+    void classesPosix_traduitesCommeEnOniguruma() {
+        // [[:alpha:]] (idiome des grammaires python/javascript) :
+        // java.util.regex ne connaît PAS les classes POSIX dans
+        // [\[\]] — sans traduction, la classe se parse en union
+        // littérale {\[, :, a, l, p, h} et « abc » ne matche qu'un
+        // caractère (le nom de fonction coupé en trois). La traduction
+        // RegexCompat doit s'appliquer même sans accolade ni (?# dans
+        // la regex (le chemin rapide sautait la traduction).
+        String source = "{\"scopeName\": \"source.test\", \"patterns\": [{"
+                + "\"match\": \"([[:alpha:]]+)\\\\s*\\\\(\","
+                + "\"captures\": {"
+                + "\"1\": {\"name\": \"entity.name.function\"}}}]}";
+        TextMateGrammar grammar = TextMateGrammar.parse(source);
+        String line = "ajouter(a, b)";
+        StyledLine l = engine.tokenize(grammar, line, 0);
+        LineSpan func = l.spans.get(0);
+        assertEquals(TokenType.FUNC, func.type);
+        assertEquals(0, func.startCol, "le nom commence au début : " + l.spans);
+        assertEquals(7, func.endCol, "le nom couvre « ajouter » ENTIÈREMENT : " + l.spans);
     }
 }
