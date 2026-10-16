@@ -454,4 +454,59 @@ class GrammarTokenizerTest {
         assertEquals(TokenType.NUMBER, type(l2, "chiffre", "chiffre"),
                 "le #ref de l'invitée se résout dans SON repository");
     }
+
+    // ── C3-sexties : idiome \G / (?!\\G) en tête de begin ─────────
+
+    /** Grammaire de travail : la paire d'idiomes des wrappers VS Code
+     * (html &lt;style&gt;/&lt;script&gt; &gt; contenu intégré). */
+    private static final TextMateGrammar G_GRAMMAR =
+            load("textmate/g-anchor-test.tmg.json");
+
+    private StyledLine tokG(String line, int state) {
+        return engine.tokenize(G_GRAMMAR, line, state);
+    }
+
+    @Test
+    void idiomeGEnTêteDeBegin_têtePuisContenuIntégré() {
+        // La paire {begin: \G} (tête de balise, juste après le begin
+        // amont) + {begin: (?!\G)} (cadre du contenu intégré) : en
+        // java.util.regex, \G vaut TOUJOURS la position courante
+        // (reset+region) — la tête se ré-empilait après « > » et
+        // avalait le CONTENU en attributs, le cadre intégré ne
+        // s'ouvrait JAMAIS. La sémantique moteur : \G = fin du
+        // DERNIER begin de la ligne.
+        String l1 = "<emb attr>";
+        StyledLine s1 = tokG(l1, 0);
+        assertEquals(TokenType.PROPERTY, type(s1, l1, "attr"),
+                "l'attribut de la tête est coloré comme attribut");
+        assertTrue(s1.exitState != 0, "un cadre est ouvert après la balise ouvrante");
+
+        String l2 = "content";
+        StyledLine s2 = tokG(l2, s1.exitState);
+        assertEquals(TokenType.KEYWORD_CONTROL, type(s2, l2, "content"),
+                "le contenu intégré est coloré par la règle du contenu, "
+                        + "pas en attribut");
+
+        String l3 = "</emb>";
+        StyledLine s3 = tokG(l3, s2.exitState);
+        assertEquals(0, s3.exitState,
+                "la fermante referme TOUT (cadre intégré puis balise)");
+    }
+
+    @Test
+    void idiomeGEnTêteDeBegin_baliseMultiligne() {
+        // La tête ouverte en fin de ligne se PROLONGE : le « > » de la
+        // ligne suivante ferme la tête, puis le cadre du contenu
+        // s'ouvre immédiatement après (la grammaire réelle html le
+        // fait avec <style\n attr=x>).
+        StyledLine s1 = tokG("<emb", 0);
+        assertTrue(s1.exitState != 0, "la tête est ouverte après <emb");
+        StyledLine s2 = tokG(" attr>", s1.exitState);
+        assertEquals(TokenType.PROPERTY, type(s2, " attr>", "attr"),
+                "l'attribut de la seconde ligne est un attribut");
+        assertTrue(s2.exitState != 0, "le cadre du contenu est ouvert après >");
+        StyledLine s3 = tokG("code", s2.exitState);
+        assertEquals(TokenType.KEYWORD_CONTROL, type(s3, "code", "code"),
+                "le contenu est coloré par la règle du contenu");
+    }
 }

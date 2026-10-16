@@ -230,6 +230,18 @@ public final class TextMateGrammar {
          * markdown → source.java) se résolvent dans le REPOSITORY de
          * l'invitée, pas de l'hôte qui l'a incluse. */
         public final TextMateGrammar owner;
+        /** Idiome {@code \G} en TÊTE de begin (C3-sexties) : le begin
+         * source commençait par {@code \G} — préfixe retiré du pattern
+         * compilé, la garde « pos = fin du dernier begin » est portée
+         * par le moteur (java.util.regex évalue {@code \G} au début de
+         * région, i.e. TOUJOURS à la position courante — l'ancre
+         * réelle est le dernier begin). Installé au parse, comme
+         * {@link #patterns}. */
+        boolean beginG;
+        /** Idiome {@code (?!\G)} en TÊTE de begin (C3-sexties) :
+         * préfixe retiré du pattern compilé, garde « pos ≠ fin du
+         * dernier begin » portée par le moteur. Installé au parse. */
+        boolean beginNotG;
 
         Rule(String ruleName, Pattern match, Pattern begin, String end, String name,
                 String contentName, String whileSrc, Map<Integer, String> captures,
@@ -337,11 +349,34 @@ public final class TextMateGrammar {
                     sub.add(new RuleParser(JsonLite.obj(o), ruleName + ".patterns",
                             lenient, warnings, owner).parse());
                 }
-                return new Rule(ruleName, null, compile(begin, ruleName), end, name,
-                        contentName, whileClause, Map.of(),
+                // Idiomes \G / (?!\G) en TÊTE de begin (C3-sexties) :
+                // en java.util.regex, \G vaut le début de région après
+                // reset+region (i.e. la position courante) — \G en tête
+                // matchait PARTOUT (la tête de balise se ré-empilait et
+                // avalait le contenu en attributs) et (?!\G) en tête ne
+                // matchait JAMAIS (le cadre du contenu intégré ne
+                // s'ouvrait pas). Le préfixe est retiré, la sémantique
+                // « \G = fin du DERNIER begin de la ligne » est portée
+                // par le moteur (cohérente avec la garde contentStart
+                // des ends (?!).
+                String beginSrc = begin;
+                boolean g = false;
+                boolean notG = false;
+                if (begin.startsWith("(?!\\G)")) {
+                    beginSrc = begin.substring(6);
+                    notG = true;
+                } else if (begin.startsWith("\\G")) {
+                    beginSrc = begin.substring(2);
+                    g = true;
+                }
+                Rule rule = new Rule(ruleName, null, compile(beginSrc, ruleName),
+                        end, name, contentName, whileClause, Map.of(),
                         parseCaptures(src.get("beginCaptures"), ruleName),
                         parseCaptures(src.get("endCaptures"), ruleName),
                         sub, null, owner);
+                rule.beginG = g;
+                rule.beginNotG = notG;
+                return rule;
             }
             // Groupe de patterns sans match (règle conteneur).
             List<Rule> sub = new ArrayList<>();

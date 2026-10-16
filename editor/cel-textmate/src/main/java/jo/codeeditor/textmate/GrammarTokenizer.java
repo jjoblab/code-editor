@@ -229,6 +229,13 @@ public final class GrammarTokenizer {
          * grammaires VS Code à wrapper lookahead — java class, python
          * docstring). */
         final Map<Rule, java.util.BitSet> emptyPushedAt = new java.util.IdentityHashMap<>();
+        /** Fin du DERNIER begin de la ligne (C3-sexties) : l'ancre
+         * réelle des idiomes {@code \G}/{@code (?!\G)} en tête de
+         * begin — java.util.regex évalue {@code \G} au début de
+         * région (reset+region), i.e. TOUJOURS la position courante.
+         * {@code -1} = aucun begin cette ligne (les idiomes en tête
+         * ne peuvent pas matcher au démarrage d'une ligne). */
+        int lastBeginEnd = -1;
 
         Ctx(TextMateGrammar grammar, String line,
                 Map<String, TextMateGrammar> externals) {
@@ -344,6 +351,13 @@ public final class GrammarTokenizer {
                 textStart = pos;
             }
             int after = apply(step, stack, spans, limit);
+            if (!step.isEnd && step.rule.begin != null) {
+                // Ancre des idiomes \G en tête de begin (C3-sexties) :
+                // la fin du begin vient d'être consommée — c'est ELLE
+                // que \G désigne au prochain tour (bornée à la ligne,
+                // le « \n » virtuel n'ancre rien).
+                ctx.lastBeginEnd = Math.min(after, limit);
+            }
             if (after > step.start) {
                 // Match consommateur : avancer et reprendre le run.
                 pos = Math.min(after, limit + 1);
@@ -427,6 +441,14 @@ public final class GrammarTokenizer {
             // cette position ne se ré-empile pas (récursion dégénérée
             // des wrappers lookahead des grammaires VS Code).
             boolean empty = ctx.pushedEmptyAt(rule, pos);
+            // Idiomes \G / (?!\G) en tête de begin (C3-sexties) :
+            // la garde d'ancre est portée par le moteur — \G ne
+            // matche qu'à la fin du DERNIER begin, (?!\G) partout
+            // ailleurs (la tête de balise \G d'un wrapper html ne se
+            // ré-empile plus après son « > », le cadre du contenu
+            // (?!\G) s'ouvre enfin).
+            if (rule.beginG && pos != ctx.lastBeginEnd) return null;
+            if (rule.beginNotG && pos == ctx.lastBeginEnd) return null;
             if (!empty && ctx.matchAt(rule.begin, pos, true)) {
                 if (ctx.matcher(rule.begin).end() == ctx.matcher(rule.begin).start()) {
                     ctx.markEmptyPush(rule, pos);

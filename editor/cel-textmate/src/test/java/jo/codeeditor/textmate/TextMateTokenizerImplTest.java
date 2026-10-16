@@ -228,6 +228,31 @@ class TextMateTokenizerImplTest {
         assertEquals(0, l.exitState);
     }
 
+    // ── C3-sexties : imbrication html → grammaire invitée ─────────
+
+    @Test
+    void blocScriptHtml_coloréParLaGrammaireJavaScript() {
+        // La paire d'idiomes {begin: \G}/{begin: (?!\G)} du wrapper
+        // <script> de la grammaire html : le contenu du bloc doit être
+        // coloré par la grammaire JAVASCRIPT incluse (source.js), pas
+        // par les règles d'attributs de la tête de balise. Avant le
+        // correctif moteur, la tête se ré-empilait après « > » et
+        // avalait le script en attributs.
+        TextMateTokenizerImpl impl = TextMateTokenizerImpl.create();
+        impl.loadEmbeddedGrammar("html");
+        impl.loadEmbeddedGrammar("javascript");
+        StyledLine l1 = impl.tokenize("<script>", 0, "html");
+        assertTrue(l1.exitState != 0, "le bloc script est ouvert");
+        String line = "var x = 1;";
+        StyledLine l2 = impl.tokenize(line, l1.exitState, "html");
+        // var → storage.type.js → TYPE (la voie attributs donnait
+        // entity.other.attribute-name → PROPERTY).
+        assertEquals(TokenType.TYPE, typeAt(l2, line.indexOf("var")),
+                "var est un mot-clé de stockage JS, pas un attribut html");
+        assertEquals(TokenType.NUMBER, typeAt(l2, line.indexOf("1")),
+                "le littéral 1 est un nombre JS");
+    }
+
     private static TokenType typeAt(StyledLine l, int col) {
         for (LineSpan s : l.spans) {
             if (col >= s.startCol && col < s.endCol) return s.type;
