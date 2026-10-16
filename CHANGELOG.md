@@ -5,7 +5,7 @@ All notable changes to **code-editor-lib** are documented in this file.
 Le format suit la convention [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Les sections antérieures à la période courante sont archivées dans
-[`docs/CHANGELOG-archive.md`](docs/CHANGELOG-archive.md) (A-08, audit 3.69.0).
+[`docs/archive/CHANGELOG-archive.md`](docs/archive/CHANGELOG-archive.md) (A-08, audit 3.69.0).
 
 ## [3.72.0] — non publié — Multi-langages (ADR-002 : chantiers C1→C3→C2)
 
@@ -67,7 +67,7 @@ Les sections antérieures à la période courante sont archivées dans
 
 ### Changed (L10 — A-08)
 
-- **CHANGELOG scindé** — 76 sections historiques déplacées vers `docs/CHANGELOG-archive.md` (le fichier racine garde les 10 plus récentes : 354 Ko → 38 Ko lisibles en routine, historique inchangé) ; préambule restauré (perdu lors de la résolution du conflit de fusion 3.70.1) avec renvoi vers l'archive.
+- **CHANGELOG scindé** — 76 sections historiques déplacées vers `docs/archive/CHANGELOG-archive.md` (le fichier racine garde les 10 plus récentes : 354 Ko → 38 Ko lisibles en routine, historique inchangé) ; préambule restauré (perdu lors de la résolution du conflit de fusion 3.70.1) avec renvoi vers l'archive.
 - **Exceptions `prebuilt/` retirées du `.gitignore`** — négations pour un répertoire inexistant (aucun chemin `prebuilt/` dans le dépôt).
 
 ### Changed (L10 — A-05)
@@ -236,7 +236,7 @@ a été préférée).
   (v3.58.0) : zéro instanciation dans code-editor, la démo ou CodeIDE
   — les boutons vivent dans `BreadcrumbBar`. Migration :
   `BreadcrumbBar.addAction(label, contentDescription, active, click)`
-  (voir MISE-A-JOUR-CODEIDE.md §1.15). Nettoyage inclus :
+  (voir `docs/archive/MISE-A-JOUR-CODEIDE.md` §1.15). Nettoyage inclus :
   commentaires résiduels, javadoc `invalidateActionsIn`, entrée du
   lint-baseline.
 
@@ -588,7 +588,7 @@ rupture d'API.
   déplacer le caret (`EditorView.hitTestGutterPreviewAction`, garde
   rangée à l'écran — aucune zone tactile fantôme).
 - **B9d — analyse des écarts Android Studio ↔ code-editor (n°6)**
-  (`docs/ANALYSE-GAPS-ANDROID-STUDIO.md`) — angle : l'édition tactile.
+  (`docs/archive/ANALYSE-GAPS-ANDROID-STUDIO.md`) — angle : l'édition tactile.
   Sol crédité (20+ fonctionnalités vérifiées dans le code), écarts
   priorisés P0/P1/P2 : recherche/remplacement dans le fichier (le
   moteur `FindReplace` existe en cel-core, aucune entrée UI), 4e tap
