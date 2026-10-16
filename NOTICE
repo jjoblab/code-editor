@@ -35,7 +35,10 @@ Les paths d'icônes du moteur `jo.codeeditor.view.icons.EditorIcons`
 2.0**. Il ne s'agit pas d'une dépendance embarquée : les coordonnées
 de paths sont re-écrites en dur dans le source, ajustées pour les
 besoins de la bibliothèque (miroir du rétablir, scinder/étendre/
-fermer dessinés maison en famille STROKE). Conformément à l'Apache
+fermer dessinés maison en famille STROKE — ainsi que les icônes du
+débordement de la pill de sélection B16 : dupliquer, commentaire,
+casse, partage, déplacements, glisser-déposer, dessinées maison dans
+le style Material Symbols). Conformément à l'Apache
 2.0, cette notice tient lieu d'attribution ; la licence complète est
 disponible à
 https://www.apache.org/licenses/LICENSE-2.0.html

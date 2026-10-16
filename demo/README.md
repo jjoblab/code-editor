@@ -1,6 +1,6 @@
 # demo — atelier de la bibliothèque
 
-> 60 tests · Robolectric (fumée : lancement réel des activités,
+> 61 tests · Robolectric (fumée : lancement réel des activités,
 > chaîne LSP complète) + JUnit pur (parseur, serveur) · application
 > `com.android.application`, **non publiée sur Maven** — c'est une
 > vitrine et un banc d'essai, pas un artefact.
@@ -128,7 +128,7 @@ Le mini serveur LSP est **embarqué et in-process** : la démo reste
 ## Tests
 
 ```bash
-./gradlew :demo:testDebugUnitTest     # 60 tests
+./gradlew :demo:testDebugUnitTest     # 61 tests
 ```
 
 - `MiniJavaParserTest` (20) — chaque règle, ses déclencheurs ET ses
@@ -143,9 +143,10 @@ Le mini serveur LSP est **embarqué et in-process** : la démo reste
   multi-fichiers (ouvrir/sélectionner/fermer), extra LSP de la carte
   d'accueil.
 - `HomeActivitySmokeTest` (1) — lancement réel, cartes rendues.
-- `AtelierToolsTest` (6) — bascule TextMate visible dans les DEUX
+- `AtelierToolsTest` (7) — bascule TextMate visible dans les DEUX
   sens, bottom sheet repliable, annuler/rétablir, remplacer tout /
-  occurrence suivante, lecture seule bloque la frappe.
+  occurrence suivante, lecture seule bloque la frappe, point d'arrêt
+  du « ⋯ » du toolbar de sélection (icône + bascule pose/retrait).
 - `SampleDrawerTest` (3) — filtre sans casse ni accents, familles +
   échantillons filtrés en direct, remontée des sélections.
 - `DemoPreviewHostTest` (20) — inchangé : comportement de l'hôte

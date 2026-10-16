@@ -373,6 +373,47 @@ editorView.setSymbolResolver((text) -> {
 à la commande clavier correspondante et affiche le résultat dans le popup
 adapté.
 
+## Personnaliser la barre de sélection (pill)
+
+La pill flottante (appui long / sélection) offre Cut / Copy / Paste /
+Select all + les icônes Docs ℹ (quick doc) et Actions ⋯ (menu contextuel
+unifié). L'hôte y injecte ses propres actions contextuelles :
+
+```java
+import jo.codeeditor.view.EditorView;
+import jo.codeeditor.view.SelectionAction;
+import jo.codeeditor.view.BuiltinSelectionActions;
+import jo.codeeditor.view.icons.EditorIcons;
+
+// 1. Actions intégrées prêtes à l'emploi (chacune porte son icône).
+editorView.addSelectionAction(BuiltinSelectionActions.duplicate(editorView));
+editorView.addSelectionAction(BuiltinSelectionActions.toggleComment(editorView));
+editorView.addSelectionAction(BuiltinSelectionActions.convertCase(
+        editorView, BuiltinSelectionActions.CaseMode.TOGGLE));
+editorView.addSelectionAction(BuiltinSelectionActions.share(editorView));
+editorView.addSelectionAction(BuiltinSelectionActions.moveLinesUp(editorView));
+editorView.addSelectionAction(BuiltinSelectionActions.moveLinesDown(editorView));
+editorView.addSelectionAction(BuiltinSelectionActions.blockDrag(editorView));
+
+// 2. Action d'hôte AVEC icône (celle de sa rangée dans le menu « ⋯ »).
+editorView.addSelectionAction(new SelectionAction(
+        "my.breakpoint", "Point d'arrêt",
+        () -> toggleBreakpoint(),
+        () -> session != null,
+        EditorIcons.Icon.BREAKPOINT));
+
+// Retrait ciblé (id stable), ordre d'injection conservé.
+editorView.removeSelectionAction("my.breakpoint");
+```
+
+Règles : les actions n'apparaissent que pour une vraie sélection (non
+réduite au caret) ; ce qui ne tient pas dans la largeur de la pill
+bascule dans le menu « ⋯ » (section « MORE » du menu contextuel unifié) ;
+`icon` (B16) est l'icône vectorielle de la rangée de débordement — sans
+elle, la rangée retombe sur l'ampoule générique ; un tap exécute
+`perform` puis referme la pill ; `enabled` à `false` estompe l'item et
+rejette le tap.
+
 ## Coloration par grammaires — module optionnel `:cel-textmate` (ADR-002)
 
 La voie grammaires ajoute la coloration « TextMate-like » PAR FICHIER de
