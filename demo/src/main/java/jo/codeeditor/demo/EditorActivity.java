@@ -209,6 +209,18 @@ public class EditorActivity extends AppCompatActivity {
         editor = new EditorView(this);
         editor.setSchemeBaseTheme(DemoTheme.emeraldNight());
         editor.setPreviewHost(new DemoPreviewHost());
+        // R9 (plan 09) : l'hôte a le dernier mot sur l'EditorInfo — la démo
+        // coupe l'apprentissage personnalisé du clavier (frappe de code
+        // privé, constante compat API < 26) et journalise les commandes
+        // privées des IME propriétaires.
+        editor.setOnEditorInfoListener(info -> {
+            info.imeOptions |= androidx.core.view.inputmethod.EditorInfoCompat
+                    .IME_FLAG_NO_PERSONALIZED_LEARNING;
+        });
+        editor.setOnImePrivateCommandListener((action, data) -> {
+            panels.appendLog("commande privée IME : " + action);
+            return true;
+        });
 
         breadcrumb = new BreadcrumbBar(this);
         breadcrumb.bind(editor);
