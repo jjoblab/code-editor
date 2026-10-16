@@ -38,6 +38,10 @@ import java.util.Calendar;
  * reste lisible quand l'eau devient translucide (le painter appelle
  * aussi updateVeil une fois par frame — le seul passage garanti).</p>
  *
+ * <p><b>Design resserré</b> (retour terrain) : marge mini-téléphone
+ * réduite (10 → 4 dp) et bande du téléphone TROUÉE dans le verre — la
+ * marge est transparente, le code reste visible autour du bezel.</p>
+ *
  * <p>Peints dédiés (le pipeline partage textPaint — AGENT.md) ;
  * rectangles réutilisés, zéro allocation par frame en régime établi.</p>
  *
@@ -61,6 +65,10 @@ public class EditorPreviewDropPainter {
     private final float[] cardRadii = new float[8];
     /** Radii du losange-goutte (CSS 4/2/14/2 pivoté de 45°). */
     private final float[] dropRadii = new float[8];
+    /** Fenêtre transparente autour du mini-téléphone (retour terrain :
+     *  « marge transparent ») — rect + radii réutilisés. */
+    private final RectF holeRect = new RectF();
+    private final float[] holeRadii = new float[8];
     /** Rectangles réutilisés (zéro allocation par frame). */
     private final RectF scratch = new RectF();
     private final RectF phoneScreen = new RectF();
@@ -142,16 +150,34 @@ public class EditorPreviewDropPainter {
         canvas.drawPath(shapePath, strokePaint);
         canvas.restoreToCount(dropSave);
 
-        // ── Corps de la carte : verre, coins 18/18/18/4 (goutte). ────
+        // ── Corps de la carte : verre TROUÉ, coins 18/18/18/4 (goutte). ─
+        // Retour terrain (design) : la bande du mini-téléphone est une
+        // FENÊTRE — la marge autour du téléphone est TRANSPARENTE (le
+        // code reste visible dans la marge), seuls l'en-tête et le pied
+        // restent verre. L'ombre suit le contour TROUÉ (la lumière
+        // passe derrière la fenêtre, silhouette honnête).
+        float headerH = EditorPreviewDrop.HEADER_H_DP * density;
+        float footerTop = cardH - EditorPreviewDrop.FOOTER_H_DP * density;
         scratch.set(0f, 0f, cardW, cardH);
         setRadii(cardRadii, 18f * density, 18f * density, 18f * density, 4f * density);
         shapePath.reset();
         shapePath.addRoundRect(scratch, cardRadii, Path.Direction.CW);
+        holeRect.set(0f, headerH, cardW, footerTop);
+        setRadii(holeRadii, 10f * density, 10f * density, 10f * density, 10f * density);
+        shapePath.addRoundRect(holeRect, holeRadii, Path.Direction.CW);
+        shapePath.setFillType(Path.FillType.EVEN_ODD);
         fillPaint.setStyle(Paint.Style.FILL);
         fillPaint.setColor(view.theme.glassBg);
         fillPaint.setShadowLayer(18f * density, 0f, 6f * density, 0x99000000);
         canvas.drawPath(shapePath, fillPaint);
         fillPaint.setShadowLayer(0f, 0f, 0f, 0);
+        shapePath.setFillType(Path.FillType.WINDING); // retour au défaut
+        // Bordure : contour externe CONTINU (chemin plein, non troué) —
+        // la silhouette de la carte reste lisible d'un bout à l'autre ;
+        // les séparateurs d'en-tête/pied marquent les bords de la
+        // fenêtre (déjà dessinés par drawHeader/drawFooter).
+        shapePath.reset();
+        shapePath.addRoundRect(scratch, cardRadii, Path.Direction.CW);
         strokePaint.setStyle(Paint.Style.STROKE);
         strokePaint.setStrokeWidth(1f);
         strokePaint.setColor(view.theme.glassBorder);

@@ -84,6 +84,10 @@ public class PreviewDropCompletionTapTest {
         view.setSession(new EditorSession(EditorDocument.of(DOC)));
         view.setPreviewHost(new DropHost());
         view.setFileName("activity_main.xml");
+        // Opt-in explicite : la priorité des taps à la surface de frappe
+        // est une POLITIQUE (B27, option propriétaire) — l'ORIGINALE
+        // (carte d'abord, complétion enterrée) est le défaut.
+        view.setPreviewDropPolicy(EditorView.PreviewDropPolicy.THREE_LAYERS);
         view.measure(VIEW_W, VIEW_H);
         view.layout(0, 0, VIEW_W, VIEW_H);
         TestMetrics.injecter(view, LINE_H, CHAR_W);
@@ -94,8 +98,8 @@ public class PreviewDropCompletionTapTest {
      * Carte ouverte ancrée ligne 0, caret ligne 1 (fin du token),
      * complétion vivante (8 items ancrés au token ligne 1) — la carte
      * compactée sous le bloc fusionné recouvre la dernière bande de
-     * rangées de complétion (intersection x [125, 178.5] × y [415.6,
-     * 428]).
+     * rangées de complétion (intersection x [125, 178.6] × y [422.6,
+     * 428] — carte 330 dp, marges resserrées retour terrain).
      */
     private EditorView scenarioCarteSurComplétion() {
         EditorView view = newView();
@@ -143,9 +147,9 @@ public class PreviewDropCompletionTapTest {
         // retour terrain). Avant le correctif, hitTestDrop engloutissait
         // ce tap : rien ne se passait.
         assertTrue("pré-condition : le tap tombe dans la carte",
-                view.preview.hitTestDrop(150f, 420f));
+                view.preview.hitTestDrop(150f, 425f));
 
-        tap(view, 150f, 420f);
+        tap(view, 150f, 425f);
 
         assertFalse("la complétion est consommée (acceptée), pas ignorée",
                 view.isCompletionVisible());

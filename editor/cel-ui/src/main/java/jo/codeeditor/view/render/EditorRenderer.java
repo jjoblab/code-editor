@@ -503,6 +503,16 @@ public class EditorRenderer {
         //     pour être au-dessus du texte et faciles à saisir.
         highlights.drawSelectionHandles(canvas);
 
+        // 10.9. B27 (option variante B) : la carte « goutte d'eau » se
+        //     dessine SOUS les popups de frappe — z-order inversé, la
+        //     complétion la recouvre d'un verre opaque (lisibilité brute,
+        //     choix du propriétaire). Sinon elle reste au premier plan
+        //     (étape 16.5, maquette d'origine et trois couches voilées).
+        if (view.preview.drop().drawsUnderTypingPopups()) {
+            fade.onDraw(jo.codeeditor.view.popup.EditorPopupFade.Kind.PREVIEW_DROP,
+                    canvas, () -> previewDrop.drawCard(canvas));
+        }
+
         // 11. Popup de complétion (dessiné en dernier pour être au-dessus de tout)
         // B7 : chaque popup Canvas passe par le contrôleur des fondus
         // (apparition 120 ms, fantôme de disparition 110 ms).
@@ -555,8 +565,11 @@ public class EditorRenderer {
         // 16.5. B27 — carte d'aperçu « goutte d'eau » (gouttière) :
         // overlay au-dessus des fiches, sous la loupe/gouttière de geste
         // (elle n'appartient à aucun geste — tap seul, non modale).
-        fade.onDraw(jo.codeeditor.view.popup.EditorPopupFade.Kind.PREVIEW_DROP,
-                canvas, () -> previewDrop.drawCard(canvas));
+        // (Variante B : déjà dessinée à l'étape 10.9, SOUS les popups.)
+        if (!view.preview.drop().drawsUnderTypingPopups()) {
+            fade.onDraw(jo.codeeditor.view.popup.EditorPopupFade.Kind.PREVIEW_DROP,
+                    canvas, () -> previewDrop.drawCard(canvas));
+        }
 
         // Dessiner les icônes d'aperçu en haut à droite quand le fichier est
         // prévisualisable (.md/.html/.xml) et que le mode d'aperçu est NONE.

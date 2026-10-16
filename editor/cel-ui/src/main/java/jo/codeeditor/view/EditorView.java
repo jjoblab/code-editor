@@ -2163,6 +2163,41 @@ public class EditorView extends View {
         }
     }
 
+    /**
+     * Politique de cohabitation de la carte d'aperçu « goutte d'eau »
+     * (B27) avec les popups de frappe (complétion, doc rapide) — trois
+     * réglages au choix du propriétaire, l'ORIGINALE est le défaut.
+     *
+     * <ul>
+     *   <li>{@link #ORIGINAL} — la maquette validée d'origine : la
+     *       carte vit au premier plan (dessinée après les popups, têtes
+     *       de cascade tactile) et ne connaît que la bande de frappe
+     *       (caret ± 1 ligne) — aveugle aux popups, elle peut les
+     *       recouvrir ;</li>
+     *   <li>{@link #THREE_LAYERS} — le retour terrain B27 : esquive par
+     *       obstacles (creux libre, latéral grand écran, compactage),
+     *       voile d'eau translucide quand rien ne tient, et priorité des
+     *       taps à la surface de frappe ;</li>
+     *   <li>{@link #VARIANT_B} — la lisibilité brute : z-order inversé,
+     *       la complétion se dessine AU-DESSUS de la carte (et gagne les
+     *       taps) — la carte disparaît derrière un verre opaque, plus
+     *       simple, plus lisible.</li>
+     * </ul>
+     */
+    public enum PreviewDropPolicy {
+        /** Maquette d'origine : premier plan, aveugle aux popups (DÉFAUT). */
+        ORIGINAL,
+        /** Retour terrain : esquive + voile d'eau + priorité des taps. */
+        THREE_LAYERS,
+        /** Variante B : la complétion passe au-dessus de la carte. */
+        VARIANT_B;
+
+        /** Vrai quand la complétion précède la carte (taps + z-order). */
+        public boolean completionFirst() {
+            return this != ORIGINAL;
+        }
+    }
+
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
     public PreviewMode previewMode = PreviewMode.NONE;
 
@@ -2394,6 +2429,42 @@ public class EditorView extends View {
      */
     public void togglePreviewDrop() {
         preview.togglePreviewDrop();
+    }
+
+    /**
+     * Politique de cohabitation de la carte « goutte d'eau » avec les
+     * popups de frappe — voir {@link PreviewDropPolicy}. Le changement
+     * prend effet au frame suivant (le voile d'eau se réinitialise :
+     * une carte ouverte repart opaque).
+     *
+     * <p>Le réglage est du choix du propriétaire : l'ORIGINALE (premier
+     * plan, aveugle aux popups) est le défaut ; TROIS couches ajoute
+     * l'esquive par obstacles + le voile d'eau + la priorité des taps ;
+     * la variante B inverse le z-order (la complétion recouvre la
+     * carte).</p>
+     */
+    public void setPreviewDropPolicy(PreviewDropPolicy policy) {
+        preview.setDropPolicy(policy);
+    }
+
+    /** Politique courante de cohabitation goutte d'eau / popups. */
+    public PreviewDropPolicy getPreviewDropPolicy() {
+        return preview.dropPolicy();
+    }
+
+    /**
+     * Taille de la carte « goutte d'eau » : facteur d'agrandissement
+     * appliqué à toute la carte (chrome + mini-téléphone), borné dans
+     * [1, 1,5] — 1 = taille de la maquette. Le placement (clamp aux
+     * bords, esquive, compactage) se recalcule sur la carte agrandie.
+     */
+    public void setPreviewDropScale(float scale) {
+        preview.setDropScale(scale);
+    }
+
+    /** Facteur d'agrandissement courant de la carte (1 par défaut). */
+    public float getPreviewDropScale() {
+        return preview.dropScale();
     }
 
     /**

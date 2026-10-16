@@ -9,7 +9,13 @@ import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.google.android.material.button.MaterialButton;
+import com.google.android.material.button.MaterialButtonToggleGroup;
 import com.google.android.material.materialswitch.MaterialSwitch;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.function.Consumer;
 
 /**
  * Écran Réglages de la démo — source d'écriture des préférences que
@@ -73,6 +79,25 @@ public class SettingsActivity extends AppCompatActivity {
                 R.string.settings_non_printable_hint, EditorPrefs.keyNonPrintable(),
                 prefs.nonPrintable()));
 
+        // B27 (option propriétaire) : politique de cohabitation goutte
+        // d'eau / popups + taille de la carte — choix segmentés, l'atelier
+        // relit au retour (onResume).
+        root.addView(section(R.string.settings_section_preview));
+        root.addView(choiceRow(R.string.settings_drop_policy,
+                R.string.settings_drop_policy_hint,
+                new String[]{getString(R.string.settings_drop_policy_original),
+                        getString(R.string.settings_drop_policy_layers),
+                        getString(R.string.settings_drop_policy_variant_b)},
+                new String[]{"original", "three_layers", "variant_b"},
+                prefs.previewDropPolicy(),
+                prefs::setPreviewDropPolicy));
+        root.addView(choiceRow(R.string.settings_drop_scale,
+                R.string.settings_drop_scale_hint,
+                new String[]{"100 %", "115 %", "130 %", "150 %"},
+                new String[]{"1.0", "1.15", "1.3", "1.5"},
+                String.valueOf(prefs.previewDropScale()),
+                value -> prefs.setPreviewDropScale(Float.parseFloat(value))));
+
         root.addView(section(R.string.settings_section_engine));
         root.addView(switchRow(prefs, R.string.settings_grammars,
                 R.string.settings_grammars_hint, EditorPrefs.keyGrammars(),
@@ -91,6 +116,66 @@ public class SettingsActivity extends AppCompatActivity {
         root.addView(footnote, footParams);
 
         setContentView(scroll);
+    }
+
+    /**
+     * Ligne de choix segmentés (boutons exclusifs) — miroir de
+     * {@link #switchRow} pour les réglages à plusieurs valeurs (politique
+     * de cohabitation, taille de la goutte d'eau). La valeur courante est
+     * cochée AVANT l'écoute (aucune écriture parasite à l'ouverture).
+     */
+    private LinearLayout choiceRow(int titleRes, int hintRes, String[] labels,
+            String[] values, String current, Consumer<String> persist) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.VERTICAL);
+        row.setPadding(dp(14), dp(12), dp(14), dp(12));
+        row.setBackgroundColor(0xFF18181B);
+        LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        rowParams.bottomMargin = dp(8);
+        row.setLayoutParams(rowParams);
+
+        TextView label = new TextView(this);
+        label.setText(titleRes);
+        label.setTextSize(15f);
+        label.setTextColor(0xFFE4E4E7);
+        row.addView(label, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        MaterialButtonToggleGroup group = new MaterialButtonToggleGroup(this);
+        group.setSingleSelection(true);
+        group.setSelectionRequired(true);
+        Map<Integer, String> byId = new HashMap<>();
+        for (int i = 0; i < labels.length; i++) {
+            MaterialButton b = new MaterialButton(this, null,
+                    com.google.android.material.R.attr.materialButtonOutlinedStyle);
+            b.setText(labels[i]);
+            b.setAllCaps(false);
+            b.setTextSize(13f);
+            group.addView(b, new MaterialButtonToggleGroup.LayoutParams(
+                    0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+            byId.put(b.getId(), values[i]);
+            if (values[i].equals(current)) {
+                group.check(b.getId());
+            }
+        }
+        group.addOnButtonCheckedListener((g, id, checked) -> {
+            if (checked) {
+                persist.accept(byId.get(id));
+            }
+        });
+        row.addView(group, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        TextView hint = new TextView(this);
+        hint.setText(hintRes);
+        hint.setTextSize(11.5f);
+        hint.setTextColor(0xFFA1A1AA);
+        LinearLayout.LayoutParams hintParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        hintParams.topMargin = dp(3);
+        row.addView(hint, hintParams);
+        return row;
     }
 
     private TextView section(int titleRes) {
