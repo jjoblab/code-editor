@@ -15,3 +15,10 @@
 # « derived from » — texte juridique à ne pas reformuler, pas un usage de
 # comparaison de ce projet.
 ^LICENSE:.*
+
+# NOTICE documente l'attribution des grammaires TextMate tierces embarquées
+# (décision D3 de l'ADR-002 : vérification fichier par fichier) : la table
+# fichier → source amont → titulaire EXIGE les URL des dépôts MIT concernés
+# (textmate/atom/microsoft/MagicStack) — obligations de licence, pas des
+# usages de comparaison de ce projet.
+^NOTICE:URL github\.com/(textmate|atom|microsoft|MagicStack)$

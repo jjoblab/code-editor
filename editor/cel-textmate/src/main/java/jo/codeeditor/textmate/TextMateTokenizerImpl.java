@@ -24,15 +24,28 @@ import java.util.Map;
  *
  * <h2>Grammaires embarquées</h2>
  *
- * <p>Les grammaires du dépôt vivent dans {@code textmate/<lang>.tmg.json}
- * (classpath du module) et sont chargées paresseusement au premier
- * {@link #isAvailable(String)}. Ce sont des fichiers DU DÉPÔT
- * (Apache-2.0, écrits pour ce moteur — aucune attribution tierce,
- * décision D3 : vérification fichier par fichier, attribution dans
- * NOTICE le jour où une grammaire tierce embarquée). Un hôte ajoute
- * ou remplace les siennes par {@link #registerGrammar(String, String)}
- * — supporter un nouveau langage reste ajouter un FICHIER, pas du
- * Java.</p>
+ * <p>DEUX familles vivent dans {@code textmate/} du classpath :</p>
+ * <ul>
+ *   <li>{@code textmate/<lang>.tmg.json} — grammaires DU DÉPÔT
+ *       (Apache-2.0, écrites pour ce moteur, aucune attribution
+ *       tierce) ; {@code csharp} est chargée par {@link #create()}
+ *       (langage « grammaire-only » : la voie grammaires est la
+ *       SEULE pour ce langage) ;</li>
+ *   <li>{@code textmate/<lang>.tmLanguage.json} — grammaires
+ *       TIERCES vérifiées (MIT, fichiers originaux de l'écosystème
+ *       VS Code/TextMate — attribution par fichier dans NOTICE,
+ *       décision D3) : {@code html}, {@code java}, {@code javascript},
+ *       {@code lua}, {@code markdown}, {@code python}, {@code xml}.
+ *       Elles sont INACTIVES au démarrage — un langage qui possède
+ *       déjà un tokéniseur intégré ne bascule pas silencieusement
+ *       sur la voie grammaires (contrat « opt-in par langage ») :
+ *       l'hôte l'active explicitement par
+ *       {@link #loadEmbeddedGrammar(String)}.</li>
+ * </ul>
+ *
+ * <p>Un hôte ajoute ou remplace les siennes par
+ * {@link #registerGrammar(String, String)} — supporter un nouveau
+ * langage reste ajouter un FICHIER, pas du Java.</p>
  *
  * <h2>Repli intégré</h2>
  *
@@ -68,7 +81,11 @@ public final class TextMateTokenizerImpl implements TextMateTokenizer {
         return impl;
     }
 
-    /** Charge paresseusement toutes les grammaires du classpath. */
+    /**
+     * Charge paresseusement toutes les grammaires du dépôt (les
+     * {@code .tmg.json} — les grammaires tierces demandent
+     * {@link #loadEmbeddedGrammar(String)}).
+     */
     private void loadEmbeddedGrammars() {
         // Liste explicite plutôt que scanning de répertoire : le
         // classpath d'un AAR n'est pas listable de façon portable —
@@ -85,6 +102,45 @@ public final class TextMateTokenizerImpl implements TextMateTokenizer {
                         + lang + ") : " + e.getMessage());
             }
         }
+    }
+
+    /**
+     * Active une grammaire TIÈRCE embarquée pour un langage ({@code
+     * html}, {@code java}, {@code javascript}, {@code lua}, {@code
+     * markdown}, {@code python}, {@code xml} — l'inventaire MIT
+     * complet vit dans NOTICE). Les grammaires tierces ne sont PAS
+     * actives après {@link #create()} : un langage pourvu d'un
+     * tokéniseur intégré ne bascule sur la voie grammaires que par
+     * cet appel explicite (ou {@link #registerGrammar} avec la source
+     * de votre choix) — le rendu d'un hôte qui n'appelle rien ne
+     * change pas.
+     *
+     * <p>Idempotent : réactiver une grammaire déjà active la
+     * remplace (sémantique de {@link #registerGrammar}). Lève une
+     * {@link TextMateGrammar.GrammarException} si aucune grammaire
+     * embarquée ne correspond à ce langage.</p>
+     *
+     * @param language clé de langage ({@code "java"}…)
+     * @return cette instance (chaînage)
+     */
+    public TextMateTokenizerImpl loadEmbeddedGrammar(String language) {
+        if (language == null || language.isBlank()) {
+            throw new IllegalArgumentException("language is blank");
+        }
+        String norm = normalize(language);
+        // D'abord une grammaire du dépôt (.tmg.json), puis une
+        // tierce (.tmLanguage.json).
+        String source = readResource("textmate/" + norm + ".tmg.json");
+        if (source == null) {
+            source = readResource("textmate/" + norm + ".tmLanguage.json");
+        }
+        if (source == null) {
+            throw new TextMateGrammar.GrammarException(
+                    "aucune grammaire embarquée pour « " + norm
+                    + " » (inventaire : csharp, html, java, javascript, "
+                    + "lua, markdown, python, xml)");
+        }
+        return registerGrammar(norm, source);
     }
 
     private static String readResource(String path) {
