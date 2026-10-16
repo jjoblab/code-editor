@@ -58,14 +58,16 @@ public final class TextMateGrammar {
     /** Nom lisible (ex. {@code C#}) — informatif. */
     public final String name;
     /** Règles racine (l'ordre détermine la priorité à position égale). */
-    public final List<Rule> patterns;
+    /** Installés en seconde phase du parse (les règles portent cette
+     * instance comme owner — construction en deux temps). */
+    public List<Rule> patterns;
     /** Règles nommées du repository, adressées par {@code include "#…"}. */
-    public final Map<String, Rule> repository;
+    public Map<String, Rule> repository;
     /** Références includes externes ({@code source.css}…) collectées au
      * parse (C3-bis, compatibilité sora-editor) — triées, sans
      * doublon : le registre de l'hôte y répond, ou la règle dégrade
      * silencieusement. */
-    public final List<String> externalRefs;
+    public List<String> externalRefs;
     /** Avertissements du mode indulgent (règle au dialecte
      * intraduisible — ex. {@code \g<n>}, appel de sous-expression
      * Oniguruma) : la règle est ignorée, la grammaire charge. Vide en
@@ -81,6 +83,19 @@ public final class TextMateGrammar {
         this.repository = Map.copyOf(repository);
         this.externalRefs = List.copyOf(externalRefs);
         this.warnings = List.copyOf(warnings);
+    }
+
+    /**
+     * Installe les règles analysées SUR CETTE INSTANCE (seconde phase
+     * du parse) : les règles portent déjà cette instance comme owner —
+     * une copie ferait pointer les owner vers un repository vide.
+     * Appelé UNE fois à la fin de {@link #parse}, avant publication.
+     */
+    private void install(List<Rule> patterns, Map<String, Rule> repository,
+            List<String> externalRefs) {
+        this.patterns = List.copyOf(patterns);
+        this.repository = Map.copyOf(repository);
+        this.externalRefs = List.copyOf(externalRefs);
     }
 
     /**
@@ -123,23 +138,29 @@ public final class TextMateGrammar {
         }
         String name = JsonLite.str(root.get("name"));
         List<String> warnings = new ArrayList<>();
+        // L'instance est créée AVANT l'analyse des règles : chaque règle
+        // porte son owner (C3-quinquies) pour la résolution des #ref
+        // quand elle est incluse par une grammaire invitante. Les règles
+        // sont installées sur CETTE instance en seconde phase.
+        TextMateGrammar grammar = new TextMateGrammar(scopeName, name,
+                List.of(), Map.of(), List.of(), warnings);
         Map<String, Rule> repository = new LinkedHashMap<>();
         Map<String, Object> repo = JsonLite.obj(root.get("repository"));
         for (Map.Entry<String, Object> e : repo.entrySet()) {
             repository.put(e.getKey(), new RuleParser(
-                    JsonLite.obj(e.getValue()), e.getKey(), lenient, warnings).parse());
+                    JsonLite.obj(e.getValue()), e.getKey(), lenient, warnings, grammar).parse());
         }
         List<Rule> patterns = new ArrayList<>();
         for (Object o : JsonLite.list(root.get("patterns"))) {
-            patterns.add(new RuleParser(JsonLite.obj(o), null, lenient, warnings).parse());
+            patterns.add(new RuleParser(JsonLite.obj(o), null, lenient, warnings, grammar).parse());
         }
         // Collecte des références externes (C3-bis) — règles racine et
         // repository comprises.
         TreeSet<String> refs = new TreeSet<>();
         for (Rule r : patterns) collectExternals(r, refs);
         for (Rule r : repository.values()) collectExternals(r, refs);
-        return new TextMateGrammar(scopeName, name, patterns, repository,
-                new ArrayList<>(refs), warnings);
+        grammar.install(patterns, repository, new ArrayList<>(refs));
+        return grammar;
     }
 
     private static void collectExternals(Rule r, TreeSet<String> refs) {
@@ -186,6 +207,12 @@ public final class TextMateGrammar {
         public final String name;
         /** Portée du CONTENU entre begin et end (ex. string.quoted). */
         public final String contentName;
+        /** Source de la clause {@code while} (garde de continuation
+         * de ligne, C3-quinquies) — null si absente. Une règle
+         * begin+while SANS end est valide : le cadre n'a PAS de
+         * fermante en ligne, il se poursuit tant que le while matche
+         * au DÉBUT de chaque ligne suivante. */
+        public final String whileSrc;
         /** Captures nommées du match (index → portée). */
         public final Map<Integer, String> captures;
         /** Captures du begin (index → portée). */
@@ -193,25 +220,34 @@ public final class TextMateGrammar {
         /** Captures du end (index → portée). */
         public final Map<Integer, String> endCaptures;
         /** Sous-règles actives entre begin et end. */
-        public final List<Rule> patterns;
+        /** Installés en seconde phase du parse (les règles portent cette
+     * instance comme owner — construction en deux temps). */
+    public List<Rule> patterns;
         /** Référence include ({@code #règle}/{@code $self}/{@code $base}), ou null. */
         public final String include;
+        /** Grammaire PROPRIÉTAIRE de la règle (C3-quinquies) : les
+         * includes {@code #ref} d'une règle invitée (html → source.css,
+         * markdown → source.java) se résolvent dans le REPOSITORY de
+         * l'invitée, pas de l'hôte qui l'a incluse. */
+        public final TextMateGrammar owner;
 
         Rule(String ruleName, Pattern match, Pattern begin, String end, String name,
-                String contentName, Map<Integer, String> captures,
+                String contentName, String whileSrc, Map<Integer, String> captures,
                 Map<Integer, String> beginCaptures, Map<Integer, String> endCaptures,
-                List<Rule> patterns, String include) {
+                List<Rule> patterns, String include, TextMateGrammar owner) {
             this.ruleName = ruleName;
             this.match = match;
             this.begin = begin;
             this.end = end;
             this.name = name;
             this.contentName = contentName;
+            this.whileSrc = whileSrc;
             this.captures = Map.copyOf(captures);
             this.beginCaptures = Map.copyOf(beginCaptures);
             this.endCaptures = Map.copyOf(endCaptures);
             this.patterns = List.copyOf(patterns);
             this.include = include;
+            this.owner = owner;
         }
 
         @Override
@@ -230,13 +266,17 @@ public final class TextMateGrammar {
         private final String ruleName;
         private final boolean lenient;
         private final List<String> warnings;
+        /** Grammaire propriétaire des règles produites (résolution des
+         * #ref, C3-quinquies). */
+        private final TextMateGrammar owner;
 
         RuleParser(Map<String, Object> src, String ruleName, boolean lenient,
-                List<String> warnings) {
+                List<String> warnings, TextMateGrammar owner) {
             this.src = src;
             this.ruleName = ruleName;
             this.lenient = lenient;
             this.warnings = warnings;
+            this.owner = owner;
         }
 
         Rule parse() {
@@ -248,8 +288,8 @@ public final class TextMateGrammar {
                 // devient muette (conteneur sans enfants — ne matche
                 // jamais), l'avertissement est collecté.
                 warnings.add(e.getMessage());
-                return new Rule(ruleName, null, null, null, null, null,
-                        Map.of(), Map.of(), Map.of(), List.of(), null);
+                return new Rule(ruleName, null, null, null, null, null, null,
+                        Map.of(), Map.of(), Map.of(), List.of(), null, owner);
             }
         }
 
@@ -263,52 +303,54 @@ public final class TextMateGrammar {
                 // à la tokénisation via le registre de l'hôte —
                 // absente, la règle ne matche rien (dégradation
                 // documentée, la grammaire charge quand même).
-                return new Rule(ruleName, null, null, null, null, null,
-                        Map.of(), Map.of(), Map.of(), List.of(), include);
+                return new Rule(ruleName, null, null, null, null, null, null,
+                        Map.of(), Map.of(), Map.of(), List.of(), include, owner);
             }
             String match = JsonLite.str(src.get("match"));
             String begin = JsonLite.str(src.get("begin"));
             String end = JsonLite.str(src.get("end"));
-            // Clause while (C3-bis) : les blocs continus des grammaires
-            // modernes (markdown de sora-editor) — acceptée comme
-            // fermante. Simplification documentée : le bloc se referme
-            // sur la ligne de continuation et se rouvre par sa propre
-            // begin — rendu équivalent pour les blocs continus.
+            // Clause while (C3-bis → C3-quinquies) : les blocs continus
+            // des grammaires modernes (markdown de sora-editor) — la
+            // clause est une GARDE DE CONTINUATION DE LIGNE (TextMate),
+            // évaluée au DÉBUT de chaque ligne suivante, PAS une
+            // fermante en ligne : le while des blocs de code markdown
+            // est un lookahead NÉGATIF qui matcherait vide partout en
+            // fermante (oscillation pousser/dépiler). Une règle
+            // begin+while sans end est valide (cadre sans fermante en
+            // ligne) ; begin sans end NI while reste incomplète.
             String whileClause = JsonLite.str(src.get("while"));
-            if (end == null && whileClause != null) {
-                end = whileClause;
-            }
             String name = JsonLite.str(src.get("name"));
             String contentName = JsonLite.str(src.get("contentName"));
             if (match != null) {
                 return new Rule(ruleName, compile(match, ruleName), null, null, name,
-                        null, parseCaptures(src.get("captures"), ruleName),
-                        Map.of(), Map.of(), List.of(), null);
+                        null, null, parseCaptures(src.get("captures"), ruleName),
+                        Map.of(), Map.of(), List.of(), null, owner);
             }
             if (begin != null || end != null) {
-                if (begin == null || end == null) {
+                if (begin == null || (end == null && whileClause == null)) {
                     throw new GrammarException("règle begin/end incomplète : "
-                            + ruleName + " (begin=" + begin + ", end=" + end + ")");
+                            + ruleName + " (begin=" + begin + ", end=" + end
+                            + ", while=" + whileClause + ")");
                 }
                 List<Rule> sub = new ArrayList<>();
                 for (Object o : JsonLite.list(src.get("patterns"))) {
                     sub.add(new RuleParser(JsonLite.obj(o), ruleName + ".patterns",
-                            lenient, warnings).parse());
+                            lenient, warnings, owner).parse());
                 }
                 return new Rule(ruleName, null, compile(begin, ruleName), end, name,
-                        contentName, Map.of(),
+                        contentName, whileClause, Map.of(),
                         parseCaptures(src.get("beginCaptures"), ruleName),
                         parseCaptures(src.get("endCaptures"), ruleName),
-                        sub, null);
+                        sub, null, owner);
             }
             // Groupe de patterns sans match (règle conteneur).
             List<Rule> sub = new ArrayList<>();
             for (Object o : JsonLite.list(src.get("patterns"))) {
                 sub.add(new RuleParser(JsonLite.obj(o), ruleName + ".patterns",
-                        lenient, warnings).parse());
+                        lenient, warnings, owner).parse());
             }
-            return new Rule(ruleName, null, null, null, name, null,
-                    Map.of(), Map.of(), Map.of(), sub, null);
+            return new Rule(ruleName, null, null, null, name, null, null,
+                    Map.of(), Map.of(), Map.of(), sub, null, owner);
         }
 
         private static Pattern compile(String regex, String ruleName) {

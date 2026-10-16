@@ -134,14 +134,18 @@ class TextMateGrammarTest {
     @Test
     void clauseWhile_acceptéeCommeEnd() {
         // Les grammaires modernes (markdown de sora-editor) utilisent
-        // begin/while pour les blocs continus — while est accepté comme
-        // fermante (simplification documentée : le bloc se referme sur
-        // la ligne de continuation, ré-ouvert par sa propre begin).
+        // begin/while pour les blocs continus — la clause while est
+        // conservée SÉPARÉMENT (C3-quinquies) : c'est une garde de
+        // continuation de ligne (sémantique TextMate), PAS une
+        // fermante en ligne — le while des blocs de code markdown est
+        // un lookahead négatif qui oscillerait en fermante. Une règle
+        // begin+while sans end est valide.
         String source = "{\"scopeName\": \"s\", \"patterns\": ["
                 + "{\"begin\": \"^>\", \"while\": \"^>\", "
                 + "\"name\": \"markup.quote\"}]}";
         TextMateGrammar g = TextMateGrammar.parse(source);
-        assertEquals("^>", g.patterns.get(0).end, "while sert de fermante");
+        assertEquals("^>", g.patterns.get(0).whileSrc, "while conservé comme garde");
+        assertEquals(null, g.patterns.get(0).end, "pas de fermante en ligne");
     }
 
     @Test

@@ -371,4 +371,87 @@ class GrammarTokenizerTest {
         StyledLine l = engine.tokenize(dégénérée, "xax", 0);
         couvertureIntégrale(l, 3);
     }
+
+    // ── C3-quinquies : clause while (garde de continuation de ligne) ──
+
+    /** Grammaire de travail : citation à clause while (style markdown). */
+    private static final TextMateGrammar WHILE = load(
+            "textmate/while-test.tmg.json");
+
+    @Test
+    void clauseWhile_continuationLePréfixeEstConsommé() {
+        // La ligne de continuation matche le while : le préfixe « > »
+        // est CONSOMMÉ (portée de la règle) et le contenu est tokénisé
+        // par les sous-règles du cadre (le nombre reste NUMBER).
+        StyledLine l1 = engine.tokenize(WHILE, "> citation 42", 0);
+        assertTrue(l1.exitState != 0, "le cadre citation est ouvert");
+        StyledLine l2 = engine.tokenize(WHILE, "> suite 7", l1.exitState);
+        assertEquals(TokenType.NUMBER, type(l2, "> suite 7", "7"),
+                "le contenu de la continuation est tokénisé par les sous-règles");
+        assertTrue(l2.exitState != 0,
+                "le cadre citation RESTE ouvert : le while a matché (continuation)");
+    }
+
+    @Test
+    void clauseWhile_ligneSansPréfixeDépileLeCadre() {
+        // Une ligne qui ne matche PAS le while : le cadre ne s'applique
+        // PAS à cette ligne (dépilement en tête de ligne, SANS fermante
+        // en ligne) — la ligne est typée par les règles RACINE.
+        StyledLine l1 = engine.tokenize(WHILE, "> citation 42", 0);
+        StyledLine l2 = engine.tokenize(WHILE, "note", l1.exitState);
+        assertEquals(TokenType.KEYWORD_CONTROL, type(l2, "note", "note"),
+                "la ligne hors citation est typée par les règles racine");
+    }
+
+    @Test
+    void clauseWhile_lookaheadNégatifSansOscillation() {
+        // Régression C3-quinquies : le while des blocs de code markdown
+        // est un lookahead NÉGATIF — en fermante en ligne (l'ancien
+        // pliage C3-bis) il matcherait vide PARTOUT et oscillait
+        // pousser/dépiler (le contenu des blocs ``` restait PLAIN).
+        // En garde de tête de ligne : le contenu est tokénisé.
+        TextMateGrammar fenced = TextMateGrammar.parse(
+                "{\"scopeName\": \"source.f\", \"patterns\": ["
+                        + "{\"begin\": \"```\", \"end\": \"```\","
+                        + " \"patterns\": ["
+                        + "  {\"begin\": \"(^|\\\\G)(\\\\s*)(.*)\","
+                        + "   \"while\": \"(^|\\\\G)(?!\\\\s*(`{3,})\\\\s*$)\","
+                        + "   \"patterns\": ["
+                        + "    {\"match\": \"\\\\bint\\\\b\", \"name\": \"storage.type.f\"}]}]}]}");
+        StyledLine l1 = engine.tokenize(fenced, "```", 0);
+        assertTrue(l1.exitState != 0, "bloc ouvert");
+        StyledLine l2 = engine.tokenize(fenced, "int x = 1;", l1.exitState);
+        assertEquals(TokenType.TYPE, type(l2, "int x = 1;", "int"),
+                "le contenu du bloc est tokénisé (pas d'oscillation)");
+        // La ligne de clôture (``` seule, comme le markdown réel) dépile
+        // le bloc embarqué (while échoue) PUIS le bloc lui-même (sa
+        // fermante matche).
+        StyledLine l3 = engine.tokenize(fenced, "```", l2.exitState);
+        assertEquals(0, l3.exitState, "le bloc se referme sur la clôture");
+    }
+
+    @Test
+    void includeExterne_lesRefsDuBesoinDeLinvitéeSeRésolventChezElle() {
+        // Régression C3-quinquies : les #ref des règles INVITÉES se
+        // résolvent dans le repository de L'INVITÉE — l'hôte qui
+        // inclut source.embed ne connaît pas le repository de
+        // l'invitée : sans suivi du propriétaire, la règle incluse ne
+        // matchait RIEN (le walk mourait au premier #ref non trouvé).
+        TextMateGrammar hôte = TextMateGrammar.parse(
+                "{\"scopeName\": \"source.h\", \"patterns\": ["
+                        + "{\"begin\": \"§\", \"end\": \"§\","
+                        + " \"patterns\": [{\"include\": \"source.embed\"}]}]}");
+        TextMateGrammar invitée = TextMateGrammar.parse(
+                "{\"scopeName\": \"source.embed\", \"patterns\": ["
+                        + "{\"include\": \"#mots\"}],"
+                        + "\"repository\": {"
+                        + "  \"mots\": {\"patterns\": ["
+                        + "    {\"match\": \"\\\\bchiffre\\\\b\", \"name\": \"constant.numeric.e\"}]}}}");
+        java.util.Map<String, TextMateGrammar> externals =
+                java.util.Map.of("source.embed", invitée);
+        StyledLine l1 = engine.tokenize(hôte, "§", 0, externals);
+        StyledLine l2 = engine.tokenize(hôte, "chiffre", l1.exitState, externals);
+        assertEquals(TokenType.NUMBER, type(l2, "chiffre", "chiffre"),
+                "le #ref de l'invitée se résout dans SON repository");
+    }
 }

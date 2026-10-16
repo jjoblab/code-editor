@@ -77,6 +77,11 @@ import java.util.regex.PatternSyntaxException;
  */
 public final class GrammarTokenizer {
 
+    /** Fermante ne matchant jamais : les cadres à clause while (sans
+     * end) n'ont PAS de fermante en ligne — la clause est une garde de
+     * début de ligne (C3-quinquies). */
+    private static final Pattern NEVER = Pattern.compile("(?!)");
+
     /** Cadre de pile : règle begin/end ouverte, end compilé (backrefs résolues). */
     private static final class Frame {
         final Rule rule;
@@ -91,10 +96,20 @@ public final class GrammarTokenizer {
          * wrapper) — le préfixe est retiré du pattern compilé, la
          * garde sémantique est portée par le cadre. */
         final boolean notGEnd;
+        /** Clause while compilée (C3-quinquies) : garde de
+         * CONTINUATION DE LIGNE, évaluée au DÉBUT de chaque ligne
+         * suivante — null pour les cadres à fermante. Un cadre while
+         * n'a PAS de fermante en ligne (endPattern ne matche jamais),
+         * il se poursuit tant que le while matche en tête de ligne et
+         * se dépile sinon (markdown : bloc de code clôturé par la
+         * ligne de clôture, citation poursuivie par son préfixe). */
+        final Pattern whilePattern;
 
-        Frame(Rule rule, Pattern endPattern, int contentStart, boolean notGEnd) {
+        Frame(Rule rule, Pattern endPattern, Pattern whilePattern,
+                int contentStart, boolean notGEnd) {
             this.rule = rule;
             this.endPattern = endPattern;
+            this.whilePattern = whilePattern;
             this.contentStart = contentStart;
             this.notGEnd = notGEnd;
         }
@@ -113,13 +128,16 @@ public final class GrammarTokenizer {
             return rule == f.rule
                     && contentStart == f.contentStart
                     && notGEnd == f.notGEnd
-                    && Objects.equals(endPattern.pattern(), f.endPattern.pattern());
+                    && Objects.equals(endPattern.pattern(), f.endPattern.pattern())
+                    && Objects.equals(whilePattern == null ? null : whilePattern.pattern(),
+                            f.whilePattern == null ? null : f.whilePattern.pattern());
         }
 
         @Override
         public int hashCode() {
             return 31 * (31 * (31 * System.identityHashCode(rule) + contentStart)
-                    + (notGEnd ? 1 : 0)) + endPattern.pattern().hashCode();
+                    + (notGEnd ? 1 : 0)) + endPattern.pattern().hashCode()
+                    + (whilePattern == null ? 0 : whilePattern.pattern().hashCode());
         }
     }
 
@@ -279,6 +297,31 @@ public final class GrammarTokenizer {
         // Début du run de texte non encore stylé (le repli de contenu
         // couvre les trous entre règles).
         int textStart = 0;
+        // Clauses while (C3-quinquies) : au DÉBUT de ligne, le sommet
+        // de pile porteur d'un while est testé — la clause est une
+        // GARDE DE CONTINUATION (sémantique TextMate), pas une
+        // fermante en ligne. Échec → le cadre ne s'applique PAS à
+        // cette ligne (dépilement, en cascade vers le nouveau sommet :
+        // la ligne de clôture ``` dépile le bloc de code embarqué, la
+        // fermante du bloc parent la matche alors normalement).
+        // Succès NON VIDE → le préfixe de continuation est consommé
+        // (le « > » d'une citation) et émis avec la portée de la règle
+        // (whileCaptures absent des grammaires réelles — markdown de
+        // sora : 64 while, 0 whileCaptures — simplification documentée).
+        while (!stack.isEmpty()) {
+            Frame top = stack.get(stack.size() - 1);
+            if (top.whilePattern == null) break;
+            if (ctx.matchAt(top.whilePattern, 0, true)) {
+                Matcher m = ctx.matcher(top.whilePattern);
+                if (m.end() > 0) {
+                    emitWithCaptures(m, Map.of(), top.rule.name, spans, limit);
+                    pos = Math.min(m.end(), limit);
+                    textStart = pos;
+                }
+                break;
+            }
+            stack.remove(stack.size() - 1);
+        }
         // Étapes de largeur nulle consécutives (disjoncteur).
         int zeroWidth = 0;
         // La boucle couvre AUSSI pos == limit : le « \n » virtuel s'y
@@ -409,7 +452,11 @@ public final class GrammarTokenizer {
     private Rule resolveInclude(Rule rule, Ctx ctx) {
         Rule cached = ctx.resolvedIncludes.get(rule);
         if (cached != null) return cached;
-        Rule resolved = resolveIncludeUncached(rule, ctx.grammar, ctx.externals);
+        // Grammaire propriétaire de la règle (C3-quinquies) : les #ref
+        // d'une règle INVITÉE (markdown → source.java) se résolvent
+        // dans le repository de l'invitée — l'hôte ne les connaît pas.
+        TextMateGrammar owner = rule.owner != null ? rule.owner : ctx.grammar;
+        Rule resolved = resolveIncludeUncached(rule, owner, ctx.externals);
         ctx.resolvedIncludes.put(rule, resolved);
         return resolved;
     }
@@ -419,8 +466,8 @@ public final class GrammarTokenizer {
         String ref = rule.include;
         if ("$self".equals(ref) || "$base".equals(ref)) {
             // Règle conteneur synthétique exposant les patterns racine.
-            return new Rule("$" + ref, null, null, null, null, null,
-                    Map.of(), Map.of(), Map.of(), grammar.patterns, null);
+            return new Rule("$" + ref, null, null, null, null, null, null,
+                    Map.of(), Map.of(), Map.of(), grammar.patterns, null, grammar);
         }
         if (ref.startsWith("#")) {
             Rule target = grammar.repository.get(ref.substring(1));
@@ -431,8 +478,8 @@ public final class GrammarTokenizer {
         // la règle ne matche rien (dégradation documentée).
         TextMateGrammar foreign = externals.get(ref);
         if (foreign == null) return null;
-        return new Rule(ref, null, null, null, null, null,
-                Map.of(), Map.of(), Map.of(), foreign.patterns, null);
+        return new Rule(ref, null, null, null, null, null, null,
+                Map.of(), Map.of(), Map.of(), foreign.patterns, null, foreign);
     }
 
     /** Applique le step : produit les spans et met à jour la pile.
@@ -463,15 +510,23 @@ public final class GrammarTokenizer {
             // une chaîne) et ne précipite pas la fermeture.
             // Idiome (?!\G) : préfixe retiré du pattern (garde portée
             // par le cadre), ancre = fin du begin.
-            boolean notG = rule.end.startsWith("(?!\\G)");
-            String endSrc = notG ? rule.end.substring(6) : rule.end;
-            Pattern endPat = resolveEnd(endSrc, step.matcher);
+            boolean notG = rule.end != null && rule.end.startsWith("(?!\\G)");
+            String endSrc = notG && rule.end != null
+                    ? rule.end.substring(6) : rule.end;
+            Pattern endPat = endSrc != null
+                    ? resolveEnd(endSrc, step.matcher) : NEVER;
+            // Clause while : compilée avec les backrefs du begin (la
+            // garde de continuation peut référencer les groupes de
+            // l'ouverture, comme une fermante).
+            Pattern whilePat = rule.whileSrc != null
+                    ? resolveEnd(rule.whileSrc, step.matcher) : null;
             // Plafond de profondeur : une grammaire dégénérée ne doit
             // pas empiler sans fin — au-delà, le begin est émis mais
             // le contenu s'écoule dans le cadre parent (dégradation
             // bornée, jamais de OOM).
             if (stack.size() < 100) {
-                stack.add(new Frame(rule, endPat, step.matcher.end(), notG));
+                stack.add(new Frame(rule, endPat, whilePat,
+                        step.matcher.end(), notG));
             }
             emitWithCaptures(step.matcher, rule.beginCaptures, rule.name,
                     spans, limit);
