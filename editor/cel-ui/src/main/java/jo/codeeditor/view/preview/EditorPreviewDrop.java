@@ -7,6 +7,7 @@ import androidx.annotation.RestrictTo;
 
 import android.animation.ValueAnimator;
 import android.graphics.RectF;
+import android.view.animation.AnimationUtils;
 import android.view.animation.DecelerateInterpolator;
 
 import java.util.Arrays;
@@ -46,8 +47,10 @@ import java.util.List;
  *
  * <p>La carte vit en coordonnées écran (viewport) : l'ancre et le caret
  * sont re-résolus à CHAQUE frame — la carte suit l'œil au scroll et
- * esquive le caret à la frappe, sans animation dédiée (seul le fondu
- * d'entrée/sortie du pipeline anime la carte).</p>
+ * esquive le caret à la frappe, et depuis le retour terrain n°5 les
+ * RE-PLACEMENTS GLISSENT (transitoire 180 ms en trois couches et en
+ * variante B — le fondu d'entrée/sortie du pipeline et le glissement
+ * composent la même motion).</p>
  *
  * <h3>Retour terrain B27 : cohabitation avec les popups de frappe</h3>
  * <p>La carte esquive AUSSI les popups vivants (complétion, doc rapide) :
@@ -130,6 +133,13 @@ public final class EditorPreviewDrop {
     private static final long VEIL_IN_MS = 140L;
     /** Durée du dévoilage (ms) — plus lente, plus calme. */
     private static final long VEIL_OUT_MS = 180L;
+    /** Durée du glissement de re-placement (ms) — miroir du retour du
+     *  voile (retour terrain n°5 : « ça manque de fluidité », les
+     *  re-placements d'esquive sautaient frame à frame). */
+    static final long GLIDE_MS = 180L;
+    /** Mouvement en dessous de ce seuil (dp) : suivi rigide (scroll),
+     *  pas de glissement — n'anime pas le bruit sub-pixel. */
+    static final float GLIDE_EPSILON_DP = 2f;
     /**
      * Recouvrement d'un popup au-delà duquel la carte se voile
      * (fraction de l'AIRE du popup couverte — au-delà de 10 %, cacher
@@ -153,6 +163,26 @@ public final class EditorPreviewDrop {
      *  fantôme DYNAMIQUE — la goutte ne devient eau à 10–15 % QUE
      *  pendant le chevauchement, retour terrain n°4). */
     private boolean ghosted;
+
+    // ── Glissement fluide (retour terrain n°5 : « ça manque de ─────
+    // fluidité », les re-placements d'esquive sautaient frame à ─────
+    // frame) ───────────────────────────────────────────────────────
+
+    /** Œil courant (px écran) — posé par chaque calcul de placement()
+     *  (référence du mouvement RIGIDE : scroll). */
+    private float eyeX, eyeY;
+    /** Vrai quand une frame a déjà fixé la référence (acquisition :
+     *  la première frame pose la position exacte). */
+    private boolean glideAdopted;
+    /** Vrai quand un transitoire de glissement vit. */
+    private boolean glideActive;
+    /** Origine du temps du transitoire courant (horloge d'animation). */
+    private long glideStartMs;
+    /** Amplitude du transitoire au départ (px / échelle additive) :
+     *  l'offset dessiné vaut amplitude × (1 − décélération(t)). */
+    private float glideAmpX, glideAmpY, glideAmpS;
+    /** Cible et œil de la frame PRÉCÉDENTE (prédiction rigide). */
+    private float refLeft, refTop, refScale, refEyeX, refEyeY;
 
     // ── Options propriétaire (B27) ────────────────────────────────
 
@@ -224,6 +254,7 @@ public final class EditorPreviewDrop {
         if (p == policy) return;
         this.policy = p;
         resetVeil();
+        resetGlide(); // la nouvelle politique repart de la position exacte
         view.invalidate();
     }
 
@@ -430,6 +461,7 @@ public final class EditorPreviewDrop {
         this.sliderBaseLeft = 0f;
         this.sliderBaseW = 0f;
         resetVeil();
+        resetGlide(); // une ré-ouverture repart de la position exacte
         view.invalidate();
     }
 
@@ -535,6 +567,10 @@ public final class EditorPreviewDrop {
         float eyeX = numberArea * 0.5f;
         float rowTop = view.docLineToY(anchorLine) - view.scroll.vOffset;
         float eyeY = rowTop + lineHeight * 0.5f;
+        // Référence du mouvement rigide (scroll) — partagée avec
+        // drawnPlacement (même formule, zéro divergence).
+        this.eyeX = eyeX;
+        this.eyeY = eyeY;
         // Zone de frappe : caret ± 1 ligne (le bloc que l'utilisateur
         // regarde en tapant).
         int caretOffset = view.session.getSelection().start;
@@ -689,6 +725,124 @@ public final class EditorPreviewDrop {
         veiled = false;
         ghosted = false;
         veilAlpha = 1f;
+    }
+
+    /**
+     * Placement DESSINÉ de la carte (retour terrain n°5 : « ça manque
+     * de fluidité » — les re-placements d'esquive sautaient frame à
+     * frame) — glissement translatoire animé VERS le placement cible
+     * en TROIS couches et en variante B : la carte ne téléporte plus,
+     * elle GLISSE. L'ORIGINALE reste la maquette exacte (jamais de
+     * glissement), le geste de la barre de taille reste DIRECT (la
+     * carte suit le doigt sans inertie), et le suivi de l'œil au scroll
+     * reste RIGIDE (aucun retard sur le défilement).
+     *
+     * <p>Le glissement est purement VISUEL, miroir des fondus B7 et du
+     * voile d'eau : l'interception des gestes, les bornes du fondu de
+     * sortie et le voile vivent sur le placement CIBLE (le transitoire
+     * dure {@link #GLIDE_MS} ms). Appelé par le painter à chaque frame
+     * avec la cible qu'il vient de calculer.</p>
+     */
+    public EditorPreviewDropGeometry.Placement drawnPlacement(
+            EditorPreviewDropGeometry.Placement target) {
+        if (target == null) return null;
+        // ORIGINALE : la maquette exacte, JAMAIS de glissement. Geste de
+        // la barre de taille : manipulation DIRECTE — la carte suit le
+        // doigt sans inertie (retour terrain n°3 « drag vivant »).
+        if (policy == EditorView.PreviewDropPolicy.ORIGINAL || sliderBaseW > 0f) {
+            resetGlide();
+            adopt(target);
+            return target;
+        }
+        // Première frame (ouverture, ré-ouverture, changement de
+        // politique) : le fondu d'entrée B7 couvre l'apparition — la
+        // position exacte est posée d'emblée.
+        if (!glideAdopted) {
+            adopt(target);
+            return target;
+        }
+        // Prédiction rigide : la part du mouvement de la cible expliquée
+        // par l'œil (le SCROLL translate œil, garde et carte ENSEMBLE).
+        // Le RESTE est un re-placement (esquive, latéral, compactage,
+        // garde de frappe) → la carte GLISSE au lieu de téléporter.
+        float jumpX = (target.cardLeft - refLeft) - (eyeX - refEyeX);
+        float jumpY = (target.cardTop - refTop) - (eyeY - refEyeY);
+        float jumpS = target.scale - refScale;
+        float eps = GLIDE_EPSILON_DP * view.getResources().getDisplayMetrics().density;
+        if (Math.abs(jumpX) > eps || Math.abs(jumpY) > eps
+                || Math.abs(jumpS) > 0.01f) {
+            // Continuité : le transitoire repart de la position DESSINÉE
+            // courante (offset vif de l'ancien transitoire) MOINS le
+            // saut — même en rafale de frappe (la cible bouge en plein
+            // vol), la carte ne téléporte jamais.
+            glideAmpX = glideOffset(glideAmpX) - jumpX;
+            glideAmpY = glideOffset(glideAmpY) - jumpY;
+            glideAmpS = glideOffset(glideAmpS) - jumpS;
+            glideStartMs = AnimationUtils.currentAnimationTimeMillis();
+            glideActive = true;
+        }
+        // Fin de transitoire : l'état retombe au repos (offset nul).
+        if (glideActive && AnimationUtils.currentAnimationTimeMillis()
+                - glideStartMs >= GLIDE_MS) {
+            glideActive = false;
+            glideAmpX = glideAmpY = glideAmpS = 0f;
+        }
+        float offX = glideOffset(glideAmpX);
+        float offY = glideOffset(glideAmpY);
+        float offS = glideOffset(glideAmpS);
+        adopt(target);
+        if (!glideActive) return target;
+        // Le transitoire pulse le frame suivant (il vit GLIDE_MS ms).
+        view.postInvalidateOnAnimation();
+        return new EditorPreviewDropGeometry.Placement(
+                target.cardLeft + offX, target.cardTop + offY,
+                target.cardW, target.cardH,
+                target.scale + offS, target.dropLocalY,
+                target.stemVisible,
+                target.stemX0, target.stemY0, // œil : FIXE, hors transitoire
+                target.stemX1 + offX, target.stemY1 + offY, // goutte : suit la carte
+                target.level, target.overlapRatio, target.obstructed);
+    }
+
+    /**
+     * Adopte la cible courante comme référence du frame suivant
+     * (position + œil — la prédiction rigide du scroll).
+     */
+    private void adopt(EditorPreviewDropGeometry.Placement target) {
+        glideAdopted = true;
+        refLeft = target.cardLeft;
+        refTop = target.cardTop;
+        refScale = target.scale;
+        refEyeX = eyeX;
+        refEyeY = eyeY;
+    }
+
+    /**
+     * Offset courant d'une amplitude du transitoire (0 au repos) —
+     * décélération quadratique : rapide au départ, calme à l'arrivée
+     * (même allure que le retour du voile, sans ValueAnimator : la
+     * valeur se calcule à la frame, l'horloge d'animation reste la
+     * source de temps — déterministe en test comme sur appareil).
+     */
+    private float glideOffset(float amp) {
+        if (!glideActive || amp == 0f) return 0f;
+        float t = (AnimationUtils.currentAnimationTimeMillis() - glideStartMs)
+                / (float) GLIDE_MS;
+        if (t <= 0f) return amp;
+        if (t >= 1f) return 0f;
+        float eased = 1f - (1f - t) * (1f - t);
+        return amp * (1f - eased);
+    }
+
+    /**
+     * Réinitialise le glissement (fermeture, changement de politique :
+     * une nouvelle politique repart de la position exacte, miroir du
+     * voile).
+     */
+    private void resetGlide() {
+        glideAdopted = false;
+        glideActive = false;
+        glideAmpX = glideAmpY = glideAmpS = 0f;
     }
 
     /**

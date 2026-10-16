@@ -26,11 +26,15 @@ import java.util.Calendar;
  * badge d'exécution et pied à chips (rendu vivant + barre de taille
  * + échelle).
  *
- * <p>Le placement vient de {@link EditorPreviewDrop#placement()}
- * (source unique — le hit-test du contrôleur partage la même formule).
- * Le compactage s'applique par une échelle du canvas autour du coin
- * haut-gauche de la carte ; le hôte dessine en coordonnées LOCALES et
- * l'échelle s'applique à tout (le « fit » de l'aperçu suit).</p>
+ * <p>Le placement DESSINÉ vient de
+ * {@link EditorPreviewDrop#drawnPlacement(EditorPreviewDropGeometry.Placement)}
+ * (glissement fluide des re-placements, retour terrain n°5 — en
+ * trois couches et variante B) ; la CIBLE reste
+ * {@link EditorPreviewDrop#placement()} (source unique — le hit-test
+ * du contrôleur partage la même formule). Le compactage s'applique
+ * par une échelle du canvas autour du coin haut-gauche de la carte ;
+ * le hôte dessine en coordonnées LOCALES et l'échelle s'applique à
+ * tout (le « fit » de l'aperçu suit).</p>
  *
  * <p><b>Voile d'eau</b> (retour terrain B27) : quand la carte recouvre
  * encore un popup après tous les niveaux d'esquive, le contrôleur la
@@ -99,12 +103,16 @@ public class EditorPreviewDropPainter {
     /** Point d'entrée — appelé par le pipeline de rendu (fondu B7). */
     public void drawCard(Canvas canvas) {
         EditorPreviewDrop drop = view.preview.drop();
-        EditorPreviewDropGeometry.Placement p = drop.placement();
-        if (p == null) return;
+        EditorPreviewDropGeometry.Placement target = drop.placement();
+        if (target == null) return;
         // Voile d'eau : hystérésis mis à jour ici, une fois par frame —
         // le painter est le seul passage garanti quand la carte est
         // visible (le fondu B7 appelle ce peintre à chaque frame).
-        drop.updateVeil(p);
+        drop.updateVeil(target);
+        // Glissement fluide (retour terrain n°5) : le painter dessine le
+        // placement GLISSANT vers la cible — trois couches et variante B
+        // uniquement (l'originale reste la maquette exacte).
+        EditorPreviewDropGeometry.Placement p = drop.drawnPlacement(target);
         EditorPreviewHost host = view.preview.getHost();
         float density = view.getResources().getDisplayMetrics().density;
         float cardW = EditorPreviewDrop.CARD_W_DP * density;
