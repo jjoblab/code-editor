@@ -59,9 +59,10 @@ chargé automatiquement par `create()` (langage « grammaire-only »).
 
 ### Grammaires tierces (MIT) — inactives par défaut
 
-Les sept fichiers `textmate/<lang>.tmLanguage.json` sont des copies
+Les huit fichiers `textmate/<lang>.tmLanguage.json` sont des copies
 VERBATIM de grammaires de l'écosystème VS Code/TextMate (celles
-embarquées par l'application de démonstration de sora-editor), sous
+distribuées par l'application de démonstration de sora-editor, et
+pour `css` le fichier original du dépôt officiel VS Code), sous
 licence **MIT**. Elles ne sont PAS actives après `create()` : un hôte
 les active explicitement par `loadEmbeddedGrammar(<lang>)` (contrat
 « opt-in par langage » — le rendu d'un hôte qui croche le module sans
@@ -71,6 +72,7 @@ https://opensource.org/licenses/MIT
 
 | Fichier | Langage | Source amont | Titulaire du copyright |
 |---|---|---|---|
+| `css.tmLanguage.json` | `css` | https://github.com/microsoft/vscode (extensions/css/syntaxes/css.tmLanguage.json — conversion du grammar `css.cson` de microsoft/vscode-css, en-tête `information_for_contributors` d'origine conservé dans le fichier) ; active l'imbrication `html` → `source.css` des blocs `<style>` | Microsoft Corporation |
 | `html.tmLanguage.json` | `html` | https://github.com/textmate/html.tmbundle (conversion VS Code) | TextMate bundle contributors (traité MIT par les notices tierces de microsoft/vscode et azuredatastudio) |
 | `java.tmLanguage.json` | `java` | https://github.com/atom/language-java (grammars/java.cson) | GitHub Atom language-java contributors |
 | `javascript.tmLanguage.json` | `javascript` | https://github.com/microsoft/TypeScript-TmLanguage (TypeScriptReact.tmLanguage) | Microsoft Corporation |

@@ -83,12 +83,13 @@ class TextMateTokenizerImplTest {
 
     @Test
     void grammaireTierce_inventaireCompletChargeEtTokénise() {
-        // Les 7 grammaires tierces MIT embarquées chargent (parse
+        // Les 8 grammaires tierces embarquées chargent (parse
         // indulgent C3-bis) et tokénisent sans exception — l'échantillon
         // typique de chaque langage rend un span non vide.
-        String[] langs = {"html", "java", "javascript", "lua",
+        String[] langs = {"css", "html", "java", "javascript", "lua",
                 "markdown", "python", "xml"};
         String[] samples = {
+                "body { color: red; }",
                 "<div class=\"x\">texte</div>",
                 "public class Foo { /* x */ }",
                 "const f = (a) => { return `tpl ${a}`; };",
@@ -229,6 +230,48 @@ class TextMateTokenizerImplTest {
     }
 
     // ── C3-sexties : imbrication html → grammaire invitée ─────────
+
+    @Test
+    void grammaireCss_activeParAppel_tokéniseUnVraiStyle() {
+        // CSS embarquée (microsoft/vscode, MIT — conversion du grammar
+        // vscode-css) : opt-in par loadEmbeddedGrammar, sélecteur en
+        // TYPE (entity.name.tag), propriété en TYPE (support.type via
+        // la liste de portées), valeur de couleur en CONSTANT.
+        TextMateTokenizerImpl impl = TextMateTokenizerImpl.create();
+        assertFalse(impl.isAvailable("css"), "inactive après create()");
+        impl.loadEmbeddedGrammar("css");
+        assertTrue(impl.isAvailable("css"));
+        String line = "body { color: red; }";
+        StyledLine l = impl.tokenize(line, 0, "css");
+        assertEquals(TokenType.TYPE, typeAt(l, line.indexOf("body")));
+        assertEquals(TokenType.TYPE, typeAt(l, line.indexOf("color")));
+        assertEquals(TokenType.CONSTANT, typeAt(l, line.indexOf("red")));
+    }
+
+    @Test
+    void blocStyleHtml_coloréParLaGrammaireCss() {
+        // L'imbrication de l'option (c) : le bloc <style> d'un document
+        // html est délégué à la grammaire CSS incluse (source.css) —
+        // le sélecteur body en TYPE (entity.name.tag), la propriété en
+        // TYPE (support.type), pas en attribut html (PROPERTY). Avant
+        // les correctifs C3-sexties (idiome \G en tête de begin), le
+        // cadre du contenu ne s'ouvrait pas et le CSS tombait en
+        // attributs ; sans la grammaire css enregistrée, il restait PLAIN.
+        TextMateTokenizerImpl impl = TextMateTokenizerImpl.create();
+        impl.loadEmbeddedGrammar("html");
+        impl.loadEmbeddedGrammar("css");
+        StyledLine l1 = impl.tokenize("<style>", 0, "html");
+        assertTrue(l1.exitState != 0, "le bloc style est ouvert");
+        String line = "body { color: red; }";
+        StyledLine l2 = impl.tokenize(line, l1.exitState, "html");
+        assertEquals(TokenType.TYPE, typeAt(l2, line.indexOf("body")),
+                "body est un sélecteur CSS (entity.name.tag), pas un attribut");
+        assertEquals(TokenType.TYPE, typeAt(l2, line.indexOf("color")),
+                "color est un nom de propriété CSS");
+        assertEquals(TokenType.CONSTANT, typeAt(l2, line.indexOf("red")));
+        StyledLine l3 = impl.tokenize("</style>", l2.exitState, "html");
+        assertEquals(0, l3.exitState, "la clôture referme le bloc style");
+    }
 
     @Test
     void blocScriptHtml_coloréParLaGrammaireJavaScript() {

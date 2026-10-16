@@ -34,8 +34,9 @@ import java.util.Map;
  *   <li>{@code textmate/<lang>.tmLanguage.json} — grammaires
  *       TIERCES vérifiées (MIT, fichiers originaux de l'écosystème
  *       VS Code/TextMate — attribution par fichier dans NOTICE,
- *       décision D3) : {@code html}, {@code java}, {@code javascript},
- *       {@code lua}, {@code markdown}, {@code python}, {@code xml}.
+ *       décision D3) : {@code css}, {@code html}, {@code java},
+ *       {@code javascript}, {@code lua}, {@code markdown},
+ *       {@code python}, {@code xml}.
  *       Elles sont INACTIVES au démarrage — un langage qui possède
  *       déjà un tokéniseur intégré ne bascule pas silencieusement
  *       sur la voie grammaires (contrat « opt-in par langage ») :
@@ -106,9 +107,9 @@ public final class TextMateTokenizerImpl implements TextMateTokenizer {
 
     /**
      * Active une grammaire TIÈRCE embarquée pour un langage ({@code
-     * html}, {@code java}, {@code javascript}, {@code lua}, {@code
-     * markdown}, {@code python}, {@code xml} — l'inventaire MIT
-     * complet vit dans NOTICE). Les grammaires tierces ne sont PAS
+     * css}, {@code html}, {@code java}, {@code javascript}, {@code
+     * lua}, {@code markdown}, {@code python}, {@code xml} —
+     * l'inventaire MIT complet vit dans NOTICE). Les grammaires tierces ne sont PAS
      * actives après {@link #create()} : un langage pourvu d'un
      * tokéniseur intégré ne bascule sur la voie grammaires que par
      * cet appel explicite (ou {@link #registerGrammar} avec la source
@@ -137,8 +138,8 @@ public final class TextMateTokenizerImpl implements TextMateTokenizer {
         if (source == null) {
             throw new TextMateGrammar.GrammarException(
                     "aucune grammaire embarquée pour « " + norm
-                    + " » (inventaire : csharp, html, java, javascript, "
-                    + "lua, markdown, python, xml)");
+                    + " » (inventaire : csharp, css, html, java, "
+                    + "javascript, lua, markdown, python, xml)");
         }
         return registerGrammar(norm, source);
     }
