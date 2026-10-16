@@ -83,6 +83,46 @@ public class EditorImeBridge {
         return new EditorInputConnection(view, view.connectionGeneration);
     }
 
+    /**
+     * R1 (plan 09, E1) — purge de l'état IME au changement de session.
+     *
+     * <p>Le miroir du clavier décrit l'ANCIEN document : texte extrait,
+     * sélection, éventuellement une composition en cours. Sans purge,
+     * l'IME rejoue son miroir périmé ou réveille une région fantôme
+     * quand l'utilisateur revient frapper. On :</p>
+     * <ul>
+     *   <li>incrémente la GÉNÉRATION — toute InputConnection vivante
+     *       devient muette (ses rapports asynchrones tombent à l'eau,
+     *       miroir de closeConnection) ;</li>
+     *   <li>invalide le JETON D'EXTRACTION (plus de updateExtractedText
+     *       vers un moniteur mort) ;</li>
+     *   <li>raz le MODE ANCRE (le moniteur CursorAnchorInfo se
+     *       réarmera à la prochaine requête de l'IME) ;</li>
+     *   <li>redemande la connexion ({@code restartInput}) si une
+     *       connexion a déjà servi — le clavier reconstruit son miroir
+     *       sur le NOUVEAU document.</li>
+     * </ul>
+     */
+    void purgeForSessionChange() {
+        // Génération 0 : AUCUNE connexion n'a jamais servi — le jeton
+        // d'extraction et le mode ancre ne peuvent pas exister (ils ne
+        // se posent que DEPUIS une InputConnection) : rien à purger, et
+        // un restartInput serait un appel fantôme vers un clavier jamais
+        // attaché. Le premier onCreateInputConnection partira propre.
+        if (view.connectionGeneration == 0) return;
+        // Sinon : la génération monte (toute connexion vivante devient
+        // muette — miroir de closeConnection), le moniteur d'extraction
+        // et le mode ancre meurent, et le clavier reconstruit son miroir
+        // sur le NOUVEAU document.
+        view.connectionGeneration++;
+        view.extractedTextMonitorToken = -1;
+        view.cursorAnchorMonitorMode = 0;
+        InputMethodManager imm = view.imm();
+        if (imm != null) {
+            imm.restartInput(view);
+        }
+    }
+
     // ════════════════════════════════════════════════════════════════
     // Texte extrait + ancre de curseur
     // ════════════════════════════════════════════════════════════════
@@ -349,8 +389,12 @@ public class EditorImeBridge {
         public CharSequence getSelectedText(int flags) {
             EditorSession s = session();
             if (s == null) return null;
-            String sel = s.selectedText();
-            return sel == null ? null : sel;
+            // R2 (plan 09, E2) : la réponse traverse le binder (transaction
+            // plafonnée ~1 Mo partagé) — une sélection géante demandée par
+            // un clavier curieux (recherche, réécriture) levait une
+            // TransactionTooLargeException. Borne symétrique à
+            // imeTextBeforeCursor : MAX_IPC_TEXT.
+            return s.imeSelectedText();
         }
 
         @Override
