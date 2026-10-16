@@ -279,7 +279,7 @@ EditorView.onDraw → EditorRenderer (16 couches)            (:cel-ui)
 
 L'éditeur ne dépend d'aucun moteur d'aperçu : le rendu d'aperçu est délégué
 à l'application hôte via une interface, `EditorPreviewHost` (six méthodes
-historiques + cinq méthodes B27 à défaut raisonnable — un hôte feuille
+historiques + six méthodes B27 à défaut raisonnable — un hôte feuille
 n'implémente que les six premières) :
 
 ```java
@@ -322,6 +322,11 @@ public interface EditorPreviewHost {
 
     /** Libellé du badge d'exécution (défaut : aucun). */
     default String previewDropBadge(int tab) { return null; }
+
+    /** Retour terrain n°3 : l'utilisateur a relâché la BARRE DE TAILLE
+     *  du pied de la carte — facteur choisi [1, 1,5], une fois par geste
+     *  (hook de persistance). */
+    default void onPreviewDropScaleChanged(float scale) { }
 }
 ```
 

@@ -633,7 +633,7 @@ défaut (`EditorView.PreviewDropPolicy`) :
 |---|---|---|---|
 | `ORIGINAL` (défaut) | carte au premier plan (au-dessus des popups) | aveugle aux popups (bande de frappe seule — maquette d'origine) | carte d'abord : le corps engloutit, la complétion enterrée reste ouverte |
 | `THREE_LAYERS` | carte au premier plan | esquive par obstacles (creux, latéral grand écran, compactage) | complétion d'abord : la surface de frappe gagne toujours |
-| `VARIANT_B` | **z-order inversé : la complétion se dessine AU-DESSUS de la carte** | aveugle aux popups | complétion d'abord |
+| `VARIANT_B` | **z-order inversé : la complétion se dessine AU-DESSUS de la carte — la goutte devient FANTÔME à 10–15 % d'opacité en permanence** (retour terrain n°3 : la complétion reste brute, le code derrière la carte respire ; la tige/œil restent opaques — l'ancre demeure lisible) | aveugle aux popups | complétion d'abord |
 
 En `THREE_LAYERS`, la carte traite les popups vivants comme des
 **obstacles** — elle cherche un creux libre hors de la bande de frappe
@@ -654,11 +654,25 @@ bibliothèque.
 ```java
 // La politique (défaut ORIGINAL — la maquette d'origine) :
 editorView.setPreviewDropPolicy(EditorView.PreviewDropPolicy.THREE_LAYERS);
-// La variante B : lisibilité brute, la complétion recouvre la carte :
+// La variante B : lisibilité brute, la complétion recouvre la carte —
+// la goutte devient un fantôme translucide à 10–15 % d'opacité :
 editorView.setPreviewDropPolicy(EditorView.PreviewDropPolicy.VARIANT_B);
 // L'option taille — facteur d'agrandissement borné [1, 1,5] :
 editorView.setPreviewDropScale(1.3f); // carte entière +30 %
 ```
+
+**La barre de taille vit DANS la goutte** (retour terrain n°3) : le
+pied de la carte porte une petite piste de progression à côté de la
+puce « fit · NN % » — l'utilisateur choisit la taille directement
+dans l'aperçu (« quelle taille au lieu du 232 dp ») : **press = saut
+immédiat** du curseur, **drag vivant** (la carte se redimensionne
+sous le doigt, le repère de piste est GELÉ au press — la progression
+reste une fonction linéaire et stable de la position du doigt),
+**relâchement → `onPreviewDropScaleChanged`** du hôte (hook de
+persistance, une notification par geste) ; la puce « fit » affiche
+l'échelle effective (compactage courant × facteur choisi). La voie
+programmatique `setPreviewDropScale` reste (valeur initiale au
+démarrage — la démo relit sa préférence persistée).
 
 **Design de la goutte** (retour terrain) : la marge autour du
 mini-téléphone est resserrée (10 → 4 dp) et **transparente** — la
@@ -700,6 +714,11 @@ public class MyDropHost implements EditorPreviewHost {
         // L'utilisateur a basculé d'onglet — l'invalidation est déjà
         // posée par la bibliothèque ; ne maintenez que votre état.
     }
+    @Override public void onPreviewDropScaleChanged(float scale) {
+        // Retour terrain n°3 : l'utilisateur a relâché la BARRE DE
+        // TAILLE du pied (à côté de « fit ») — persistez le facteur
+        // choisi [1, 1,5] (relu au démarrage via setPreviewDropScale).
+    }
 
     // — Feuille/panneau (inutile pour un hôte carte seul) —
     @Override public void onPreviewModeChanged(EditorView.PreviewMode mode,
@@ -716,6 +735,9 @@ Les gestes, câblés par la bibliothèque (aucun code hôte) :
   caret) ; re-tap sur l'œil (resté **gelé** sur l'ancre) → fermeture ;
 - tap sur un **onglet** → bascule + `onPreviewDropTabSelected` ;
 - tap sur **✕** → fermeture ;
+- **barre de taille du pied** (à côté de « fit ») → press = saut du
+  curseur, drag vivant, relâchement → `onPreviewDropScaleChanged`
+  (persistance) ;
 - tap dans le **corps** → englouti (le caret ne bouge pas) — mais si
   une complétion vit SOUS le doigt, sa rangée gagne d'abord (surface
   de frappe prioritaire), et un tap hors du popup la referme avant la
@@ -749,7 +771,7 @@ simule la frappe et montre l'esquive en direct). La correspondance
 - les **rectangles d'onglets** sont mesurés une fois à l'ouverture et
   partagés entre le dessin et le hit-test (zéro divergence).
 
-Le contrat complet de l'interface (11 méthodes, défauts compris) est
+Le contrat complet de l'interface (12 méthodes, défauts compris) est
 décrit dans [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
 ## LSP (Language Server Protocol)
