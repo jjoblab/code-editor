@@ -121,26 +121,36 @@ scénarios reproductibles en atelier multi-onglets ; R3 à R5 constituent
 le « niveau bibliothèque publiée » sur les API 33/34 ; R6 à R9 peuvent
 attendre un retour terrain.
 
-**État d'avancement** : ✅ **R1 et R2 sont LIVRÉS** (3.73.0, passe
-B27/IME) — tests rouges avant / verts après
-(`SetSessionImeRestartTest` : purge de génération/jeton/mode ancre +
-restartInput compté par shadow, sans appel fantôme vers un clavier
-jamais attaché, la vieille connexion ne ressuscite pas le jeton ;
+**État d'avancement** : ✅ **LA FEUILLE DE ROUTE EST ENTIÈREMENT LIVRÉE**
+(3.73.0, passes B27/IME puis R3–R9) — tests rouges avant / verts
+après pour chaque recommandation (`SetSessionImeRestartTest` :
+purge de génération/jeton/mode ancre + restartInput compté par shadow,
+sans appel fantôme vers un clavier jamais attaché ;
 `ImeSelectedTextBoundTest` : sélection de 500 000 caractères bornée à
-4 096, borne relative au début, garde document). R3 à R9 restent à
-venir.
+4 096 ; `CursorCapsModeTest` : capitales réelles sur fenêtre bornée ;
+`ImeSnapshotTest` : instantané atomique composition/sélection/capitales ;
+`StylusImeConsumesInputTest` : protocole stylet accepté, caret caché
+pendant la consommation, invalidation légère au retour ;
+`ExtractedTextHintMaxCharsTest` : fenêtre hintMaxChars honorée, mémorisée
+pour les mises à jour du moniteur, purgée au changement de session ;
+`ComposingMinimalDiffTest` : écart minimal — préfixe/suffixe communs,
+paires de substitution intactes, mise à jour redondante sans mutation ni
+étape d'undo fantôme ; `HardwareKeyboardSoftInputTest` : clavier logiciel
+retenu au tap derrière un clavier matériel, masqué à son exposition,
+lecture seule sans clavier muet ; `EditorInfoHookTest` : hooks hôte
+EditorInfo + commandes privées routées).
 
 | N° | Recommandation | Fichiers touchés | Priorité | Effort |
 |---|---|---|---|---|
 | R1 | ✅ LIVRÉ — `restartInput` + purge de l'état IME dans `setSession` (génération, jeton d'extraction, mode ancre) + test multi-onglets | `EditorView.setSession`, `EditorImeBridge.purgeForSessionChange` | P1 | 0,5 JH |
 | R2 | ✅ LIVRÉ — `getSelectedText` borné à `MAX_IPC_TEXT` (borne symétrique + garde document) via `EditorSession.imeSelectedText` | `EditorImeBridge.EditorInputConnection`, `ImeBridge` (core) | P1 | 0,25 JH |
-| R3 | `getCursorCapsMode` réel sur sous-chaîne bornée ; `initialCapsMode` alimenté | `EditorImeBridge` | P2 | 0,5 JH |
-| R4 | `takeSnapshot` (API 33) : texte environnant + région de composition + capitales | sous-classe API 33 | P2 | 1 JH |
-| R5 | `setImeConsumesInput` (API 34) + invalidation de connexion | sous-classe API 34 | P2 | 0,5 JH |
-| R6 | Honorer `hintMaxChars` de la requête d'extraction | `EditorImeBridge.buildExtractedText` | P3 | 0,25 JH |
-| R7 | Écart minimal de `setComposingText` (mesurer d'abord le coût d'épissure de la rope) | `ImeBridge` (core) | P3 | 1 à 2 JH |
-| R8 | Détection du clavier matériel (masquage du clavier logiciel) + `onCheckIsTextEditor` dynamique (lecture seule) | `EditorView` | P3 | 0,5 JH |
-| R9 | Hook de personnalisation de `EditorInfo` (écouteur facultatif) + `performPrivateCommand` routé | `EditorImeBridge`, nouvel événement | P3 | 0,5 JH |
+| R3 | ✅ LIVRÉ — `getCursorCapsMode` réel via `TextUtils.getCapsMode` sur fenêtre bornée (1 000 car. avant le caret) ; `initialCapsMode` alimenté en WORDS+SENTENCES (bits positionnels — CHARACTERS est un écho, l'inclure ferait croire à un mode tout-en-majuscules) | `EditorImeBridge` | P2 | 0,5 JH |
+| R4 | ✅ LIVRÉ — `takeSnapshot` (API 33) : texte environnant (2 048 car. de chaque côté), sélection absolue, composition en offsets absolus (−1/−1 sans composition), capitales — la composition survit à une mort de processus | sous-classe API 33 (`Api33InputConnection`, héritée par Api34) | P2 | 1 JH |
+| R5 | ✅ LIVRÉ — `setImeConsumesInput` (API 34) : requête acceptée (le stylet écrit), caret CACHÉ pendant la consommation, caret + invalidation légère `invalidateInput` (protocole takeSnapshot) au retour | sous-classe API 34 (`Api34InputConnection`) | P2 | 0,5 JH |
+| R6 | ✅ LIVRÉ — `hintMaxChars` de la requête d'extraction honoré (borné au plafond maison), mémorisé pour les mises à jour du moniteur, purgé au changement de session | `EditorImeBridge.buildExtractedText` | P3 | 0,25 JH |
+| R7 | ✅ LIVRÉ — écart minimal de `setComposingText` : préfixe/suffixe communs, seule la différence médiane est épissée ; coût proportionnel à la VARIATION (mesuré : garde-fou < 2 ms/op sur 25k lignes, `ComposingSpliceBenchmark`) ; paires de substitution jamais coupées ; mise à jour redondante = zéro mutation ; l'annulation d'un mot composé = une passe (coalescence des écarts) | `ImeBridge` (core) | P3 | 1 à 2 JH |
+| R8 | ✅ LIVRÉ — politique clavier logiciel unifiée (`EditorImeBridge.showSoftInputIfEditable`) : tap/appui long/bouton public/refocus ; lecture seule → `onCheckIsTextEditor` faux + pas de clavier muet ; clavier matériel exposé → pas de clavier logiciel au tap + masquage à l'exposition (`onConfigurationChanged`) | `EditorView` + pont | P3 | 0,5 JH |
+| R9 | ✅ LIVRÉ — hooks hôte : `setOnEditorInfoListener` (personnalisation de l'`EditorInfo`, dernier mot — ex. NO_PERSONALIZED_LEARNING, action d'entrée) + `setOnImePrivateCommandListener` (`performPrivateCommand` routé, faux sans écouteur) | `EditorImeBridge`, `EditorView` (façade) | P3 | 0,5 JH |
 
 ## 5. Ordre de mise en œuvre
 
@@ -155,6 +165,8 @@ venir.
 
 Chaque correctif suit la convention du dépôt : un test qui échoue avant
 et passe après, un commit par changement, la documentation resynchronisée.
+Le plan est désormais intégralement livré — la section 6 garde ses
+invariants pour toute évolution future de ces chemins.
 
 ## 6. Invariants à garder verts
 

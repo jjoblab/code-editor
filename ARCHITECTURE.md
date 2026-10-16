@@ -172,10 +172,16 @@ jo.codeeditor.lsp/
 
 ```
 jo.codeeditor/
-├── view/         — EditorView (~3 775 l.) : orchestrateur = cycle de vie
+├── view/         — EditorView (~3 960 l.) : orchestrateur = cycle de vie
 │                   Android View + API publique + relais vers ~60
 │                   collaborateurs. Collaborateurs directs : pont IME
-│                   (EditorImeBridge), pont langage (EditorLanguageBridge),
+│                   (EditorImeBridge — InputConnection par niveau d'API :
+│                   Api31 SurroundingText, Api33 takeSnapshot, Api34
+│                   replaceText + stylet ; plan 09 entièrement livré :
+│                   purge de session, bornage Binder, capitales réelles,
+│                   instantané atomique, politique clavier unifiée,
+│                   hooks hôte EditorInfo/commandes privées), pont
+│                   langage (EditorLanguageBridge),
 │                   presse-papiers, plis (EditorFoldIndex), diagnostics
 │                   (DiagnosticsPusher/Locator), géométrie (EditorMetrics,
 │                   EditorWrapGeometry, EditorHitMapper,
@@ -225,7 +231,7 @@ relais conservés pour l'API publique et les tests) :
 
 | Classe | Avant | Aujourd'hui (orchestrateur)* |
 |--------|-------|----------------------|
-| EditorView | 4 626 l. | 3 775 l. (états extraits : `EditorSavedState`, `CompletionState`, `FindState`, `ScrollState`) |
+| EditorView | 4 626 l. | 3 960 l. (états extraits : `EditorSavedState`, `CompletionState`, `FindState`, `ScrollState`) |
 | EditorRenderer | 3 475 l. | 748 l. |
 | SyntaxHighlighter | 2 545 l. | 155 l. |
 | EditorSession | 2 188 l. | 1 588 l. |

@@ -1,6 +1,6 @@
 # demo — atelier de la bibliothèque
 
-> 64 tests · Robolectric (fumée : lancement réel des activités,
+> 65 tests · Robolectric (fumée : lancement réel des activités,
 > chaîne LSP complète) + JUnit pur (parseur, serveur) · application
 > `com.android.application`, **non publiée sur Maven** — c'est une
 > vitrine et un banc d'essai, pas un artefact.
@@ -131,7 +131,7 @@ Le mini serveur LSP est **embarqué et in-process** : la démo reste
 ## Tests
 
 ```bash
-./gradlew :demo:testDebugUnitTest     # 64 tests
+./gradlew :demo:testDebugUnitTest     # 65 tests
 ```
 
 - `MiniJavaParserTest` (20) — chaque règle, ses déclencheurs ET ses

@@ -416,6 +416,64 @@ rejette le tap. Depuis B25, la largeur du menu « ⋯ » suit son contenu
 (bornée 168–320 dp) : un débordement d'actions courtes n'occupe plus
 tout l'écran.
 
+## IME : personnalisation et politique du clavier (plan 09)
+
+L'intégration IME de la bibliothèque est complète (capitales réelles,
+instantané API 33 pour survivre à une mort de processus, stylet API 34,
+fenêtre d'extraction honnête, écart minimal de composition). Deux hooks
+donnent le dernier mot à l'application hôte.
+
+### Personnaliser l'EditorInfo (R9)
+
+L'écouteur est appelé à chaque construction de connexion, APRÈS les
+valeurs par défaut de la bibliothèque (inputType « verrou code »,
+imeOptions, sélection initiale, capitales réelles au point d'insertion) :
+
+```java
+editor.setOnEditorInfoListener(info -> {
+    // Le clavier n'apprend pas de la frappe de code.
+    info.imeOptions |= androidx.core.view.inputmethod.EditorInfoCompat
+            .IME_FLAG_NO_PERSONALIZED_LEARNING;
+    // Action d'entrée personnalisée (barre du clavier).
+    info.actionLabel = "Compiler";
+    info.actionId = 42;
+});
+```
+
+Sans écouteur, l'`EditorInfo` reste exactement celui de la bibliothèque.
+
+### Répondre aux commandes privées des claviers (R9)
+
+Certaines IME propriétaires étendent le protocole via
+`InputConnection.performPrivateCommand(action, data)`. Sans hook, ces
+commandes tombaient dans le vide ; l'écouteur leur donne un canal :
+
+```java
+editor.setOnImePrivateCommandListener((action, data) -> {
+    if ("com.clavier.LIVE_TRANSLATE".equals(action)) {
+        appliquerTraduction(data);
+        return true;   // traitée
+    }
+    return false;      // inconnue → l'IME voit « ignorée »
+});
+```
+
+### Clavier logiciel : lecture seule et clavier matériel (R8)
+
+Le clavier logiciel suit une politique unifiée (tap, appui long,
+`showSoftKeyboard()` programme, refocus) :
+
+- en **lecture seule** (`session.setReadOnly(true)`), la vue n'est plus
+  un champ d'édition pour le système (`onCheckIsTextEditor` répond
+  faux) : le tap place le caret — la lecture reste navigable — mais ne
+  fait plus monter un clavier dont les frappes seraient silencieusement
+  ignorées ;
+- avec un **clavier matériel exposé** (connecté et sorti,
+  `Configuration.keyboard` + `hardKeyboardHidden`), le tap ne fait pas
+  surgir le clavier logiciel — l'utilisateur tape sur le clavier
+  physique ; brancher un clavier en cours de frappe masque
+  automatiquement le clavier logiciel.
+
 ## Sélecteur de couleur (B26)
 
 Les codes couleur hexadécimaux reçoivent une pastille inline (fond teinté
@@ -702,6 +760,15 @@ ne doit pas faire popper l'IME. Pour l'afficher programmatiquement :
 ```java
 editorView.showSoftKeyboard();
 ```
+
+Depuis la passe R8 (plan 09), la politique est unifiée et le clavier
+logiciel ne monte QUE si l'éditeur est éditable et qu'aucun clavier
+matériel n'est exposé : en **lecture seule**
+(`session.setReadOnly(true)`) le tap pose le caret sans clavier (le
+système ne considère plus la vue comme un champ d'édition), et derrière
+un **clavier matériel** connecté/exposé le logiciel reste couché
+(l'utilisateur tape sur le physique). Vérifiez ces deux états avant de
+suspecter un bug.
 
 ### Le curseur disparaît après un undo
 
