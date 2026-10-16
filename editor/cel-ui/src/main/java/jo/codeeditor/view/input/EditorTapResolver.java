@@ -114,6 +114,28 @@ public class EditorTapResolver {
             }
         }
 
+        // ── ★ Retour terrain B27 : le popup de COMPLÉTION passe AVANT ─
+        // la carte « goutte d'eau » dans la cascade — la surface de ────
+        // frappe gagne TOUJOURS, quel que soit l'alpha de la carte. ────
+        // Avant : la carte (dessinée en dernier, hit-testée en premier)
+        // engloutissait les taps sur les rangées qu'elle recouvrait — ──
+        // un mur invisible pire que le cache visuel. Désormais une ────
+        // rangée tapée est acceptée même SOUS la carte voilée ; un tap ─
+        // hors du popup referme la complétion PUIS continue sa cascade ─
+        // (règle universelle « tout tap hors du popup le referme », la ─
+        // carte n'est plus l'exception qui laissait traîner une ────────
+        // complétion enterrée sous elle). ─────────────────────────────
+        if (view.completion.visible) {
+            int hitRow = hitTester.hitTestCompletionPopup(x, y);
+            if (hitRow >= 0) {
+                view.completion.selected = hitRow;
+                view.invalidate();
+                view.completionAccept();
+                return;
+            }
+            view.dismissCompletion();
+        }
+
         // ── ★ B27 : carte d'aperçu « goutte d'eau » OUVERTE — un tap
         // DANS la carte lui appartient : onglet → bascule (+ hôte
         // notifié), ✕ → fermeture, corps → englouti sans agir (le caret
@@ -191,17 +213,9 @@ public class EditorTapResolver {
             view.dismissSignatureHelp();
         }
 
-        // Test de touche du popup de complétion.
-        if (view.completion.visible) {
-            int hitRow = hitTester.hitTestCompletionPopup(x, y);
-            if (hitRow >= 0) {
-                view.completion.selected = hitRow;
-                view.invalidate();
-                view.completionAccept();
-                return;
-            }
-            view.dismissCompletion();
-        }
+        // (Le hit-test de complétion vit désormais plus haut, AVANT la
+        // carte « goutte d'eau » — retour terrain B27, surface de
+        // frappe prioritaire.)
 
         // Fiche de liste des diagnostics groupés — un tap sur une rangée
         // ouvre le popup de détail de ce diagnostic (pour qu'un warning

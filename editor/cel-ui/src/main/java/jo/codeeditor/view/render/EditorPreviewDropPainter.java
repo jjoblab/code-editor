@@ -31,6 +31,13 @@ import java.util.Calendar;
  * haut-gauche de la carte ; le hôte dessine en coordonnées LOCALES et
  * l'échelle s'applique à tout (le « fit » de l'aperçu suit).</p>
  *
+ * <p><b>Voile d'eau</b> (retour terrain B27) : quand la carte recouvre
+ * encore un popup après tous les niveaux d'esquive, le contrôleur la
+ * voile — le painter enveloppe losange + carte dans une couche alpha
+ * animée (saveLayerAlpha). La TIGE reste opaque : l'ancre œil↔goutte
+ * reste lisible quand l'eau devient translucide (le painter appelle
+ * aussi updateVeil une fois par frame — le seul passage garanti).</p>
+ *
  * <p>Peints dédiés (le pipeline partage textPaint — AGENT.md) ;
  * rectangles réutilisés, zéro allocation par frame en régime établi.</p>
  *
@@ -57,6 +64,8 @@ public class EditorPreviewDropPainter {
     /** Rectangles réutilisés (zéro allocation par frame). */
     private final RectF scratch = new RectF();
     private final RectF phoneScreen = new RectF();
+    /** Bornes de la couche de voile (marge pour l'ombre et le losange). */
+    private final RectF veilRect = new RectF();
 
     /** Heure affichée dans la barre d'état du mini-téléphone (cache minute). */
     private String statusTime = "";
@@ -71,17 +80,37 @@ public class EditorPreviewDropPainter {
         EditorPreviewDrop drop = view.preview.drop();
         EditorPreviewDropGeometry.Placement p = drop.placement();
         if (p == null) return;
+        // Voile d'eau : hystérésis mis à jour ici, une fois par frame —
+        // le painter est le seul passage garanti quand la carte est
+        // visible (le fondu B7 appelle ce peintre à chaque frame).
+        drop.updateVeil(p);
         EditorPreviewHost host = view.preview.getHost();
         float density = view.getResources().getDisplayMetrics().density;
         float cardW = EditorPreviewDrop.CARD_W_DP * density;
         float cardH = EditorPreviewDrop.CARD_H_DP * density;
 
-        // ── Tige de liaison (SOUS la carte) : de l'œil vers la goutte. ──
+        // ── Tige de liaison (SOUS la carte, HORS voile : l'ancre ─────
+        // reste opaque et lisible quand l'eau se voile) : de l'œil ──
+        // vers la goutte. ───────────────────────────────────────────
         if (p.stemVisible) {
             strokePaint.setStyle(Paint.Style.STROKE);
             strokePaint.setStrokeWidth(Math.max(1f, 1.5f * density));
             strokePaint.setColor(view.applyAlphaToColor(view.theme.keyword, 0.5f));
             canvas.drawLine(p.stemX0, p.stemY0, p.stemX1, p.stemY1, strokePaint);
+        }
+
+        // ── Voile d'eau : losange + carte sous une couche alpha ─────
+        // globale (la carte entière devient eau translucide — pas de ─
+        // voile partiel en bande, plus lisible et plus simple). ──────
+        float veil = drop.veilAlpha();
+        int veilSave = -1;
+        if (veil < 0.999f) {
+            float margin = 24f * density; // l'ombre et le losange débordent
+            float half = EditorPreviewDrop.DROP_HALF_DP * density * p.scale;
+            veilRect.set(p.cardLeft - half - margin, p.cardTop - margin,
+                    p.cardLeft + p.visualWidth() + margin,
+                    p.cardTop + p.visualHeight() + margin);
+            veilSave = canvas.saveLayerAlpha(veilRect, (int) (255f * veil));
         }
 
         // ── Échelle de compactage + translation vers la carte. ──────
@@ -138,6 +167,11 @@ public class EditorPreviewDropPainter {
         drawFooter(canvas, density, cardW, cardH, p.scale);
 
         canvas.restoreToCount(save);
+        // ── Fin du voile : la couche alpha retombe, la tige (hors ─────
+        // couche) n'a jamais été voilée. ─────────────────────────────
+        if (veilSave >= 0) {
+            canvas.restoreToCount(veilSave);
+        }
     }
 
     // ════════════════════════════════════════════════════════════════

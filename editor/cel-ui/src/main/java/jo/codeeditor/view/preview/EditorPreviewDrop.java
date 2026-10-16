@@ -5,8 +5,11 @@ import jo.codeeditor.view.EditorMetrics;
 
 import androidx.annotation.RestrictTo;
 
+import android.animation.ValueAnimator;
 import android.graphics.RectF;
+import android.view.animation.DecelerateInterpolator;
 
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -42,6 +45,15 @@ import java.util.List;
  * sont re-résolus à CHAQUE frame — la carte suit l'œil au scroll et
  * esquive le caret à la frappe, sans animation dédiée (seul le fondu
  * d'entrée/sortie du pipeline anime la carte).</p>
+ *
+ * <h3>Retour terrain B27 : cohabitation avec les popups de frappe</h3>
+ * <p>La carte esquive AUSSI les popups vivants (complétion, doc rapide) :
+ * la géométrie reçoit leurs rectangles comme obstacles (creux libre,
+ * placement latéral à droite sur grand écran, compactage). Quand rien
+ * ne tient (petit écran), la carte ne CACHE plus : elle se <b>voile
+ * d'eau</b> — transparence fluide animée (hystérésis à deux plateaux,
+ * jamais de vacillement pendant que la complétion filtre à chaque
+ * frappe), pilotée par le ratio de recouvrement du placement.</p>
  *
  * @author jjoblab
  */
@@ -105,6 +117,34 @@ public final class EditorPreviewDrop {
     /** Rects de hit réutilisés (aucune allocation par tap). */
     private final RectF hitCard = new RectF();
 
+    // ── Voile d'eau (retour terrain B27) ───────────────────────────
+
+    /** Alpha de la carte voilée — l'eau devient translucide. */
+    static final float VEILED_ALPHA = 0.25f;
+    /** Durée du voilage (ms). */
+    private static final long VEIL_IN_MS = 140L;
+    /** Durée du dévoilage (ms) — plus lente, plus calme. */
+    private static final long VEIL_OUT_MS = 180L;
+    /**
+     * Recouvrement d'un popup au-delà duquel la carte se voile
+     * (fraction de l'AIRE du popup couverte — au-delà de 10 %, cacher
+     * des rangées de complétion n'est plus acceptable).
+     */
+    static final float VEIL_ON_RATIO = 0.10f;
+    /**
+     * Recouvrement en dessous duquel elle se dévoile — la bande
+     * [OFF, ON] est la marge d'hystérésis : la complétion change de
+     * hauteur à chaque frappe, l'état ne doit PAS vaciller dedans.
+     */
+    static final float VEIL_OFF_RATIO = 0.04f;
+
+    /** Vrai quand la carte est voilée (cible d'alpha = voilé). */
+    private boolean veiled;
+    /** Alpha courant de la carte (1 opaque — animé vers/depuis {@link #VEILED_ALPHA}). */
+    private float veilAlpha = 1f;
+    /** Animateur du voile (null au repos). */
+    private ValueAnimator veilAnimator;
+
     EditorPreviewDrop(EditorView view, EditorPreviewController preview) {
         this.view = view;
         this.preview = preview;
@@ -138,13 +178,15 @@ public final class EditorPreviewDrop {
     }
 
     /** Referme la carte (l'état logique meurt — le fondu de sortie
-     *  photographie le reste). */
+     *  photographie le reste). Le voile se réinitialise : une
+     *  ré-ouverture repart opaque. */
     void close() {
         if (!open) return;
         this.open = false;
         this.anchorLine = -1;
         this.tabLabels = List.of();
         this.tabRects = new RectF[0];
+        resetVeil();
         view.invalidate();
     }
 
@@ -209,8 +251,9 @@ public final class EditorPreviewDrop {
 
     /**
      * Placement courant de la carte — recalculé à chaque appel depuis
-     * l'état vivant de la vue (ancre, caret, viewport, métriques).
-     * Retourne null si fermée ou sans session.
+     * l'état vivant de la vue (ancre, caret, viewport, métriques) et
+     * des obstacles vivants (popups de frappe). Retourne null si
+     * fermée ou sans session.
      */
     public EditorPreviewDropGeometry.Placement placement() {
         if (!open || view.session == null || view.session.getDocument() == null) {
@@ -240,8 +283,99 @@ public final class EditorPreviewDrop {
                 cardW, cardH,
                 eyeX, eyeY, EYE_RADIUS_DP * density,
                 guardTop, guardBot,
+                collectObstacles(),
                 edgePad, ANCHOR_DROP_OFFSET_DP * density,
                 MIN_SCALE, STEM_THRESHOLD_DP * density);
+    }
+
+    /**
+     * Rectangles écran des popups vivants que la carte doit esquiver
+     * (retour terrain B27 : la complétion sous la carte). Complétion +
+     * doc rapide — les seuls popups à bornes mesurables publiques ;
+     * l'aide de signature est une bannière passive sans métriques
+     * exposées (liste extensible, documentée dans USAGE). Tassé
+     * {@code [l, t, r, b]} × N, null si aucun.
+     */
+    private float[] collectObstacles() {
+        float[] out = new float[8];
+        int n = 0;
+        if (view.completion.visible && !view.completion.items.isEmpty()) {
+            float[] a = view.completionPopupAnchor();
+            if (a != null && a.length >= 4 && a[2] > 1f && a[3] > 1f) {
+                out[n++] = a[0];
+                out[n++] = a[1];
+                out[n++] = a[0] + a[2];
+                out[n++] = a[1] + a[3];
+            }
+        }
+        if (view.quickDocVisible) {
+            float[] mq = view.quickDocMetrics();
+            if (mq != null && mq.length >= 4 && mq[2] > 1f && mq[3] > 1f) {
+                out[n++] = mq[0];
+                out[n++] = mq[1];
+                out[n++] = mq[0] + mq[2];
+                out[n++] = mq[1] + mq[3];
+            }
+        }
+        return n == 0 ? null : Arrays.copyOf(out, n);
+    }
+
+    // ── Voile d'eau (retour terrain B27) ───────────────────────────
+
+    /** Vrai quand la carte est voilée (alpha cible bas). */
+    public boolean isVeiled() { return veiled; }
+
+    /** Alpha courant de la carte (1 opaque — le painter l'applique). */
+    public float veilAlpha() { return veilAlpha; }
+
+    /**
+     * Met à jour la cible du voile depuis le recouvrement restant du
+     * placement courant — appelé par le painter à chaque frame (le
+     * seul passage garanti quand la carte est dessinée). Hystérésis à
+     * deux plateaux : voile au-delà de {@link #VEIL_ON_RATIO}, dévoile
+     * en dessous de {@link #VEIL_OFF_RATIO}, STABLE entre les deux (la
+     * complétion filtre à chaque frappe, l'état ne doit pas trembler).
+     * Idempotent par frame : seul un CHANGEMENT de cible anime.
+     */
+    public void updateVeil(EditorPreviewDropGeometry.Placement p) {
+        if (p == null) return;
+        float ratio = p.overlapRatio;
+        if (!veiled && ratio >= VEIL_ON_RATIO) {
+            veiled = true;
+            animateVeil(VEILED_ALPHA, VEIL_IN_MS);
+        } else if (veiled && ratio <= VEIL_OFF_RATIO) {
+            veiled = false;
+            animateVeil(1f, VEIL_OUT_MS);
+        }
+    }
+
+    /** Anime l'alpha du voile vers la cible (ValueAnimator + invalidation
+     *  par frame — même patron que les fondus de popups B7). */
+    private void animateVeil(float target, long durationMs) {
+        if (veilAnimator != null) {
+            veilAnimator.cancel();
+            veilAnimator = null;
+        }
+        ValueAnimator a = ValueAnimator.ofFloat(veilAlpha, target);
+        a.setDuration(durationMs);
+        a.setInterpolator(new DecelerateInterpolator());
+        a.addUpdateListener(anim -> {
+            veilAlpha = (Float) anim.getAnimatedValue();
+            view.postInvalidateOnAnimation();
+        });
+        veilAnimator = a;
+        a.start();
+        view.postInvalidateOnAnimation();
+    }
+
+    /** Réinitialise le voile (fermeture/ré-ouverture : opaque, aucun animateur). */
+    private void resetVeil() {
+        if (veilAnimator != null) {
+            veilAnimator.cancel();
+            veilAnimator = null;
+        }
+        veiled = false;
+        veilAlpha = 1f;
     }
 
     /**

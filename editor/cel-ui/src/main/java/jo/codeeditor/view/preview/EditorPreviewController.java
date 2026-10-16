@@ -529,8 +529,13 @@ public class EditorPreviewController {
      *  après une édition. */
     public void scheduleContentUpdate() {
         if (view.previewMode != EditorView.PreviewMode.NONE && previewHost != null) {
-            view.getHandler().removeCallbacks(previewUpdateTask);
-            view.getHandler().postDelayed(previewUpdateTask, 200);
+            // Vue non rattachée (harnais sans fenêtre, ou course
+            // détachement→purge : getHandler() meurt AVANT le close de
+            // la carte) : rien à programmer, la purge s'en charge.
+            android.os.Handler h = view.getHandler();
+            if (h == null) return;
+            h.removeCallbacks(previewUpdateTask);
+            h.postDelayed(previewUpdateTask, 200);
         }
     }
 
