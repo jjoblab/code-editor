@@ -412,7 +412,37 @@ bascule dans le menu « ⋯ » (section « MORE » du menu contextuel unifié) ;
 `icon` (B16) est l'icône vectorielle de la rangée de débordement — sans
 elle, la rangée retombe sur l'ampoule générique ; un tap exécute
 `perform` puis referme la pill ; `enabled` à `false` estompe l'item et
-rejette le tap.
+rejette le tap. Depuis B25, la largeur du menu « ⋯ » suit son contenu
+(bornée 168–320 dp) : un débordement d'actions courtes n'occupe plus
+tout l'écran.
+
+## Sélecteur de couleur (B26)
+
+Les codes couleur hexadécimaux reçoivent une pastille inline (fond teinté
++ bordure dans la couleur même) ; un tap AU CŒUR d'un code (`#RGB`,
+`#RRGGBB`, `#AARRGGBB`) ouvre une carte de verre ancrée : champ
+saturation/valeur, bande de teinte et palette de teintes courantes. Le
+pick remplace le code tapé en conservant son format d'origine (3, 6 ou 8
+chiffres) et son alpha d'origine — la mutation passe par le pipeline
+unique, donc annulable d'un undo.
+
+```java
+// Activer/désactiver (défaut : actif).
+editorView.setColorPickerEnabled(false); // le tap replace le caret
+
+// Les pastilles inline ont leur propre bascule (défaut : actives).
+editorView.setColorSwatchesEnabled(true);
+
+// Fermeture programmatique (sans rien appliquer).
+editorView.dismissColorPicker();
+```
+
+Contrat : press = saut immédiat dans le champ/la bande, drag = mise à
+jour vivante de l'aperçu, release = application ; un tap sur une teinte
+de la palette s'applique directement ; un tap hors carte, une édition ou
+la perte de focus referment sans rien appliquer ; les bords ±1 caractère
+du code restent des placements de caret (comme le popup ancré de
+diagnostic).
 
 ## Coloration par grammaires — module optionnel `:cel-textmate` (ADR-002)
 

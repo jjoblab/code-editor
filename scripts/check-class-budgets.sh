@@ -67,7 +67,7 @@ budget() {
 # et 178 champs. (Étape 4 FoldViewState : constat vide — l'état de pli
 # était déjà intégralement déménagé vers cel-core/FoldRegions et
 # l'EditorFoldIndex lors des lots B14 : rien à extraire.)
-# Écart au ratchet : plafonds CHAMPS (170→190) et MÉTHODES PUBLIQUES
+# Écart au ratchet : plafond CHAMPS (170→190) et MÉTHODES PUBLIQUES
 # (255→280) d'EditorView relevés par décision explicite du propriétaire
 # (2026-10, session J3 — « Go pour J3, tu peux aussi augmenter le
 # plafond et champ pour EditorView si nécessaire ») : I2 exige un
@@ -75,7 +75,16 @@ budget() {
 # marge conservée pour J4 (T2 actions socle) ; les 4100 lignes restent
 # le plafond de décomposition — le relèvement ne dispense PAS de
 # décomposer via les collaborateurs existants.
-budget editor/cel-ui/src/main/java/jo/codeeditor/view/EditorView.java 3786 178 280
+# Écart au ratchet : plafond LIGNES relevé 3786 → 3850 (B26, retour
+# terrain « sélecteur de couleur au tap ») : l'état du popup vit sur la
+# vue (même convention que squigglePopup*/navMenu*/quickDoc — champs
+# @RestrictTo lus par EditorColorPickerPopup/le painter/l'input),
+# +2 relais d'API publique (setColorPickerEnabled/dismiss) et les
+# fermetures onTextChanged/perte de focus ; la LOGIQUE est hors vue
+# (popup, anchors, painter dédiés). Marge 12 lignes, style maison ;
+# champs 176/178 et méthodes 276/280 inchangés — le relèvement ne
+# dispense pas de la décomposition du plan 01.
+budget editor/cel-ui/src/main/java/jo/codeeditor/view/EditorView.java 3850 178 280
 budget editor/cel-core/src/main/java/jo/codeeditor/session/EditorSession.java 1600 15 100
 
 # ── Règle de paquet (plan 03, §5) : le client LSP ne référence jamais
