@@ -7,9 +7,28 @@
     <string name="drawer_header_subtitle">29 langages · 10 grammaires TextMate · 5 modules</string>
     <string name="drawer_settings">Réglages</string>
     <string name="drawer_about">À propos</string>
+    <string name="drawer_title">Fichiers</string>
+    <string name="drawer_filter_hint">Filtrer les langages…</string>
+    <string name="drawer_filter_clear">Effacer le filtre</string>
+    <string name="drawer_no_result">Aucun langage ne correspond à « %1$s »</string>
+    <string name="drawer_row_open">%1$s — fichier ouvert, toucher pour le sélectionner</string>
+    <string name="drawer_row_closed">Ouvrir %1$s</string>
+    <string name="drawer_badge_textmate">Grammaire TextMate embarquée</string>
+    <string name="drawer_badge_lsp">Moteur LSP disponible</string>
 
     <!-- Menu de l'atelier -->
     <string name="menu_find">Rechercher dans le fichier</string>
+    <string name="menu_undo">Annuler</string>
+    <string name="menu_redo">Rétablir</string>
+    <string name="menu_replace">Rechercher et remplacer…</string>
+    <string name="menu_goto">Aller à la ligne…</string>
+    <string name="menu_zoom">Taille de police</string>
+    <string name="zoom_in">Agrandir (A+)</string>
+    <string name="zoom_out">Réduire (A−)</string>
+    <string name="zoom_reset">Réinitialiser (100 %)</string>
+    <string name="menu_read_only">Lecture seule</string>
+    <string name="menu_share">Partager le fichier</string>
+    <string name="menu_stats">Statistiques du document</string>
     <string name="menu_reset">Réinitialiser l\u2019échantillon</string>
     <string name="menu_about">À propos</string>
     <string name="menu_settings">Réglages</string>
@@ -26,6 +45,8 @@
     <string name="status_engine_connecting">● LSP (connexion…)</string>
     <string name="status_engine_lsp">● Moteur LSP</string>
     <string name="status_textmate">TextMate</string>
+    <string name="status_encoding">UTF-8</string>
+    <string name="status_readonly">Lecture seule</string>
 
     <!-- Panneaux outils -->
     <string name="panel_diagnostics">Diagnostics</string>
@@ -138,6 +159,34 @@
     <!-- Grammaires TextMate -->
     <string name="grammars_html_css">Grammaires html + css actives — les blocs &lt;style&gt; sont colorés par la grammaire CSS incluse</string>
     <string name="grammars_none">Aucune grammaire embarquée pour %1$s — coloration intégrée conservée</string>
+
+    <!-- Dialogues outils (remplacer, aller à, statistiques) -->
+    <string name="replace_title">Rechercher et remplacer</string>
+    <string name="replace_find_hint">Rechercher</string>
+    <string name="replace_with_hint">Remplacer par</string>
+    <string name="replace_next">Suivant</string>
+    <string name="replace_all">Tout remplacer</string>
+    <string name="replace_none_found">Aucune occurrence de « %1$s »</string>
+    <string name="replace_all_done">Remplacements : %1$d</string>
+    <string name="replace_next_done">Remplacé — restantes : %1$d</string>
+    <string name="goto_title">Aller à la ligne (1–%1$d)</string>
+    <string name="goto_hint">Numéro de ligne</string>
+    <string name="goto_ok">Aller</string>
+    <string name="goto_invalid">Numéro invalide</string>
+    <string name="stats_title">Statistiques du document</string>
+    <string name="stats_lines">Lignes : %1$d</string>
+    <string name="stats_non_empty">Lignes non vides : %1$d</string>
+    <string name="stats_words">Mots : %1$d</string>
+    <string name="stats_chars">Caractères : %1$d</string>
+    <string name="stats_selection">Sélection (caractères) : %1$d</string>
+
+    <!-- Divers (annuler/rétablir, lecture seule, partage, zoom) -->
+    <string name="undo_empty">Rien à annuler</string>
+    <string name="redo_empty">Rien à rétablir</string>
+    <string name="readonly_on">Lecture seule activée — la frappe est bloquée</string>
+    <string name="readonly_off">Édition réactivée</string>
+    <string name="share_via">Partager le code avec…</string>
+    <string name="zoom_scale">Police : %1$d %%</string>
 
     <!-- À propos -->
     <string name="about_title">À propos de la démo</string>

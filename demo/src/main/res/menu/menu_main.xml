@@ -10,6 +10,56 @@
         app:showAsAction="always" />
 
     <item
+        android:id="@+id/action_undo"
+        android:icon="@drawable/ic_undo"
+        android:title="@string/menu_undo"
+        app:showAsAction="always" />
+
+    <item
+        android:id="@+id/action_redo"
+        android:icon="@drawable/ic_redo"
+        android:title="@string/menu_redo"
+        app:showAsAction="always" />
+
+    <!-- Outils du fichier courant -->
+    <item
+        android:id="@+id/action_replace"
+        android:title="@string/menu_replace"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_goto"
+        android:title="@string/menu_goto"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_zoom"
+        android:title="@string/menu_zoom"
+        app:showAsAction="never">
+        <menu>
+            <item android:id="@+id/zoom_in" android:title="@string/zoom_in" />
+            <item android:id="@+id/zoom_out" android:title="@string/zoom_out" />
+            <item android:id="@+id/zoom_reset" android:title="@string/zoom_reset" />
+        </menu>
+    </item>
+
+    <item
+        android:id="@+id/action_read_only"
+        android:title="@string/menu_read_only"
+        android:checkable="true"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_share"
+        android:title="@string/menu_share"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_stats"
+        android:title="@string/menu_stats"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/action_lsp"
         android:title="@string/menu_lsp"
         android:checkable="true"

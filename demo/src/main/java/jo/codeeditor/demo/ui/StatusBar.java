@@ -32,6 +32,7 @@ public final class StatusBar {
     private final TextView grammars;
     private final TextView encoding;
     private final LinearLayout root;
+    private boolean readOnly;
 
     public StatusBar(Context context) {
         root = new LinearLayout(context);
@@ -47,6 +48,7 @@ public final class StatusBar {
         grammars = cell(context, 12f, ZINC_400, 0f);
         encoding = cell(context, 12f, ZINC_400, 0f);
         encoding.setGravity(Gravity.END);
+        refreshEncoding();
 
         root.addView(position, new LinearLayout.LayoutParams(0,
                 ViewGroup.LayoutParams.WRAP_CONTENT, 0.9f));
@@ -113,6 +115,25 @@ public final class StatusBar {
         grammars.setText(root.getResources()
                 .getString(R.string.status_textmate));
         grammars.setTextColor(active ? SKY_400 : ZINC_400);
+    }
+
+    /**
+     * Marque la session en lecture seule (pastille « Lecture seule »
+     * ambre) ou rétablit l'indicateur d'encodage.
+     */
+    public void setReadOnly(boolean value) {
+        readOnly = value;
+        refreshEncoding();
+    }
+
+    private void refreshEncoding() {
+        if (readOnly) {
+            encoding.setText(R.string.status_readonly);
+            encoding.setTextColor(AMBER_400);
+        } else {
+            encoding.setText(R.string.status_encoding);
+            encoding.setTextColor(ZINC_400);
+        }
     }
 
     private static TextView cell(Context context, float sizeSp, int color, float weightUnused) {

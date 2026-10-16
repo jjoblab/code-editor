@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Retour de l'accueil (Éditeur → Home) : remontée depuis -2% + fondu
+     entrant — miroir de home_exit. -->
+<set xmlns:android="http://schemas.android.com/apk/res/android"
+    android:interpolator="@android:interpolator/decelerate_quint">
+    <translate
+        android:fromYDelta="-2%"
+        android:toYDelta="0%"
+        android:duration="280" />
+    <alpha
+        android:fromAlpha="0.0"
+        android:toAlpha="1.0"
+        android:duration="280" />
+</set>

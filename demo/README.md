@@ -1,6 +1,6 @@
 # demo — atelier de la bibliothèque
 
-> 51 tests · Robolectric (fumée : lancement réel des activités,
+> 60 tests · Robolectric (fumée : lancement réel des activités,
 > chaîne LSP complète) + JUnit pur (parseur, serveur) · application
 > `com.android.application`, **non publiée sur Maven** — c'est une
 > vitrine et un banc d'essai, pas un artefact.
@@ -47,9 +47,12 @@ Stress bundle minifié, Cascade de thèmes. Les chiffres de tête
 
 ### Coquille IDE (`EditorActivity`)
 
-- **Tiroir** des 30 sélecteurs de langage, groupés par familles
-  (JVM, Web, Scripts, Systèmes, Données) + Réglages/À propos —
-  la même liste d'échantillons que l'ancienne démo :
+- **Tiroir « Fichiers »** (`SampleDrawer`) : champ de **filtrage
+  instantané** insensible à la casse et aux accents, sections par
+  familles colorées (JVM, Web, Scripts, Systèmes, Données + filet
+  « Autres »), badges par échantillon (**TM** = grammaire TextMate
+  embarquée, **LSP** = mini serveur), point cyan sur les fichiers
+  déjà ouverts — la même liste d'échantillons que l'ancienne démo :
   Java, Kotlin, **C#** (langage « grammaire-only »), Scala, Groovy,
   Python, JavaScript, **Minifié (JS)** (bundle de ~14 Ko sur une
   ligne), TypeScript, PHP, Ruby, Lua, Shell, C, C++, Go, Rust, Swift,
@@ -58,16 +61,27 @@ Stress bundle minifié, Cascade de thèmes. Les chiffres de tête
   stress**.
 - **Onglets multi-fichiers** (jusqu'à 10) : session + analyseur par
   fichier, fermeture par « × », réutilisation à la réouverture.
-- **Panneaux outils** repliables : Diagnostics (moteur actif —
-  maison ou LSP, clic = saut à la ligne), Symboles (outline du
-  document), **Journal LSP** (activité JSON-RPC horodatée).
+- **Panneaux outils en bottom sheet Material** : la feuille s'ancre
+  au-dessus de l'éditeur (poignée de glissement, en-tête cliquable,
+  replié = en-tête seul, jamais masquable) — **Diagnostics** (moteur
+  actif — maison ou LSP, clic = saut à la ligne), **Symboles** (outline
+  du document), **Journal LSP** (activité JSON-RPC horodatée).
+- **Outils IDE au menu** : annuler/rétablir (grisés selon les piles),
+  rechercher et remplacer (tout / occurrence suivante), aller à la
+  ligne, taille de police (A+ / A− / 100 %), lecture seule (verrou de
+  frappe, pastille dans la barre d'état), partage du fichier,
+  statistiques du document.
 - **Barre d'état** : Ln/Col du caret, langage, moteur de langage
-  (● maison / ● LSP cyan), voie de coloration TextMate, UTF-8.
-- Barre de fil d'Ariane (annuler/rétablir/aperçu) et
-  recherche/remplacement intégrées, bascules **Moteur LSP** et
-  **Grammaires TextMate** au menu, options de vue (numéros, plis,
-  guides, collantes, loupe, swatches, couleurs de variables, point
-  d'arrêt) au sous-menu.
+  (● maison / ● LSP cyan), voie de coloration TextMate, UTF-8 /
+  lecture seule.
+- Barre de fil d'Ariane et recherche/remplacement intégrées, bascules
+  **Moteur LSP** et **Grammaires TextMate** au menu (visible dès le
+  premier lancement sur les 10 langages à grammaire — sonde
+  `hasEmbeddedGrammar`), options de vue (numéros, plis, guides,
+  collantes, loupe, swatches, couleurs de variables, point d'arrêt)
+  au sous-menu.
+- **Transition accueil → atelier** en « fade through » Material,
+  miroir exact au retour.
 
 ### Écran Réglages (`SettingsActivity`)
 
@@ -114,7 +128,7 @@ Le mini serveur LSP est **embarqué et in-process** : la démo reste
 ## Tests
 
 ```bash
-./gradlew :demo:testDebugUnitTest     # 51 tests
+./gradlew :demo:testDebugUnitTest     # 60 tests
 ```
 
 - `MiniJavaParserTest` (20) — chaque règle, ses déclencheurs ET ses
@@ -129,6 +143,11 @@ Le mini serveur LSP est **embarqué et in-process** : la démo reste
   multi-fichiers (ouvrir/sélectionner/fermer), extra LSP de la carte
   d'accueil.
 - `HomeActivitySmokeTest` (1) — lancement réel, cartes rendues.
+- `AtelierToolsTest` (6) — bascule TextMate visible dans les DEUX
+  sens, bottom sheet repliable, annuler/rétablir, remplacer tout /
+  occurrence suivante, lecture seule bloque la frappe.
+- `SampleDrawerTest` (3) — filtre sans casse ni accents, familles +
+  échantillons filtrés en direct, remontée des sélections.
 - `DemoPreviewHostTest` (20) — inchangé : comportement de l'hôte
   d'aperçu.
 

@@ -12,6 +12,7 @@ import android.widget.ListView;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
+import com.google.android.material.bottomsheet.BottomSheetBehavior;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.button.MaterialButtonToggleGroup;
 
@@ -21,10 +22,17 @@ import java.util.List;
 import jo.codeeditor.demo.R;
 
 /**
- * Panneaux outils du bas de l'atelier : <b>Diagnostics</b> (moteur
- * maison OU LSP selon la bascule), <b>Symboles</b> (outline du document
- * courant) et <b>Journal LSP</b> (activité JSON-RPC horodatée). Une
- * rangée de sélecteurs, un contenu, un bouton replier.
+ * Panneaux outils de l\u2019atelier en <b>bottom sheet</b> Material :
+ * <b>Diagnostics</b> (moteur maison OU LSP selon la bascule),
+ * <b>Symboles</b> (outline du document courant) et <b>Journal LSP</b>
+ * (activité JSON-RPC horodatée).
+ *
+ * <p>La feuille vit ancrée en bas de la zone d\u2019édition — poignée de
+ * glissement, en-tête cliquable (sélecteurs + badges de comptage),
+ * contenu repliable : l\u2019état vit dans un {@link BottomSheetBehavior}
+ * standard (COLLAPSED = en-tête seul, EXPANDED = contenu visible),
+ * traînable à la main, jamais masquable — un panneau d\u2019IDE ne
+ * disparaît pas par accident.</p>
  *
  * <p>Les lignes de diagnostics et de symboles partagent le même modèle
  * {@link Row} : position cible (ligne 0-based), libellé principal,
@@ -68,9 +76,10 @@ public final class ToolPanels {
     public static final int PANEL_LOG = 2;
 
     private static final int MAX_LOG_LINES = 250;
-    private static final int PANEL_HEIGHT_DP = 168;
+    private static final int PANEL_HEIGHT_DP = 190;
 
     private final LinearLayout root;
+    private final LinearLayout peekBlock;
     private final MaterialButton diagnosticsButton;
     private final MaterialButton symbolsButton;
     private final MaterialButton logButton;
@@ -84,6 +93,7 @@ public final class ToolPanels {
     private final RowAdapter symbolsAdapter;
     private final Listener listener;
 
+    private BottomSheetBehavior<LinearLayout> behavior;
     private int diagnosticsCount;
     private int symbolsCount;
     private boolean expanded = true;
@@ -92,14 +102,27 @@ public final class ToolPanels {
         this.listener = listener;
         root = new LinearLayout(context);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(ZINC_900);
+        root.setBackground(roundedTop(context));
+        root.setElevation(dp(context, 10));
 
-        // ── Rangée de sélecteurs ──────────────────────────────────
+        // ── Bloc « peek » : poignée + en-tête ─────────────────────
+        peekBlock = new LinearLayout(context);
+        peekBlock.setOrientation(LinearLayout.VERTICAL);
+
+        View handle = new View(context);
+        handle.setBackground(handlePill(context));
+        LinearLayout.LayoutParams handleParams = new LinearLayout.LayoutParams(
+                dp(context, 34), dp(context, 4));
+        handleParams.gravity = Gravity.CENTER_HORIZONTAL;
+        handleParams.topMargin = dp(context, 7);
+        handleParams.bottomMargin = dp(context, 5);
+        peekBlock.addView(handle, handleParams);
+
         LinearLayout header = new LinearLayout(context);
         header.setOrientation(LinearLayout.HORIZONTAL);
         header.setGravity(Gravity.CENTER_VERTICAL);
-        header.setBackgroundColor(ZINC_950);
-        header.setPadding(dp(context, 8), dp(context, 4), dp(context, 8), 0);
+        header.setPadding(dp(context, 8), 0, dp(context, 8), dp(context, 2));
+        header.setOnClickListener(v -> setExpanded(!isExpanded()));
 
         MaterialButtonToggleGroup selector = new MaterialButtonToggleGroup(context);
         selector.setSingleSelection(true);
@@ -116,22 +139,26 @@ public final class ToolPanels {
             if (id == diagnosticsButton.getId()) show(PANEL_DIAGNOSTICS);
             else if (id == symbolsButton.getId()) show(PANEL_SYMBOLS);
             else show(PANEL_LOG);
+            // Changer de panneau déplie la feuille : voir le contenu
+            // demandé est la moitié du geste.
+            setExpanded(true);
         });
 
         collapse = new TextView(context);
         collapse.setText("▾");
         collapse.setTextSize(16f);
         collapse.setTextColor(ZINC_400);
-        collapse.setPadding(dp(context, 10), dp(context, 10), dp(context, 6), dp(context, 10));
+        collapse.setPadding(dp(context, 10), dp(context, 8), dp(context, 6), dp(context, 8));
         collapse.setContentDescription(context.getString(R.string.panel_collapse));
-        collapse.setOnClickListener(v -> setExpanded(!expanded));
+        collapse.setOnClickListener(v -> setExpanded(!isExpanded()));
 
         header.addView(selector, new LinearLayout.LayoutParams(0,
                 ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
         header.addView(collapse);
-        root.addView(header, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT));
+        peekBlock.addView(header, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        root.addView(peekBlock, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         // ── Contenu ───────────────────────────────────────────────
         content = new FrameLayout(context);
@@ -174,9 +201,41 @@ public final class ToolPanels {
         refreshBadges();
     }
 
-    /** La vue racine à attacher au conteneur parent. */
+    /** La vue racine — à attacher DIRECTEMENT à un CoordinatorLayout. */
     public LinearLayout view() {
         return root;
+    }
+
+    /**
+     * Récupère et configure le {@link BottomSheetBehavior} — à appeler
+     * APRÈS l\u2019ajout de {@link #view()} au CoordinatorLayout hôte
+     * (avec un comportement posé dans ses LayoutParams).
+     */
+    public void bindBehavior() {
+        behavior = BottomSheetBehavior.from(root);
+        behavior.setHideable(false);
+        behavior.setFitToContents(true);
+        behavior.setSkipCollapsed(false);
+        behavior.setPeekHeight(dp(root.getContext(), 62), false);
+        behavior.setState(BottomSheetBehavior.STATE_EXPANDED);
+        behavior.addBottomSheetCallback(new BottomSheetBehavior.BottomSheetCallback() {
+            @Override
+            public void onStateChanged(View sheet, int newState) {
+                expanded = newState == BottomSheetBehavior.STATE_EXPANDED;
+                collapse.setText(expanded ? "▾" : "▴");
+            }
+
+            @Override
+            public void onSlide(View sheet, float slideOffset) { }
+        });
+        // Correction du peek sur la hauteur RÉELLE de l'en-tête une fois
+        // mesuré (la valeur dp ci-dessus n'est qu'une bonne approximation
+        // initiale).
+        peekBlock.post(() -> {
+            if (behavior != null && peekBlock.getHeight() > 0) {
+                behavior.setPeekHeight(peekBlock.getHeight(), false);
+            }
+        });
     }
 
     /** Remplace le contenu du panneau Diagnostics. */
@@ -209,16 +268,25 @@ public final class ToolPanels {
         logScroll.post(() -> logScroll.fullScroll(View.FOCUS_DOWN));
     }
 
-    /** Le panneau est-il déplié ? */
+    /**
+     * Le panneau est-il déplié ? La vérité opérationnelle est l'état du
+     * behavior (le champ est la copie immédiate, resynchronisée par le
+     * callback aux changements d'état — y compris les glissements de
+     * l'utilisateur).
+     */
     public boolean isExpanded() {
         return expanded;
     }
 
-    /** Déplie/replie la zone de contenu. */
+    /** Déplie/replie la feuille (état du BottomSheetBehavior). */
     public void setExpanded(boolean value) {
+        if (behavior != null) {
+            behavior.setState(value
+                    ? BottomSheetBehavior.STATE_EXPANDED
+                    : BottomSheetBehavior.STATE_COLLAPSED);
+        }
         expanded = value;
-        content.setVisibility(expanded ? View.VISIBLE : View.GONE);
-        collapse.setText(expanded ? "▾" : "▴");
+        collapse.setText(value ? "▾" : "▴");
     }
 
     private void show(int panel) {
@@ -319,6 +387,25 @@ public final class ToolPanels {
                     ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
             return row;
         }
+    }
+
+    // ── Dessins d'arrière-plan ──────────────────────────────────────
+
+    private static android.graphics.drawable.GradientDrawable roundedTop(Context context) {
+        android.graphics.drawable.GradientDrawable bg =
+                new android.graphics.drawable.GradientDrawable();
+        bg.setColor(ZINC_900);
+        int r = dp(context, 16);
+        bg.setCornerRadii(new float[]{r, r, 0, 0, 0, 0, r, r});
+        return bg;
+    }
+
+    private static android.graphics.drawable.GradientDrawable handlePill(Context context) {
+        android.graphics.drawable.GradientDrawable bg =
+                new android.graphics.drawable.GradientDrawable();
+        bg.setCornerRadius(dp(context, 2));
+        bg.setColor(ZINC_600);
+        return bg;
     }
 
     private static int dp(Context context, int value) {

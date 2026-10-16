@@ -11,10 +11,10 @@ import java.util.Map;
  * au moins un marqueur {@code TODO}/{@code FIXME} pour alimenter les
  * diagnostics synthétiques de l'analyseur factice.</p>
  */
-final class DemoSamples {
+public final class DemoSamples {
 
     /** Libellé affiché → identifiant de langage (l'ordre d'insertion est celui du sélecteur). */
-    static final Map<String, String> LANGUAGES = new LinkedHashMap<>();
+    public static final Map<String, String> LANGUAGES = new LinkedHashMap<>();
 
     static {
         LANGUAGES.put("Java", "java");
@@ -991,7 +991,7 @@ final class DemoSamples {
     }
 
     /** Retourne l'échantillon du langage donné (ou le contenu Java par défaut). */
-    static String sampleFor(String language) {
+    public static String sampleFor(String language) {
         switch (language == null ? "" : language) {
             case "kotlin": return KOTLIN;
             case "csharp": return CSHARP;

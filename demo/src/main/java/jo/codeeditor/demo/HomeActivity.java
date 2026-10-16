@@ -76,8 +76,10 @@ public class HomeActivity extends AppCompatActivity {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         settingsParams.topMargin = dp(16);
         root.addView(settings, settingsParams);
-        settings.setOnClickListener(v ->
-                startActivity(new Intent(this, SettingsActivity.class)));
+        settings.setOnClickListener(v -> {
+            startActivity(new Intent(this, SettingsActivity.class));
+            overridePendingTransition(R.anim.screen_fade_in, R.anim.screen_fade_out);
+        });
 
         setContentView(scroll);
     }
@@ -216,7 +218,12 @@ public class HomeActivity extends AppCompatActivity {
             intent.putExtra(EditorActivity.EXTRA_SAMPLE_LABEL, card.sampleLabel);
             intent.putExtra(EditorActivity.EXTRA_LSP, card.lsp);
             intent.putExtra(EditorActivity.EXTRA_SCHEME, card.scheme);
-            startActivity(intent);
+            // Transition « fade through » : l'accueil s'efface en
+            // reculant, l'atelier monte doucement — le miroir exact
+            // est rejoué au retour (finish() surchargé de l'atelier).
+            startActivity(intent, androidx.core.app.ActivityOptionsCompat
+                    .makeCustomAnimation(this, R.anim.atelier_enter, R.anim.home_exit)
+                    .toBundle());
         });
 
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(

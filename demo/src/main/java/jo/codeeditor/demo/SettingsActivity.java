@@ -18,6 +18,16 @@ import com.google.android.material.materialswitch.MaterialSwitch;
  */
 public class SettingsActivity extends AppCompatActivity {
 
+    /**
+     * Retour : fondu croisé inverse — Settings est un voile posé sur
+     * son appelant, il s'efface aussi discrètement qu'il est apparu.
+     */
+    @Override
+    public void finish() {
+        super.finish();
+        overridePendingTransition(R.anim.screen_fade_in, R.anim.screen_fade_out);
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
