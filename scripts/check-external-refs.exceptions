@@ -27,3 +27,9 @@
 # en-tête « information_for_contributors » d'origine — l'URL du dépôt amont
 # fait partie du fichier original (attribution upstream, TextMate/VS Code).
 ^editor/cel-textmate/src/main/resources/textmate/[a-z]+\.tmLanguage\.json:URL github\.com/(textmate|atom|microsoft|MagicStack)$
+
+# Les commentaires internes des grammaires tierces (champ « comment » des
+# fichiers originaux VS Code/TextMate) peuvent employer des formulations
+# anglaises (« same as … ») : texte verbatim des fichiers originaux, pas
+# des usages de comparaison de CE projet.
+^editor/cel-textmate/src/main/resources/textmate/[a-z]+\.tmLanguage\.json:[0-9]+:
