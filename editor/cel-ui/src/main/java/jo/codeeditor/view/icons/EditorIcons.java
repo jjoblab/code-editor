@@ -137,7 +137,94 @@ public final class EditorIcons {
          */
         BREAKPOINT(true,
                 "M12 4 C16.42 4 20 7.58 20 12 C20 16.42 16.42 20 12 20 "
-                + "C7.58 20 4 16.42 4 12 C4 7.58 7.58 4 12 4 Z");
+                + "C7.58 20 4 16.42 4 12 C4 7.58 7.58 4 12 4 Z"),
+
+        /**
+         * Dupliquer — deux rectangles superposés (feuille + copie,
+         * parité Material « content_copy »). Famille STROKE. B16 :
+         * icône de l'action intégrée « Duplicate » dans le
+         * débordement de la pill de sélection.
+         */
+        DUPLICATE(false,
+                "M4.5 3.5h11v13h-11z",
+                "M8.5 7.5h11v13h-11z"),
+
+        /**
+         * Commenter — double barre oblique (commentaire de ligne
+         * « // », indépendant du langage). Famille STROKE. B16 :
+         * icône de l'action intégrée « Comment » dans le
+         * débordement de la pill de sélection.
+         */
+        COMMENT(false,
+                "M9.5 5L6.5 19",
+                "M15.5 5L12.5 19"),
+
+        /**
+         * Casse — grand A + petit a (bascule de casse, parité
+         * « Toggle Case » des IDE de bureau ; le a est approché par
+         * un bol en quatre cubiques + tige). Famille STROKE. B16 :
+         * icône de l'action intégrée « Convert case » dans le
+         * débordement de la pill de sélection.
+         */
+        CASE(false,
+                "M3.5 19.5L8 5L12.5 19.5",
+                "M5.2 14.5H10.8",
+                "M13.7 16.2C13.7 14.37 15.17 12.9 17 12.9"
+                + "C18.83 12.9 20.3 14.37 20.3 16.2"
+                + "C20.3 18.03 18.83 19.5 17 19.5"
+                + "C15.17 19.5 13.7 18.03 13.7 16.2Z",
+                "M20.3 12.2V19.5"),
+
+        /**
+         * Partager — trois nœuds reliés (le classique « share »,
+         * chaque nœud approché par quatre cubiques, parité
+         * SEARCH/BREAKPOINT sur les arcs). Famille STROKE. B16 :
+         * icône de l'action intégrée « Share » dans le débordement
+         * de la pill de sélection.
+         */
+        SHARE(false,
+                "M3.9 12C3.9 10.73 4.93 9.7 6.2 9.7C7.47 9.7 8.5 10.73 8.5 12"
+                + "C8.5 13.27 7.47 14.3 6.2 14.3C4.93 14.3 3.9 13.27 3.9 12Z",
+                "M15.5 6.2C15.5 4.93 16.53 3.9 17.8 3.9C19.07 3.9 20.1 4.93 20.1 6.2"
+                + "C20.1 7.47 19.07 8.5 17.8 8.5C16.53 8.5 15.5 7.47 15.5 6.2Z",
+                "M15.5 17.8C15.5 16.53 16.53 15.5 17.8 15.5C19.07 15.5 20.1 16.53 20.1 17.8"
+                + "C20.1 19.07 19.07 20.1 17.8 20.1C16.53 20.1 15.5 19.07 15.5 17.8Z",
+                "M8.5 10.6L15.5 7.6",
+                "M8.5 13.4L15.5 16.4"),
+
+        /**
+         * Déplacer le bloc vers le haut — flèche montante + barre de
+         * destination au-dessus (parité « Move Line Up » IntelliJ).
+         * Famille STROKE. B16 : icône de l'action intégrée
+         * « Move up » dans le débordement de la pill.
+         */
+        MOVE_UP(false,
+                "M5 20.5H19",
+                "M12 16V5",
+                "M8 9L12 5L16 9"),
+
+        /**
+         * Déplacer le bloc vers le bas — miroir de {@link #MOVE_UP}.
+         * Famille STROKE. B16 : icône de l'action intégrée
+         * « Move down » dans le débordement de la pill.
+         */
+        MOVE_DOWN(false,
+                "M5 3.5H19",
+                "M12 8V19",
+                "M8 15L12 19L16 15"),
+
+        /**
+         * Déplacer par glisser-déposer — quatre chevrons divergents
+         * (parité Material « open_with » : le bloc peut partir dans
+         * les quatre directions). Famille STROKE. B16 : icône de
+         * l'action intégrée « Move » (drag de bloc) dans le
+         * débordement de la pill.
+         */
+        MOVE_BLOCK(false,
+                "M8.5 7L12 3.5L15.5 7",
+                "M8.5 17L12 20.5L15.5 17",
+                "M7 8.5L3.5 12L7 15.5",
+                "M17 8.5L20.5 12L17 15.5");
 
         /** true = famille FILL (formes pleines), false = STROKE (traits). */
         final boolean fill;

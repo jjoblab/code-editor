@@ -402,7 +402,7 @@ public class EditorActivity extends AppCompatActivity {
     private void rebindSelectionActions() {
         for (String builtinId : new String[]{"builtin.duplicate", "builtin.comment",
                 "builtin.case.toggle", "builtin.share", "builtin.move.up",
-                "builtin.move.down", "builtin.blockdrag"}) {
+                "builtin.move.down", "builtin.blockdrag", "demo.breakpoint"}) {
             editor.removeSelectionAction(builtinId);
         }
         editor.addSelectionAction(jo.codeeditor.view.BuiltinSelectionActions.duplicate(editor));
@@ -413,6 +413,15 @@ public class EditorActivity extends AppCompatActivity {
         editor.addSelectionAction(jo.codeeditor.view.BuiltinSelectionActions.moveLinesUp(editor));
         editor.addSelectionAction(jo.codeeditor.view.BuiltinSelectionActions.moveLinesDown(editor));
         editor.addSelectionAction(jo.codeeditor.view.BuiltinSelectionActions.blockDrag(editor));
+        // B16 : point d'arrêt dans le débordement « ⋯ » du toolbar de
+        // sélection — pose/retire le point d'arrêt de gouttière sur la
+        // ligne du DÉBUT de la sélection (toggleBreakpoint lit
+        // selection.start), icône disque plein du moteur EditorIcons.
+        editor.addSelectionAction(new jo.codeeditor.view.SelectionAction(
+                "demo.breakpoint", getString(R.string.sel_breakpoint),
+                this::toggleBreakpoint,
+                () -> session != null && session.getDocument() != null,
+                jo.codeeditor.view.icons.EditorIcons.Icon.BREAKPOINT));
     }
 
     private void analyzerAttach(OpenFile file) {

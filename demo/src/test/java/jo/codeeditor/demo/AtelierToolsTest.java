@@ -3,6 +3,7 @@ package jo.codeeditor.demo;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import android.app.Application;
@@ -157,6 +158,41 @@ public class AtelierToolsTest {
                         length, activity.session.getText().length());
                 activity.toggleReadOnly(false);
                 assertFalse(activity.session.isReadOnly());
+            });
+        }
+    }
+
+    // ── Point d'arrêt dans le débordement du toolbar de sélection ──
+
+    @Test
+    public void leToolbarDeSélectionPorteUneActionPointDArrêtQuiBascule() {
+        try (ActivityScenario<EditorActivity> scenario =
+                     ActivityScenario.launch(EditorActivity.class)) {
+            scenario.onActivity(activity -> {
+                jo.codeeditor.view.SelectionAction breakpoint = null;
+                for (jo.codeeditor.view.SelectionAction action
+                        : activity.editor.popupManager.selActions.actions) {
+                    if ("demo.breakpoint".equals(action.id)) breakpoint = action;
+                }
+                assertNotNull("l'action Point d'arrêt est injectée dans le"
+                        + " toolbar de sélection (débordement « ⋯ »)",
+                        breakpoint);
+                assertEquals("l'action porte l'icône disque plein du moteur",
+                        jo.codeeditor.view.icons.EditorIcons.Icon.BREAKPOINT,
+                        breakpoint.icon);
+                assertTrue("l'action est active (session vivante)",
+                        breakpoint.isEnabled());
+
+                // Bascule : pose le point d'arrêt de gouttière sur la
+                // ligne du début de la sélection, puis le retire.
+                int line = activity.session.getDocument()
+                        .lineForOffset(activity.session.getSelection().start);
+                breakpoint.perform.run();
+                assertTrue("le point d'arrêt est posé sur la ligne",
+                        activity.editor.gutterActions.actionForLine(line) != null);
+                breakpoint.perform.run();
+                assertTrue("le second tap retire le point d'arrêt",
+                        activity.editor.gutterActions.actionForLine(line) == null);
             });
         }
     }

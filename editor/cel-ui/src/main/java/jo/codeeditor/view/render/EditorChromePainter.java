@@ -861,7 +861,10 @@ public class EditorChromePainter {
      * navigation : code (chevrons ‹ ›, Declaration), layers (losange +
      * chevrons empilés, Implementations), box (hexagone, Type
      * declaration), pin (tête + tige, Super), gear (quick fixes),
-     * lightbulb (intentions), dot (cibles génériques).
+     * lightbulb (intentions), dot (cibles génériques) — et, depuis B16,
+     * l'icône PROPRE de chaque {@code SelectionAction} de la section
+     * MORE (débordement de la pill), dessinée par le moteur
+     * {@code EditorIcons} (ampoule en fallback).
      */
     private void drawNavMenuIcon(Canvas canvas, EditorView.NavMenuRow row,
             float cx, float cy, int color, float density) {
@@ -943,6 +946,23 @@ public class EditorChromePainter {
                 break;
             }
             case EditorView.NavMenuRow.TYPE_ACTION: {
+                // B16 (retour terrain) : une rangée de la section MORE
+                // (débordement de la pill) référence une
+                // SelectionAction — son icône PROPRE est dessinée par
+                // le moteur EditorIcons (l'ampoule générique prêtait
+                // la même silhouette à Partager, Déplacer, Dupliquer…
+                // toutes les rangées se ressemblaient). Sans icône
+                // (action d'hôte minimale) : ampoule, le fallback.
+                if (row.ref instanceof jo.codeeditor.view.SelectionAction) {
+                    jo.codeeditor.view.SelectionAction sa =
+                            (jo.codeeditor.view.SelectionAction) row.ref;
+                    if (sa.icon != null) {
+                        jo.codeeditor.view.icons.EditorIcons.draw(canvas,
+                                sa.icon, cx, cy, 16f * density,
+                                view.caretPaint);
+                        break;
+                    }
+                }
                 // Engrenage (quick fixes) vs ampoule (intentions).
                 boolean isQuickFix = row.section == EditorView.NavMenuRow.SECTION_QUICK_FIXES;
                 if (isQuickFix) {

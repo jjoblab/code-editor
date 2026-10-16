@@ -215,9 +215,12 @@ public class EditorSelectionGestures {
         // doigt. C'est l'APPUI LONG qui arme, jamais le tap.
         armDragSelect(offset);
         showSelectionToolbar();
-        if (view.quickDocResolver != null) {
-            view.showQuickDoc(offset);
-        }
+        // B17 (retour terrain) : PLUS de quick doc automatique à
+        // l'appui long — le popup « survol » s'ouvrait en même temps
+        // que la pill, doublonnant l'icône Docs ℹ du toolbar de
+        // sélection (le seul chemin d'affichage volontaire, avec F1
+        // et l'appui long sur un inlay hint). L'appui long retrouve
+        // son contrat unique : sélection + poignées + pill.
         if (x >= view.metrics.getGutterWidth()) {
             view.wantsKeyboard = true;
             view.requestFocus();

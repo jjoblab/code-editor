@@ -8,6 +8,7 @@ import java.util.function.BooleanSupplier;
 import jo.codeeditor.document.Selection;
 import jo.codeeditor.edit.CommentSyntax;
 import jo.codeeditor.util.EditorLog;
+import jo.codeeditor.view.icons.EditorIcons;
 
 /**
  * Actions intégrées <b>socle</b> de la pill de sélection (T2, lot 2),
@@ -41,6 +42,11 @@ import jo.codeeditor.util.EditorLog;
  * {@code EditorSelectionGestures.handleSelectionToolbarTap}), puis
  * notifie la vue du changement de texte ({@code onTextChanged} pour
  * la re-surlignage et l'annulation des états différés).</p>
+ *
+ * <p><b>B16</b> — chaque action porte son icône vectorielle (moteur
+ * {@link EditorIcons}) : la rangée du débordement « ⋯ » affiche une
+ * icône PROPRE à l'action au lieu de l'ampoule générique (retour
+ * terrain : « toutes les icônes du ⋯ se ressemblaient »).</p>
  *
  * <pre>{@code
  * view.addSelectionAction(BuiltinSelectionActions.duplicate(view));
@@ -79,7 +85,7 @@ public final class BuiltinSelectionActions {
                     view.session.duplicateSelection();
                     view.onTextChanged();
                 },
-                sessionAlive(view));
+                sessionAlive(view), EditorIcons.Icon.DUPLICATE);
     }
 
     /**
@@ -98,7 +104,7 @@ public final class BuiltinSelectionActions {
                     view.session.moveSelectedLines(false);
                     view.onTextChanged();
                 },
-                canMoveLines(view, false));
+                canMoveLines(view, false), EditorIcons.Icon.MOVE_UP);
     }
 
     /**
@@ -113,7 +119,7 @@ public final class BuiltinSelectionActions {
                     view.session.moveSelectedLines(true);
                     view.onTextChanged();
                 },
-                canMoveLines(view, true));
+                canMoveLines(view, true), EditorIcons.Icon.MOVE_DOWN);
     }
 
     /**
@@ -136,7 +142,7 @@ public final class BuiltinSelectionActions {
         return new SelectionAction("builtin.blockdrag",
                 view.getContext().getString(jo.codeeditor.ui.R.string.cel_builtin_block_drag),
                 () -> view.armBlockDrag(),
-                selectionAlive(view));
+                selectionAlive(view), EditorIcons.Icon.MOVE_BLOCK);
     }
 
     /**
@@ -154,7 +160,7 @@ public final class BuiltinSelectionActions {
                     view.session.toggleLineComment();
                     view.onTextChanged();
                 },
-                commentable(view));
+                commentable(view), EditorIcons.Icon.COMMENT);
     }
 
     /**
@@ -198,7 +204,7 @@ public final class BuiltinSelectionActions {
                             sel.start, sel.start + converted.length()));
                     view.onTextChanged();
                 },
-                selectionAlive(view));
+                selectionAlive(view), EditorIcons.Icon.CASE);
     }
 
     /**
@@ -239,7 +245,7 @@ public final class BuiltinSelectionActions {
                                 "partage du texte sélectionné impossible", e);
                     }
                 },
-                selectionAlive(view));
+                selectionAlive(view), EditorIcons.Icon.SHARE);
     }
 
     /**

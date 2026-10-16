@@ -2,6 +2,8 @@ package jo.codeeditor.view;
 
 import java.util.function.BooleanSupplier;
 
+import jo.codeeditor.view.icons.EditorIcons;
+
 /**
  * Une action injectée par l'hôte dans la barre flottante de sélection
  * (pill) de l'éditeur.
@@ -29,8 +31,14 @@ import java.util.function.BooleanSupplier;
  *       estompée et son tap est rejeté sans refermer la pill.</li>
  * </ul>
  *
- * <p>Libellés seuls pour J1 (la pill canonique elle-même est en
- * libellés) ; icônes optionnelles différées à un chantier P2.</p>
+ * <p><b>Icônes (B16)</b> — la pill reste en libellés (place comptée) ;
+ * {@link #icon} est l'icône vectorielle de l'action DANS le menu de
+ * débordement « ⋯ » (section « MORE » du menu contextuel unifié) :
+ * sans icône, la rangée retombe sur l'ampoule générique — d'où le
+ * retour terrain « toutes les icônes se ressemblent ». Les actions
+ * intégrées ({@code BuiltinSelectionActions}) portent chacune la
+ * leur ; une action d'hôte peut la choisir dans
+ * {@link EditorIcons.Icon}.</p>
  *
  * @author jjoblab
  */
@@ -44,17 +52,39 @@ public final class SelectionAction {
     public final Runnable perform;
     /** Facultatif : {@code false} → item estompé, tap rejeté. */
     public final BooleanSupplier enabled;
+    /**
+     * Facultatif (B16) : icône de la rangée de débordement « ⋯ » —
+     * {@code null} retombe sur l'ampoule générique du menu.
+     */
+    public final EditorIcons.Icon icon;
 
     public SelectionAction(String id, String label, Runnable perform) {
-        this(id, label, perform, null);
+        this(id, label, perform, null, null);
     }
 
     public SelectionAction(String id, String label, Runnable perform,
             BooleanSupplier enabled) {
+        this(id, label, perform, enabled, null);
+    }
+
+    /**
+     * Constructeur complet (B16) : {@code icon} est l'icône de la
+     * rangée dans le menu de débordement « ⋯ » (null = ampoule).
+     *
+     * @param id      identifiant stable (retrait ciblé par
+     *                {@code removeSelectionAction})
+     * @param label   libellé affiché dans la pill
+     * @param perform exécuté au tap (thread UI), puis la pill se referme
+     * @param enabled facultatif : {@code false} → item estompé, tap rejeté
+     * @param icon    facultatif : icône du débordement (null = ampoule)
+     */
+    public SelectionAction(String id, String label, Runnable perform,
+            BooleanSupplier enabled, EditorIcons.Icon icon) {
         this.id = id != null ? id : "";
         this.label = label != null ? label : "";
         this.perform = perform;
         this.enabled = enabled;
+        this.icon = icon;
     }
 
     /** @return {@code true} sauf fournisseur d'activation à {@code false}. */

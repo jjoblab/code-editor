@@ -89,7 +89,9 @@ class EditorNavMenuRows {
         // T1 (lot 2) : débordement de la pill de sélection — les actions
         // injectées non affichées, peuplées par la MÉTRIQUE de la pill
         // (source unique). Une rangée TYPE_ACTION par action (réf
-        // SelectionAction), section INTENTIONS (icône ampoule).
+        // SelectionAction), section INTENTIONS — B16 : le painter
+        // dessine l'icône PROPRE de l'action (EditorIcons, champ
+        // SelectionAction.icon ; ampoule en fallback).
         if (!view.popupManager.selActions.overflow.isEmpty()) {
             rows.add(new EditorView.NavMenuRow(EditorView.NavMenuRow.TYPE_HEADER, 0,
                     EditorView.NavMenuRow.SECTION_INTENTIONS,

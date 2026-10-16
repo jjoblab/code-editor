@@ -26,8 +26,9 @@ public class EditorTouchHoverController {
     // deux sont mutuellement exclusifs :
     //
     //   - touchHoverEnabled = false (défaut) : seulement l'appui long
-    //     classique (400 ms → sélection + poignées + toolbar + quick doc,
-    //     le comportement historique fusionné).
+    //     classique (400 ms → sélection + poignées + toolbar ; B17 :
+    //     le quick doc n'est PLUS affiché automatiquement — il vit
+    //     derrière l'icône Docs ℹ de la pill et F1).
     //   - touchHoverEnabled = true : l'appui long est supprimé et remplacé
     //     par un tap-and-hold de 500 ms → quick doc seul. La sélection
     //     fonctionne toujours via double-tap et drag-select.

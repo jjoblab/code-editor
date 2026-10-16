@@ -134,6 +134,7 @@
 
     <!-- B15 (P2-2) : actions de gouttière de l’hôte (points d’arrêt de démo) -->
     <string name="menu_breakpoint">Point d’arrêt (ligne du caret)</string>
+    <string name="sel_breakpoint">Point d’arrêt</string>
     <string name="breakpoint_set">Point d’arrêt posé — ligne %1$d</string>
     <string name="breakpoint_removed">Point d’arrêt retiré — ligne %1$d</string>
     <string name="breakpoint_armed">Point d’arrêt armé — ligne %1$d</string>
@@ -200,9 +201,10 @@
 
 À essayer :
 \u2022 Ouvrez la carte « Diagnostics LSP Java » puis supprimez une accolade fermante — le soulignement et le panneau réagissent en direct.
-\u2022 Tapez un identifiant \u2192 popup de complétion ; ouvrez println( \u2192 aide de signature ; longue pression \u2192 quick doc.
+\u2022 Tapez un identifiant \u2192 popup de complétion ; ouvrez println( \u2192 aide de signature ; sélectionnez un mot puis icône \u2119 du toolbar \u2192 quick doc.
+\u2022 Appui long sur un mot \u2192 toolbar de sélection ; son menu \u2026 liste les actions de débordement avec leurs icônes (dont Point d\u2019arrêt).
 \u2022 Basculez « Grammaires TextMate » sur Java, Kotlin ou C# et comparez les voies de coloration.
-\u2022 Lignes TODO / FIXME \u2192 squiggles ; ampoule de gouttière \u2192 code actions ; menu \u2192 point d\u2019arrêt (pill armable).
+\u2022 Lignes TODO / FIXME \u2192 squiggles ; ampoule de gouttière \u2192 code actions ; menu ou \u2026 de la sélection \u2192 point d\u2019arrêt (pill armable).
 \u2022 Pincez pour zoomer, double-tap pour un mot, glissez les poignées (loupe).
 
 Clavier physique : Ctrl+Z/Y annuler/rétablir, Ctrl+F recherche, Ctrl+Shift+O aller au symbole.</string>
