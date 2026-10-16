@@ -90,9 +90,12 @@ Stress bundle minifié, Cascade de thèmes. Les chiffres de tête
 
 Préférences persistées (`SharedPreferences`) relues par l'atelier à
 chaque reprise : apparence (thème clair, scheme), éditeur (retour à
-la ligne, minimap, ligatures, non-imprimables), moteurs (grammaires
-TextMate automatiques, LSP automatique sur Java). L'ancienne « bande
-de bascules » vit ici désormais.
+la ligne, minimap, ligatures, non-imprimables), aperçu (politique de
+cohabitation goutte d'eau / popups — la TAILLE de la goutte se règle
+directement dans la carte, barre du pied à côté de « fit », retour
+terrain n°3), moteurs (grammaires TextMate automatiques, LSP
+automatique sur Java). L'ancienne « bande de bascules » vit ici
+désormais.
 
 ### Mini serveur LSP Java (paquet `lsp/`)
 
