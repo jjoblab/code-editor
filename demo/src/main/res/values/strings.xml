@@ -1,14 +1,87 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Démo code-editor</string>
-    <string name="toolbar_subtitle">Prêt</string>
 
-    <!-- Sélecteur de langage -->
-    <string name="menu_language">Langage</string>
-    <string name="menu_language_title">Choisir un langage</string>
+    <!-- Tiroir -->
+    <string name="drawer_open">Ouvrir le tiroir des fichiers</string>
+    <string name="drawer_header_subtitle">29 langages · 10 grammaires TextMate · 5 modules</string>
+    <string name="drawer_settings">Réglages</string>
+    <string name="drawer_about">À propos</string>
+
+    <!-- Menu de l'atelier -->
+    <string name="menu_find">Rechercher dans le fichier</string>
     <string name="menu_reset">Réinitialiser l\u2019échantillon</string>
     <string name="menu_about">À propos</string>
-    <string name="menu_find">Rechercher dans le fichier</string>
+    <string name="menu_settings">Réglages</string>
+    <string name="menu_lsp">Moteur LSP (Java)</string>
+    <string name="menu_grammars">Grammaires TextMate</string>
+
+    <!-- Onglets -->
+    <string name="tab_close">×</string>
+    <string name="tab_close_description">Fermer l\u2019onglet %1$s</string>
+
+    <!-- Barre d'état -->
+    <string name="status_position">Ln %1$d, Col %2$d</string>
+    <string name="status_engine_house">● Moteur maison</string>
+    <string name="status_engine_connecting">● LSP (connexion…)</string>
+    <string name="status_engine_lsp">● Moteur LSP</string>
+    <string name="status_textmate">TextMate</string>
+
+    <!-- Panneaux outils -->
+    <string name="panel_diagnostics">Diagnostics</string>
+    <string name="panel_diagnostics_count">Diagnostics (%1$d)</string>
+    <string name="panel_symbols">Symboles</string>
+    <string name="panel_symbols_count">Symboles (%1$d)</string>
+    <string name="panel_log">Journal LSP</string>
+    <string name="panel_collapse">Replier ou déplier les panneaux</string>
+    <string name="panel_row_line">Ligne %1$d</string>
+
+    <!-- LSP -->
+    <string name="lsp_detached_on_switch">Changement de fichier — le moteur LSP (lié au document Java) est déconnecté</string>
+    <string name="lsp_unavailable">Impossible de démarrer le mini serveur LSP — moteur maison conservé</string>
+
+    <!-- Écran d'accueil -->
+    <string name="home_title">Atelier code-editor</string>
+    <string name="home_subtitle">Bibliothèque d\u2019éditeur de code pour Android — terrain de jeu des cinq modules</string>
+    <string name="home_stat_languages">29 langages</string>
+    <string name="home_stat_grammars">10 grammaires</string>
+    <string name="home_stat_modules">5 modules</string>
+    <string name="home_settings">Réglages de l\u2019atelier</string>
+    <string name="home_card_lsp_title">Diagnostics LSP Java</string>
+    <string name="home_card_lsp_description">Vrai serveur de langage in-process : accolades non fermées, points-virgules manquants, branchements orphelins — soulignés en direct par :cel-lsp</string>
+    <string name="home_card_editor_title">Atelier multi-langages</string>
+    <string name="home_card_editor_description">Onglets, replis, multi-sélections, recherche/remplacement — le socle :cel-core et :cel-ui sur 29 langages</string>
+    <string name="home_card_textmate_title">Grammaires TextMate</string>
+    <string name="home_card_textmate_description">10 grammaires embarquées : la coloration de C#, Python, Kotlin… par le module :cel-textmate</string>
+    <string name="home_card_preview_title">Aperçu XML / HTML</string>
+    <string name="home_card_preview_description">Rendu en direct côte à côte : layouts XML et pages HTML autonomes (blocs &lt;style&gt; inclus)</string>
+    <string name="home_card_stress_title">Stress : bundle minifié</string>
+    <string name="home_card_stress_description">14 Ko sur une seule ligne — rendu fenêtré et frappe fluide, le banc d\u2019essai des extrêmes</string>
+    <string name="home_card_themes_title">Cascade de thèmes</string>
+    <string name="home_card_themes_description">Thème → scheme : palette « Crépuscule ambré » par-dessus le thème émeraude, jour/nuit</string>
+
+    <!-- Réglages -->
+    <string name="settings_title">Réglages</string>
+    <string name="settings_section_appearance">Apparence</string>
+    <string name="settings_section_editor">Éditeur</string>
+    <string name="settings_section_engine">Moteurs de langage</string>
+    <string name="settings_light_theme">Thème clair</string>
+    <string name="settings_light_theme_hint">Thème éditorial émeraude clair pour le contenu de l\u2019éditeur (le chrome de l\u2019atelier reste sombre)</string>
+    <string name="settings_scheme">Scheme de couleurs</string>
+    <string name="settings_scheme_hint">Surcouche « Crépuscule ambré » : sélection, caret, commentaires, fonctions, javadoc</string>
+    <string name="settings_wrap">Retour à la ligne</string>
+    <string name="settings_wrap_hint">Coupe les lignes longues au bord de la vue (le bundle minifié devient lisible)</string>
+    <string name="settings_minimap">Minimap</string>
+    <string name="settings_minimap_hint">Vue condensée du document à droite de l\u2019éditeur, navigation par tap</string>
+    <string name="settings_ligatures">Ligatures</string>
+    <string name="settings_ligatures_hint">Fusionne les suites d\u2019opérateurs (ex. != → une seule glyphe) — selon la police</string>
+    <string name="settings_non_printable">Caractères non imprimables</string>
+    <string name="settings_non_printable_hint">Rend visibles espaces, tabulations et fins de ligne</string>
+    <string name="settings_grammars">Grammaires TextMate automatiques</string>
+    <string name="settings_grammars_hint">Au chargement d\u2019un langage avec grammaire embarquée, la voie grammaires prend le dessus</string>
+    <string name="settings_lsp_auto">LSP automatique sur Java</string>
+    <string name="settings_lsp_auto_hint">Connecte le mini serveur LSP dès qu\u2019un fichier Java est ouvert</string>
+    <string name="settings_footnote">Les réglages s\u2019appliquent à l\u2019atelier au retour (relus à chaque reprise). La bascule Moteur LSP du menu reste prioritaire sur la connexion automatique.</string>
 
     <!-- B12 (P1-4) : mode des numéros de ligne de la gouttière -->
     <string name="menu_line_numbers">Numéros de ligne</string>
@@ -24,19 +97,26 @@
     <string name="folds_all">Tout replier</string>
     <string name="folds_none">Tout déplier</string>
 
+    <!-- Guides d'indentation + lignes sticky -->
+    <string name="menu_indent_guides">Guides d\u2019indentation</string>
+    <string name="indent_guides_scope">Par portée</string>
+    <string name="indent_guides_indent">Par indentation</string>
+    <string name="indent_guides_off">Désactivés</string>
+    <string name="menu_sticky_lines">Lignes collantes</string>
+    <string name="sticky_on">Activées</string>
+    <string name="sticky_off">Désactivées</string>
+    <string name="sticky_max_1">Max : 1 ligne</string>
+    <string name="sticky_max_2">Max : 2 lignes (défaut)</string>
+    <string name="sticky_max_3">Max : 3 lignes (tablette)</string>
+    <string name="sticky_max_4">Max : 4 lignes (tablette)</string>
+    <string name="sticky_max_5">Max : 5 lignes (tablette)</string>
+
     <!-- B15 (P2-2) : actions de gouttière de l’hôte (points d’arrêt de démo) -->
     <string name="menu_breakpoint">Point d’arrêt (ligne du caret)</string>
     <string name="breakpoint_set">Point d’arrêt posé — ligne %1$d</string>
     <string name="breakpoint_removed">Point d’arrêt retiré — ligne %1$d</string>
     <string name="breakpoint_armed">Point d’arrêt armé — ligne %1$d</string>
     <string name="breakpoint_disarmed">Point d’arrêt désarmé — ligne %1$d</string>
-
-    <!-- Plafond de lignes sticky (S4, lot 2) -->
-    <string name="sticky_max_1">Max : 1 ligne</string>
-    <string name="sticky_max_2">Max : 2 lignes (défaut)</string>
-    <string name="sticky_max_3">Max : 3 lignes (tablette)</string>
-    <string name="sticky_max_4">Max : 4 lignes (tablette)</string>
-    <string name="sticky_max_5">Max : 5 lignes (tablette)</string>
 
     <!-- Loupe de sélection (M2/M3, lot 2 J5) -->
     <string name="menu_magnifier">Loupe de sélection</string>
@@ -47,39 +127,34 @@
     <string name="magnifier_zoom_25">Zoom ×2,5</string>
     <string name="magnifier_zoom_30">Zoom ×3 (maximum)</string>
 
-    <!-- Bascules rapides -->
-    <string name="toggle_wrap">Retour à la ligne</string>
-    <string name="toggle_minimap">Minimap</string>
-    <string name="toggle_ligatures">Ligatures</string>
-    <string name="toggle_non_printable">Non-imprimables</string>
-    <string name="toggle_theme">Thème clair</string>
-    <string name="toggle_scheme">Scheme</string>
-    <!-- C3-sexties (option (a)) : voie grammaires TextMate contre voie intégrée -->
-    <string name="toggle_grammars">Grammaires TextMate</string>
+    <!-- Swatches + couleurs de variables -->
+    <string name="menu_color_swatches">Échantillons de couleur</string>
+    <string name="swatch_on">Activés</string>
+    <string name="swatch_off">Désactivés</string>
+    <string name="menu_variable_colors">Couleurs par variable</string>
+    <string name="var_colors_on">Activées</string>
+    <string name="var_colors_off">Désactivées</string>
+
+    <!-- Grammaires TextMate -->
     <string name="grammars_html_css">Grammaires html + css actives — les blocs &lt;style&gt; sont colorés par la grammaire CSS incluse</string>
     <string name="grammars_none">Aucune grammaire embarquée pour %1$s — coloration intégrée conservée</string>
 
     <!-- À propos -->
     <string name="about_title">À propos de la démo</string>
-    <string name="about_message">Terrain de jeu pour la bibliothèque code-editor (Java, Canvas, Apache-2.0).
+    <string name="about_message">Atelier de la bibliothèque code-editor (Java, Canvas, Apache-2.0) — coquille IDE multi-fichiers.
 
-\u2022 29 langages et un bundle minifié : basculez via le menu Langage.
-\u2022 Analyseur factice : diagnostics, complétion, signatures, quick doc et code actions synthétiques \u2014 sans serveur LSP.
-\u2022 Scheme de couleurs : la bascule Scheme applique « Crépuscule ambré » par-dessus le thème (sélection, caret, commentaires, fonctions, javadoc) \u2014 cascade de résolution, purge des caches incluse.
-\u2022 Distinctions fines : javadocs, contrôle de flux (if/for/return), modificateurs (public/static), caractères, chaînes brutes, namespaces XML, entités et emphase Markdown sont colorés distinctement.
-\u2022 Grammaires TextMate : la bascule du bas passe le langage courant (java, python, kotlin, css, html, javascript, lua, markdown, xml, C#) du tokéniseur intégré aux grammaires TextMate embarquées \u2014 sur l\u2019échantillon HTML, les blocs &lt;style&gt; sont colorés par la grammaire CSS incluse.
+\u2022 Cinq modules publiables exercés en situation réelle : :cel-core (moteur), :cel-ui (vues), :cel-lsp-api (SPI langage), :cel-lsp (client LSP), :cel-textmate (grammaires).
+\u2022 29 langages dans le tiroir, 10 grammaires TextMate embarquées (csharp original + 9 tierces, attribution NOTICE).
+\u2022 Mini serveur LSP Java (diagnostics) : basculez « Moteur LSP » sur l\u2019onglet Java — les erreurs de syntaxe réelles (accolades non fermées, points-virgules manquants, else orphelins) sont soulignées et listées dans le panneau Diagnostics ; le journal montre l\u2019activité JSON-RPC.
+\u2022 Analyseur factice (moteur maison) : complétion, signatures, quick doc, code actions et diagnostics synthétiques — la vitrine du moteur sans serveur.
+\u2022 Onglets multi-fichiers, tiroir par familles de langages, panneaux Diagnostics / Symboles / Journal, barre d\u2019état Ln/Col.
 
 À essayer :
-\u2022 Tapez un identifiant \u2192 popup de complétion (badges par type).
-\u2022 Ouvrez une parenthèse, ex. println( \u2192 aide de signature.
-\u2022 Longue pression sur un mot \u2192 quick doc généré.
-\u2022 Basculez Scheme \u2192 sélection et tokens recolorés sans changer de thème.
-\u2022 Étendre la sélection \u2192 curseur \u2192 mot \u2192 syntagme \u2192 lignes (cascade).
-\u2022 Lignes TODO / FIXME \u2192 diagnostics (squiggles + points dans la gouttière).
-\u2022 Ampoule de la gouttière \u2192 code actions.
-\u2022 Point d\u2019arr\u00eat (menu) \u2192 pill de gouttière sur la ligne du caret, tap sur la pill = armé/désarmé (API GutterAction B15).
-\u2022 Pincez pour zoomer, double-tap pour sélectionner un mot, glissez les poignées (loupe de sélection).
-\u2022 Basculez Grammaires TextMate sur Java puis Kotlin \u2014 comparez la voie grammaires et la voie intégrée.
+\u2022 Ouvrez la carte « Diagnostics LSP Java » puis supprimez une accolade fermante — le soulignement et le panneau réagissent en direct.
+\u2022 Tapez un identifiant \u2192 popup de complétion ; ouvrez println( \u2192 aide de signature ; longue pression \u2192 quick doc.
+\u2022 Basculez « Grammaires TextMate » sur Java, Kotlin ou C# et comparez les voies de coloration.
+\u2022 Lignes TODO / FIXME \u2192 squiggles ; ampoule de gouttière \u2192 code actions ; menu \u2192 point d\u2019arrêt (pill armable).
+\u2022 Pincez pour zoomer, double-tap pour un mot, glissez les poignées (loupe).
 
 Clavier physique : Ctrl+Z/Y annuler/rétablir, Ctrl+F recherche, Ctrl+Shift+O aller au symbole.</string>
 </resources>

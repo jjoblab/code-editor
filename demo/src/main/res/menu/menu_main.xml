@@ -2,124 +2,36 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
+    <!-- Actions toujours visibles de la barre d'atelier -->
     <item
-        android:id="@+id/action_language"
-        android:title="@string/menu_language"
+        android:id="@+id/action_find"
+        android:icon="@drawable/ic_search"
+        android:title="@string/menu_find"
         app:showAsAction="always" />
 
     <item
-        android:id="@+id/action_indent_guides"
-        android:title="Guides d'indentation"
-        app:showAsAction="never">
-        <menu>
-            <item
-                android:id="@+id/indent_guides_scope"
-                android:title="Indentation + portée active" />
-            <item
-                android:id="@+id/indent_guides_indent"
-                android:title="Indentation seule" />
-            <item
-                android:id="@+id/indent_guides_off"
-                android:title="Désactivés" />
-        </menu>
-    </item>
+        android:id="@+id/action_lsp"
+        android:title="@string/menu_lsp"
+        android:checkable="true"
+        app:showAsAction="never" />
 
     <item
-        android:id="@+id/action_sticky_lines"
-        android:title="Lignes sticky"
-        app:showAsAction="never">
-        <menu>
-            <item
-                android:id="@+id/sticky_on"
-                android:title="Activées" />
-            <item
-                android:id="@+id/sticky_off"
-                android:title="Désactivées" />
-            <item
-                android:id="@+id/sticky_max_1"
-                android:title="@string/sticky_max_1" />
-            <item
-                android:id="@+id/sticky_max_2"
-                android:title="@string/sticky_max_2" />
-            <item
-                android:id="@+id/sticky_max_3"
-                android:title="@string/sticky_max_3" />
-            <item
-                android:id="@+id/sticky_max_4"
-                android:title="@string/sticky_max_4" />
-            <item
-                android:id="@+id/sticky_max_5"
-                android:title="@string/sticky_max_5" />
-        </menu>
-    </item>
+        android:id="@+id/action_grammars"
+        android:title="@string/menu_grammars"
+        android:checkable="true"
+        app:showAsAction="never" />
 
-    <item
-        android:id="@+id/action_magnifier"
-        android:title="@string/menu_magnifier"
-        app:showAsAction="never">
-        <menu>
-            <item
-                android:id="@+id/magnifier_zoom_15"
-                android:title="@string/magnifier_zoom_15" />
-            <item
-                android:id="@+id/magnifier_zoom_20"
-                android:title="@string/magnifier_zoom_20" />
-            <item
-                android:id="@+id/magnifier_zoom_25"
-                android:title="@string/magnifier_zoom_25" />
-            <item
-                android:id="@+id/magnifier_zoom_30"
-                android:title="@string/magnifier_zoom_30" />
-            <item
-                android:id="@+id/magnifier_native_on"
-                android:title="@string/magnifier_native_on" />
-            <item
-                android:id="@+id/magnifier_native_off"
-                android:title="@string/magnifier_native_off" />
-        </menu>
-    </item>
-
-    <item
-        android:id="@+id/action_color_swatches"
-        android:title="Carrés de couleur"
-        app:showAsAction="never">
-        <menu>
-            <item
-                android:id="@+id/swatch_on"
-                android:title="Activés" />
-            <item
-                android:id="@+id/swatch_off"
-                android:title="Désactivés" />
-        </menu>
-    </item>
-
-    <item
-        android:id="@+id/action_variable_colors"
-        android:title="Couleurs par variable"
-        app:showAsAction="never">
-        <menu>
-            <item
-                android:id="@+id/var_colors_on"
-                android:title="Activées" />
-            <item
-                android:id="@+id/var_colors_off"
-                android:title="Désactivées" />
-        </menu>
-    </item>
-
+    <!-- Options « vue » : sous-menus -->
     <item
         android:id="@+id/action_line_numbers"
         android:title="@string/menu_line_numbers"
         app:showAsAction="never">
         <menu>
-            <item
-                android:id="@+id/line_numbers_absolute"
+            <item android:id="@+id/line_numbers_absolute"
                 android:title="@string/line_numbers_absolute" />
-            <item
-                android:id="@+id/line_numbers_relative"
+            <item android:id="@+id/line_numbers_relative"
                 android:title="@string/line_numbers_relative" />
-            <item
-                android:id="@+id/line_numbers_hybrid"
+            <item android:id="@+id/line_numbers_hybrid"
                 android:title="@string/line_numbers_hybrid" />
         </menu>
     </item>
@@ -129,21 +41,85 @@
         android:title="@string/menu_folds"
         app:showAsAction="never">
         <menu>
-            <item
-                android:id="@+id/folds_level_1"
+            <item android:id="@+id/folds_level_1"
                 android:title="@string/folds_level_1" />
-            <item
-                android:id="@+id/folds_level_2"
+            <item android:id="@+id/folds_level_2"
                 android:title="@string/folds_level_2" />
-            <item
-                android:id="@+id/folds_level_3"
+            <item android:id="@+id/folds_level_3"
                 android:title="@string/folds_level_3" />
-            <item
-                android:id="@+id/folds_all"
+            <item android:id="@+id/folds_all"
                 android:title="@string/folds_all" />
-            <item
-                android:id="@+id/folds_none"
+            <item android:id="@+id/folds_none"
                 android:title="@string/folds_none" />
+        </menu>
+    </item>
+
+    <item
+        android:id="@+id/action_indent_guides"
+        android:title="@string/menu_indent_guides"
+        app:showAsAction="never">
+        <menu>
+            <item android:id="@+id/indent_guides_scope"
+                android:title="@string/indent_guides_scope" />
+            <item android:id="@+id/indent_guides_indent"
+                android:title="@string/indent_guides_indent" />
+            <item android:id="@+id/indent_guides_off"
+                android:title="@string/indent_guides_off" />
+        </menu>
+    </item>
+
+    <item
+        android:id="@+id/action_sticky_lines"
+        android:title="@string/menu_sticky_lines"
+        app:showAsAction="never">
+        <menu>
+            <item android:id="@+id/sticky_on" android:title="@string/sticky_on" />
+            <item android:id="@+id/sticky_off" android:title="@string/sticky_off" />
+            <item android:id="@+id/sticky_max_1" android:title="@string/sticky_max_1" />
+            <item android:id="@+id/sticky_max_2" android:title="@string/sticky_max_2" />
+            <item android:id="@+id/sticky_max_3" android:title="@string/sticky_max_3" />
+            <item android:id="@+id/sticky_max_4" android:title="@string/sticky_max_4" />
+            <item android:id="@+id/sticky_max_5" android:title="@string/sticky_max_5" />
+        </menu>
+    </item>
+
+    <item
+        android:id="@+id/action_magnifier"
+        android:title="@string/menu_magnifier"
+        app:showAsAction="never">
+        <menu>
+            <item android:id="@+id/magnifier_native_on"
+                android:title="@string/magnifier_native_on" />
+            <item android:id="@+id/magnifier_native_off"
+                android:title="@string/magnifier_native_off" />
+            <item android:id="@+id/magnifier_zoom_15"
+                android:title="@string/magnifier_zoom_15" />
+            <item android:id="@+id/magnifier_zoom_20"
+                android:title="@string/magnifier_zoom_20" />
+            <item android:id="@+id/magnifier_zoom_25"
+                android:title="@string/magnifier_zoom_25" />
+            <item android:id="@+id/magnifier_zoom_30"
+                android:title="@string/magnifier_zoom_30" />
+        </menu>
+    </item>
+
+    <item
+        android:id="@+id/action_color_swatches"
+        android:title="@string/menu_color_swatches"
+        app:showAsAction="never">
+        <menu>
+            <item android:id="@+id/swatch_on" android:title="@string/swatch_on" />
+            <item android:id="@+id/swatch_off" android:title="@string/swatch_off" />
+        </menu>
+    </item>
+
+    <item
+        android:id="@+id/action_variable_colors"
+        android:title="@string/menu_variable_colors"
+        app:showAsAction="never">
+        <menu>
+            <item android:id="@+id/var_colors_on" android:title="@string/var_colors_on" />
+            <item android:id="@+id/var_colors_off" android:title="@string/var_colors_off" />
         </menu>
     </item>
 
@@ -153,13 +129,13 @@
         app:showAsAction="never" />
 
     <item
-        android:id="@+id/action_find"
-        android:title="@string/menu_find"
+        android:id="@+id/action_reset"
+        android:title="@string/menu_reset"
         app:showAsAction="never" />
 
     <item
-        android:id="@+id/action_reset"
-        android:title="@string/menu_reset"
+        android:id="@+id/action_settings"
+        android:title="@string/menu_settings"
         app:showAsAction="never" />
 
     <item

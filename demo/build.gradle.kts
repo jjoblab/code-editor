@@ -10,7 +10,7 @@ android {
         applicationId = "jo.codeeditor.demo"
         minSdk = 24
         targetSdk = 34
-        versionCode = 2
+        versionCode = 3
         // Alignée sur la version de la bibliothèque (rootProject) pour que
         // l'application installée affiche la même version que le code testé.
         versionName = rootProject.version.toString()
@@ -55,6 +55,17 @@ dependencies {
     // grammaire textmate/csharp.tmg.json embarquée). Un hôte qui
     // n'embarque PAS ce module garde la coloration intégrée.
     implementation(project(":cel-textmate"))
+    // 3.73.0 : la démo vit désormais le module :cel-lsp de bout en bout
+    // — le mini serveur LSP Java (diagnostics) traverse le cadre LSP
+    // (poignée de main, didOpen/didChange, publishDiagnostics) via un
+    // transport in-process. La bascule « Moteur LSP » du menu Java
+    // oppose cette voie au moteur maison (analyseur synthétique).
+    implementation(project(":cel-lsp"))
+    // Un hôte qui implémente un serveur de langage (le mini serveur
+    // Java de la démo) programme contre LSP4J directement : la
+    // dépendance est donc propre au demo, pas transitive de :cel-lsp
+    // (qui la déclare `implementation`).
+    implementation(libs.lsp4j)
 
     implementation(libs.androidx.appcompat)
     implementation(libs.material)

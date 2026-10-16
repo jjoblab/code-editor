@@ -13,7 +13,8 @@ Ce que c'est — et ce que ce n'est pas :
   réellement embarquées (LSP4J, Gson) et les grammaires tierces du
   module optionnel sont attribuées dans [`NOTICE`](NOTICE).
 - **Publication** : coordonnées Maven `jo.codeeditor:<module>` —
-  version courante : `3.72.0` (multi-langages ADR-002 livré — voir
+  version courante : `3.73.0` (refonte de la démo en atelier IDE et
+  mini serveur LSP Java — les cinq modules exercés — voir
   [`CHANGELOG.md`](CHANGELOG.md)).
 
 ## Modules
@@ -57,7 +58,7 @@ optionnels et s'ajoutent selon les besoins.
 
 Les artefacts sont publiés sur `maven.pkg.github.com` avec les
 coordonnées `jo.codeeditor:<module>:<version>` (version courante :
-`3.72.0`).
+`3.73.0`).
 
 1. Créez un jeton d'accès personnel GitHub avec le droit `read:packages`.
 2. Renseignez vos identifiants dans `~/.gradle/gradle.properties` :
@@ -91,18 +92,18 @@ dependencyResolutionManagement {
 // app/build.gradle.kts
 dependencies {
     // Le module UI embarque transitivement cel-core et cel-lsp-api.
-    implementation("jo.codeeditor:cel-ui:3.72.0")
+    implementation("jo.codeeditor:cel-ui:3.73.0")
 
     // Optionnel — intégration Language Server Protocol (LSP4J).
     // Ses dépendances vers cel-core/cel-lsp-api sont compileOnly :
     // gardez la ligne cel-ui ci-dessus (l'adaptateur LspEditorViewHost
     // du pont LSP y vit — plan 03 : le client LSP ne dépend plus de la vue).
-    implementation("jo.codeeditor:cel-lsp:3.72.0")
+    implementation("jo.codeeditor:cel-lsp:3.73.0")
 
     // Optionnel — voie grammaires (ADR-002 C3) : coloration par
     // grammaires TextMate, grammaires embarquées + registration
     // hôte (supporter un langage de plus = un FICHIER, pas du Java).
-    implementation("jo.codeeditor:cel-textmate:3.72.0")
+    implementation("jo.codeeditor:cel-textmate:3.73.0")
     // … puis UNE fois au démarrage, avant toute vue éditeur :
     // SyntaxHighlighter.setTextMateTokenizer(TextMateTokenizerImpl.create());
 }
@@ -120,9 +121,9 @@ maven { url = uri("https://jitpack.io") }
 
 ```kotlin
 dependencies {
-    implementation("com.github.jjoblab.code-editor:cel-ui:v3.72.0")
-    implementation("com.github.jjoblab.code-editor:cel-lsp:v3.72.0") // optionnel
-    implementation("com.github.jjoblab.code-editor:cel-textmate:v3.72.0") // optionnel (voie grammaires)
+    implementation("com.github.jjoblab.code-editor:cel-ui:v3.73.0")
+    implementation("com.github.jjoblab.code-editor:cel-lsp:v3.73.0") // optionnel
+    implementation("com.github.jjoblab.code-editor:cel-textmate:v3.73.0") // optionnel (voie grammaires)
 }
 ```
 
@@ -244,7 +245,7 @@ interface `EditorPreviewHost`) figure dans
 
 ```bash
 ./gradlew test
-# 2 385 tests, 0 failure :
+# 2 405 tests, 0 failure :
 #   cel-core 1 358 · cel-lsp-api 32 · cel-lsp 185 · cel-ui 700 · cel-textmate 79 · demo 31
 # (contrôle d'écart : scripts/check-doc-figures.sh, exécuté en CI)
 ```

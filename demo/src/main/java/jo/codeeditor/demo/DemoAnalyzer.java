@@ -72,6 +72,8 @@ final class DemoAnalyzer {
     private final String language;
 
     private Runnable pending;
+    private EditorSession.OnTextEditListener editListener;
+    private boolean attached;
 
     DemoAnalyzer(EditorView view, EditorSession session, String language) {
         this.view = view;
@@ -81,20 +83,39 @@ final class DemoAnalyzer {
 
     /** Branche tous les résolveurs et pousse une première passe de diagnostics. */
     void attach() {
+        if (attached) return;
+        attached = true;
         view.setCompletionProvider(this::completions);
         view.setSignatureHelpResolver(this::signatureHelp);
         view.setQuickDocResolver(this::quickDoc);
         view.setCodeActionsResolver(this::codeActions);
         view.setSymbolResolver(this::symbols);
-        session.addOnTextEditListener((start, end, inserted) -> scheduleRefresh());
+        // L'écouteur est désenregistré par detach() : la coquille
+        // multi-onglets attache/détache le même analyseur à chaque
+        // sélection — sans retrait, les écouteurs s'accumuleraient.
+        editListener = (start, end, inserted) -> scheduleRefresh();
+        session.addOnTextEditListener(editListener);
         refreshNow();
     }
 
     /** Interrompt les recalculs en attente et vide les annotations. */
     void detach() {
+        attached = false;
         handler.removeCallbacksAndMessages(null);
+        if (editListener != null) {
+            session.removeOnTextEditListener(editListener);
+            editListener = null;
+        }
         session.setDiagnostics(Collections.emptyList());
         session.setInlayHints(Collections.emptyList());
+    }
+
+    /**
+     * Outline du document pour le panneau Symboles de l'atelier — même
+     * source que le popup « aller au symbole » de l'éditeur.
+     */
+    List<NavigationMenu.Symbol> outline(String text) {
+        return symbols(text);
     }
 
     // ── Diagnostics + inlay hints (débouncés) ─────────────────────

@@ -55,7 +55,7 @@ export ANDROID_HOME=<sdk>          # + local.properties : sdk.dir=<sdk>
 ./gradlew publishToMavenLocal      # publication locale (~/.m2)
 ```
 
-Base de référence constatée (3.72.0-dev, multi-langages) : **2 385 tests verts, lint
+Base de référence constatée (3.73.0-dev, démo refondue + mini LSP) : **2 405 tests verts, lint
 bloquant vert** — toute régression est la vôtre. Le nombre annoncé est contrôlé en
 CI (`scripts/check-doc-figures.sh`, échoue si l'écart dépasse 5 %).
 
