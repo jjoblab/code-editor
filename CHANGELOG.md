@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Les sections antérieures à la période courante sont archivées dans
 [`docs/archive/CHANGELOG-archive.md`](docs/archive/CHANGELOG-archive.md) (A-08, audit 3.69.0).
 
-## [Unreleased]
+## [3.73.0] — 2026-10-16 — Carte d'aperçu « goutte d'eau » (B27 : cohabitation avec les popups, voile, fantôme dynamique, glissement fluide — cinq retours terrain) + IME au niveau plateforme (plan 09 : R1–R9) + refonte de la démo : coquille IDE + mini serveur LSP Java (les cinq modules exercés) + passe UX (bottom sheet, tiroir filtrable, outils IDE)
 
 ### Changed (retour terrain n°5 : fluidité des re-placements — la goutte GLISSE en trois couches et en variante B)
 
@@ -45,7 +45,6 @@ Les sections antérieures à la période courante sont archivées dans
   Couvert par `EditorPreviewDropObstacleTest` (9, JUnit pur : esquive verticale du bloc fusionné, latéral grand écran, latéral rejeté si la bande de frappe est touchée, candidat le plus proche, compactage sans latéral, obstruée avec ratio ≥ 0,5, obstacle hors colonne ignoré, délégation exacte sans obstacles, balayage 18 positions jamais cachée en silence) + `PreviewDropVeilTest` (8, Robolectric : hystérésis voile/dévoile/bande stable sans oscillation, 9 % ne voile pas, null inoffensif, scénario complet 640×385 voilée puis dévoilée à la fermeture de complétion, fermeture de carte réinitialise, invariant sur quatre tailles d'écran, smoke de rendu) + `PreviewDropCompletionTapTest` (3, Robolectric : tap sur rangée recouverte ACCEPTÉ — rouge avant le correctif, le tap englouti ne faisait rien —, tap corps referme la complétion et engloutit, ✕ ferme la carte).
 - **`scheduleContentUpdate` blindé** — le chemin accept de complétion → `onTextChanged` → mise à jour débouncée de l'aperçu levait un NPE sur une vue non rattachée (`getHandler()` null — harnais sans fenêtre, ou course détachement→purge où le handler meurt AVANT le close de la carte) : garde null, la purge s'en charge.
 
-## [3.73.0] — 2026-10-16 — Refonte de la démo : coquille IDE + mini serveur LSP Java (les cinq modules exercés) + passe UX (bottom sheet, tiroir filtrable, outils IDE)
 
 ### Added (maquette validée : carte d'aperçu « goutte d'eau » B27)
 
