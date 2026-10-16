@@ -190,6 +190,7 @@ final class ImeBridge {
 
     /**
      * L'IME définit le texte de composition (affiché comme aperçu inline).
+     *
      * <p>
      * REMPLACE toujours la région de composition existante (ou la sélection
      * courante si aucune région de composition n'est encore définie).
@@ -197,12 +198,32 @@ final class ImeBridge {
      * un nouveau mot de composition, remplacez l'ancien » de l'IME — taper
      * "hello" puis backspace produirait "hellohell" car la suppression de
      * l'IME cible le mot précédent.
+     * </p>
+     *
+     * <p>
+     * R7 (plan 09) — ÉCART MINIMAL : le remplacement se fait sur le
+     * PRÉFIXE et le SUFFIXE COMMUNS de l'ancien et du nouveau texte de
+     * composition, seule la différence médiane est épissée. La frappe CJK
+     * renvoie le mot complet à chaque caractère (« こ » → « こん » → …) :
+     * l'épissure intégrale réécrivait toute la région à chaque frappe ;
+     * l'écart minimal épisse le suffixe ajouté/retiré seul. Bénéfices :
+     * le coût d'épissure devient proportionnel à la VARIATION et non à
+     * la taille de la région (compositions longues / corrections de
+     * phrase), les styles du préfixe commun survivent au re-splice,
+     * l'annulation enregistre des pas à l'écart réel, et une mise à
+     * jour REDONDANTE (l'IME renvoie le même texte) n'épisse plus rien
+     * du tout — plus d'étape d'undo fantôme. La frontière de l'écart ne
+     * coupe jamais une paire de substitution (recul d'un caractère le
+     * cas échéant). Mesure de garde (25k lignes, garde-fou du benchmark
+     * ComposingSpliceBenchmark) : &lt; 2 ms/op.
+     * </p>
      */
     void setComposingText(String text, int newCursorPosition) {
         // ★ B21a : toute mutation IME non-commit termine le lot — le suivi
         // du symbole pour l'auto-espace ne doit jamais survivre à autre
         // chose qu'un commit immédiat d'espace nue.
         batchImeSymbolCommitOffset = -1;
+        if (text == null) text = "";
         int regionStart, regionEnd;
         if (composingStart >= 0) {
             regionStart = composingStart;
@@ -213,11 +234,51 @@ final class ImeBridge {
             regionStart = session.selection.start;
             regionEnd = session.selection.end;
         }
-        // Épisser le nouveau texte de composition.
         int insertionLen = text.length();
-        // Utiliser une mutation directe pour ne pas déclencher récursivement
-        // onRestartInput pour nos propres éditions de composition.
-        session.doReplaceRange(regionStart, regionEnd, text, regionStart + insertionLen);
+        int oldLen = regionEnd - regionStart;
+
+        // R7 : préfixe commun (borné par les deux longueurs).
+        int prefix = 0;
+        int maxPrefix = Math.min(oldLen, insertionLen);
+        while (prefix < maxPrefix
+                && session.doc.charAt(regionStart + prefix) == text.charAt(prefix)) {
+            prefix++;
+        }
+        // R7 : suffixe commun sur les RESTES (jamais sur le préfixe déjà consommé).
+        int suffix = 0;
+        int maxSuffix = Math.min(oldLen - prefix, insertionLen - prefix);
+        while (suffix < maxSuffix
+                && session.doc.charAt(regionEnd - 1 - suffix) == text.charAt(insertionLen - 1 - suffix)) {
+            suffix++;
+        }
+        // R7 : ne jamais couper une paire de substitution — si le caractère
+        // d'avant-frontière est un HAUT substitut et qu'un des caractères
+        // d'après-frontière est un BAS substitut, la frontière tombe au
+        // milieu d'une paire : reculer d'un caractère.
+        if (prefix > 0 && (prefix < oldLen && prefix < insertionLen)) {
+            char before = session.doc.charAt(regionStart + prefix - 1);
+            boolean split = Character.isHighSurrogate(before)
+                    && (Character.isLowSurrogate(session.doc.charAt(regionStart + prefix))
+                        || Character.isLowSurrogate(text.charAt(prefix)));
+            if (split) prefix--;
+        }
+        if (suffix > 0 && (suffix < oldLen - prefix && suffix < insertionLen - prefix)) {
+            char before = session.doc.charAt(regionEnd - suffix - 1);
+            boolean split = Character.isLowSurrogate(before)
+                    && (Character.isHighSurrogate(session.doc.charAt(regionEnd - suffix))
+                        || Character.isHighSurrogate(text.charAt(insertionLen - suffix)));
+            if (split) suffix--;
+        }
+
+        // Épisser la différence médiane SEULE (mutation directe : pas de
+        // onRestartInput récursif pour nos propres éditions de composition).
+        int spliceStart = regionStart + prefix;
+        int spliceEnd = regionEnd - suffix;
+        String replacement = text.substring(prefix, insertionLen - suffix);
+        if (spliceStart != spliceEnd || !replacement.isEmpty()) {
+            session.doReplaceRange(spliceStart, spliceEnd, replacement,
+                spliceStart + replacement.length());
+        }
         // Mettre à jour la région de composition vers la nouvelle plage de texte.
         composingStart = regionStart;
         composingEnd = regionStart + insertionLen;
