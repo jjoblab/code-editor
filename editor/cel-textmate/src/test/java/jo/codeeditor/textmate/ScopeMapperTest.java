@@ -120,4 +120,31 @@ class ScopeMapperTest {
         assertEquals(TokenType.PLAIN, ScopeMapper.tokenTypeFor(null));
         assertEquals(TokenType.PLAIN, ScopeMapper.tokenTypeFor("  "));
     }
+
+    // ── C3-sexties : listes de portées (convention TextMate) ──────
+
+    @Test
+    void listesDePortées_laPlusSpécifiqueGagne() {
+        // Une règle TextMate peut porter PLUSIEURS portées séparées
+        // par des espaces (« meta.x.css support.type.x.css ») — l'externe
+        // d'abord, l'interne en dernier. Sans éclatement, la chaîne
+        // ENTIÈRE était cherchée dans la table : aucune correspondance,
+        // le jeton tombait PLAIN (noms de propriétés CSS, définitions
+        // de variables JS, 125 portées python…). L'interne (la plus
+        // précise) l'emporte sur l'externe.
+        assertEquals(TokenType.TYPE,
+                ScopeMapper.tokenTypeFor("meta.property-name.css support.type.property-name.css"));
+        assertEquals(TokenType.TYPE,
+                ScopeMapper.tokenTypeFor(
+                        "meta.property-name.css support.type.vendored.property-name.css"));
+        assertEquals(TokenType.VARIABLE,
+                ScopeMapper.tokenTypeFor(
+                        "meta.definition.variable.js variable.other.constant.js"));
+        // L'interne inconnue cède la place à l'externe connue.
+        assertEquals(TokenType.STRING,
+                ScopeMapper.tokenTypeFor("string.quoted.double.js support.unknown.js"));
+        // Liste entièrement inconnue → PLAIN.
+        assertEquals(TokenType.PLAIN,
+                ScopeMapper.tokenTypeFor("meta.unknown.a source.unknown.b"));
+    }
 }

@@ -123,12 +123,29 @@ public final class ScopeMapper {
     }
 
     /**
-     * Mappe une portée (potentiellement multi-segments) vers le type
-     * le plus précis connu. {@code null} ou vide → {@code PLAIN}.
+     * Mappe une portée (potentiellement multi-segments, potentiellement
+     * LISTE de portées séparées par des espaces) vers le type le plus
+     * précis connu. {@code null} ou vide → {@code PLAIN}.
      */
     public static TokenType tokenTypeFor(String scope) {
         if (scope == null || scope.isBlank()) return TokenType.PLAIN;
         String s = scope.trim();
+        // Liste de portées (convention TextMate, C3-sexties) : une
+        // règle peut porter PLUSIEURS portées séparées par des espaces
+        // (« meta.property-name.css support.type.property-name.css »)
+        // — l'externe d'abord, l'interne en dernier. Sans éclatement,
+        // la chaîne ENTIÈRE était cherchée : aucune correspondance,
+        // le jeton tombait PLAIN (noms de propriétés CSS, définitions
+        // de variables JS, 125 portées python). L'INTERNE (la plus
+        // précise) l'emporte ; inconnue, elle cède à l'externe.
+        if (s.indexOf(' ') >= 0) {
+            String[] parts = s.split("\\s+");
+            for (int i = parts.length - 1; i >= 0; i--) {
+                TokenType t = tokenTypeFor(parts[i]);
+                if (t != TokenType.PLAIN) return t;
+            }
+            return TokenType.PLAIN;
+        }
         // Préfixe le plus long d'abord : les segments se retirent un
         // à un jusqu'à une correspondance (comment.block.documentation
         // → comment.block → comment).
