@@ -1,6 +1,6 @@
 # cel-core — moteur d'édition pur Java
 
-> 1 357 tests · JUnit 5 (JVM hôte) · aucune dépendance Android en sortie.
+> 1 358 tests · JUnit 5 (JVM hôte) · aucune dépendance Android en sortie.
 
 `cel-core` est le socle de la bibliothèque : modèle de texte, moteur
 d'édition, coloration syntaxique intégrée, plis, retour à la ligne,
@@ -75,7 +75,9 @@ plis, inlays) et des événements. Rien dans cel-core ne connaît une vue.
   `SyntaxHighlighter.setTextMateTokenizer(...)` : sans implémentation
   enregistrée, le tokéniseur intégré prend le relais ; avec
   `:cel-textmate`, la coloration passe par les grammaires (documents
-  ≤ 800 lignes, `TEXTMATE_LINE_LIMIT`).
+  ≤ 800 lignes, `TEXTMATE_LINE_LIMIT` ; lignes ≤ 5 000 caractères,
+  `TEXTMATE_CHAR_LIMIT` — les fichiers minifiés restent à la voie
+  intégrée, au coût linéaire).
 - **Plis** (`fold/FoldModel`, `highlight/FoldDetector`) — régions,
   niveaux, fusion ; **retour à la ligne** (`wrap/WrapModel`, prefix
   sums) ; **recherche/remplacement** (`find/FindReplace`) avec options
@@ -170,7 +172,7 @@ session.setLanguage("mylang");
 ## Tests
 
 ```bash
-./gradlew :cel-core:test     # 1 357 tests JUnit 5, JVM hôte
+./gradlew :cel-core:test     # 1 358 tests JUnit 5, JVM hôte
 ```
 
 Suites notables : `EditorSessionFuzzTest`, `RopeFuzzTest` (robustesse),

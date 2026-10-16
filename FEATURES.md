@@ -207,7 +207,7 @@ par responsabilité.
 | Fonctionnalité | État | Fichier | Description |
 |----------------|------|---------|-------------|
 | Registre de langages observable | ✅ | `languages/LanguageRegistry.java` | register/unregister/names/profiles |
-| 27 langages intégrés | ✅ | `languages/BuiltinLanguages.java` | java, kotlin, javascript, typescript, c, cpp, go, rust, swift, dart, php, ruby, scala, groovy, python, lua, xml/html, css, json, yaml, sql, shell, properties, toml, smali, log, markdown |
+| 29 langages intégrés | ✅ | `languages/BuiltinLanguages.java` | java, kotlin, javascript, typescript, c, cpp, go, rust, swift, dart, php, ruby, scala, groovy, csharp (grammaire-only, ADR-002), python, lua, xml/html, css, json, yaml, sql, shell, properties, toml, smali, log, markdown, text |
 | Profils de langage | ✅ | `languages/LanguageProfile.java` | family, alias, extensions, keywords, commentSyntax |
 | Familles syntaxiques | ✅ | `languages/SyntaxFamily.java` | C_LIKE, XML, JSON, PYTHON, LUA, CSS, SHELL, YAML, SQL, PROPERTIES, TOML, SMALI, LOG, MARKDOWN |
 

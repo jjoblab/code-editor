@@ -47,7 +47,11 @@ langage courant bascule entre voie intégrée et voie grammaires quand
 une grammaire existe (java, python, kotlin, css, html, javascript,
 lua, markdown, xml, C#), repli silencieux + toast sinon. Sur
 l'échantillon HTML, la bascule co-active la grammaire CSS : les blocs
-`<style>` passent à la vraie grammaire.
+`<style>` passent à la vraie grammaire. La comparaison est VIVANTE :
+le rendu n'est PAS pixel-identique (les grammaires colorent des
+catégories supplémentaires — voir « Limites connues » du module
+`cel-textmate`) ; l'échantillon **Minifié (JS)** reste à la voie
+intégrée quoi qu'il arrive (porte de 5 000 caractères par ligne).
 
 ### Menu
 

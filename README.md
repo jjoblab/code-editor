@@ -245,8 +245,8 @@ interface `EditorPreviewHost`) figure dans
 
 ```bash
 ./gradlew test
-# 2 374 tests, 0 failure :
-#   cel-core 1 357 · cel-lsp-api 32 · cel-lsp 185 · cel-ui 700 · cel-textmate 69 · demo 31
+# 2 385 tests, 0 failure :
+#   cel-core 1 358 · cel-lsp-api 32 · cel-lsp 185 · cel-ui 700 · cel-textmate 79 · demo 31
 # (contrôle d'écart : scripts/check-doc-figures.sh, exécuté en CI)
 ```
 
@@ -281,12 +281,15 @@ interface `EditorPreviewHost`) figure dans
   (n°7), avant-projet dans `docs/plans/05-accessibilite-i18n-rtl.md`.
 - **Grands fichiers** — coloration, plis et inlays coupés au-delà de
   2,5 M chars / 50 k lignes (l'édition reste fonctionnelle).
-- **Voie grammaires : porte de 800 lignes** — au-delà, repli sur le
-  tokéniseur intégré (coût de restyle mesuré supérieur — ADR-002).
-- **Chantier multi-langages en cours** (branche dédiée, ADR-002) :
-  C1/C3 livrés, C2 (démantèlement des 14 tokéniseurs intégrés au
-  profit d'un moteur piloté par la table) et C4 (palette de thèmes par
-  portées) restent à terminer — la 3.72.0 n'est pas publiée.
+- **Voie grammaires : portes de 800 lignes et de 5 000 caractères** —
+  au-delà (en nombre de lignes du document, ou en longueur d'UNE
+  ligne : fichiers minifiés), repli sur le tokéniseur intégré (coût
+  de restyle mesuré supérieur — ADR-002).
+- **Chantier multi-langages (ADR-002) : C1/C2/C3/C4 livrés** sur la
+  branche dédiée — registre de langages, tokéniseur générique piloté
+  par la table, voie grammaires avec bascule en démo, calibrage des
+  portées. La 3.72.0 est en préparation de publication (voir
+  [`CHANGELOG.md`](CHANGELOG.md)).
 
 ## Build
 

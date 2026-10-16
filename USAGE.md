@@ -389,7 +389,11 @@ SyntaxHighlighter.setTextMateTokenizer(TextMateTokenizerImpl.create());
 
 Les grammaires embarquées du dépôt se chargent paresseusement (classpath
 `textmate/*.tmg.json` — C# aujourd'hui : langage « grammaire-only », aucun
-tokéniseur intégré dédié). Pour vos langages :
+tokéniseur intégré dédié). Neuf grammaires tierces de l'écosystème sont
+aussi embarquées (css, html, java, javascript, kotlin, lua, markdown,
+python, xml — attribution dans `NOTICE`) : inactives au démarrage, un
+hôte les active par `tm.loadEmbeddedGrammar("java")` (opt-in par
+langage, idempotent). Pour vos langages :
 
 ```java
 TextMateTokenizerImpl tm = TextMateTokenizerImpl.create();
@@ -416,9 +420,11 @@ l'ENREGISTREMENT (exception), jamais en cours de coloration.
 Les portées standard se mappent sur les `TokenType` existants
 (`comment.block.documentation` → `DOC_COMMENT`, `keyword.control` →
 `KEYWORD_CONTROL`, `string.quoted.triple` → `RAW_STRING`… voir
-`ScopeMapper`) — un thème les colore sans clé par langage. La porte des
-800 lignes (`TEXTMATE_LINE_LIMIT`) reste décidée par `EditorSession`, hors
-module.
+`ScopeMapper`) — un thème les colore sans clé par langage. Deux portes
+de garde-fou restent décidées hors module : les documents de plus de
+800 lignes (`TEXTMATE_LINE_LIMIT`, `EditorSession`) et les LIGNES de
+plus de 5 000 caractères (`TEXTMATE_CHAR_LIMIT`, `SyntaxHighlighter`)
+retombent sur le tokéniseur intégré au coût linéaire.
 
 ## Raccourcis clavier
 

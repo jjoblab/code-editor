@@ -93,11 +93,11 @@ class TextMateGrammarTest {
                 () -> TextMateGrammar.parse("<plist><array><string>x</string></array></plist>"));
     }
 
-    // ── Compatibilité sora-editor / VS Code (C3-bis) ────────────────
+    // ── Compatibilité grammaires tierces (C3-bis) ────────────────────
 
     @Test
     void sourcePlist_parseIdentiqueAuJson() {
-        // Les grammaires TextMate historiques (kotlin de sora-editor)
+        // Les grammaires TextMate historiques (kotlin, plist XML)
         // sont des plist XML — même modèle après parse.
         String plist = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
                 + "<plist version=\"1.0\">\n"
@@ -133,7 +133,7 @@ class TextMateGrammarTest {
 
     @Test
     void clauseWhile_acceptéeCommeEnd() {
-        // Les grammaires modernes (markdown de sora-editor) utilisent
+        // Les grammaires modernes (markdown tierce) utilisent
         // begin/while pour les blocs continus — la clause while est
         // conservée SÉPARÉMENT (C3-quinquies) : c'est une garde de
         // continuation de ligne (sémantique TextMate), PAS une

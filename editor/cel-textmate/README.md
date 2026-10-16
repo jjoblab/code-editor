@@ -1,6 +1,6 @@
 # cel-textmate — coloration par grammaires (module optionnel)
 
-> 69 tests · JUnit 5 · `api(:cel-core)` **seul** — aucune dépendance
+> 79 tests · JUnit 5 · `api(:cel-core)` **seul** — aucune dépendance
 > externe, parseurs JSON et plist internes.
 
 `cel-textmate` est la **voie grammaires** de l'ADR-002 (chantier C3) :
@@ -92,10 +92,25 @@ obligation de licence. Les grammaires tierces sont opt-in ;
 
 ## Limites connues (honnêteté du module)
 
-- **Porte de 800 lignes** — le coût de restyle par grammaire est
+- **Deux portes de garde-fou** — le coût de restyle par grammaire est
   supérieur au tokéniseur intégré : au-delà de `TEXTMATE_LINE_LIMIT`
-  (800 lignes), le moteur **retombe** sur le tokéniseur intégré
-  (décision documentée dans l'ADR-002, maintenue).
+  (800 lignes par document, décision ADR-002 maintenue) OU de
+  `TEXTMATE_CHAR_LIMIT` (5 000 caractères sur UNE ligne — fichiers
+  minifiés HTML/JS/CSS, la décision vivant côté crochet
+  `SyntaxHighlighter`), le moteur **retombe** sur le tokéniseur
+  intégré au coût linéaire.
+- **Plus riche, pas identique** — la bascule démo « voie intégrée /
+  voie grammaires » ne produit PAS un rendu pixel-identique : le
+  calibrage C4 aligne les constructions que les deux voies typent
+  (commentaires, javadoc, mots-clés, primitifs, chaînes, nombres,
+  annotations), mais les grammaires colorent des catégories que la
+  voie intégrée laisse en texte brut (paramètres, variables,
+  récepteurs d'appels) et l'inverse existe ponctuellement (constantes
+  tout-en-majuscules, marquées côté intégré, pas par les grammaires
+  tierces). Les délimiteurs de javadoc java portent la portée
+  `punctuation.definition.comment` de la grammaire tierce (deux gris
+  autour d'un corps jade) là où la voie intégrée colore tout en
+  DOC_COMMENT.
 - **Fidélité TextMate, pas perfection** — sémantique « état remis à
   zéro en fin de ligne » : en `kotlin`, un commentaire posé sur la
   même ligne qu'une déclaration `fun` fermée n'est pas coloré
@@ -103,6 +118,11 @@ obligation de licence. Les grammaires tierces sont opt-in ;
 - **Sous-ensemble de regex** — les motifs hors du sous-ensemble
   `RegexCompat` sont rejetés au chargement (échec explicite, jamais
   de coloration silencieusement fausse).
+- **Registre d'états du moteur** — les piles inter-lignes sont
+  internées dans une carte qui vit pour la durée du processus
+  (partagée entre documents par grammaire) : croissance bornée par
+  la diversité des piles rencontrées, jamais purgée — un hôte très
+  longévif peut observer une occupation mémoire lente.
 - Le chantier C4 (palette de thèmes par catégories de portées, ~25
   clés) est amorcé par `ScopeMapper` : les types fins existent dans
   `TokenType`, toutes les entrées de palette ne sont pas encore
@@ -111,7 +131,7 @@ obligation de licence. Les grammaires tierces sont opt-in ;
 ## Tests
 
 ```bash
-./gradlew :cel-textmate:test     # 69 tests
+./gradlew :cel-textmate:test     # 79 tests
 ```
 
 Grammaires de travail dédiées (`src/test/resources/textmate/`) pour

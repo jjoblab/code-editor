@@ -33,7 +33,8 @@ import java.util.Map;
  *       SEULE pour ce langage) ;</li>
  *   <li>{@code textmate/<lang>.tmLanguage.json} — grammaires
  *       TIERCES vérifiées (MIT, fichiers originaux de l'écosystème
- *       VS Code/TextMate — attribution par fichier dans NOTICE,
+ *       tierces de l'écosystème TextMate — attribution par fichier dans
+ *       NOTICE,
  *       décision D3) : {@code css}, {@code html}, {@code java},
  *       {@code javascript}, {@code lua}, {@code markdown},
  *       {@code python}, {@code xml} ; et
@@ -176,9 +177,9 @@ public final class TextMateTokenizerImpl implements TextMateTokenizer {
      * illisible — au moment de l'enregistrement, jamais en coloration.
      * Le parse est INDULGENT (C3-bis) : une règle au dialecte
      * Oniguruma intraduisible est ignorée avec un avertissement sur
-     * stderr (le gras du markdown de sora-editor, qui appelle des
+     * stderr (le gras de la grammaire markdown tierce, qui appelle des
      * sous-expressions) — la grammaire charge et le reste colorea.
-     * Les sources plist XML (Kotlin de sora-editor) sont acceptées :
+     * Les sources plist XML (kotlin tierce) sont acceptées :
      * la détection de format est automatique.
      *
      * @param language clé de langage ({@code "csharp"}, {@code "mylang"}…)

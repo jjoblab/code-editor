@@ -64,7 +64,7 @@ public final class TextMateGrammar {
     /** Règles nommées du repository, adressées par {@code include "#…"}. */
     public Map<String, Rule> repository;
     /** Références includes externes ({@code source.css}…) collectées au
-     * parse (C3-bis, compatibilité sora-editor) — triées, sans
+     * parse (C3-bis, compatibilité grammaires tierces) — triées, sans
      * doublon : le registre de l'hôte y répond, ou la règle dégrade
      * silencieusement. */
     public List<String> externalRefs;
@@ -101,7 +101,7 @@ public final class TextMateGrammar {
     /**
      * Parse une source de grammaire JSON/JSONC <b>ou plist XML</b>
      * (détection automatique — les grammaires TextMate historiques
-     * comme le {@code Kotlin.tmLanguage} de sora-editor). Leve une
+     * comme le {@code Kotlin.tmLanguage} tierce, plist XML). Leve une
      * {@link GrammarException} (avec position) sur grammaire invalide
      * ou regex incompilable — au chargement, jamais en coloration.
      */
@@ -110,10 +110,10 @@ public final class TextMateGrammar {
     }
 
     /**
-     * Parse en mode indulgent (C3-bis, compatibilité sora-editor) :
+     * Parse en mode indulgent (C3-bis, compatibilité grammaires tierces) :
      * une règle au dialecte Oniguruma intraduisible en
      * java.util.regex (ex. {@code \g<n>}, appel de sous-expression —
-     * le gras du markdown de sora-editor) est IGNORÉE avec un
+     * le gras de la grammaire markdown tierce) est IGNORÉE avec un
      * avertissement ({@link #warnings}) au lieu d'échouer — la
      * grammaire charge et la construction n'est simplement pas
      * colorée. Le mode STRICT (faux) lève : les grammaires du dépôt
@@ -308,7 +308,7 @@ public final class TextMateGrammar {
         private Rule parseStrictement() {
             String include = JsonLite.str(src.get("include"));
             if (include != null) {
-                // Include externe (C3-bis, compatibilité sora-editor) :
+                // Include externe (C3-bis, compatibilité grammaires tierces) :
                 // source.css, source.js… — CONSERVÉ (plus d'échec au
                 // chargement), la référence est collectée dans
                 // externalRefs de la grammaire ; la résolution a lieu
@@ -322,7 +322,7 @@ public final class TextMateGrammar {
             String begin = JsonLite.str(src.get("begin"));
             String end = JsonLite.str(src.get("end"));
             // Clause while (C3-bis → C3-quinquies) : les blocs continus
-            // des grammaires modernes (markdown de sora-editor) — la
+            // des grammaires modernes (markdown tierce) — la
             // clause est une GARDE DE CONTINUATION DE LIGNE (TextMate),
             // évaluée au DÉBUT de chaque ligne suivante, PAS une
             // fermante en ligne : le while des blocs de code markdown
@@ -392,7 +392,7 @@ public final class TextMateGrammar {
             try {
                 // Traduction du dialecte Oniguruma (C3-bis) : (?#…)
                 // retirés, accolades seules échappées — les grammaires
-                // java/python/javascript de sora-editor chargent.
+                // java/python/javascript tierces chargent.
                 return Pattern.compile(RegexCompat.translate(regex));
             } catch (PatternSyntaxException e) {
                 throw new GrammarException("regex invalide dans la règle " + ruleName

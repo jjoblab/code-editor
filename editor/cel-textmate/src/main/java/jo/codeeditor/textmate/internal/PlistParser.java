@@ -16,9 +16,9 @@ import java.util.Map;
 import javax.xml.parsers.DocumentBuilderFactory;
 
 /**
- * Parseur plist XML (C3-bis, compatibilité sora-editor/VS Code) : les
+ * Parseur plist XML (C3-bis, compatibilité grammaires tierces) : les
  * grammaires TextMate historiques — {@code .tmLanguage} sans extension
- * JSON, dont le kotlin embarqué par sora-editor — sont des documents
+ * JSON, dont le kotlin tierce — sont des documents
  * plist, pas du JSON.
  *
  * <p>Produit le MÊME modèle que {@link JsonLite#parseObject} : dictionnaire
