@@ -345,4 +345,23 @@ final class ImeBridge {
         int end = Math.min(session.doc.length(), start + Math.min(n, MAX_IPC_TEXT));
         return session.doc.getText().substring(start, end);
     }
+
+    /**
+     * R2 (plan 09, E2) — sélection pour l'IME, bornée à MAX_IPC_TEXT.
+     * La réponse d'une {@code InputConnection.getSelectedText} traverse
+     * le binder (transaction plafonnée, ~1 Mo partagé) : une sélection
+     * de tout un gros fichier demandée par un clavier curieux levait
+     * une TransactionTooLargeException. Borne symétrique à
+     * {@link #textBeforeCursor(int)} — les 4 096 premiers caractères de
+     * la sélection (suffisant pour recherche/dictionnaire/réécriture).
+     */
+    String selectedTextForIme() {
+        if (session.selection.isCursor()) return "";
+        int start = session.selection.start;
+        int end = Math.min(session.selection.end, start + MAX_IPC_TEXT);
+        // Miroir de textAfterCursor : borne document (une sélection
+        // dépassant la fin ne lève pas au substring).
+        end = Math.min(end, session.doc.length());
+        return session.doc.getText().substring(start, end);
+    }
 }

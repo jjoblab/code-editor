@@ -1544,6 +1544,19 @@ public class EditorSession {
     }
 
     /**
+     * R2 (plan 09, E2) — sélection pour l'IME, bornée à MAX_IPC_TEXT
+     * (la charge utile d'une réponse {@code getSelectedText} traverse le
+     * binder : une sélection géante y levait une
+     * TransactionTooLargeException). Borne symétrique à
+     * {@link #imeTextBeforeCursor(int)}. Contrairement à
+     * {@link #selectedText()} (interne, copie/coupure), le clavier
+     * n'a jamais besoin des 4 096 premiers caractères AU-DELÀ.
+     */
+    public String imeSelectedText() {
+        return ime.selectedTextForIme();
+    }
+
+    /**
      * Retourne la région de composition courante, ou null si pas en composition.
      */
     public int[] getComposingRegion() {
