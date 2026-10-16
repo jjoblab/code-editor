@@ -49,6 +49,7 @@
 
     <!-- B5/B6 : barre de fil d'Ariane (actions d'éditeur) -->
     <string name="cel_preview">Preview</string>
+    <string name="cel_preview_drop_live">live render</string>
     <string name="cel_undo">Undo</string>
     <string name="cel_redo">Redo</string>
 

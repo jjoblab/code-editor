@@ -102,6 +102,9 @@ public class GutterView {
     private boolean previewActionVisible = false;
     /** Icône d'aperçu à l'état ACTIF (feuille ouverte — accent). */
     private boolean previewActionActive = false;
+    /** ★ B27 : rangée de l'œil GELÉ (carte « goutte d'eau » ouverte) —
+     *  −1 = suit le caret (reposé à chaque frame par le pipeline). */
+    private int previewActionLine = -1;
     /** Peinture dédiée de l'icône (couleur posée par frame — prêtée à
      * EditorIcons.draw qui gère style/épaisseur). */
     private final Paint previewIconPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -124,6 +127,20 @@ public class GutterView {
     public void setPreviewAction(boolean visible, boolean active) {
         this.previewActionVisible = visible;
         this.previewActionActive = active;
+    }
+
+    /**
+     * ★ B27 — rangée de l'ŒIL d'aperçu. {@code -1} (défaut, reposé à
+     * chaque frame par le pipeline) : l'œil suit le CARET ; une valeur
+     * ≥ 0 : l'œil se GÈLE sur cette rangée (carte « goutte d'eau »
+     * ouverte — l'œil pointe l'ancre, le hit-test vise la même rangée
+     * via EditorView.hitTestGutterPreviewAction). Sans effet si la
+     * rangée sort du document (clampé au rendu par le balayage).
+     *
+     * @param line la rangée d'ancre (0-based), ou -1 pour suivre le caret
+     */
+    public void setPreviewActionLine(int line) {
+        this.previewActionLine = line;
     }
 
     /**
@@ -459,7 +476,10 @@ public class GutterView {
         // action posée sur la rangée du caret possède SA pill (l'œil,
         // fugace, suit le caret sur les autres lignes : la priorité va à
         // la donnée fixe de l'hôte).
-        if (previewActionVisible && lineIdx == currentLine
+        // ★ B27 : œil GELÉ — quand la carte « goutte d'eau » vit, l'œil
+        // reste posé sur la rangée d'ANCRE (il ne suit plus le caret).
+        int eyeLine = previewActionLine >= 0 ? previewActionLine : currentLine;
+        if (previewActionVisible && lineIdx == eyeLine
                 && (hostActions == null || hostActions.actionForLine(lineIdx) == null)) {
             drawActionPill(canvas, y, lineHeight, EditorIcons.Icon.EYE,
                     previewActionActive);

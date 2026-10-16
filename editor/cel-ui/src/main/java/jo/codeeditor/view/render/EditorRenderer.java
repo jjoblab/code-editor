@@ -51,6 +51,8 @@ public class EditorRenderer {
     private final EditorChromePainter chrome;
     /** Sélecteur de couleur (B26) — painter dédié. */
     private final EditorColorPickerPainter colorPicker;
+    /** B27 — carte d'aperçu « goutte d'eau » (gouttière) — painter dédié. */
+    private final EditorPreviewDropPainter previewDrop;
 
     // Objets de travail réutilisables — évite les allocations par frame / par
     // ligne. Usage mono-thread (uniquement depuis onDraw sur le thread UI),
@@ -74,6 +76,9 @@ public class EditorRenderer {
         // B26 : painter du sélecteur de couleur (carte ancrée au code
         // hex tapé — dessin + shaders de dégradé mis en cache).
         this.colorPicker = new EditorColorPickerPainter(view);
+        // B27 : painter de la carte d'aperçu « goutte d'eau » (popup
+        // ancré à l'œil de gouttière — placement vivant frame par frame).
+        this.previewDrop = new EditorPreviewDropPainter(view);
         // B7 : enregistre chaque popup Canvas auprès du contrôleur des
         // fondus — fournisseur de visibilité (front montant d'apparition)
         // + peintre (photographie au dismiss quand les bornes sont
@@ -141,6 +146,14 @@ public class EditorRenderer {
         fade.register(jo.codeeditor.view.popup.EditorPopupFade.Kind.DIAGNOSTIC_SHEET,
                 () -> view.diagnosticSheetVisible,
                 popupPainter(diagnostics::drawDiagnosticSheet, () -> null));
+        // B27 : carte d'aperçu « goutte d'eau » — visibilité = carte
+        // ouverte (front montant détecté à l'openAt), bornes mesurables
+        // publiquement pour le fantôme de disparition (placement
+        // courant, clampé aux bornes visuelles).
+        fade.register(jo.codeeditor.view.popup.EditorPopupFade.Kind.PREVIEW_DROP,
+                () -> view.preview.drop().isOpen(),
+                popupPainter(previewDrop::drawCard,
+                        () -> view.preview.drop().bounds()));
     }
 
     /** Assemble un peintre de fondu (dessin + fournisseur de bornes). */
@@ -441,6 +454,15 @@ public class EditorRenderer {
         // EditorView.hitTestGutterPreviewAction (même rectangle déterministe).
         view.gutterView.setPreviewAction(view.previewable,
                 view.previewMode != EditorView.PreviewMode.NONE);
+        // ★ B27 : carte « goutte d'eau » OUVERTE — l'œil se GÈLE sur la
+        // rangée d'ANCRE (il ne suit plus le caret) : le rendu et le
+        // hit-test visent la même rangée (une seule source, le
+        // contrôleur de la carte). Fermée : −1 = suit le caret.
+        int eyeLine = (view.previewMode == EditorView.PreviewMode.DROP
+                && view.preview.drop().isOpen())
+                ? clamp(view.preview.drop().getAnchorLine(), 0, doc.lineCount() - 1)
+                : -1;
+        view.gutterView.setPreviewActionLine(eyeLine);
         view.gutterView.draw(canvas, view.scroll.vOffset, height, doc.lineCount(), currentLine);
         chrome.drawFoldChevrons(canvas, doc, firstDocVisible, lastDocVisible, lineHeight, paddingTop);
         canvas.restore();
@@ -529,6 +551,12 @@ public class EditorRenderer {
                 canvas, () -> diagnostics.drawDiagnosticPopup(canvas));
         fade.onDraw(jo.codeeditor.view.popup.EditorPopupFade.Kind.DIAGNOSTIC_SHEET,
                 canvas, () -> diagnostics.drawDiagnosticSheet(canvas));
+
+        // 16.5. B27 — carte d'aperçu « goutte d'eau » (gouttière) :
+        // overlay au-dessus des fiches, sous la loupe/gouttière de geste
+        // (elle n'appartient à aucun geste — tap seul, non modale).
+        fade.onDraw(jo.codeeditor.view.popup.EditorPopupFade.Kind.PREVIEW_DROP,
+                canvas, () -> previewDrop.drawCard(canvas));
 
         // Dessiner les icônes d'aperçu en haut à droite quand le fichier est
         // prévisualisable (.md/.html/.xml) et que le mode d'aperçu est NONE.

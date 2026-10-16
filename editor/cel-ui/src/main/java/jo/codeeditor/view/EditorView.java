@@ -1308,6 +1308,16 @@ public class EditorView extends View {
         // de raison d'être — purge immédiate, sans fondu.
         errorStripe.setDiagnostics(new int[0]);
         fastScroller.cancel();
+        // ★ B27 : la carte « goutte d'eau » pointe un œil GELÉ sur une
+        // rangée de l'ANCIEN document — l'ancre ne survit pas au
+        // changement d'onglet (miroir des purges loupe/drag/wrap).
+        preview.onSessionChanged();
+        // ★ R1 (plan 09, E1) : le miroir IME décrit l'ANCIEN document
+        // (texte extrait, sélection, composition en cours) — purge de
+        // l'état IME (génération, jeton d'extraction, mode ancre) et
+        // restart : le clavier reconstruit son miroir sur le NOUVEAU
+        // document au lieu de rejouer le périmé.
+        imeBridge.purgeForSessionChange();
         invalidate();
     }
 
@@ -2093,7 +2103,18 @@ public class EditorView extends View {
          * la zone de texte de l'éditeur reste pleine largeur en dessous.
          * Utilisé pour les fichiers {@code .md}/{@code .html}.
          */
-        SHEET_FULL;
+        SHEET_FULL,
+        /**
+         * B27 — carte d'aperçu « goutte d'eau » : popup ancré à l'ŒIL de
+         * gouttière, non modal, dessiné sur le canvas de l'éditeur. La
+         * zone de texte reste pleine largeur en dessous ; la carte
+         * esquive le bloc de frappe (caret ± 1 ligne) et se compacte
+         * (échelle bornée) quand l'éditeur est trop petit. Utilisé pour
+         * les aperçus <em>canvas</em> (layout XML gonflé, arbre simulé)
+         * des hôtes qui répondent vrai à
+         * {@link EditorPreviewHost#prefersDropPreview()}.
+         */
+        DROP;
 
         /** Vrai pour les modes feuille-overlay (popup) vs modes inline. */
         public boolean isSheet() {
@@ -2118,10 +2139,13 @@ public class EditorView extends View {
     // d'interaction, au même endroit que les autres boutons).
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
     public boolean previewIconsVisible = true;
-    // Tout le reste de l'état d'aperçu (hôte, feuille popup, nom de
-    // fichier, listener de mode) vit dans EditorPreviewController ; la
-    // vue ne conserve que des relais publics.
-    final EditorPreviewController preview = new EditorPreviewController(this);
+    // Tout le reste de l'état d'aperçu (hôte, feuille popup, carte
+    // « goutte d'eau », nom de fichier, listener de mode) vit dans
+    // EditorPreviewController ; la vue ne conserve que des relais
+    // publics. (Public restreint : les painters du pipeline de rendu —
+    // paquet render — consultent la carte et le hôte à chaque frame.)
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public final EditorPreviewController preview = new EditorPreviewController(this);
 
     /**
      * Enregistre le hôte d'aperçu qui fournit le rendu d'aperçu.
@@ -2207,9 +2231,19 @@ public class EditorView extends View {
         }
         EditorDocument doc = session.getDocument();
         if (doc.lineCount() <= 0) return false;
-        Selection sel = clampSelection(session.getSelection(), doc);
-        int currentLine = clamp(doc.lineForOffset(sel.start), 0, doc.lineCount() - 1);
-        float rowTop = docLineToY(currentLine) - scroll.vOffset;
+        // ★ B27 : carte « goutte d'eau » OUVERTE — l'œil est GELÉ sur la
+        // rangée d'ancre (il ne suit plus le caret) : le hit-test vise
+        // l'œil DESSINÉ, pas la rangée du caret (sinon un tap sur l'œil
+        // visible ne basculerait plus la carte dès que le caret bouge).
+        int eyeLine;
+        if (previewMode == PreviewMode.DROP && preview.drop().isOpen()) {
+            eyeLine = preview.drop().getAnchorLine();
+        } else {
+            Selection sel = clampSelection(session.getSelection(), doc);
+            eyeLine = clamp(doc.lineForOffset(sel.start), 0, doc.lineCount() - 1);
+        }
+        if (eyeLine < 0 || eyeLine >= doc.lineCount()) return false;
+        float rowTop = docLineToY(eyeLine) - scroll.vOffset;
         float lineHeight = metrics.getLineHeight();
         // Rangée hors écran (repliée au-dessus ou en dessous du viewport) :
         // l'icône n'est pas visible — pas de zone tactile fantôme.
@@ -2285,6 +2319,40 @@ public class EditorView extends View {
      */
     public EditorPreviewSheet getPreviewSheet() {
         return preview.getPreviewSheet();
+    }
+
+    /**
+     * B27 — ouvre la carte d'aperçu « goutte d'eau » ancrée à la ligne
+     * donnée (l'œil de gouttière se GÈLE sur cette rangée, la carte
+     * pointe vers lui, non modale, esquivant le bloc de frappe).
+     *
+     * <p>Ne fait rien si le fichier courant n'est pas prévisualisable ou
+     * si aucun hôte n'est enregistré. Pour un hôte qui ne répond pas
+     * vrai à {@link EditorPreviewHost#prefersDropPreview()}, la carte
+     * reste disponible : c'est le choix du rendu, pas une exclusion.</p>
+     *
+     * @param line la ligne de document d'ancre (0-based, clampée)
+     */
+    public void openPreviewDropAt(int line) {
+        preview.openPreviewDropAt(line);
+    }
+
+    /**
+     * B27 — referme la carte d'aperçu « goutte d'eau » et revient à
+     * {@link PreviewMode#NONE}. Appelé par le ✕ de la carte, le re-tap
+     * sur l'œil, le changement de session/fichier, ou le détachement.
+     */
+    public void closePreviewDrop() {
+        preview.closePreviewDrop();
+    }
+
+    /**
+     * B27 — bascule la carte « goutte d'eau » : l'ouvre ancrée à la
+     * rangée du caret (comme le ferait le tap sur l'œil), ou la referme
+     * si elle est déjà ouverte.
+     */
+    public void togglePreviewDrop() {
+        preview.togglePreviewDrop();
     }
 
     /**

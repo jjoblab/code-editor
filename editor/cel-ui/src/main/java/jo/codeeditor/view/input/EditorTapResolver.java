@@ -115,6 +115,20 @@ public class EditorTapResolver {
             }
         }
 
+        // ── ★ B27 : carte d'aperçu « goutte d'eau » OUVERTE — un tap
+        // DANS la carte lui appartient : onglet → bascule (+ hôte
+        // notifié), ✕ → fermeture, corps → englouti sans agir (le caret
+        // ne bouge pas — la surface d'aperçu n'est pas une zone
+        // d'édition). Le geste est consommé AVANT les icônes du haut
+        // (la carte peut les recouvrir : c'est elle, le premier plan)
+        // et AVANT la cascade multi-tap (aucun double-tap de mot ne se
+        // déclenche DERRIÈRE la carte). Non modale : un tap HORS de la
+        // carte continue sa cascade normale (caret posé, la carte
+        // esquivant la nouvelle zone de frappe au frame suivant).
+        if (view.preview.hitTestDrop(x, y)) {
+            return;
+        }
+
         // ── B9c (retour terrain n°6) : tap sur l'icône d'aperçu de la
         // GOUTTIÈRE (œil sur la rangée du caret, façon Android Studio) —
         // BASCULE : feuille scindée si fermée, fermeture si ouverte
@@ -128,7 +142,12 @@ public class EditorTapResolver {
         // refermer), il ne tombe JAMAIS dans la cascade multi-tap du
         // texte (mot/ligne) derrière.
         if (view.hitTestGutterPreviewAction(x, y)) {
-            if (view.previewMode.isSheet()) {
+            // ★ B27 : carte « goutte d'eau » ouverte — l'œil (gelé sur
+            // l'ancre) est RE-TAPPÉ : la carte se referme (bascule
+            // exacte, parité feuille).
+            if (view.previewMode == EditorView.PreviewMode.DROP) {
+                view.closePreviewDrop();
+            } else if (view.previewMode.isSheet()) {
                 view.closePreviewSheet();
             } else {
                 view.openPreview(false);

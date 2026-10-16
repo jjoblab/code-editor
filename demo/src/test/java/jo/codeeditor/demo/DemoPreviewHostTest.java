@@ -32,6 +32,44 @@ public class DemoPreviewHostTest {
         assertFalse("null", host.canPreview(null));
     }
 
+    // ── B27 : la carte « goutte d'eau » (layouts .xml) ─────────────
+
+    @Test
+    public void b27_canPreview_accepteLesLayoutsXml() {
+        DemoPreviewHost host = new DemoPreviewHost();
+        assertTrue("layout xml", host.canPreview("activity_main.xml"));
+        assertFalse("kotlin", host.canPreview("MainActivity.kt"));
+        // Après un fichier xml, un retour à un fichier java referme la
+        // voie d'aperçu (le mémo de nom pilote le rendu).
+        host.canPreview("activity_main.xml");
+        assertFalse(host.canPreview("Main.java"));
+    }
+
+    @Test
+    public void b27_prefersDropPreview_vraiSeulementPourLesLayouts() {
+        DemoPreviewHost host = new DemoPreviewHost();
+        host.canPreview("activity_main.xml");
+        assertTrue("le layout passe par la carte gouttière",
+                host.prefersDropPreview());
+        host.canPreview("exemple.md");
+        assertFalse("le markdown garde la feuille WebView",
+                host.prefersDropPreview());
+    }
+
+    @Test
+    public void b27_ongletsEtBadgesDuFichierLayout() {
+        DemoPreviewHost host = new DemoPreviewHost();
+        host.canPreview("exemple.md");
+        assertTrue("aucun onglet pour la feuille WebView",
+                host.previewDropTabs().isEmpty());
+        host.canPreview("activity_main.xml");
+        assertEquals(2, host.previewDropTabs().size());
+        assertEquals("XML", host.previewDropTabs().get(0));
+        assertEquals("Compose", host.previewDropTabs().get(1));
+        assertEquals("activity_main.xml · gonflé", host.previewDropBadge(0));
+        assertEquals("MainActivity.kt · @Composable", host.previewDropBadge(1));
+    }
+
     // ── Blocs ─────────────────────────────────────────────────────
 
     @Test

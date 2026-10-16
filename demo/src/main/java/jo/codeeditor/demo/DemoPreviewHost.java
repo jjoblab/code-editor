@@ -9,6 +9,7 @@ import jo.codeeditor.view.EditorView;
 import jo.codeeditor.view.preview.EditorPreviewHost;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -58,6 +59,12 @@ import java.util.regex.Pattern;
  *       contexte applicatif peut porter des DisplayMetrics étrangères à
  *       l'affichage courant).</li>
  * </ul>
+ *
+ * <p><b>B27 — carte « goutte d'eau »</b> : les layouts {@code .xml} se
+ * prévisualisent désormais dans le popup ancré à l'œil de gouttière
+ * ({@code prefersDropPreview} vrai, onglets XML/Compose, badge
+ * « gonflé ») — la maquette validée : mini-téléphone clair, anti-
+ * recouvrement du bloc de frappe, tige œil→goutte.</p>
  */
 public class DemoPreviewHost implements EditorPreviewHost {
 
@@ -74,11 +81,13 @@ public class DemoPreviewHost implements EditorPreviewHost {
     @Override
     public boolean canPreview(String fileName) {
         if (fileName == null) return false;
-        // Mémo du type courant — le rendu s'en sert (HTML brut vs Markdown).
+        // Mémo du type courant — le rendu s'en sert (HTML brut vs Markdown
+        // vs carte « goutte d'eau » pour les layouts XML).
         currentFileName = fileName;
         String lower = fileName.toLowerCase(java.util.Locale.ROOT);
         return lower.endsWith(".md") || lower.endsWith(".markdown")
-                || lower.endsWith(".html") || lower.endsWith(".htm");
+                || lower.endsWith(".html") || lower.endsWith(".htm")
+                || lower.endsWith(".xml");
     }
 
     @Override
@@ -117,6 +126,129 @@ public class DemoPreviewHost implements EditorPreviewHost {
     @Override
     public boolean hitTestPreview(float x, float y) {
         return false;
+    }
+
+    // ── B27 : la carte d'aperçu « goutte d'eau » (layouts .xml) ──────
+
+    /**
+     * B27 — les layouts {@code .xml} de la démo se prévisualisent dans
+     * la CARTE « goutte d'eau » (popup ancré à l'œil de gouttière,
+     * non modal, esquivant la frappe) : le rendu est un dessin Canvas
+     * (mini-téléphone simulé), pas une View — la feuille scindée
+     * resterait vide. Markdown/HTML gardent la feuille WebView.
+     */
+    @Override
+    public boolean prefersDropPreview() {
+        String lower = currentFileName == null
+                ? "" : currentFileName.toLowerCase(java.util.Locale.ROOT);
+        return lower.endsWith(".xml");
+    }
+
+    @Override
+    public List<String> previewDropTabs() {
+        String lower = currentFileName == null
+                ? "" : currentFileName.toLowerCase(java.util.Locale.ROOT);
+        if (lower.endsWith(".xml")) {
+            return java.util.Arrays.asList("XML", "Compose");
+        }
+        return Collections.emptyList();
+    }
+
+    @Override
+    public void onPreviewDropTabSelected(int index) {
+        // Le rendu suivant relit l'index (drawDropPreview reçoit tab) —
+        // aucun état à maintenir ici.
+    }
+
+    /**
+     * B27 — rend le mini-téléphone : miroir Canvas de la maquette
+     * validée — titre « Bienvenue ! », sous-titre, bouton « Continuer »
+     * et carte d'information de layout. L'onglet Compose simule le
+     * même écran en hablage M3 (la démo n'a pas de compilateur de
+     * composables — l'habillage honnête remplace le rendu réel).
+     */
+    @Override
+    public void drawDropPreview(android.graphics.Canvas canvas, float x, float y,
+            float w, float h, int tab) {
+        android.graphics.Paint fill = new android.graphics.Paint(
+                android.graphics.Paint.ANTI_ALIAS_FLAG);
+        android.graphics.Paint text = new android.graphics.Paint(
+                android.graphics.Paint.ANTI_ALIAS_FLAG);
+        float pad = 12f;
+        boolean compose = tab == 1;
+        int primary = compose ? 0xFF6750A4 : 0xFF1976D2;
+
+        // Zone de contenu sous la barre d'état (12dp posée par le painter).
+        float top = y + 14f;
+
+        // Titre.
+        text.setTextSize(11f);
+        text.setColor(0xFF1F1F1F);
+        text.setFakeBoldText(true);
+        canvas.drawText("Bienvenue !", x + pad, top + 12f, text);
+        text.setFakeBoldText(false);
+
+        // Sous-titre.
+        text.setTextSize(8f);
+        text.setColor(0xFF5F6368);
+        canvas.drawText(compose ? "Preview Compose simulée"
+                : "Aperçu du layout gonflé", x + pad, top + 24f, text);
+
+        // Bouton « Continuer » (M3 plein vs M2 plat).
+        float btnW = w - 2f * pad;
+        float btnTop = top + 32f;
+        android.graphics.RectF btn = new android.graphics.RectF(
+                x + pad, btnTop, x + pad + btnW, btnTop + 18f);
+        fill.setStyle(android.graphics.Paint.Style.FILL);
+        fill.setColor(primary);
+        canvas.drawRoundRect(btn, compose ? 9f : 2f, compose ? 9f : 2f, fill);
+        text.setTextSize(9f);
+        text.setColor(0xFFFFFFFF);
+        text.setTextAlign(android.graphics.Paint.Align.CENTER);
+        canvas.drawText("Continuer", btn.centerX(), btn.centerY() + 3.5f, text);
+        text.setTextAlign(android.graphics.Paint.Align.LEFT);
+
+        // Liste factice — 4 rangées (icône + deux lignes de texte).
+        float listTop = btnTop + 26f;
+        float rowH = 20f;
+        String[] rows = {"Élément un", "Élément deux", "Élément trois", "Élément quatre"};
+        for (int i = 0; i < rows.length && listTop + (i + 1) * rowH < y + h - 26f; i++) {
+            float rowTop = listTop + i * rowH;
+            fill.setStyle(android.graphics.Paint.Style.FILL);
+            fill.setColor(compose
+                    ? android.graphics.Color.argb((int) (0.08f * 255), 0x67, 0x50, 0xA4)
+                    : 0xFFE3F2FD);
+            canvas.drawCircle(x + pad + 6f, rowTop + rowH * 0.5f, 5.5f, fill);
+            text.setTextSize(8f);
+            text.setColor(0xFF1F1F1F);
+            canvas.drawText(rows[i], x + pad + 16f, rowTop + rowH * 0.5f + 3f, text);
+            text.setTextSize(6.5f);
+            text.setColor(0xFF5F6368);
+            canvas.drawText("sous-texte " + (i + 1), x + pad + 16f,
+                    rowTop + rowH * 0.5f + 10f, text);
+        }
+
+        // Carte d'information du layout (bas d'écran).
+        float cardTop = y + h - 24f;
+        android.graphics.RectF card = new android.graphics.RectF(
+                x + pad, cardTop, x + w - pad, cardTop + 16f);
+        fill.setStyle(android.graphics.Paint.Style.FILL);
+        fill.setColor(0xFFF1F3F4);
+        canvas.drawRoundRect(card, 4f, 4f, fill);
+        text.setTextSize(7f);
+        text.setColor(0xFF5F6368);
+        canvas.drawText(compose ? "Column · verticalArrangement 8dp"
+                : "LinearLayout vertical · padding 16dp", x + pad + 6f,
+                cardTop + 10.5f, text);
+    }
+
+    @Override
+    public String previewDropBadge(int tab) {
+        String lower = currentFileName == null
+                ? "" : currentFileName.toLowerCase(java.util.Locale.ROOT);
+        if (!lower.endsWith(".xml")) return null;
+        return tab == 1 ? "MainActivity.kt · @Composable"
+                : (lower.isEmpty() ? "layout" : currentFileName) + " · gonflé";
     }
 
     @SuppressLint({"SetJavaScriptEnabled", "AddJavascriptInterface"})

@@ -338,8 +338,12 @@ public class EditorActivity extends AppCompatActivity {
         editor.setSession(session);
         session.setLanguage(file.editorLanguageId);
         analyzerAttach(file);
+        // B27 : l'échantillon XML porte un nom de layout — la carte
+        // d'aperçu « goutte d'eau » (œil de gouttière) s'y ouvre avec
+        // ses onglets XML/Compose et son badge « gonflé ».
         editor.setFileName("markdown".equals(file.sampleId) ? "exemple.md"
-                : "html".equals(file.sampleId) ? "page.html" : null);
+                : "html".equals(file.sampleId) ? "page.html"
+                : "xml".equals(file.sampleId) ? "activity_main.xml" : null);
         editor.setZoomMemoryKey(file.editorLanguageId);
         editor.gutterActions.clear();
         armedBreakpoints.clear();

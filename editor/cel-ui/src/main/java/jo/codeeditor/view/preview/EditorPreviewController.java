@@ -3,7 +3,6 @@ package jo.codeeditor.view.preview;
 import jo.codeeditor.view.EditorView;
 
 import androidx.annotation.RestrictTo;
-
 /**
  * Contrôleur du mode aperçu de l'éditeur : pilotage des modes NONE /
  * SPLIT / FULL / SHEET_* ({@link EditorView.PreviewMode}), hôte d'aperçu
@@ -40,15 +39,23 @@ public class EditorPreviewController {
     private EditorPreviewHost previewHost;
     /** Feuille popup d'overlay active quand previewMode est un mode SHEET_*. */
     EditorPreviewSheet previewSheet;
+    /** B27 : carte d'aperçu « goutte d'eau » (popup de gouttière). */
+    private EditorPreviewDrop drop;
     private EditorView.OnPreviewModeChangedListener previewModeListener;
     private final Runnable previewUpdateTask;
 
     public EditorPreviewController(EditorView view) {
         this.view = view;
+        this.drop = new EditorPreviewDrop(view, this);
         this.previewUpdateTask = () -> {
             updateContent();
             view.invalidate();
         };
+    }
+
+    /** B27 — la carte « goutte d'eau » (état vivant, accès painter/tests). */
+    public EditorPreviewDrop drop() {
+        return drop;
     }
 
     /**
@@ -92,6 +99,15 @@ public class EditorPreviewController {
         this.currentFileName = fileName != null ? fileName : "";
         // Délègue la vérification de prévisualisabilité au hôte.
         view.previewable = (previewHost != null && previewHost.canPreview(this.currentFileName));
+        // B27 : plus de sujet pour la carte si le fichier n'est plus
+        // prévisualisable (changement d'échantillon) — fermeture
+        // COMPLÈTE : l'état de la carte ET le mode d'aperçu retombent
+        // (le hôte et le listener sont notifiés, miroir closePreviewDrop).
+        if (!view.previewable && view.previewMode == EditorView.PreviewMode.DROP) {
+            closePreviewDrop();
+        } else {
+            drop.onPreviewableChanged(view.previewable);
+        }
         view.invalidate();
         // B6 : la visibilité de l'action d'aperçu (barre de fil d'Ariane)
         // dérive de previewable — rafraîchit la barre sœur SANS exiger de
@@ -149,7 +165,8 @@ public class EditorPreviewController {
      * qu'il sache où vit le corps de la feuille.
      */
     public int previewLeft() {
-        if (view.previewMode == EditorView.PreviewMode.NONE) return view.getWidth();
+        if (view.previewMode == EditorView.PreviewMode.NONE
+                || view.previewMode == EditorView.PreviewMode.DROP) return view.getWidth();
         if (view.previewMode == EditorView.PreviewMode.FULL
                 || view.previewMode == EditorView.PreviewMode.SHEET_FULL) return 0;
         // SPLIT ou SHEET_SPLIT : l'aperçu prend la moitié droite.
@@ -164,7 +181,8 @@ public class EditorPreviewController {
      * {@link EditorPreviewHost#drawPreview} sert de repli).
      */
     public int previewWidth() {
-        if (view.previewMode == EditorView.PreviewMode.NONE) return 0;
+        if (view.previewMode == EditorView.PreviewMode.NONE
+                || view.previewMode == EditorView.PreviewMode.DROP) return 0;
         if (view.previewMode == EditorView.PreviewMode.FULL
                 || view.previewMode == EditorView.PreviewMode.SHEET_FULL) return view.getWidth();
         // SPLIT ou SHEET_SPLIT.
@@ -185,7 +203,8 @@ public class EditorPreviewController {
         int fullWidth = (int) (view.getWidth() - view.metrics.getGutterWidth()
                 - view.metrics.getPadLeft() - view.metrics.getPadRight());
         if (view.previewMode == EditorView.PreviewMode.NONE
-                || view.previewMode.isSheet()) return fullWidth;
+                || view.previewMode.isSheet()
+                || view.previewMode == EditorView.PreviewMode.DROP) return fullWidth;
         if (view.previewMode == EditorView.PreviewMode.FULL) return 0;
         // SPLIT : le texte prend la moitié gauche.
         return (int) ((view.getWidth() / 2) - view.metrics.getGutterWidth()
@@ -214,11 +233,19 @@ public class EditorPreviewController {
             previewSheet.dismiss();
             previewSheet = null;
         }
+        // B27 : quitte proprement la carte « goutte d'eau » si on
+        // bascule vers un autre mode (l'état meurt, le fondu photographie).
+        if (view.previewMode == EditorView.PreviewMode.DROP
+                && mode != EditorView.PreviewMode.DROP) {
+            drop.close();
+        }
         view.previewMode = mode;
         // Reconstruit le modèle de wrap car la largeur de la zone de texte
-        // a changé. (Les modes SHEET_* ne changent PAS la largeur du texte
-        // — le modèle de wrap reste valide.)
-        if (view.wordWrap && !mode.isSheet()) view.rebuildWrapModel();
+        // a changé. (Les modes SHEET_*/DROP ne changent PAS la largeur du
+        // texte — le modèle de wrap reste valide.)
+        if (view.wordWrap && !mode.isSheet() && mode != EditorView.PreviewMode.DROP) {
+            view.rebuildWrapModel();
+        }
         // Notifie le hôte d'aperçu du changement de mode.
         if (previewHost != null) {
             previewHost.onPreviewModeChanged(view.previewMode,
@@ -261,6 +288,13 @@ public class EditorPreviewController {
      */
     public void openPreview(boolean full) {
         if (!view.previewable || previewHost == null) return;
+        // B27 : les hôtes « goutte d'eau » (canvas) ouvrent la CARTE —
+        // l'alternative mobile au split view, ancrée à l'œil de
+        // gouttière, non modale, esquivant la frappe.
+        if (previewHost.prefersDropPreview()) {
+            openPreviewDropAt(currentCaretLine());
+            return;
+        }
         String lower = currentFileName.toLowerCase(java.util.Locale.ROOT);
         boolean useSheet = lower.endsWith(".md")
             || lower.endsWith(".markdown")
@@ -270,6 +304,106 @@ public class EditorPreviewController {
             ? (full ? EditorView.PreviewMode.SHEET_FULL : EditorView.PreviewMode.SHEET_SPLIT)
             : (full ? EditorView.PreviewMode.FULL : EditorView.PreviewMode.SPLIT);
         setPreviewMode(target);
+    }
+
+    /** Ligne de document du caret courant (0 si sans session). */
+    private int currentCaretLine() {
+        if (view.session == null || view.session.getDocument() == null) return 0;
+        return view.session.getDocument().lineForOffset(
+                view.session.getSelection().start);
+    }
+
+    /**
+     * B27 — ouvre la carte « goutte d'eau » ancrée à la ligne donnée
+     * (l'œil se GÈLE sur cette rangée, la carte pointe vers lui).
+     * Pousse le mode {@link EditorView.PreviewMode#DROP}, notifie le
+     * hôte du mode et du contenu initial, et programme la mise à jour
+     * débouncée (le rendu vivant suit la frappe).
+     */
+    public void openPreviewDropAt(int line) {
+        if (!view.previewable || previewHost == null) return;
+        if (previewSheet != null) {
+            previewSheet.dismiss();
+            previewSheet = null;
+        }
+        boolean wasOpen = view.previewMode == EditorView.PreviewMode.DROP;
+        view.previewMode = EditorView.PreviewMode.DROP;
+        drop.openAt(line);
+        if (!wasOpen) {
+            if (previewHost != null) {
+                previewHost.onPreviewModeChanged(view.previewMode,
+                        previewLeft(), previewWidth());
+            }
+            notifyModeChanged();
+            jo.codeeditor.view.chrome.BreadcrumbBar.invalidateActionsIn(view.getParent());
+        }
+        // Contenu initial immédiat (miroir setPreviewMode).
+        if (previewHost != null && view.session != null) {
+            previewHost.onPreviewContentChanged(view.session.getText());
+        }
+        view.invalidate();
+    }
+
+    /**
+     * B27 — referme la carte « goutte d'eau » et revient à
+     * {@link EditorView.PreviewMode#NONE}. Appelé par le ✕ de la carte,
+     * le re-tap sur l'œil, le changement de session/fichier.
+     */
+    public void closePreviewDrop() {
+        if (view.previewMode != EditorView.PreviewMode.DROP) return;
+        drop.close();
+        view.previewMode = EditorView.PreviewMode.NONE;
+        if (previewHost != null) {
+            previewHost.onPreviewModeChanged(view.previewMode,
+                    previewLeft(), previewWidth());
+        }
+        view.invalidate();
+        notifyModeChanged();
+        jo.codeeditor.view.chrome.BreadcrumbBar.invalidateActionsIn(view.getParent());
+    }
+
+    /**
+     * B27 — bascule la carte depuis l'œil de gouttière : ouvre ancrée
+     * à la rangée du caret, ou referme si déjà ouverte.
+     */
+    public void togglePreviewDrop() {
+        if (view.previewMode == EditorView.PreviewMode.DROP) {
+            closePreviewDrop();
+        } else {
+            openPreviewDropAt(currentCaretLine());
+        }
+    }
+
+    /**
+     * B27 — changement de session (miroir des purges de setSession :
+     * loupe, drag, wrap, recherches) : l'ancre de la carte décrit
+     * l'ANCIEN document, la carte se referme proprement et le mode
+     * d'aperçu retombe à NONE (notifications hôte/listener posées).
+     * Appelé par {@link EditorView#setSession}.
+     */
+    public void onSessionChanged() {
+        if (view.previewMode == EditorView.PreviewMode.DROP) {
+            closePreviewDrop();
+        } else {
+            drop.onSessionChanged();
+        }
+    }
+
+    /**
+     * B27 — hit-test de la carte « goutte d'eau » : vrai quand la carte
+     * est ouverte ET que le point tombe dans son rectangle visuel. Le
+     * tap appartient alors à la carte (onglets et ✕ agissent via
+     * {@code EditorPreviewDrop.hitTest}, le corps engloutit sans agir —
+     * le caret ne bouge pas). Résolu par la cascade de tap AVANT le
+     * placement du caret ; relais restreint sur la vue
+     * ({@code EditorView.hitTestPreviewDrop}).
+     */
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public boolean hitTestDrop(float x, float y) {
+        if (view.previewMode != EditorView.PreviewMode.DROP || !drop.isOpen()) {
+            return false;
+        }
+        return drop.hitTest(x, y);
     }
 
     /**
@@ -361,6 +495,7 @@ public class EditorPreviewController {
      */
     public boolean isXmlPreviewActive() {
         if (view.previewMode.isSheet()) return false;
+        if (view.previewMode == EditorView.PreviewMode.DROP) return false;
         return view.previewMode != EditorView.PreviewMode.NONE
             && previewHost != null
             && previewHost.hasPreviewContent();
@@ -381,6 +516,12 @@ public class EditorPreviewController {
         if (previewSheet != null) {
             previewSheet.dismiss();
             previewSheet = null;
+        }
+        // B27 : la carte vit sur le canvas de l'éditeur — pas de
+        // fenêtre à refermer, mais l'état meurt avec le détachement
+        // (miroir de la purge de la feuille).
+        if (view.previewMode == EditorView.PreviewMode.DROP) {
+            closePreviewDrop();
         }
     }
 

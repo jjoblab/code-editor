@@ -120,6 +120,11 @@ public class EditorInputHandler {
     // la referme sans engloutir le geste (le tap derrière continue sa
     // cascade — placement de caret).
     private boolean colorPickerGesture = false;
+    // ★ B27 : geste englouti par la carte d'aperçu « goutte d'eau » —
+    // un DOWN DANS la carte lui appartient (onglet/✕ au tap via la
+    // cascade handleTap, corps inerte) : pas de scroll, pas de caret,
+    // pas d'appui long derrière elle.
+    private boolean dropCardGesture = false;
 
     // ── Tap gutter vs drag gutter ───────────────────────────
     // Un ACTION_DOWN dans la zone des numéros de ligne arme isScrolling
@@ -338,6 +343,20 @@ public class EditorInputHandler {
                     }
                     view.popupManager.dismissColorPicker();
                 }
+                // ★ B27 : carte d'aperçu « goutte d'eau » — un DOWN DANS
+                // la carte l'engloutit (le tap se résout au UP via
+                // handleTap : onglet bascule, ✕ ferme, corps inerte) ;
+                // un DOWN HORS de la carte la laisse VIVRE (non
+                // modale : le geste continue sa cascade, la carte
+                // esquivant la nouvelle zone de frappe au frame
+                // suivant). L'appui long tap-and-hold est annulé : le
+                // doigt appartient à la carte, pas au texte dessous.
+                if (view.preview.hitTestDrop(x, y)) {
+                    dropCardGesture = true;
+                    scrollerCtl.abortAnimation();
+                    touchHover.cancel();
+                    return true;
+                }
                 int handleHit = selectionGestures.hitTestHandle(x, y);
                 if (handleHit > 0) {
                     view.handleDragMode = handleHit;
@@ -396,6 +415,11 @@ public class EditorInputHandler {
                 return true;
             case MotionEvent.ACTION_MOVE:
                 if (sheetGesture) return true; // scrim modal — englouti
+                // ★ B27 : la carte « goutte d'eau » engloutit son geste —
+                // un drag commencé dans la carte ne scrolle ni ne
+                // sélectionne le texte derrière elle (elle n'a pas de
+                // geste de drag : le tap seul agit).
+                if (dropCardGesture) return true;
                 // B9 (retour terrain n°6) : après un pincement DANS CE
                 // GESTE, les MOVE du doigt restant sont engloutis. Le
                 // pincement écarte/rapproche les deux doigts de dizaines
@@ -608,6 +632,20 @@ public class EditorInputHandler {
                         || ((x - touchStartX) * (x - touchStartX)
                             + (y - touchStartY) * (y - touchStartY) < TAP_SLOP_SQ);
                     if (wasTap) tapResolver.handleTap(x, y);
+                    scrollerCtl.recycleTracker();
+                    view.performClick();
+                    return true;
+                }
+                // ★ B27 : la carte « goutte d'eau » résout SON tap — la
+                // cascade handleTap dispatche (onglet/✕/corps englouti) ;
+                // un drag au-delà du slop ne fait rien (la carte se
+                // replace seule à chaque frame, aucun geste à finir).
+                if (dropCardGesture) {
+                    dropCardGesture = false;
+                    boolean wasDropTap = (x == touchStartX && y == touchStartY)
+                        || ((x - touchStartX) * (x - touchStartX)
+                            + (y - touchStartY) * (y - touchStartY) < TAP_SLOP_SQ);
+                    if (wasDropTap) tapResolver.handleTap(x, y);
                     scrollerCtl.recycleTracker();
                     view.performClick();
                     return true;
@@ -909,6 +947,12 @@ public class EditorInputHandler {
     boolean popupOwnsTouch(float x, float y) {
         // Modaux : le scrim couvre tout l'éditeur.
         if (view.diagnosticPopupVisible || view.diagnosticListSheetLine >= 0) {
+            return true;
+        }
+        // ★ B27 : la carte « goutte d'eau » possède les points qu'elle
+        // recouvre — l'appui long derrière elle ne sélectionne pas le
+        // mot caché (miroir des popups à hit-test déterministe).
+        if (view.preview.hitTestDrop(x, y)) {
             return true;
         }
         if (view.completion.visible && hitTester.hitTestCompletionPopup(x, y) >= 0) {

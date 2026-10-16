@@ -146,4 +146,77 @@ public interface EditorPreviewHost {
                                      EditorView.PreviewMode mode) {
         return null;
     }
+
+    // ── B27 : la carte d'aperçu « goutte d'eau » (gouttière) ────────
+
+    /**
+     * B27 — vrai si cet hôte rend son aperçu dans la CARTE « goutte
+     * d'eau » (popup ancré à l'œil de gouttière, non modal, esquive du
+     * caret) plutôt que dans la feuille/le panneau scindé.
+     *
+     * <p>Le tap sur l'œil de gouttière d'un fichier prévisualisable
+     * ouvre la carte quand ceci renvoie vrai (typiquement les hôtes
+     * <em>canvas</em> : layout XML gonflé, arbre simulé), sinon la
+     * feuille/le mode scindé historique (hôtes <em>View</em> : WebView
+     * Markdown/HTML).</p>
+     *
+     * @return faux par défaut (feuille/panneau — comportement inchangé)
+     */
+    default boolean prefersDropPreview() {
+        return false;
+    }
+
+    /**
+     * B27 — libellés des onglets de la carte (haut-droite). La carte
+     * les dessine en pilules, bascule au tap et notifie
+     * {@link #onPreviewDropTabSelected(int)} ; l'index sélectionné est
+     * repassé à {@link #drawDropPreview(Canvas, float, float, float,
+     * float, int)} à chaque frame.
+     *
+     * @return liste vide par défaut (aucun onglet — carte mono-vue)
+     */
+    default java.util.List<String> previewDropTabs() {
+        return java.util.Collections.emptyList();
+    }
+
+    /**
+     * B27 — l'utilisateur a basculé l'onglet de la carte. Le hôte
+     * re-rend son aperçu au prochain frame (invalidation déjà posée
+     * par la bibliothèque).
+     *
+     * @param index l'index de l'onglet nouvellement sélectionné
+     */
+    default void onPreviewDropTabSelected(int index) {
+    }
+
+    /**
+     * B27 — rend l'aperçu dans l'écran du mini-téléphone de la carte.
+     * Le canvas est déjà translaté/échelonné au niveau de la carte et
+     * clippé à l'écran : le hôte dessine dans le rectangle donné
+     * (coordonnées carte). Appelé à chaque frame tant que la carte vit.
+     *
+     * @param canvas le canvas de l'éditeur (translaté à l'écran)
+     * @param x      bord gauche de l'écran (coordonnées carte)
+     * @param y      haut de l'écran (coordonnées carte)
+     * @param w      largeur de l'écran (px)
+     * @param h      hauteur de l'écran (px)
+     * @param tab    l'index d'onglet sélectionné (voir
+     *               {@link #previewDropTabs()})
+     */
+    default void drawDropPreview(Canvas canvas, float x, float y,
+            float w, float h, int tab) {
+    }
+
+    /**
+     * B27 — libellé du badge d'exécution (bas de l'écran du
+     * mini-téléphone) : identifie ce qui est rendu (« layout.xml ·
+     * gonflé », « MainActivity.kt · @Composable »…). Ellipsé au milieu
+     * si trop long.
+     *
+     * @param tab l'index d'onglet sélectionné
+     * @return null/vidé par défaut (aucun badge)
+     */
+    default String previewDropBadge(int tab) {
+        return null;
+    }
 }
