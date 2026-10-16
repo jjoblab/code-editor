@@ -22,3 +22,8 @@
 # (textmate/atom/microsoft/MagicStack) — obligations de licence, pas des
 # usages de comparaison de ce projet.
 ^NOTICE:URL github\.com/(textmate|atom|microsoft|MagicStack)$
+
+# Les grammaires tierces embarquées (C3-quater, VERBATIM MIT) portent leur
+# en-tête « information_for_contributors » d'origine — l'URL du dépôt amont
+# fait partie du fichier original (attribution upstream, TextMate/VS Code).
+^editor/cel-textmate/src/main/resources/textmate/[a-z]+\.tmLanguage\.json:URL github\.com/(textmate|atom|microsoft|MagicStack)$
