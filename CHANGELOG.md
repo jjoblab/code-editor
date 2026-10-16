@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Les sections antérieures à la période courante sont archivées dans
 [`docs/archive/CHANGELOG-archive.md`](docs/archive/CHANGELOG-archive.md) (A-08, audit 3.69.0).
 
+## [Unreleased]
+
+### Fixed
+
+- **Benchmarks A/B robustes au bruit des runners CI** — `EditorSessionBenchmark` : les deux comparaisons ancien/nouveau chemin (P-02 `getText()` par frappe, et `lineText` contre `getText().substring`) mesuraient UN seul passage et assertaient l'ordre sans marge : le runner CI partagé (JIT, GC, contention CPU) a inversé les deux mesures sur le commit `05620a6` — sans aucun changement de code, pendant que le workflow de publication passait les mêmes tests sur le même commit. Chaque chemin est désormais mesuré sur 3 tours dont on garde le MINIMUM (le bruit ne fait qu'ajouter du temps — le minimum l'écarte), et l'assertion porte une marge explicite : gain ≥ 2× pour P-02 (écart structurel — l'ancien matérialise tout le document à chaque frappe), écart ≤ +25 % pour lineText (les deux chemins sont structurellement proches : 1 matérialisation + 999 lectures cachées contre 1000 `subText` — l'assertion protège d'une régression STRUCTURALE, pas de quelques pourcents de bruit résiduel).
+
 ## [3.72.0] — 2026-10-16 — Multi-langages (ADR-002 : chantiers C1→C3→C2) + correctifs retour terrain démo
 
 ### Fixed (retour terrain démo 3.72.0-dev : bascule grammaires)
