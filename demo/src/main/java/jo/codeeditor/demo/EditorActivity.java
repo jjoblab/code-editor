@@ -565,6 +565,11 @@ public class EditorActivity extends AppCompatActivity {
         editor.setMinimapEnabled(prefs.minimap());
         editor.setFontLigatures(prefs.ligatures());
         editor.setShowNonPrintable(prefs.nonPrintable());
+        // B27 (option propriétaire) : politique de cohabitation goutte
+        // d'eau / popups + taille de la carte — relus ici, appliqués au
+        // frame suivant (Retour des réglages → onResume → ici).
+        editor.setPreviewDropPolicy(dropPolicyFrom(prefs.previewDropPolicy()));
+        editor.setPreviewDropScale(prefs.previewDropScale());
         editorLight = prefs.lightTheme();
         editor.setSchemeBaseTheme(editorLight ? DemoTheme.emeraldDay()
                 : DemoTheme.emeraldNight());
@@ -591,6 +596,13 @@ public class EditorActivity extends AppCompatActivity {
         schemeOn = on;
         editor.setColorScheme(on ? DemoTheme.duskScheme() : null);
         if (on) editor.setSchemeDarkMode(!editorLight);
+    }
+
+    /** Traduit la valeur persistée en politique (ORIGINALE par défaut). */
+    private EditorView.PreviewDropPolicy dropPolicyFrom(String value) {
+        if ("three_layers".equals(value)) return EditorView.PreviewDropPolicy.THREE_LAYERS;
+        if ("variant_b".equals(value)) return EditorView.PreviewDropPolicy.VARIANT_B;
+        return EditorView.PreviewDropPolicy.ORIGINAL;
     }
 
     @Override

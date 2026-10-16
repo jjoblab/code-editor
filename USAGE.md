@@ -625,21 +625,48 @@ est trop petit. Elle ne recouvre **jamais** la ligne où l'utilisateur
 tape — l'algorithme est prouvé par balayage de 18 positions dans les
 tests.
 
-**Cohabitation avec les popups de frappe** (complétion, doc rapide) :
-la carte les traite comme des **obstacles** — elle cherche un creux
-libre hors de la bande de frappe ET des popups vivants, se pose
-**latéralement à droite** de la complétion sur grand écran (entière,
-la tige la relie à l'œil), compacte sinon. Si vraiment rien ne tient
-(petit écran), elle ne cache plus : elle se **voile d'eau** —
-transparence animée (alpha 0,25) tant qu'elle recouvre une part
-significative du popup (≥ 10 %), opaque dès que c'est dégagé, avec
-hystérésis (la complétion change de hauteur à chaque frappe, l'état
-ne tremble pas) ; la tige et l'œil restent opaques. Et la **priorité
-des taps appartient à la frappe** : une rangée de complétion tapée
-sous la carte voilée est acceptée ; un tap ailleurs referme la
-complétion puis continue sa cascade. L'aide de signature (bannière
-passive, sans bornes mesurables exposées) ne compte pas encore comme
-obstacle — la liste est extensible côté bibliothèque.
+**Cohabitation avec les popups de frappe** (complétion, doc rapide) —
+**trois politiques au choix du propriétaire**, l'ORIGINALE étant le
+défaut (`EditorView.PreviewDropPolicy`) :
+
+| Politique | Rendu | Géométrie | Taps |
+|---|---|---|---|
+| `ORIGINAL` (défaut) | carte au premier plan (au-dessus des popups) | aveugle aux popups (bande de frappe seule — maquette d'origine) | carte d'abord : le corps engloutit, la complétion enterrée reste ouverte |
+| `THREE_LAYERS` | carte au premier plan | esquive par obstacles (creux, latéral grand écran, compactage) | complétion d'abord : la surface de frappe gagne toujours |
+| `VARIANT_B` | **z-order inversé : la complétion se dessine AU-DESSUS de la carte** | aveugle aux popups | complétion d'abord |
+
+En `THREE_LAYERS`, la carte traite les popups vivants comme des
+**obstacles** — elle cherche un creux libre hors de la bande de frappe
+ET des popups, se pose **latéralement à droite** de la complétion sur
+grand écran (entière, la tige la relie à l'œil), compacte sinon. Si
+vraiment rien ne tient (petit écran), elle ne cache plus : elle se
+**voile d'eau** — transparence animée (alpha 0,25) tant qu'elle
+recouvre une part significative du popup (≥ 10 %), opaque dès que
+c'est dégagé, avec hystérésis (la complétion change de hauteur à
+chaque frappe, l'état ne tremble pas) ; la tige et l'œil restent
+opaques. Et la **priorité des taps appartient à la frappe** : une
+rangée de complétion tapée sous la carte voilée est acceptée ; un tap
+ailleurs referme la complétion puis continue sa cascade. L'aide de
+signature (bannière passive, sans bornes mesurables exposées) ne
+compte pas encore comme obstacle — la liste est extensible côté
+bibliothèque.
+
+```java
+// La politique (défaut ORIGINAL — la maquette d'origine) :
+editorView.setPreviewDropPolicy(EditorView.PreviewDropPolicy.THREE_LAYERS);
+// La variante B : lisibilité brute, la complétion recouvre la carte :
+editorView.setPreviewDropPolicy(EditorView.PreviewDropPolicy.VARIANT_B);
+// L'option taille — facteur d'agrandissement borné [1, 1,5] :
+editorView.setPreviewDropScale(1.3f); // carte entière +30 %
+```
+
+**Design de la goutte** (retour terrain) : la marge autour du
+mini-téléphone est resserrée (10 → 4 dp) et **transparente** — la
+bande du téléphone est une fenêtre TROUÉE dans le verre de la carte
+(le code reste visible autour du bezel), seuls l'en-tête et le pied
+restent verre. Le changement de politique en cours de vie de la carte
+réinitialise le voile (elle repart opaque, la nouvelle politique
+s'applique au frame suivant).
 
 Le contrat côté hôte (toutes les méthodes ont un défaut raisonnable —
 seules les utiles sont à surcharger) :

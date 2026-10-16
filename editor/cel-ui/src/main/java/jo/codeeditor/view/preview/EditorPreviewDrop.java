@@ -66,8 +66,10 @@ public final class EditorPreviewDrop {
     public static final float CARD_W_DP = 232f;
     /** En-tête : titre + onglets + fermeture (dp). */
     public static final float HEADER_H_DP = 40f;
-    /** Marge autour du mini-téléphone (dp). */
-    public static final float PHONE_MARGIN_DP = 10f;
+    /** Marge autour du mini-téléphone (dp) — resserrée au retour terrain
+     *  (10 → 4 : « les marges sont un peu trop grosses »), la bande
+     *  restante est TROUÉE au rendu (marge transparente). */
+    public static final float PHONE_MARGIN_DP = 4f;
     /** Pied : chips « rendu vivant » + échelle (dp). */
     public static final float FOOTER_H_DP = 32f;
     /** Hauteur du mini-téléphone (dp). */
@@ -145,6 +147,17 @@ public final class EditorPreviewDrop {
     /** Animateur du voile (null au repos). */
     private ValueAnimator veilAnimator;
 
+    // ── Options propriétaire (B27) ────────────────────────────────
+
+    /** Politique de cohabitation avec les popups de frappe — ORIGINAL par défaut. */
+    private EditorView.PreviewDropPolicy policy = EditorView.PreviewDropPolicy.ORIGINAL;
+    /** Bornes du facteur d'agrandissement de la carte (option taille). */
+    public static final float MIN_CARD_SCALE = 1f;
+    /** Miroir de {@link #MIN_CARD_SCALE}. */
+    public static final float MAX_CARD_SCALE = 1.5f;
+    /** Facteur d'agrandissement appliqué à toute la carte (1 = maquette). */
+    private float cardScale = 1f;
+
     EditorPreviewDrop(EditorView view, EditorPreviewController preview) {
         this.view = view;
         this.preview = preview;
@@ -158,6 +171,51 @@ public final class EditorPreviewDrop {
 
     /** Onglet sélectionné courant. */
     public int getSelectedTab() { return selectedTab; }
+
+    // ── Options propriétaire (B27) ───────────────────────────────
+
+    /**
+     * Politique de cohabitation de la carte avec les popups de frappe
+     * — ORIGINAL par défaut (voir {@link EditorView.PreviewDropPolicy}).
+     * Le changement réinitialise le voile : une carte ouverte repart
+     * opaque, la nouvelle politique s'applique au frame suivant.
+     */
+    public void setPolicy(EditorView.PreviewDropPolicy p) {
+        if (p == null) p = EditorView.PreviewDropPolicy.ORIGINAL;
+        if (p == policy) return;
+        this.policy = p;
+        resetVeil();
+        view.invalidate();
+    }
+
+    /** Politique courante (ORIGINALE par défaut). */
+    public EditorView.PreviewDropPolicy policy() { return policy; }
+
+    /**
+     * Facteur d'agrandissement de la carte, borné dans
+     * [{@link #MIN_CARD_SCALE}, {@link #MAX_CARD_SCALE}] — 1 = taille
+     * de la maquette. Appliqué à toute la carte (chrome + téléphone) ;
+     * le placement (clamps, esquive, compactage) se recalcule sur la
+     * carte agrandie au frame suivant.
+     */
+    public void setCardScale(float scale) {
+        float clamped = Math.max(MIN_CARD_SCALE, Math.min(MAX_CARD_SCALE, scale));
+        if (clamped == cardScale) return;
+        this.cardScale = clamped;
+        view.invalidate();
+    }
+
+    /** Facteur d'agrandissement courant (1 par défaut). */
+    public float cardScale() { return cardScale; }
+
+    /**
+     * Vrai quand la carte se dessine SOUS les popups de frappe
+     * (variante B : z-order inversé — la complétion la recouvre).
+     * Le renderer consulte ce drapeau pour choisir son étape de dessin.
+     */
+    public boolean drawsUnderTypingPopups() {
+        return policy == EditorView.PreviewDropPolicy.VARIANT_B;
+    }
 
     /**
      * Ouvre la carte ancrée à la ligne donnée (typiquement la rangée du
@@ -252,7 +310,14 @@ public final class EditorPreviewDrop {
     /**
      * Placement courant de la carte — recalculé à chaque appel depuis
      * l'état vivant de la vue (ancre, caret, viewport, métriques) et
-     * des obstacles vivants (popups de frappe). Retourne null si
+     * des obstacles vivants (popups de frappe — TROIS couches
+     * uniquement : l'ORIGINALE et la variante B sont aveugles aux
+     * popups, miroir des formules historiques). L'option taille
+     * ({@link #cardScale}) multiplie les dimensions FED à la
+     * géométrie, puis le placement est RE-BASÉ en coordonnées
+     * maquette : l'échelle portée devient compactage × agrandissement,
+     * le dessin et le hit-test (coordonnées locales) restent en
+     * repère maquette sans aucune division spéciale. Retourne null si
      * fermée ou sans session.
      */
     public EditorPreviewDropGeometry.Placement placement() {
@@ -261,8 +326,8 @@ public final class EditorPreviewDrop {
         }
         float density = view.getResources().getDisplayMetrics().density;
         EditorMetrics m = view.metrics;
-        float cardW = CARD_W_DP * density;
-        float cardH = CARD_H_DP * density;
+        float cardW = CARD_W_DP * density * cardScale;
+        float cardH = CARD_H_DP * density * cardScale;
         float edgePad = EDGE_PAD_DP * density;
         float lineHeight = m.getLineHeight();
         // Œil : pill B9c centrée dans la zone des numéros de la rangée
@@ -278,14 +343,27 @@ public final class EditorPreviewDrop {
         float caretY = view.docLineToY(caretLine) - view.scroll.vOffset;
         float guardTop = caretY - lineHeight;
         float guardBot = caretY + 2f * lineHeight;
-        return EditorPreviewDropGeometry.place(
+        // Obstacles : TROIS couches seulement (esquive par popups).
+        float[] obstacles = policy == EditorView.PreviewDropPolicy.THREE_LAYERS
+                ? collectObstacles() : null;
+        EditorPreviewDropGeometry.Placement p = EditorPreviewDropGeometry.place(
                 view.getWidth(), view.getHeight(),
                 cardW, cardH,
                 eyeX, eyeY, EYE_RADIUS_DP * density,
                 guardTop, guardBot,
-                collectObstacles(),
+                obstacles,
                 edgePad, ANCHOR_DROP_OFFSET_DP * density,
                 MIN_SCALE, STEM_THRESHOLD_DP * density);
+        if (cardScale == 1f) return p;
+        // Re-base maquette : échelle totale = compactage × agrandissement,
+        // coordonnées locales divisées (l'écran ne bouge PAS d'un pixel).
+        return new EditorPreviewDropGeometry.Placement(
+                p.cardLeft, p.cardTop,
+                CARD_W_DP * density, CARD_H_DP * density,
+                p.scale * cardScale,
+                p.dropLocalY / cardScale,
+                p.stemVisible, p.stemX0, p.stemY0, p.stemX1, p.stemY1,
+                p.level, p.overlapRatio, p.obstructed);
     }
 
     /**
@@ -331,14 +409,18 @@ public final class EditorPreviewDrop {
     /**
      * Met à jour la cible du voile depuis le recouvrement restant du
      * placement courant — appelé par le painter à chaque frame (le
-     * seul passage garanti quand la carte est dessinée). Hystérésis à
-     * deux plateaux : voile au-delà de {@link #VEIL_ON_RATIO}, dévoile
-     * en dessous de {@link #VEIL_OFF_RATIO}, STABLE entre les deux (la
-     * complétion filtre à chaque frappe, l'état ne doit pas trembler).
+     * seul passage garanti quand la carte est dessinée). TROIS couches
+     * uniquement : l'ORIGINALE ne se voile jamais (la maquette est
+     * opaque), la variante B n'en a pas besoin (la complétion la
+     * recouvre). Hystérésis à deux plateaux : voile au-delà de
+     * {@link #VEIL_ON_RATIO}, dévoile en dessous de
+     * {@link #VEIL_OFF_RATIO}, STABLE entre les deux (la complétion
+     * filtre à chaque frappe, l'état ne doit pas trembler).
      * Idempotent par frame : seul un CHANGEMENT de cible anime.
      */
     public void updateVeil(EditorPreviewDropGeometry.Placement p) {
         if (p == null) return;
+        if (policy != EditorView.PreviewDropPolicy.THREE_LAYERS) return;
         float ratio = p.overlapRatio;
         if (!veiled && ratio >= VEIL_ON_RATIO) {
             veiled = true;

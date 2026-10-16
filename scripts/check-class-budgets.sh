@@ -107,7 +107,18 @@ budget() {
 # capitales, stylet). Marge 5 lignes, style maison ; champs 177/178
 # inchangés — le relèvement ne dispense pas de la décomposition du
 # plan 01.
-budget editor/cel-ui/src/main/java/jo/codeeditor/view/EditorView.java 3965 178 284
+# Écart au ratchet : plafonds LIGNES 3965 → 4045 et MÉTHODES 284 → 290
+# (B27, options propriétaire — retour terrain n°2) : +4 relais d'API
+# publique (setPreviewDropPolicy/getPreviewDropPolicy/setPreviewDropScale/
+# getPreviewDropScale) et +1 enum public imbriqué PreviewDropPolicy
+# (ORIGINALE défaut / TROIS couches / VARIANTE B — choix explicite du
+# propriétaire en session), +2 lignes de plomberie applyPrefs ; l'ÉTAT
+# vit dans EditorPreviewDrop (policy + cardScale, logique et clamp là),
+# champs 177/178 INCHANGÉS ; la LOGIQUE est hors vue (géométrie pure,
+# painter, résolveur) — miroir des extractions du plan 01. Marge 14
+# lignes / 3 méthodes, style maison ; le relèvement ne dispense pas de
+# la décomposition du plan 01.
+budget editor/cel-ui/src/main/java/jo/codeeditor/view/EditorView.java 4045 178 290
 # Écart au ratchet : plafonds LIGNES 1600 → 1610 et MÉTHODES 100 → 102
 # (R2 du plan 09, IME) : +1 méthode publique (imeSelectedText — la voie
 # IME bornée au plafond Binder, distincte de selectedText interne) et

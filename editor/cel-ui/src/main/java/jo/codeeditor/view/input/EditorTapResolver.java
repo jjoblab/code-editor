@@ -114,26 +114,22 @@ public class EditorTapResolver {
             }
         }
 
-        // ── ★ Retour terrain B27 : le popup de COMPLÉTION passe AVANT ─
-        // la carte « goutte d'eau » dans la cascade — la surface de ────
-        // frappe gagne TOUJOURS, quel que soit l'alpha de la carte. ────
-        // Avant : la carte (dessinée en dernier, hit-testée en premier)
-        // engloutissait les taps sur les rangées qu'elle recouvrait — ──
-        // un mur invisible pire que le cache visuel. Désormais une ────
-        // rangée tapée est acceptée même SOUS la carte voilée ; un tap ─
-        // hors du popup referme la complétion PUIS continue sa cascade ─
-        // (règle universelle « tout tap hors du popup le referme », la ─
-        // carte n'est plus l'exception qui laissait traîner une ────────
-        // complétion enterrée sous elle). ─────────────────────────────
-        if (view.completion.visible) {
-            int hitRow = hitTester.hitTestCompletionPopup(x, y);
-            if (hitRow >= 0) {
-                view.completion.selected = hitRow;
-                view.invalidate();
-                view.completionAccept();
+        // ── ★ Retour terrain B27 (option propriétaire) : le popup de ─
+        // COMPLÉTION passe AVANT la carte « goutte d'eau » dans la ────
+        // cascade — TROIS couches et VARIANTE B seulement. La surface ─
+        // de frappe gagne TOUJOURS, quel que soit l'alpha de la carte ; ─
+        // un tap hors du popup referme la complétion PUIS continue sa ─
+        // cascade (règle universelle « tout tap hors du popup le ──────
+        // referme », la carte n'est plus l'exception qui laissait ─────
+        // traîner une complétion enterrée sous elle). En ORIGINALE, le ─
+        // bloc retrouve sa position HISTORIQUE (après l'aide de ───────
+        // signature) : la carte d'abord, la complétion enterrée reste ──
+        // ouverte — miroir exact de la maquette d'origine. ────────────
+        boolean completionFirst = view.preview.drop().policy().completionFirst();
+        if (completionFirst && view.completion.visible) {
+            if (tapCompletionRow(x, y)) {
                 return;
             }
-            view.dismissCompletion();
         }
 
         // ── ★ B27 : carte d'aperçu « goutte d'eau » OUVERTE — un tap
@@ -213,9 +209,15 @@ public class EditorTapResolver {
             view.dismissSignatureHelp();
         }
 
-        // (Le hit-test de complétion vit désormais plus haut, AVANT la
-        // carte « goutte d'eau » — retour terrain B27, surface de
-        // frappe prioritaire.)
+        // (ORIGINALE — position historique : le hit-test de complétion
+        // vit ICI, APRÈS l'aide de signature ; en TROIS couches et
+        // variante B il vit plus haut, AVANT la carte « goutte d'eau »
+        // — surface de frappe prioritaire, retour terrain B27.)
+        if (!completionFirst && view.completion.visible) {
+            if (tapCompletionRow(x, y)) {
+                return;
+            }
+        }
 
         // Fiche de liste des diagnostics groupés — un tap sur une rangée
         // ouvre le popup de détail de ce diagnostic (pour qu'un warning
@@ -611,6 +613,30 @@ public class EditorTapResolver {
         view.caretAnim.onEditOrMove();
 
         view.invalidate();
+    }
+
+    // ── Complétion (positions historique / prioritaire — option B27) ──
+
+    /**
+     * Hit-test + consommation d'une rangée du popup de complétion.
+     * Retourne vrai quand le tap est CONSOMMÉ (rangée touchée :
+     * sélection + acceptation). Un tap hors du popup referme la
+     * complétion (effet de bord) mais N'EST PAS consommé — la cascade
+     * continue derrière. Partagé par les deux positions de la cascade
+     * : AVANT la carte (TROIS couches / variante B — surface de frappe
+     * prioritaire) et APRÈS l'aide de signature (ORIGINALE — position
+     * historique, la carte engloutit d'abord).
+     */
+    private boolean tapCompletionRow(float x, float y) {
+        int hitRow = hitTester.hitTestCompletionPopup(x, y);
+        if (hitRow >= 0) {
+            view.completion.selected = hitRow;
+            view.invalidate();
+            view.completionAccept();
+            return true;
+        }
+        view.dismissCompletion();
+        return false;
     }
 
     // ── pendingTapDismiss ──

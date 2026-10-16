@@ -102,6 +102,14 @@
     <string name="settings_grammars_hint">Au chargement d\u2019un langage avec grammaire embarquée, la voie grammaires prend le dessus</string>
     <string name="settings_lsp_auto">LSP automatique sur Java</string>
     <string name="settings_lsp_auto_hint">Connecte le mini serveur LSP dès qu\u2019un fichier Java est ouvert</string>
+    <string name="settings_section_preview">Aperçu</string>
+    <string name="settings_drop_policy">Goutte d\u2019eau &amp; complétion</string>
+    <string name="settings_drop_policy_hint">Cohabitation de la carte d\u2019aperçu avec les popups de frappe — Originale : la carte reste au premier plan (défaut) ; 3 couches : esquive + voile translucide + la complétion gagne les taps ; Variante B : la complétion se dessine au-dessus de la carte</string>
+    <string name="settings_drop_policy_original">Originale</string>
+    <string name="settings_drop_policy_layers">3 couches</string>
+    <string name="settings_drop_policy_variant_b">Variante B</string>
+    <string name="settings_drop_scale">Taille de la goutte d\u2019eau</string>
+    <string name="settings_drop_scale_hint">Agrandissement de la carte d\u2019aperçu, marge transparente et marges resserrées incluses (100 % = maquette)</string>
     <string name="settings_footnote">Les réglages s\u2019appliquent à l\u2019atelier au retour (relus à chaque reprise). La bascule Moteur LSP du menu reste prioritaire sur la connexion automatique.</string>
 
     <!-- B12 (P1-4) : mode des numéros de ligne de la gouttière -->

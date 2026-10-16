@@ -88,6 +88,9 @@ public class PreviewDropVeilTest {
         view.setSession(new EditorSession(EditorDocument.of(DOC)));
         view.setPreviewHost(new DropHost());
         view.setFileName("activity_main.xml");
+        // Opt-in explicite : le voile d'eau est une POLITIQUE (B27,
+        // option propriétaire) — l'ORIGINALE est le défaut.
+        view.setPreviewDropPolicy(EditorView.PreviewDropPolicy.THREE_LAYERS);
         view.measure(w, h);
         view.layout(0, 0, w, h);
         TestMetrics.injecter(view, lineH, charW);
@@ -124,7 +127,7 @@ public class PreviewDropVeilTest {
 
     /** Un placement synthétique au ratio donné (hystérésis pur). */
     private static Placement placementAtRatio(float ratio) {
-        return new Placement(0f, 0f, 232f, 342f, 1f, 0f, false,
+        return new Placement(0f, 0f, 232f, 330f, 1f, 0f, false,
                 0f, 0f, 0f, 0f, 1, ratio, ratio > 0f);
     }
 

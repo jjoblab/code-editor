@@ -24,6 +24,8 @@ final class EditorPrefs {
     private static final String KEY_SCHEME = "scheme";
     private static final String KEY_GRAMMARS = "grammars_auto";
     private static final String KEY_LSP_AUTO = "lsp_auto";
+    private static final String KEY_DROP_POLICY = "preview_drop_policy";
+    private static final String KEY_DROP_SCALE = "preview_drop_scale";
 
     private final SharedPreferences prefs;
 
@@ -63,6 +65,29 @@ final class EditorPrefs {
     /** Connexion automatique du moteur LSP sur les fichiers Java. */
     boolean lspAuto() {
         return prefs.getBoolean(KEY_LSP_AUTO, false);
+    }
+
+    /**
+     * Politique de cohabitation goutte d'eau / popups de frappe —
+     * l'ORIGINALE est le défaut (maquette d'origine). Valeurs
+     * persistées : « original », « three_layers », « variant_b ».
+     */
+    String previewDropPolicy() {
+        String v = prefs.getString(KEY_DROP_POLICY, "original");
+        return "three_layers".equals(v) || "variant_b".equals(v) ? v : "original";
+    }
+
+    void setPreviewDropPolicy(String value) {
+        prefs.edit().putString(KEY_DROP_POLICY, value).apply();
+    }
+
+    /** Taille de la goutte d'eau — facteur d'agrandissement (1 par défaut). */
+    float previewDropScale() {
+        return prefs.getFloat(KEY_DROP_SCALE, 1f);
+    }
+
+    void setPreviewDropScale(float value) {
+        prefs.edit().putFloat(KEY_DROP_SCALE, value).apply();
     }
 
     void set(String key, boolean value) {

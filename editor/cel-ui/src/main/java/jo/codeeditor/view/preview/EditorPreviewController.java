@@ -59,6 +59,33 @@ public class EditorPreviewController {
     }
 
     /**
+     * B27 (option propriétaire) — politique de cohabitation de la carte
+     * avec les popups de frappe (ORIGINALE par défaut, TROIS couches,
+     * variante B). Délègue à la carte : le voile se réinitialise.
+     */
+    public void setDropPolicy(EditorView.PreviewDropPolicy policy) {
+        drop.setPolicy(policy);
+    }
+
+    /** Politique courante de cohabitation goutte d'eau / popups. */
+    public EditorView.PreviewDropPolicy dropPolicy() {
+        return drop.policy();
+    }
+
+    /**
+     * B27 (option propriétaire) — facteur d'agrandissement de la carte
+     * (borné [1, 1,5] par la carte elle-même).
+     */
+    public void setDropScale(float scale) {
+        drop.setCardScale(scale);
+    }
+
+    /** Facteur d'agrandissement courant de la carte. */
+    public float dropScale() {
+        return drop.cardScale();
+    }
+
+    /**
      * Enregistre le hôte d'aperçu qui fournit le rendu d'aperçu.
      *
      * <p>Sans hôte, l'éditeur ne peut prévisualiser aucun fichier. Le hôte
