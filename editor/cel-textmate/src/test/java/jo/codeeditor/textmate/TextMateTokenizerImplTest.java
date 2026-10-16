@@ -84,6 +84,53 @@ class TextMateTokenizerImplTest {
     }
 
     @Test
+    void hasEmbeddedGrammar_sondeSansChargerNiActiver() {
+        TextMateTokenizerImpl impl = TextMateTokenizerImpl.create();
+        // L'inventaire complet (dépôt + tierces) est VISIBLE sans
+        // activation — c'est la sonde de visibilité d'une bascule hôte.
+        for (String lang : new String[]{"csharp", "css", "html", "java",
+                "javascript", "kotlin", "lua", "markdown", "python", "xml"}) {
+            assertTrue(impl.hasEmbeddedGrammar(lang), "embarquée : " + lang);
+        }
+        // Langages sans grammaire embarquée : la voie intégrée seule.
+        for (String lang : new String[]{"go", "rust", "sql", "brainfuck"}) {
+            assertFalse(impl.hasEmbeddedGrammar(lang), "absente : " + lang);
+        }
+        // Null / vide / blanc : faux, sans exception.
+        assertFalse(impl.hasEmbeddedGrammar(null));
+        assertFalse(impl.hasEmbeddedGrammar(""));
+        assertFalse(impl.hasEmbeddedGrammar("   "));
+    }
+
+    @Test
+    void hasEmbeddedGrammar_neDépendPasDuRegistre() {
+        TextMateTokenizerImpl impl = TextMateTokenizerImpl.create();
+        // Avant activation : isAvailable=false mais la sonde dit vrai —
+        // c'est LE bug d'hôte qu'elle évite : une bascule pilotée par
+        // isAvailable disparaît au premier lancement (jamais activée)
+        // et après une désactivation (désenregistrée) → impossible de
+        // rebasculer. La sonde reste stable dans les deux cas.
+        assertFalse(impl.isAvailable("java"));
+        assertTrue(impl.hasEmbeddedGrammar("java"));
+        impl.loadEmbeddedGrammar("java");
+        assertTrue(impl.isAvailable("java"));
+        assertTrue(impl.hasEmbeddedGrammar("java"));
+        impl.unregisterGrammar("java");
+        assertFalse(impl.isAvailable("java"));
+        assertTrue(impl.hasEmbeddedGrammar("java"),
+                "la sonde survit à la désinscription");
+        // Casse normalisée comme le reste du registre.
+        assertTrue(impl.hasEmbeddedGrammar("JAVA"));
+        // Une clé enregistrée à la main (source hôte) n'est PAS une
+        // grammaire « embarquée » : la sonde dit faux, isAvailable
+        // dit vrai — les deux réponses sont distinctes et justes.
+        impl.registerGrammar("mylang", "{\"name\":\"m\",\"scopeName\":\"source.m\"}");
+        assertTrue(impl.isAvailable("mylang"));
+        assertFalse(impl.hasEmbeddedGrammar("mylang"));
+        impl.unregisterGrammar("mylang");
+    }
+
+    @Test
     void grammaireTierce_inventaireCompletChargeEtTokénise() {
         // Les 9 grammaires tierces embarquées chargent (parse
         // indulgent C3-bis, plist XML inclus pour kotlin) et

@@ -208,6 +208,29 @@ public final class TextMateTokenizerImpl implements TextMateTokenizer {
         }
     }
 
+    /**
+     * Une grammaire embarquée (dépôt {@code .tmg.json}, tierce JSON ou
+     * tierce plist) existe-t-elle pour ce langage — SANS l'activer ni
+     * la charger ?
+     *
+     * <p>Distinction clé pour un hôte qui expose une bascule « voie
+     * grammaires ↔ tokéniseur intégré » : {@link #isAvailable} ne dit
+     * vrai que pour une grammaire DÉJÀ enregistrée (après
+     * {@link #loadEmbeddedGrammar}), donc il ne peut pas piloter la
+     * visibilité de la bascule — au premier lancement, ou après une
+     * désactivation, il dirait « non » et la bascule disparaîtrait.
+     * Cette sonde répond à « ce langage PEUT-il passer sur la voie
+     * grammaires ? » : elle sonde les trois formats de ressource sans
+     * toucher au registre (aucun parse, aucun état).</p>
+     */
+    public boolean hasEmbeddedGrammar(String language) {
+        if (language == null || language.isBlank()) return false;
+        String norm = normalize(language);
+        return readResource("textmate/" + norm + ".tmg.json") != null
+                || readResource("textmate/" + norm + ".tmLanguage.json") != null
+                || readResource("textmate/" + norm + ".tmLanguage") != null;
+    }
+
     @Override
     public boolean isAvailable(String language) {
         if (language == null) return false;

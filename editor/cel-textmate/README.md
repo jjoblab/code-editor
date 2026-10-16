@@ -44,7 +44,18 @@ impl.loadEmbeddedGrammar("python");   // active la grammaire embarquée
 impl.registerGrammar("mylang", source); // grammaire fournie par l'hôte
 impl.unregisterGrammar("mylang");
 impl.isAvailable("python");           // true si une grammaire est active
+impl.hasEmbeddedGrammar("python");    // true SANS l'activer : la sonde de
+                                      // visibilité d'une bascule hôte
 ```
+
+`isAvailable` dit si une grammaire est **active** (enregistrée dans le
+registre) ; `hasEmbeddedGrammar` dit si le langage **peut** passer sur
+la voie grammaires (ressource embarquée présente, sans chargement ni
+état). Un hôte qui expose une bascule « tokéniseur intégré ↔
+grammaires » pilote la **visibilité** de sa bascule sur la sonde et sa
+**coche** sur l'état — piloter la visibilité sur `isAvailable`
+masquerait la bascule au premier lancement et après chaque
+désactivation, rendant le retour impossible.
 
 ## Le moteur
 
