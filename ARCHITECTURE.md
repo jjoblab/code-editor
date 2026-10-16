@@ -359,11 +359,15 @@ editorView.setFileName("layout.xml");
 // → Si isXmlPreviewActive() : host.drawPreview(canvas, previewLeft, 0)
 // → Si DROP ouvert : EditorPreviewDropPainter.drawCard(canvas)
 //   (tige + goutte + carte + en-tête/onglets + mini-téléphone avec
-//    host.drawDropPreview clippé + badge + chips « rendu vivant / fit »)
+//    host.drawDropPreview clippé + badge + chips « rendu vivant / fit » ;
+//    le painter dessine drawnPlacement() — le placement GLISSANT vers
+//    la cible en trois couches/variante B, retour terrain n°5)
 ```
 
 La carte « goutte d'eau » se décompose en trois classes :
-`EditorPreviewDrop` (état vivant : ancre gelée, onglets, hit-test),
+`EditorPreviewDrop` (état vivant : ancre gelée, onglets, hit-test,
+voile/fantôme, glissement fluide des re-placements — transitoire
+180 ms, rigide au scroll, direct au geste de taille),
 `EditorPreviewDropGeometry` (placement pur anti-recouvrement — testé en
 JUnit sans Android) et `EditorPreviewDropPainter` (chrome du canvas).
 La maquette de conception interactive est archivée dans

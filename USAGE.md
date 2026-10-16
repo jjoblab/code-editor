@@ -654,6 +654,24 @@ quand un popup recouvre ≥ 10 % de l'AIRE de la carte (hystérésis
 identique), la goutte devient eau à 12 % d'opacité pendant le
 chevauchement et redevient normale (fondu 180 ms) dès qu'il cesse.
 
+**La fluidité des re-placements** (retour terrain n°5) : en
+`THREE_LAYERS` et en `VARIANT_B`, la carte ne saute plus d'un
+placement à l'autre — elle **GLISSE** (transitoire de 180 ms,
+décélération quadratique, même allure que le retour du voile) vers sa
+nouvelle position quand la complétion survient, filtre ou referme :
+au frame du re-placement elle part exactement de son ancienne
+position, un deuxième re-placement en plein vol repart de la position
+dessinée courante (la frappe en rafale reste continue). Le **suivi du
+scroll reste RIGIDE** — le défilement translate l'œil, la garde et la
+carte ensemble, aucun retard ni inertie ne s'applique au défilement ;
+seul le re-placement (esquive, latéral, compactage, garde de frappe)
+glisse. Le **geste de la barre de taille reste DIRECT** (la carte
+suit le doigt sans inertie pendant le drag), et l'ORIGINALE reste la
+maquette exacte (jamais de glissement). Le glissement est purement
+VISUEL — l'interception des gestes, le voile et le fantôme vivent sur
+le placement CIBLE (le transitoire dure 180 ms) ; la tige suit la
+carte glissante tout en restant accrochée à l'œil.
+
 ```java
 // La politique (défaut ORIGINAL — la maquette d'origine) :
 editorView.setPreviewDropPolicy(EditorView.PreviewDropPolicy.THREE_LAYERS);
