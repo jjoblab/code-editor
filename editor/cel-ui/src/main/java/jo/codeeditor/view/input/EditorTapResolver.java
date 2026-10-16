@@ -488,6 +488,21 @@ public class EditorTapResolver {
             }
         }
 
+        // ── B26 : tap au cœur d'un code couleur hex → sélecteur ──
+        // Les pastilles inline marquent la zone tappable ; le tap
+        // ouvre la carte ancrée (champ SV + bande de teinte + palette),
+        // le pick remplace le code en conservant format et alpha. Les
+        // bords ±1 caractère restent des placements de caret (même
+        // garde que le squiggle). Le tap d'ouverture ne pose PAS le
+        // caret ni le clavier (précédent squiggle) ; un DOWN hors
+        // carte la referme et la cascade reprend ses droits.
+        if (tapCount == 1 && x >= view.metrics.getGutterWidth()
+                && view.colorPickerEnabled) {
+            if (view.popupManager.colorPickerAt(offset)) {
+                return;
+            }
+        }
+
         // Arme le clavier au tap dans la zone de texte.
         if (x >= view.metrics.getGutterWidth()) {
             view.wantsKeyboard = true;

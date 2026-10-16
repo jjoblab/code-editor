@@ -42,11 +42,26 @@ public final class ColorPicker {
         public String toHexString() {
             return String.format("#%08X", color);
         }
+
+        /**
+         * Nombre de chiffres hex du code d'origine : 3 (#RGB), 6
+         * (#RRGGBB) ou 8 (#AARRGGBB). Le sélecteur de couleur (B26)
+         * s'en sert pour reformater la couleur choisie au format
+         * d'origine — remplacer « #fff » par « #e43 » et pas par
+         * « #EE443355 ».
+         */
+        public int digits() {
+            return end - start - 1;
+        }
     }
 
     /**
      * Cherche une couleur hexadécimale à la position donnée.
      * Retourne null si aucune couleur n'est trouvée.
+     *
+     * <p>B26 : {@code pos} peut valoir {@code text.length()} (tap juste
+     * après la fin de la ligne) — le balayage autour de la position est
+     * borné aux indices valides.</p>
      *
      * @param text le texte
      * @param pos la position à examiner
@@ -54,10 +69,12 @@ public final class ColorPicker {
      */
     public static ColorMatch findColorAt(CharSequence text, int pos) {
         if (text == null || pos < 0 || pos > text.length()) return null;
+        if (text.length() == 0) return null;
 
         // Chercher un '#' autour de la position.
         int hashPos = -1;
-        for (int i = pos; i >= Math.max(0, pos - 10); i--) {
+        for (int i = Math.min(pos, text.length() - 1);
+                i >= Math.max(0, pos - 10); i--) {
             if (text.charAt(i) == '#') { hashPos = i; break; }
         }
         if (hashPos < 0) {
@@ -124,5 +141,41 @@ public final class ColorPicker {
         if (c >= '0' && c <= '9') return c - '0';
         if (c >= 'a' && c <= 'f') return c - 'a' + 10;
         return c - 'A' + 10;
+    }
+
+    /**
+     * B26 — formate une couleur ARGB au format hex demandé (3, 6 ou 8
+     * chiffres) : le pick du sélecteur remplace le code TAPÉ sans en
+     * changer la largeur (une édition qui renvoie 8 chiffres à la place
+     * de 3 décalerait tout le code environnant et polluerait l'undo).
+     *
+     * <ul>
+     *   <li>3 chiffres : chaque canal est quantifié au nibble le plus
+     *       proche (arrondi mathématique, 255 → F) ;</li>
+     *   <li>6 chiffres : #RRGGBB ;</li>
+     *   <li>8 chiffres : #AARRGGBB (l'alpha passé est conservé — le
+     *       sélecteur édite la teinte, l'alpha d'origine est préservé
+     *       par l'appelant).</li>
+     * </ul>
+     *
+     * @param argb la couleur ARGB à formater
+     * @param digits 3, 6 ou 8 (toute autre valeur retombe à 6)
+     * @return le code hex, préfixé de « # », minuscules (usage code)
+     */
+    public static String format(int argb, int digits) {
+        int r = (argb >>> 16) & 0xFF;
+        int g = (argb >>> 8) & 0xFF;
+        int b = argb & 0xFF;
+        if (digits == 3) {
+            int qr = Math.round(r * 15f / 255f);
+            int qg = Math.round(g * 15f / 255f);
+            int qb = Math.round(b * 15f / 255f);
+            return String.format("#%1x%1x%1x", qr, qg, qb);
+        }
+        if (digits == 8) {
+            int a = (argb >>> 24) & 0xFF;
+            return String.format("#%02x%02x%02x%02x", a, r, g, b);
+        }
+        return String.format("#%02x%02x%02x", r, g, b);
     }
 }

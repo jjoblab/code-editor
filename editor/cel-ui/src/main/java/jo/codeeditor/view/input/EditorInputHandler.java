@@ -112,6 +112,15 @@ public class EditorInputHandler {
     /** Le geste est englouti par le popup quick doc (drag = scroll du corps). */
     private boolean quickDocGesture = false;
 
+    // ── Geste du sélecteur de couleur (B26) ──────────────
+    // Un DOWN dans la carte du sélecteur engloutit le geste (parité
+    // pill/NavMenu) : press du champ saturation/valeur ou de la bande
+    // de teinte (saut immédiat), DRAG = mise à jour vivante, UP =
+    // application (palette ou fin de drag). Un DOWN HORS de la carte
+    // la referme sans engloutir le geste (le tap derrière continue sa
+    // cascade — placement de caret).
+    private boolean colorPickerGesture = false;
+
     // ── Tap gutter vs drag gutter ───────────────────────────
     // Un ACTION_DOWN dans la zone des numéros de ligne arme isScrolling
     // (pour qu'un DRAG VERTICAL sur le gutter fasse défiler le document),
@@ -314,6 +323,21 @@ public class EditorInputHandler {
                     }
                     view.dismissQuickDoc();
                 }
+                // Sélecteur de couleur (B26) : un DOWN DANS la carte
+                // l'engloutit (press + drag vivant, application au UP) ;
+                // un DOWN HORS de la carte la referme sans engloutir le
+                // geste (le tap derrière place le caret).
+                if (view.colorPickerVisible) {
+                    EditorPopupAnchors.ColorPickerMetrics cm =
+                            EditorPopupAnchors.colorPickerMetrics(view);
+                    if (cm != null && cm.contains(x, y)) {
+                        colorPickerGesture = true;
+                        scrollerCtl.abortAnimation();
+                        view.popupManager.colorPickerPressAt(x, y);
+                        return true;
+                    }
+                    view.popupManager.dismissColorPicker();
+                }
                 int handleHit = selectionGestures.hitTestHandle(x, y);
                 if (handleHit > 0) {
                     view.handleDragMode = handleHit;
@@ -396,6 +420,14 @@ public class EditorInputHandler {
                             view.invalidate();
                         }
                     }
+                    lastTouchY = y;
+                    lastTouchX = x;
+                    return true;
+                }
+                // Drag du sélecteur de couleur (B26) : mise à jour
+                // vivante du champ/bande pressé au DOWN.
+                if (colorPickerGesture) {
+                    view.popupManager.colorPickerDragTo(x, y);
                     lastTouchY = y;
                     lastTouchX = x;
                     return true;
@@ -637,6 +669,17 @@ public class EditorInputHandler {
                     view.performClick();
                     return true;
                 }
+                // Fin du geste du sélecteur (B26) : tap palette →
+                // application directe ; fin d'un press champ/bande →
+                // application de la couleur en cours ; tap ailleurs
+                // dans la carte → rien (englouti).
+                if (colorPickerGesture) {
+                    colorPickerGesture = false;
+                    view.popupManager.colorPickerReleaseAt(x, y);
+                    scrollerCtl.recycleTracker();
+                    view.performClick();
+                    return true;
+                }
                 // ★ B11 (P1-1) : fin du geste de la bande d'erreurs —
                 // tap-like → résolution du marqueur (centrer + fiche)
                 // par la cascade handleTap ; drag → fin du pouce en
@@ -745,6 +788,9 @@ public class EditorInputHandler {
                 navMenuDragging = false;
                 view.navMenuPressedIdx = -1;
                 quickDocGesture = false;
+                // B26 : le press du sélecteur est annulé (sans application).
+                colorPickerGesture = false;
+                view.colorPickerPressed = 0;
                 cancelPendingTapDismiss();
                 touchHover.cancel();
                 // Désactive la loupe (M3 : native refermée explicitement).

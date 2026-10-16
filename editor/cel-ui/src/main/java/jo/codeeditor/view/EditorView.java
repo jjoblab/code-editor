@@ -288,6 +288,9 @@ public class EditorView extends View {
     public int stickyMaxLines = 2;
     // Carrés colorés inline pour #RGB/#RRGGBB/#AARRGGBB (défaut : true).
     public boolean colorSwatchesEnabled = true;
+    // B26 : tap sur un code couleur hex → sélecteur de couleur ancré
+    // (défaut : true — les pastilles inline marquent la zone tappable).
+    public boolean colorPickerEnabled = true;
     // Variable-specific colors : chaque variable reçoit une teinte
     // unique basée sur son nom (défaut : false — opt-in car
     // nécessite des semantic tokens LSP pour bien fonctionner).
@@ -575,7 +578,10 @@ public class EditorView extends View {
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
     public static final float NAV_MENU_MAX_HEIGHT_DP = 360f;
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
-    public static final float NAV_MENU_MIN_WIDTH_DP = 240f;
+    // B25 : plancher abaissé 240 → 168 — la largeur suit le contenu
+    // (navMenuContentWidth), un débordement de 8 actions courtes n'a
+    // plus à occuper 240dp.
+    public static final float NAV_MENU_MIN_WIDTH_DP = 168f;
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
     public static final float NAV_MENU_MAX_WIDTH_DP = 320f;
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
@@ -973,6 +979,36 @@ public class EditorView extends View {
     public DiagnosticShift.Diagnostic squigglePopupItem = null;
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
     public List<DiagnosticShift.Diagnostic> squigglePopupChoices = new ArrayList<>();
+
+    // ── Sélecteur de couleur (B26) ───────────────────────────────
+    // Tap au cœur d'un code couleur hex (les pastilles inline du
+    // renderer marquent la zone) → carte ancrée non modale : champ
+    // saturation/valeur + bande de teinte + palette ; le pick
+    // remplace le code en conservant format (3/6/8 chiffres) et
+    // alpha d'origine, via le pipeline d'édition (annulable d'un
+    // undo). Logique : EditorColorPickerPopup ; géométrie :
+    // EditorPopupAnchors.colorPickerMetrics ; dessin :
+    // EditorColorPickerPainter.
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public boolean colorPickerVisible = false;
+    /** Début du code tapé dans le document (-1 = refermé). */
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public int colorPickerStart = -1;
+    /** Fin (exclusive) du code tapé. */
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public int colorPickerEnd = -1;
+    /** ARGB d'ORIGINE du code tapé (référence + alpha conservé). */
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public int colorPickerOriginal = 0;
+    /** ARGB en cours d'édition (vivant pendant le drag). */
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public int colorPickerCurrent = 0;
+    /** Format du code d'origine : 3, 6 ou 8 chiffres hex. */
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public int colorPickerDigits = 6;
+    /** Élément pressé : 0 aucun, 1 champ SV, 2 bande de teinte. */
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public int colorPickerPressed = 0;
 
     // ── Poignées de sélection (mobile) ────────────────────────────
     // Après un long-press ou un double-tap, deux poignées déplaçables
@@ -1949,6 +1985,28 @@ public class EditorView extends View {
     }
 
     /**
+     * B26 — active/désactive le sélecteur de couleur (au tap d'un code
+     * couleur hex, cf. les carrés colorés inline). Désactivé, un tap
+     * sur un code couleur hex place le caret (comportement historique).
+     *
+     * @param enabled {@code true} = le tap ouvre le sélecteur
+     */
+    public void setColorPickerEnabled(boolean enabled) {
+        this.colorPickerEnabled = enabled;
+        if (!enabled && colorPickerVisible) dismissColorPicker();
+    }
+
+    /** B26 — le sélecteur de couleur est-il actif au tap ? */
+    public boolean isColorPickerEnabled() {
+        return colorPickerEnabled;
+    }
+
+    /** B26 — referme le sélecteur de couleur (sans rien appliquer). */
+    public void dismissColorPicker() {
+        popupManager.dismissColorPicker();
+    }
+
+    /**
      * Active ou désactive les carrés colorés inline pour les
      * couleurs hexadécimales (#RGB, #RRGGBB, #AARRGGBB).
      *
@@ -2620,6 +2678,8 @@ public class EditorView extends View {
             dismissMagnifier();
             // La perte de focus referme le hover/quick doc.
             if (quickDocVisible) dismissQuickDoc();
+            // … et le sélecteur de couleur (B26).
+            if (colorPickerVisible) dismissColorPicker();
         } else if (wantsKeyboard) {
             InputMethodManager imm = imm();
             if (imm != null) imm.showSoftInput(this, 0);
@@ -2684,6 +2744,9 @@ public class EditorView extends View {
         // Le popup ancré de squiggle aussi : les plages diagnostiquées
         // bougent à l'édition.
         if (squigglePopupVisible) popupManager.dismissSquigglePopup();
+        // Le sélecteur de couleur (B26) aussi : le code tapé (plage +
+        // valeur d'origine) devient périmé à la première frappe.
+        if (colorPickerVisible) popupManager.dismissColorPicker();
         // Referme la toolbar de sélection à l'édition — la sélection a pu
         // bouger ; annule aussi le tap-dismiss différé (un caret tapé
         // AVANT l'insert serait périmé après).

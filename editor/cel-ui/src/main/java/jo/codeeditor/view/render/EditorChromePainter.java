@@ -838,22 +838,9 @@ public class EditorChromePainter {
         view.caretPaint.setStrokeWidth(1f);
     }
 
-    /** Le libellé d'une rangée actionnable. */
+    /** Le libellé d'une rangée actionnable (source unique : EditorNavMenuRows.labelOf — B25). */
     private String navMenuRowLabel(EditorView.NavMenuRow row) {
-        if (row.ref instanceof NavigationMenu.NavOption) {
-            return ((NavigationMenu.NavOption) row.ref).label;
-        }
-        if (row.ref instanceof EditorView.CodeAction) {
-            return ((EditorView.CodeAction) row.ref).title;
-        }
-        // T1 (lot 2) : rangée de débordement de la pill (action d'hôte).
-        if (row.ref instanceof jo.codeeditor.view.SelectionAction) {
-            return ((jo.codeeditor.view.SelectionAction) row.ref).label;
-        }
-        if (row.ref instanceof NavigationMenu.NavTarget) {
-            return ((NavigationMenu.NavTarget) row.ref).displayName;
-        }
-        return null;
+        return jo.codeeditor.view.EditorNavMenuRows.labelOf(row);
     }
 
     /**

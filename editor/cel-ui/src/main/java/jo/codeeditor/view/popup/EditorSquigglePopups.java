@@ -115,6 +115,7 @@ public class EditorSquigglePopups {
         if (view.signatureHelpVisible) popups.dismissSignatureHelp();
         if (view.codeActionsPopupVisible) popups.dismissCodeActions();
         if (view.navMenuVisible) popups.dismissNavMenu();
+        if (view.colorPickerVisible) popups.dismissColorPicker();
         if (view.diagnosticPopupVisible) popups.dismissDiagnosticPopup();
         if (view.diagnosticListSheetLine >= 0) popups.dismissDiagnosticListSheet();
     }

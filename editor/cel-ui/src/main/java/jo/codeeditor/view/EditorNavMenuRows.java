@@ -3,8 +3,18 @@ package jo.codeeditor.view;
 import java.util.ArrayList;
 import java.util.List;
 
+import androidx.annotation.RestrictTo;
+
+import jo.codeeditor.navigation.NavigationMenu;
+
 /**
  * Modèle de rangées du menu contextuel unifié (NavMenu).
+ *
+ * <p>Public + {@code @RestrictTo(LIBRARY_GROUP)} depuis B25 : la
+ * fabrique de libellés {@link #labelOf(EditorView.NavMenuRow)} est
+ * partagée par le painter (render) et le calcul de largeur
+ * (popup/EditorPopupAnchors) — la source unique évite qu'un libellé
+ * mesuré diverge du libellé dessiné.</p>
  *
  * <p>Responsabilités déplacées à l'identique depuis {@link EditorView} :</p>
  * <ul>
@@ -25,7 +35,8 @@ import java.util.List;
  * {@link EditorView.NavMenuRow} reste imbriqué dans la vue (référencé par
  * les tests et les collaborateurs).</p>
  */
-class EditorNavMenuRows {
+@RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+public class EditorNavMenuRows {
 
     private final EditorView view;
 
@@ -110,6 +121,31 @@ class EditorNavMenuRows {
      */
     EditorView.CodeAction navMenuActionAt(EditorView.NavMenuRow row) {
         return row.ref instanceof EditorView.CodeAction ? (EditorView.CodeAction) row.ref : null;
+    }
+
+    /**
+     * B25 — le libellé d'une rangée actionnable (option GO TO, action
+     * de code, cible de résultats, action de débordement de la pill).
+     * Partagé par le painter (dessin + ellipsise) et le calcul de
+     * largeur ({@code EditorPopupAnchors.navMenuMetrics}) — la source
+     * unique évite qu'un libellé mesuré diverge du libellé dessiné.
+     * Renvoie null pour les rangées non labellisées (en-têtes, rien
+     * trouvé).
+     */
+    public static String labelOf(EditorView.NavMenuRow row) {
+        if (row.ref instanceof NavigationMenu.NavOption) {
+            return ((NavigationMenu.NavOption) row.ref).label;
+        }
+        if (row.ref instanceof EditorView.CodeAction) {
+            return ((EditorView.CodeAction) row.ref).title;
+        }
+        if (row.ref instanceof jo.codeeditor.view.SelectionAction) {
+            return ((jo.codeeditor.view.SelectionAction) row.ref).label;
+        }
+        if (row.ref instanceof NavigationMenu.NavTarget) {
+            return ((NavigationMenu.NavTarget) row.ref).displayName;
+        }
+        return null;
     }
 
     /**

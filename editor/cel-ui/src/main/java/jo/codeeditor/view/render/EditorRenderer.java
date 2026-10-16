@@ -49,6 +49,8 @@ public class EditorRenderer {
     private final EditorDiagnosticsPainter diagnostics;
     private final EditorAssistPopupPainter assist;
     private final EditorChromePainter chrome;
+    /** Sélecteur de couleur (B26) — painter dédié. */
+    private final EditorColorPickerPainter colorPicker;
 
     // Objets de travail réutilisables — évite les allocations par frame / par
     // ligne. Usage mono-thread (uniquement depuis onDraw sur le thread UI),
@@ -69,6 +71,9 @@ public class EditorRenderer {
         this.diagnostics = new EditorDiagnosticsPainter(view);
         this.assist = new EditorAssistPopupPainter(view);
         this.chrome = new EditorChromePainter(view, text, highlights, diagnostics);
+        // B26 : painter du sélecteur de couleur (carte ancrée au code
+        // hex tapé — dessin + shaders de dégradé mis en cache).
+        this.colorPicker = new EditorColorPickerPainter(view);
         // B7 : enregistre chaque popup Canvas auprès du contrôleur des
         // fondus — fournisseur de visibilité (front montant d'apparition)
         // + peintre (photographie au dismiss quand les bornes sont
@@ -119,6 +124,14 @@ public class EditorRenderer {
         fade.register(jo.codeeditor.view.popup.EditorPopupFade.Kind.SQUIGGLE_POPUP,
                 () -> view.squigglePopupVisible,
                 popupPainter(diagnostics::drawSquigglePopup, () -> null));
+        fade.register(jo.codeeditor.view.popup.EditorPopupFade.Kind.COLOR_PICKER,
+                () -> view.colorPickerVisible,
+                popupPainter(colorPicker::drawColorPicker, () -> {
+                    jo.codeeditor.view.popup.EditorPopupAnchors.ColorPickerMetrics m =
+                            jo.codeeditor.view.popup.EditorPopupAnchors.colorPickerMetrics(view);
+                    return m == null ? null
+                            : new RectF(m.x, m.y, m.x + m.w, m.y + m.h);
+                }));
         fade.register(jo.codeeditor.view.popup.EditorPopupFade.Kind.DIAGNOSTIC_POPUP,
                 () -> view.diagnosticPopupVisible,
                 popupPainter(diagnostics::drawDiagnosticPopup, () -> null));
@@ -504,6 +517,10 @@ public class EditorRenderer {
         // fiches basses (modales) et au-dessus des chips.
         fade.onDraw(jo.codeeditor.view.popup.EditorPopupFade.Kind.SQUIGGLE_POPUP,
                 canvas, () -> diagnostics.drawSquigglePopup(canvas));
+        // Sélecteur de couleur (B26) — carte ancrée au code hex tapé,
+        // au-dessus du squiggle (l'ouverture de l'un referme l'autre).
+        fade.onDraw(jo.codeeditor.view.popup.EditorPopupFade.Kind.COLOR_PICKER,
+                canvas, () -> colorPicker.drawColorPicker(canvas));
         fade.onDraw(jo.codeeditor.view.popup.EditorPopupFade.Kind.DIAGNOSTIC_LIST_SHEET,
                 canvas, () -> diagnostics.drawDiagnosticListSheet(canvas));
         fade.onDraw(jo.codeeditor.view.popup.EditorPopupFade.Kind.SELECTION_TOOLBAR,

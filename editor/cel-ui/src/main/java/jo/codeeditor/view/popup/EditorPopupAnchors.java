@@ -946,9 +946,19 @@ public final class EditorPopupAnchors {
         float contentH = view.navMenuContentHeight();
         float maxH = EditorView.NAV_MENU_MAX_HEIGHT_DP * density;
         float h = Math.min(contentH, maxH);
+        // B25 (retour terrain « débordement trop large ») : la largeur
+        // suit le CONTENU — le libellé le plus large + le budget
+        // icône/gaps/paddings du painter — borné [MIN, MAX], puis
+        // clampé à la vue moins les marges. Avant : min(320,
+        // max(240, 90 % de la vue)) — 320dp sur un écran de 360dp, la
+        // carte mangeait presque tout l'écran pour lister 8 actions
+        // courtes. Les libellés trop longs (cibles de résultats,
+        // chemins) restent ellipsés par le painter au plafond MAX.
         float w = Math.min(EditorView.NAV_MENU_MAX_WIDTH_DP * density,
-                Math.max(EditorView.NAV_MENU_MIN_WIDTH_DP * density,
-                        (view.getWidth() - 2 * EditorView.NAV_MENU_MARGIN_DP * density) * 0.9f));
+                Math.max(navMenuContentWidth(view, density),
+                        EditorView.NAV_MENU_MIN_WIDTH_DP * density));
+        w = Math.min(w,
+                Math.max(0, view.getWidth() - 2 * EditorView.NAV_MENU_MARGIN_DP * density));
         // Ancre : X du caret (clampé ≥ gutter + marge), bas de la ligne.
         float[] caret = view.caretScreenPos(view.navMenuCaretOffset);
         float anchorX = Math.max(
@@ -969,5 +979,190 @@ public final class EditorPopupAnchors {
                 EditorView.NAV_MENU_MARGIN_DP * density,
                 false, EditorView.NAV_MENU_MARGIN_DP * density);
         return new float[]{pos[0], pos[1], w, h};
+    }
+
+    /**
+     * B25 — largeur du CONTENU du menu (px) : le libellé le plus
+     * large, au budget de paddings près du painter (en-têtes 11dp
+     * semibold ; rangées actionnables 13dp + pad 12 + icône 16 + gap
+     * 10 + pad 12 ; « Nothing found » 13dp + 14/12). Le textPaint
+     * partagé est muté puis RESTAURÉ (le painter et les couches
+     * suivantes ne doivent pas hériter de la taille de mesure).
+     */
+    static float navMenuContentWidth(EditorView view, float density) {
+        List<EditorView.NavMenuRow> rows = view.navMenuRows();
+        if (rows.isEmpty()) {
+            return EditorView.NAV_MENU_MIN_WIDTH_DP * density;
+        }
+        android.graphics.Typeface savedTypeface = view.metrics.getTypeface();
+        float savedSize = view.metrics.getTextSize();
+        float w = 0f;
+        try {
+            for (EditorView.NavMenuRow row : rows) {
+                if (row.type == EditorView.NavMenuRow.TYPE_HEADER) {
+                    view.textPaint.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+                    view.textPaint.setTextSize(11 * density);
+                    String header = String.valueOf(row.ref);
+                    w = Math.max(w,
+                            12 * density + view.textPaint.measureText(header)
+                                    + 12 * density);
+                } else if (row.type == EditorView.NavMenuRow.TYPE_NOTHING) {
+                    view.textPaint.setTypeface(android.graphics.Typeface.DEFAULT);
+                    view.textPaint.setTextSize(13 * density);
+                    String nothing = view.getResources().getString(R.string.cel_nav_nothing_found);
+                    w = Math.max(w,
+                            14 * density + view.textPaint.measureText(nothing)
+                                    + 12 * density);
+                } else {
+                    String label = jo.codeeditor.view.EditorNavMenuRows.labelOf(row);
+                    if (label != null) {
+                        view.textPaint.setTypeface(android.graphics.Typeface.DEFAULT);
+                        view.textPaint.setTextSize(13 * density);
+                        // Budget du painter : pad 12 + icône 16 + gap 10
+                        // + libellé + pad 12.
+                        w = Math.max(w,
+                                50 * density + view.textPaint.measureText(label));
+                    }
+                }
+            }
+        } finally {
+            view.textPaint.setTypeface(savedTypeface);
+            view.textPaint.setTextSize(savedSize);
+        }
+        // Liseré + marge d'ellipsise.
+        return w + 2 * density;
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    // Sélecteur de couleur (B26)
+    // ════════════════════════════════════════════════════════════════
+
+    /** Carte du sélecteur : padding intérieur (dp). */
+    private static final float COLOR_PICKER_PAD_DP = 12f;
+    /** En-tête (swatches origine → courant + libellés hex, dp). */
+    private static final float COLOR_PICKER_HEADER_DP = 34f;
+    /** Hauteur du champ saturation/valeur (dp). */
+    private static final float COLOR_PICKER_SV_H_DP = 112f;
+    /** Hauteur de la bande de teinte (dp). */
+    private static final float COLOR_PICKER_HUE_H_DP = 18f;
+    /** Côté d'une teinte de la palette (dp). */
+    private static final float COLOR_PICKER_CELL_DP = 22f;
+    /** Écart entre teintes de la palette (dp). */
+    private static final float COLOR_PICKER_CELL_GAP_DP = 6f;
+    /** Écart vertical entre blocs (dp). */
+    private static final float COLOR_PICKER_GAP_DP = 8f;
+    /** Marge de la carte aux bords de la vue (dp). */
+    private static final float COLOR_PICKER_MARGIN_DP = 8f;
+
+    /**
+     * Géométrie complète du sélecteur de couleur (B26) — la source de
+     * vérité unique partagée par le painter, le hit-test et les tests :
+     * carte de verre ancrée à la ligne du code tapé (flip
+     * dessus/dessous, clamp horizontal — même patron que le menu
+     * contextuel), en-tête, champ saturation/valeur, bande de teinte,
+     * grille de la palette.
+     *
+     * <p>La carte fait {@code PALETTE_COLS × (côté + écart) + 2 ×
+     * padding} de large (≈ 242dp — étroite par construction, la
+     * contrainte « trop large » du menu de débordement ne se
+     * reproduit pas ici) et ≈ 264dp de haut, clampée à la vue.</p>
+     */
+    public static final class ColorPickerMetrics {
+
+        /** Densité au moment du calcul (les champs sont en pixels). */
+        public float density;
+        /** Coin haut-gauche + taille de la carte. */
+        public float x, y, w, h;
+        /** En-tête : swatch d'origine + libellé, flèche, swatch courant + libellé. */
+        public float headerH;
+        /** Champ saturation/valeur (abscisse = saturation, ordonnée inversée = valeur). */
+        public final android.graphics.RectF sv = new android.graphics.RectF();
+        /** Bande de teinte (abscisse = teinte 0..360). */
+        public final android.graphics.RectF hue = new android.graphics.RectF();
+        /** Grille de la palette (PALETTE_COLS colonnes × 2 rangées). */
+        public final android.graphics.RectF palette = new android.graphics.RectF();
+        /** Côté d'une cellule (px). */
+        public float cell;
+        /** Hauteur d'une rangée de la palette, écart inclus (px). */
+        public float paletteRowH;
+        /** Colonnes / rangées de la palette. */
+        public int paletteCols, paletteRows;
+
+        /** La carte contient-elle ce point ? */
+        public boolean contains(float px, float py) {
+            return px >= x && px <= x + w && py >= y && py <= y + h;
+        }
+    }
+
+    /**
+     * Calcule la géométrie du sélecteur de couleur. Retourne
+     * {@code null} si le sélecteur n'est pas visible ou si la session
+     * a disparu. L'ancre horizontale est le DÉBUT du code tapé, la
+     * bande verticale est sa ligne (le flip ne recouvre jamais la
+     * ligne tapée — le swatch reste visible pendant le choix).
+     */
+    public static ColorPickerMetrics colorPickerMetrics(EditorView view) {
+        if (!view.colorPickerVisible || view.session == null
+                || view.colorPickerStart < 0) return null;
+        float density = view.getResources().getDisplayMetrics().density;
+        float pad = COLOR_PICKER_PAD_DP * density;
+        float gap = COLOR_PICKER_GAP_DP * density;
+        float cell = COLOR_PICKER_CELL_DP * density;
+        float cellGap = COLOR_PICKER_CELL_GAP_DP * density;
+
+        ColorPickerMetrics m = new ColorPickerMetrics();
+        m.density = density;
+        m.paletteCols = EditorColorPickerPopup.PALETTE_COLS;
+        m.paletteRows = EditorColorPickerPopup.PALETTE.length / m.paletteCols;
+        m.cell = cell;
+        m.paletteRowH = cell + cellGap;
+
+        // Largeur : la grille de la palette impose la largeur utile.
+        float gridW = m.paletteCols * cell + (m.paletteCols - 1) * cellGap;
+        m.w = gridW + 2 * pad;
+        float availW = view.getWidth() - 2 * COLOR_PICKER_MARGIN_DP * density;
+        if (m.w > availW) m.w = Math.max(availW, 0);
+
+        // Hauteur : en-tête + champ SV + bande + palette + paddings.
+        m.headerH = COLOR_PICKER_HEADER_DP * density;
+        float svH = COLOR_PICKER_SV_H_DP * density;
+        float hueH = COLOR_PICKER_HUE_H_DP * density;
+        float paletteH = m.paletteRows * m.paletteRowH - cellGap;
+        m.h = pad + m.headerH + gap + svH + gap + hueH + gap + paletteH + pad;
+
+        // Blocs intérieurs.
+        float left = m.x + pad;
+        float innerW = m.w - 2 * pad;
+        m.sv.set(left, m.y + pad + m.headerH + gap,
+                left + innerW, m.y + pad + m.headerH + gap + svH);
+        m.hue.set(left, m.sv.bottom + gap, left + innerW,
+                m.sv.bottom + gap + hueH);
+        m.palette.set(left, m.hue.bottom + gap, left + gridW,
+                m.hue.bottom + gap + paletteH);
+
+        // Ancre : X du début du code, bande verticale de sa ligne.
+        float[] anchorPos = view.caretScreenPos(view.colorPickerStart);
+        float anchorX = Math.max(
+                view.metrics.getGutterWidth() + COLOR_PICKER_MARGIN_DP * density,
+                anchorPos[0]);
+        int line = view.session.getDocument().lineForOffset(view.colorPickerStart);
+        float lineTop = view.docLineToY(line) - view.scroll.vOffset;
+        float lineBottom = lineTop + view.metrics.getLineHeight();
+        float[] pos = anchorAboveBelow(view,
+                anchorX - COLOR_PICKER_MARGIN_DP * density,
+                lineTop, lineBottom, m.w, m.h,
+                false, COLOR_PICKER_GAP_DP * density,
+                COLOR_PICKER_MARGIN_DP * density,
+                COLOR_PICKER_MARGIN_DP * density,
+                COLOR_PICKER_MARGIN_DP * density,
+                false, COLOR_PICKER_MARGIN_DP * density);
+        m.x = pos[0];
+        m.y = pos[1];
+        // Les blocs intérieurs sont calculés AVANT l'ancrage (m.x/m.y
+        // valaient 0) — on les recale sur la position finale.
+        m.sv.offset(m.x, m.y);
+        m.hue.offset(m.x, m.y);
+        m.palette.offset(m.x, m.y);
+        return m;
     }
 }

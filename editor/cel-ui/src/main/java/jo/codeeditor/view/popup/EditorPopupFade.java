@@ -49,7 +49,7 @@ public final class EditorPopupFade {
     /** Les popups Canvas pilotables. L'ordre est stable (ordinal indexé). */
     public enum Kind {
         COMPLETION, SIGNATURE, QUICK_DOC, CODE_ACTIONS, NAV_MENU,
-        GOTO_SYMBOL, SELECTION_TOOLBAR, SQUIGGLE_POPUP,
+        GOTO_SYMBOL, SELECTION_TOOLBAR, SQUIGGLE_POPUP, COLOR_PICKER,
         DIAGNOSTIC_POPUP, DIAGNOSTIC_LIST_SHEET, DIAGNOSTIC_SHEET
     }
 

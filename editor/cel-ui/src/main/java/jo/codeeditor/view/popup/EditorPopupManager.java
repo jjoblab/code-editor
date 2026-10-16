@@ -65,6 +65,8 @@ public class EditorPopupManager {
     private final EditorDiagnosticPopups diagnostics;
     /** Popup ancré de squiggle (D1) — niveau 1 de la lecture d'un diagnostic. */
     private final EditorSquigglePopups squiggle;
+    /** Sélecteur de couleur (B26) — carte ancrée au code hex tapé. */
+    private final EditorColorPickerPopup colorPicker;
     /** Actions de sélection injectées par l'hôte (T1) + leur débordement. */
     public final jo.codeeditor.view.EditorSelectionActions selActions =
             new jo.codeeditor.view.EditorSelectionActions();
@@ -80,6 +82,7 @@ public class EditorPopupManager {
         this.rename = new EditorRenamePopup(view);
         this.diagnostics = new EditorDiagnosticPopups(view, this);
         this.squiggle = new EditorSquigglePopups(view, this);
+        this.colorPicker = new EditorColorPickerPopup(view, this);
     }
 
 
@@ -262,5 +265,34 @@ public class EditorPopupManager {
     public void showSelectionOverflow(int line, int offset) {
         navMenu.showSelectionOverflow(line, offset);
     }
+
+    // ════════════════════════════════════════════════════════════════
+    // Sélecteur de couleur (B26) — corps délégués à EditorColorPickerPopup
+    // ════════════════════════════════════════════════════════════════
+
+    /**
+     * Ouvre le sélecteur si l'offset tombe au cœur d'un code couleur
+     * hex (vrai si ouvert — le tap est alors consommé).
+     */
+    public boolean colorPickerAt(int offset) {
+        return colorPicker.colorPickerAt(offset);
+    }
+
+    /** DOWN dans la carte : press du champ SV / bande de teinte. */
+    public void colorPickerPressAt(float x, float y) {
+        colorPicker.pressAt(x, y);
+    }
+
+    /** MOVE du drag : mise à jour vivante. */
+    public void colorPickerDragTo(float x, float y) {
+        colorPicker.dragTo(x, y);
+    }
+
+    /** UP : application (palette / fin de drag) ou geste englouti. */
+    public void colorPickerReleaseAt(float x, float y) {
+        colorPicker.releaseAt(x, y);
+    }
+
+    public void dismissColorPicker() { colorPicker.dismissColorPicker(); }
 
 }
