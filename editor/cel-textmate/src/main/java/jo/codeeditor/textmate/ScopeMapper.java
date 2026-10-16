@@ -43,6 +43,7 @@ public final class ScopeMapper {
         Map<String, TokenType> m = new LinkedHashMap<>();
         // ── Commentaires : ligne, bloc, documentation ─────────────
         m.put("comment.block.documentation", TokenType.DOC_COMMENT);
+        m.put("comment.block.javadoc", TokenType.DOC_COMMENT);
         m.put("comment.line.double-slash.documentation", TokenType.DOC_COMMENT);
         m.put("comment.block", TokenType.COMMENT);
         m.put("comment.line", TokenType.COMMENT);
@@ -58,11 +59,27 @@ public final class ScopeMapper {
         m.put("constant.character.escape", TokenType.ESCAPE);
         m.put("constant.character.entity", TokenType.ENTITY);
         // ── Mots-clés : contrôle, modificateur, other ─────────────
+        // Calibrage C4 (convergence voie intégrée / inter-grammaires) :
+        // les PRIMITIFS et les mots-clés de déclaration (function/class,
+        // new, import/export) sont des MOTS-CLÉS côté intégré et côté
+        // grammaire du dépôt (csharp) — « keyword.control.new » (java),
+        // « storage.type.primitive » (java), « storage.type.function »
+        // (javascript, kotlin def), « storage.type.class » (python) et
+        // « keyword.control.import/export » (python, javascript)
+        // atterrissent donc en KEYWORD/KEYWORD_MODIFIER, PAS en
+        // KEYWORD_CONTROL/TYPE.
+        m.put("keyword.control.import", TokenType.KEYWORD);
+        m.put("keyword.control.export", TokenType.KEYWORD_MODIFIER);
+        m.put("keyword.control.new", TokenType.KEYWORD);
         m.put("keyword.control", TokenType.KEYWORD_CONTROL);
         m.put("keyword.operator", TokenType.OPERATOR);
         m.put("keyword.other.modifier", TokenType.KEYWORD_MODIFIER);
+        m.put("storage.modifier.import", TokenType.PROPERTY);
         m.put("storage.modifier", TokenType.KEYWORD_MODIFIER);
         m.put("keyword", TokenType.KEYWORD);
+        m.put("storage.type.primitive", TokenType.KEYWORD);
+        m.put("storage.type.function", TokenType.KEYWORD);
+        m.put("storage.type.class", TokenType.KEYWORD);
         m.put("storage.type", TokenType.TYPE);
         m.put("storage", TokenType.KEYWORD);
         // ── Constantes et nombres ─────────────────────────────────
@@ -75,6 +92,10 @@ public final class ScopeMapper {
         m.put("entity.name.type", TokenType.TYPE);
         m.put("entity.name.tag", TokenType.TYPE);
         m.put("entity.name.namespace", TokenType.NAMESPACE);
+        // Décorateurs python : construct équivalent des annotations de
+        // la voie intégrée (@Nom → ANNOTATION, famille C et python).
+        m.put("entity.name.function.decorator", TokenType.ANNOTATION);
+        m.put("punctuation.definition.decorator", TokenType.ANNOTATION);
         m.put("entity.name", TokenType.TYPE);
         m.put("entity.other.attribute-name", TokenType.PROPERTY);
         // ── Variables et paramètres ───────────────────────────────

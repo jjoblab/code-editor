@@ -147,4 +147,49 @@ class ScopeMapperTest {
         assertEquals(TokenType.PLAIN,
                 ScopeMapper.tokenTypeFor("meta.unknown.a source.unknown.b"));
     }
+
+    // ── Calibrage C4 (retour terrain 3.72.0) : convergence voie
+    // intégrée / inter-grammaires sur les constructions équivalentes ─
+
+    @Test
+    void calibrage_javadocEtPrimitifsEtMotsClésDéclaration() {
+        // Javadoc java (comment.block.javadoc) : même construction que
+        // le DOC_COMMENT /** */ de la voie intégrée (csharp utilisait
+        // comment.block.documentation — la grammaire java, elle,
+        // emploie javadoc : les deux doivent converger).
+        assertEquals(TokenType.DOC_COMMENT,
+                ScopeMapper.tokenTypeFor("comment.block.javadoc.java"));
+        // Primitifs (storage.type.primitive.java) : KEYWORD comme la
+        // voie intégrée (int/double/void… mots-clés de la famille C),
+        // pas TYPE.
+        assertEquals(TokenType.KEYWORD,
+                ScopeMapper.tokenTypeFor("storage.type.primitive.java"));
+        // Mots-clés de déclaration : function/def → KEYWORD (comme
+        // côté intégré), new → KEYWORD, import python → KEYWORD,
+        // export javascript → KEYWORD_MODIFIER.
+        assertEquals(TokenType.KEYWORD, ScopeMapper.tokenTypeFor("storage.type.function.js"));
+        assertEquals(TokenType.KEYWORD, ScopeMapper.tokenTypeFor("storage.type.class.python"));
+        assertEquals(TokenType.KEYWORD, ScopeMapper.tokenTypeFor("keyword.control.new.java"));
+        assertEquals(TokenType.KEYWORD, ScopeMapper.tokenTypeFor("keyword.control.import.python"));
+        assertEquals(TokenType.KEYWORD_MODIFIER,
+                ScopeMapper.tokenTypeFor("keyword.control.export.js"));
+        // Les VRAIS mots-clés de contrôle restent KEYWORD_CONTROL.
+        assertEquals(TokenType.KEYWORD_CONTROL, ScopeMapper.tokenTypeFor("keyword.control.java"));
+    }
+
+    @Test
+    void calibrage_kotlinImportEtDécorateurs() {
+        // La grammaire kotlin type le CHEMIN d'import complet en
+        // storage.modifier.import.java (héritage historique) : le
+        // segment-après-point de la voie intégrée est PROPERTY — le
+        // chemin entier converge vers PROPERTY (pas un bloc modifier).
+        assertEquals(TokenType.PROPERTY,
+                ScopeMapper.tokenTypeFor("storage.modifier.import.java"));
+        // Décorateurs python : construct équivalent des annotations
+        // (@Nom → ANNOTATION côté intégré).
+        assertEquals(TokenType.ANNOTATION,
+                ScopeMapper.tokenTypeFor("entity.name.function.decorator.python"));
+        assertEquals(TokenType.ANNOTATION,
+                ScopeMapper.tokenTypeFor("punctuation.definition.decorator.python"));
+    }
 }
