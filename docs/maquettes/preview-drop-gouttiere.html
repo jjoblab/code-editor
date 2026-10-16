@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Maquette — Preview gouttière « goutte d'eau »</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --editor-bg: #161b22;
+    --gutter-bg: #10151c;
+    --text: #c9d1d9;
+    --muted: #6e7681;
+    --line: #21262d;
+    --accent: #58a6ff;
+    --accent-2: #3fb950;
+    --glass: rgba(22, 27, 34, 0.92);
+    --glass-border: rgba(139, 148, 158, 0.35);
+    --code-key: #ff7b72;
+    --code-attr: #79c0ff;
+    --code-str: #a5d6ff;
+    --code-tag: #7ee787;
+    --code-com: #8b949e;
+    --caret: #58a6ff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    padding: 24px 12px 48px;
+  }
+
+  /* ── En-tête explicatif ─────────────────────────────── */
+  .intro {
+    max-width: 820px;
+    margin-bottom: 20px;
+    text-align: center;
+  }
+  .intro h1 { font-size: 18px; font-weight: 600; margin-bottom: 8px; }
+  .intro p { font-size: 13px; color: var(--muted); line-height: 1.55; }
+  .intro .pill {
+    display: inline-block;
+    background: rgba(88, 166, 255, 0.12);
+    border: 1px solid rgba(88, 166, 255, 0.35);
+    color: var(--accent);
+    border-radius: 999px;
+    padding: 2px 10px;
+    font-size: 11px;
+    margin: 6px 3px 0;
+  }
+
+  /* ── Scène : téléphone contenant l'éditeur ───────────── */
+  .stage { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; justify-content: center; }
+
+  .device {
+    width: 392px;
+    border-radius: 34px;
+    border: 3px solid #2d333b;
+    background: #000;
+    padding: 10px 8px 14px;
+    box-shadow: 0 24px 60px rgba(0,0,0,0.55);
+    position: relative;
+  }
+  .notch {
+    position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+    width: 108px; height: 22px; background: #000; border-radius: 999px;
+    z-index: 30; border: 1px solid #1f242c;
+  }
+  .statusbar {
+    height: 26px; display: flex; justify-content: space-between;
+    align-items: center; padding: 0 22px; font-size: 10px;
+    color: #9198a1; background: var(--editor-bg);
+    border-radius: 26px 26px 0 0; position: relative; z-index: 5;
+  }
+  .appbar {
+    height: 42px; background: var(--editor-bg); border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; gap: 8px; padding: 0 12px;
+    font-size: 12px; color: var(--text); position: relative; z-index: 5;
+  }
+  .appbar .file { display: flex; align-items: center; gap: 6px; }
+  .appbar .dot { width: 8px; height: 8px; border-radius: 50%; background: #e3b341; }
+  .appbar .tab {
+    background: #1c2129; border: 1px solid var(--line); border-bottom: none;
+    padding: 3px 10px; border-radius: 6px 6px 0 0; font-size: 11px;
+  }
+
+  /* ── L'éditeur ────────────────────────────────────────── */
+  .editor-wrap {
+    position: relative;
+    height: 560px;
+    overflow: hidden;
+    background: var(--editor-bg);
+    font-family: "Cascadia Code", Consolas, "Courier New", monospace;
+    font-size: 11.5px;
+    line-height: 20px;
+    border-radius: 0 0 26px 26px;
+  }
+  .editor-inner { position: relative; width: 100%; height: 100%; }
+
+  .code {
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    padding: 8px 4px 40px 0;
+    z-index: 2;
+  }
+  .row {
+    display: flex;
+    height: 20px;
+    align-items: center;
+    cursor: text;
+    position: relative;
+  }
+  .row:hover .lineno { color: var(--text); }
+
+  /* gouttière : numéros + œil de preview */
+  .gutter {
+    width: 56px;
+    flex: 0 0 56px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 7px;
+    padding-right: 10px;
+    position: relative;
+    z-index: 3;
+  }
+  .lineno {
+    color: var(--muted);
+    font-size: 10.5px;
+    text-align: right;
+    min-width: 20px;
+    transition: color .15s;
+  }
+  .eye {
+    width: 18px; height: 18px;
+    border-radius: 5px;
+    display: none;
+    align-items: center; justify-content: center;
+    color: var(--muted);
+    cursor: pointer;
+    z-index: 6;
+    transition: all .18s;
+  }
+  .row.previewable .eye { display: flex; }
+  .eye:hover { color: var(--accent); background: rgba(88,166,255,0.12); }
+  .eye.active { color: var(--accent); background: rgba(88,166,255,0.16); }
+  .eye svg { width: 14px; height: 14px; }
+
+  .line-content { white-space: pre; color: var(--text); padding-left: 2px; }
+  .k { color: var(--code-key); }
+  .t { color: var(--code-tag); }
+  .a { color: var(--code-attr); }
+  .s { color: var(--code-str); }
+  .c { color: var(--code-com); font-style: italic; }
+
+  /* caret */
+  .caret {
+    position: absolute;
+    width: 2px; height: 18px;
+    background: var(--caret);
+    border-radius: 1px;
+    z-index: 8;
+    box-shadow: 0 0 6px rgba(88,166,255,0.8);
+    animation: blink 1.05s steps(1) infinite;
+    transition: top .25s ease, left .25s ease;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* ligne active */
+  .row.active-line::before {
+    content: ""; position: absolute; inset: 0;
+    background: rgba(88,166,255,0.07); z-index: -1;
+  }
+
+  /* ══ LE POPUP « GOUTTE D'EAU » ═══════════════════════ */
+  .preview-popup {
+    position: absolute;
+    width: 236px;
+    background: var(--glass);
+    border: 1px solid var(--glass-border);
+    border-radius: 18px 18px 18px 4px; /* coin « goutte » côté ancre */
+    box-shadow: 0 18px 44px rgba(0,0,0,0.6), 0 0 0 1px rgba(0,0,0,0.2);
+    z-index: 20;
+    overflow: visible;
+    opacity: 0;
+    transform: scale(0.94) translateY(6px);
+    transform-origin: 14px 22px; /* pivote autour de la goutte */
+    transition: top .28s cubic-bezier(.2,.9,.25,1),
+                left .28s cubic-bezier(.2,.9,.25,1),
+                opacity .2s ease, transform .24s cubic-bezier(.2,.9,.25,1);
+    pointer-events: none;
+  }
+  .preview-popup.open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* la goutte d'eau qui pointe l'icône de gouttière */
+  .drop {
+    position: absolute;
+    left: -11px;
+    width: 22px; height: 22px;
+    background: var(--glass);
+    border-left: 1px solid var(--glass-border);
+    border-bottom: 1px solid var(--glass-border);
+    border-radius: 4px 2px 14px 2px;
+    transform: rotate(45deg);
+    /* recentrage : le pivot géométrique du carré tourné */
+    transition: top .28s cubic-bezier(.2,.9,.25,1);
+    z-index: -1;
+  }
+
+  /* tige fine reliant l'icône à la goutte quand la carte s'esquive loin */
+  .stem {
+    position: absolute;
+    height: 1.5px;
+    background: linear-gradient(90deg, rgba(88,166,255,.55), rgba(139,148,158,.4));
+    z-index: 19;
+    opacity: 0;
+    transition: opacity .2s, top .28s ease, width .28s ease;
+  }
+  .stem.visible { opacity: 1; }
+
+  /* en-tête du popup : onglets + fermer */
+  .pp-head {
+    display: flex; align-items: center; gap: 4px;
+    padding: 7px 7px 5px 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  .pp-title { font-size: 10px; color: var(--muted); letter-spacing: .12em; text-transform: uppercase; flex: 1; }
+  .pp-tab {
+    font-size: 10.5px; padding: 2px 9px; border-radius: 999px;
+    cursor: pointer; color: var(--muted); border: 1px solid transparent;
+    transition: all .15s;
+  }
+  .pp-tab.on { color: var(--accent); background: rgba(88,166,255,0.12); border-color: rgba(88,166,255,0.3); }
+  .pp-tab:not(.on):hover { color: var(--text); }
+
+  /* le mini téléphone : la preview elle-même */
+  .mini-phone {
+    margin: 10px;
+    width: 208px;
+    height: 250px;
+    border-radius: 16px;
+    border: 2px solid #30363d;
+    background: #f4f5f7;
+    overflow: hidden;
+    position: relative;
+    box-shadow: inset 0 0 0 1px #000a;
+  }
+  .mini-phone .m-status {
+    height: 14px; background: #e8eaed; display: flex;
+    justify-content: space-between; padding: 0 8px; align-items: center;
+    font-size: 6.5px; color: #5f6368;
+  }
+  .mini-screen { padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+  .m-text { color: #202124; font-size: 11px; font-weight: 600; font-family: system-ui, sans-serif; }
+  .m-sub { color: #5f6368; font-size: 8px; font-family: system-ui, sans-serif; margin-top: -5px; }
+  .m-btn {
+    margin-top: 10px;
+    background: #6200ee; color: #fff; border-radius: 999px;
+    padding: 7px 0; text-align: center; font-size: 9.5px;
+    font-family: system-ui, sans-serif; font-weight: 600;
+    box-shadow: 0 1px 3px rgba(98,0,238,.4);
+  }
+  .m-card {
+    background: #fff; border-radius: 8px; padding: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.12); font-size: 8px; color: #5f6368;
+    font-family: system-ui, sans-serif;
+  }
+  .runtime-badge {
+    position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%);
+    font-size: 7.5px; color: #5f6368; background: #e8eaed;
+    padding: 1px 8px; border-radius: 999px; white-space: nowrap;
+    font-family: system-ui, sans-serif;
+  }
+  .pp-foot {
+    display: flex; gap: 6px; padding: 6px 12px 9px;
+    border-top: 1px solid var(--line);
+  }
+  .pp-chip {
+    font-size: 9px; color: var(--muted);
+    background: #1c2129; border: 1px solid var(--line);
+    padding: 2px 8px; border-radius: 999px;
+  }
+  .pp-chip.live { color: var(--accent-2); border-color: rgba(63,185,80,.35); }
+
+  /* ── Panneau latéral : ce que démontre la maquette ──── */
+  .side {
+    width: 300px;
+    background: var(--editor-bg);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 16px;
+    font-size: 12.5px;
+  }
+  .side h2 { font-size: 13px; margin-bottom: 10px; color: var(--text); }
+  .side ol { padding-left: 18px; color: var(--muted); line-height: 1.65; }
+  .side ol b { color: var(--text); font-weight: 600; }
+  .side .demo-btn {
+    margin-top: 12px;
+    width: 100%;
+    background: rgba(88,166,255,0.14);
+    color: var(--accent);
+    border: 1px solid rgba(88,166,255,0.4);
+    border-radius: 10px;
+    padding: 9px;
+    font-size: 12.5px;
+    cursor: pointer;
+    transition: all .18s;
+    font-family: inherit;
+  }
+  .side .demo-btn:hover { background: rgba(88,166,255,0.24); }
+  .side .demo-btn.running { background: rgba(63,185,80,0.16); color: var(--accent-2); border-color: rgba(63,185,80,0.45); }
+  .side .hint { margin-top: 10px; font-size: 11px; color: var(--muted); line-height: 1.5; }
+  .side .kbd { font-family: monospace; color: var(--accent); }
+  .log {
+    margin-top: 12px; font-family: monospace; font-size: 10px;
+    color: var(--muted); background: #0d1117; border: 1px solid var(--line);
+    border-radius: 8px; padding: 8px; height: 118px; overflow-y: auto;
+    line-height: 1.6;
+  }
+  .log .ok { color: var(--accent-2); }
+  .log .mv { color: var(--accent); }
+
+  .footer-note {
+    margin-top: 22px; max-width: 700px; text-align: center;
+    font-size: 11.5px; color: var(--muted); line-height: 1.6;
+  }
+</style>
+</head>
+<body>
+
+<div class="intro">
+  <h1>Maquette interactive — Aperçu « goutte d'eau » dans la gouttière</h1>
+  <p>Alternative mobile au split view : l'icône d'aperçu vit dans la <b>gouttière</b>, le rendu s'ouvre dans un popup
+     <b>mini-téléphone</b> qui se repositionne dynamiquement pour <b>ne jamais couvrir la ligne où l'utilisateur tape</b>.</p>
+  <span class="pill">tap sur 👁 de la gouttière</span>
+  <span class="pill">popup « goutte d'eau »</span>
+  <span class="pill">esquive du caret</span>
+  <span class="pill">XML / Compose</span>
+</div>
+
+<div class="stage">
+
+  <!-- ══ Le téléphone avec l'éditeur ══ -->
+  <div class="device">
+    <div class="notch"></div>
+    <div class="statusbar"><span>14:07</span><span>▲ ▼ ▮▮</span></div>
+    <div class="appbar">
+      <span class="file"><span class="dot"></span> activity_main.xml</span>
+      <span class="tab">MainActivity.kt</span>
+    </div>
+
+    <div class="editor-wrap" id="editor">
+      <div class="editor-inner">
+        <div class="code" id="code"></div>
+        <div class="caret" id="caret"></div>
+        <div class="stem" id="stem"></div>
+        <!-- le popup est cloné ici par le script -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ Panneau explicatif ══ -->
+  <div class="side">
+    <h2>Ce que démontre la maquette</h2>
+    <ol>
+      <li><b>Œil dans la gouttière</b> — pas de split view : l'icône d'aperçu est posée sur la rangée de la balise racine (déjà le comportement « œil au caret » de l'éditeur).</li>
+      <li><b>Popup goutte d'eau</b> — la carte en verre pointe vers l'icône ; le coin arrondi asymétrique forme la goutte.</li>
+      <li><b>Mini téléphone</b> — la preview XML (ou Compose) est rendue dans un châssis miniature.</li>
+      <li><b>Dynamique anti-recouvrement</b> — cliquez dans le code : le caret se déplace et le popup <b>esquive</b> la zone de frappe (au-dessus / en dessous), tige de liaison conservée.</li>
+      <li><b>Onglets XML / Compose</b> + badge « rendu vivant » (le rendu suit l'édition).</li>
+    </ol>
+    <button class="demo-btn" id="typeBtn">▶ Simuler la frappe (le popup esquive)</button>
+    <div class="hint">Astuce : cliquez sur une ligne de code pour y poser le caret — le popup se décale pour dégager la zone de frappe. Re-tapez sur l'œil pour refermer.</div>
+    <div class="log" id="log"></div>
+  </div>
+</div>
+
+<div class="footer-note">
+  Maquette de discussion (aucune logique de production) — concept proposé pour l'éditeur :
+  <span style="color:var(--accent)">GutterView</span> → icône preview → popup ancré non modal,
+  repositionnement fluide borné à la ligne tapée, fermeture au tap extérieur. Le rendu réel
+  (XML gonflé / arbre Compose simulé) vivrait derrière la même carte.
+</div>
+
+<script>
+/* ═══ Données : le code XML affiché ═══════════════════════════════ */
+const LINES = [
+  ['c',  '&lt;?xml version="1.0" encoding="utf-8"?&gt;'],
+  ['t',  '<span class="k">&lt;</span><span class="t">LinearLayout</span>'],
+  ['a',  '    <span class="a">xmlns:android</span>=<span class="s">"…/res/android"</span>'],
+  ['a',  '    <span class="a">android:layout_width</span>=<span class="s">"match_parent"</span>'],
+  ['a',  '    <span class="a">android:layout_height</span>=<span class="s">"match_parent"</span>'],
+  ['a',  '    <span class="a">android:orientation</span>=<span class="s">"vertical"</span>'],
+  ['a',  '    <span class="a">android:padding</span>=<span class="s">"16dp"</span><span class="k">&gt;</span>'],
+  ['t',  ''],
+  ['t',  '    <span class="k">&lt;</span><span class="t">TextView</span>'],
+  ['a',  '        <span class="a">android:id</span>=<span class="s">"@+id/title"</span>'],
+  ['a',  '        <span class="a">android:text</span>=<span class="s">"Bienvenue !"</span>'],
+  ['a',  '        <span class="a">android:textSize</span>=<span class="s">"20sp"</span> <span class="k">/&gt;</span>'],
+  ['t',  ''],
+  ['t',  '    <span class="k">&lt;</span><span class="t">Button</span>'],
+  ['a',  '        <span class="a">android:id</span>=<span class="s">"@+id/action"</span>'],
+  ['a',  '        <span class="a">android:text</span>=<span class="s">"Continuer"</span> <span class="k">/&gt;</span>'],
+  ['t',  ''],
+  ['t',  '<span class="k">&lt;/</span><span class="t">LinearLayout</span><span class="k">&gt;</span>'],
+];
+const ANCHOR_LINE = 1;      // l'œil vit sur la rangée de la balise racine
+const LINE_H = 20, GUTTER_W = 56, PAD_TOP = 8;
+
+/* ═══ Construction du DOM ═════════════════════════════════════════ */
+const codeEl = document.getElementById('code');
+const editor = document.getElementById('editor');
+const caret = document.getElementById('caret');
+const stem = document.getElementById('stem');
+
+const EYE_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M2.5 12s3.5-6.5 9.5-6.5S21.5 12 21.5 12s-3.5 6.5-9.5 6.5S2.5 12 2.5 12z"/>
+  <circle cx="12" cy="12" r="2.6"/></svg>`;
+
+/* ═══ Journal (déclaré tôt : utilisé dès la construction) ═══ */
+const logEl = document.getElementById('log');
+function log(html) {
+  const d = document.createElement('div');
+  d.innerHTML = '· ' + html;
+  logEl.appendChild(d);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+LINES.forEach(([cls, html], i) => {
+  const row = document.createElement('div');
+  row.className = 'row' + (i === ANCHOR_LINE ? ' previewable' : '');
+  row.dataset.line = i;
+  row.innerHTML =
+    `<div class="gutter">
+       <span class="eye" title="Aperçu du layout">${EYE_SVG}</span>
+       <span class="lineno">${i + 1}</span>
+     </div>
+     <div class="line-content ${cls}">${html || ' '}</div>`;
+  codeEl.appendChild(row);
+});
+
+/* ═══ Le popup ═════════════════════════════════════════════════════ */
+const popup = document.createElement('div');
+popup.className = 'preview-popup';
+popup.id = 'previewPopup';
+popup.innerHTML = `
+  <div class="drop" id="drop"></div>
+  <div class="pp-head">
+    <span class="pp-title">Aperçu</span>
+    <span class="pp-tab on" data-mode="xml">XML</span>
+    <span class="pp-tab" data-mode="compose">Compose</span>
+  </div>
+  <div class="mini-phone">
+    <div class="m-status"><span>14:07</span><span>▲ ▼ ▮▮</span></div>
+    <div class="mini-screen" id="miniScreen"></div>
+    <span class="runtime-badge" id="runtimeBadge">activity_main.xml · gonflé</span>
+  </div>
+  <div class="pp-foot">
+    <span class="pp-chip live" id="liveChip">● rendu vivant</span>
+    <span class="pp-chip" id="zoomChip">fit · 62 %</span>
+  </div>`;
+document.querySelector('.editor-inner').appendChild(popup);
+const drop = document.getElementById('drop');
+
+const RENDER = {
+  xml: {
+    badge: 'activity_main.xml · gonflé',
+    screen: `<div class="m-text">Bienvenue !</div>
+             <div class="m-sub">Aperçu du layout gonflé</div>
+             <div class="m-btn">Continuer</div>
+             <div class="m-card">LinearLayout vertical · padding 16dp</div>`
+  },
+  compose: {
+    badge: 'MainActivity.kt · @Composable',
+    screen: `<div class="m-text">Bienvenue !</div>
+             <div class="m-sub">Preview Compose simulée</div>
+             <div class="m-btn">Continuer</div>
+             <div class="m-card">Column · verticalArrangement 8dp</div>`
+  }
+};
+let mode = 'xml';
+function setMode(m) {
+  mode = m;
+  popup.querySelectorAll('.pp-tab').forEach(t => t.classList.toggle('on', t.dataset.mode === m));
+  document.getElementById('miniScreen').innerHTML = RENDER[m].screen;
+  document.getElementById('runtimeBadge').textContent = RENDER[m].badge;
+  log(`aperçu basculé : <b>${m === 'xml' ? 'XML gonflé' : 'Compose simulé'}</b>`);
+}
+popup.querySelectorAll('.pp-tab').forEach(t => t.onclick = e => { e.stopPropagation(); setMode(t.dataset.mode); });
+setMode('xml');
+
+/* ═══ État : caret + placement anti-recouvrement ═══════════════════ */
+let open = false;
+let caretLine = 11;                       // le caret démarre dans le TextView
+const rows = [...document.querySelectorAll('.row')];
+
+function caretY()   { return PAD_TOP + caretLine * LINE_H + 1; }
+function anchorY()  { return PAD_TOP + ANCHOR_LINE * LINE_H; }
+function lineY(i)   { return PAD_TOP + i * LINE_H; }
+
+function placeCaret(line, col) {
+  caretLine = Math.max(0, Math.min(LINES.length - 1, line));
+  const row = rows[caretLine];
+  const content = row.querySelector('.line-content');
+  const chW = content.textContent.length ? content.getBoundingClientRect().width / content.textContent.length : 6.4;
+  const x = GUTTER_W + 4 + (col != null ? col : content.textContent.length) * chW;
+  caret.style.top = caretY() + 'px';
+  caret.style.left = Math.min(x, editor.clientWidth - 8) + 'px';
+  rows.forEach(r => r.classList.toggle('active-line', +r.dataset.line === caretLine));
+}
+
+/* — l'algorithme « goutte d'eau » : esquive de la zone de frappe —
+   Priorités :
+   1. ancré à la ligne de l'œil, PLEINE TAILLE, si le caret est loin ;
+   2. sinon la carte glisse ENTIÈREMENT au-dessus ou en dessous du
+      bloc de frappe (caret ± 1 ligne) — le côté le plus dégagé ;
+   3. si aucun côté n'est assez grand, la carte se COMPACTE
+      (le mini-téléphone rétrécit) pour tenir dans le plus grand côté —
+      elle ne recouvre JAMAIS la ligne où l'utilisateur tape.        */
+let currentScale = 1;
+function placePopup() {
+  if (!open) return;
+  const PPH = popup.offsetHeight || 356;
+  const PPW = popup.offsetWidth || 236;
+  const EDH = editor.clientHeight;
+  const EDW = editor.clientWidth;
+
+  // Zone de frappe à protéger : le caret ± 1 ligne.
+  const guardTop = lineY(caretLine) - LINE_H;
+  const guardBot = lineY(caretLine) + 2 * LINE_H;
+
+  // 1. Position ancrée à l'œil, pleine taille.
+  let top = anchorY() - 22;
+  let scale = 1;
+  const anchoredOverlap = top < guardBot && top + PPH > guardTop;
+
+  if (anchoredOverlap) {
+    const freeAbove = Math.max(0, guardTop - 10);
+    const freeBelow = Math.max(0, EDH - guardBot - 10);
+    if (Math.max(freeAbove, freeBelow) >= PPH) {
+      // 2. Un côté entier est libre → glissement pleine taille.
+      if (freeBelow >= freeAbove) {
+        top = guardBot + 10;
+        log(`<span class="mv">esquive ↓</span> la carte libère la ligne de frappe`);
+      } else {
+        top = guardTop - PPH - 10;
+        log(`<span class="mv">esquive ↑</span> la carte libère la ligne de frappe`);
+      }
+    } else {
+      // 3. Pas de place d'un côté entier → compactage.
+      const side = freeBelow >= freeAbove ? 'below' : 'above';
+      const free = Math.max(freeBelow, freeAbove);
+      scale = Math.max(0.58, free / PPH);
+      const visualH = PPH * scale;
+      top = side === 'below'
+          ? guardBot + 8
+          : Math.max(4, guardTop - visualH - 8);
+      log(`<span class="mv">esquive ${side === 'below' ? '↓' : '↑'} + compactage ${(scale * 100).toFixed(0)} %</span> — la carte rétrécit pour dégager la frappe`);
+    }
+  }
+
+  // Clamps : la carte reste dans l'éditeur.
+  const visualH = PPH * scale;
+  top = Math.max(4, Math.min(top, EDH - visualH - 4));
+  let left = GUTTER_W + 6;
+  const visualW = PPW * scale;
+  if (left + visualW > EDW - 6) left = Math.max(6, EDW - visualW - 6);
+
+  popup.style.top = top + 'px';
+  popup.style.left = left + 'px';
+  popup.style.transform = `scale(${scale})`;
+  currentScale = scale;
+  const zoomChip = document.getElementById('zoomChip');
+  if (zoomChip) zoomChip.textContent = `fit · ${(scale * 62).toFixed(0)} %`;
+
+  // Goutte : sur le bord gauche, à la hauteur de l'œil (bornée dans la
+  // hauteur VISUELLE de la carte).
+  const eyeY = anchorY() + 10;
+  const dropTop = Math.max(14, Math.min(eyeY - top - 11, visualH - 34));
+  drop.style.top = dropTop + 'px';
+
+  // Tige : si l'œil est hors de la carte, on relie.
+  const dropCenter = top + dropTop + 11;
+  const stemVisible = Math.abs(eyeY + 10 - dropCenter) > 8;
+  stem.classList.toggle('visible', stemVisible);
+  if (stemVisible) {
+    stem.style.top = (eyeY + 10) + 'px';
+    stem.style.left = '30px';   // bord droit de l'œil
+    stem.style.width = Math.max(0, left - 30) + 'px';
+    // La tige part de l'œil vers la carte ; on la penche vers la goutte.
+    stem.style.transform = `rotate(${Math.atan2(dropCenter - eyeY - 10, left - 30) * 180 / Math.PI}deg)`;
+    stem.style.transformOrigin = '0 50%';
+  }
+}
+
+/* ═══ Interactions ═════════════════════════════════════════════════ */
+const eyeEl = document.querySelector('.row.previewable .eye');
+eyeEl.addEventListener('click', e => {
+  e.stopPropagation();
+  open = !open;
+  popup.classList.toggle('open', open);
+  eyeEl.classList.toggle('active', open);
+  if (open) {
+    placePopup();
+    log(`<span class="ok">popup ouvert</span> depuis l'œil de gouttière (ligne ${ANCHOR_LINE + 1})`);
+  } else {
+    // Retour à l'état compact de repos (la classe ne porte plus le transform).
+    popup.style.transform = 'scale(0.94) translateY(6px)';
+    log(`<span class="ok">popup refermé</span>`);
+  }
+});
+
+// Tap dans le code → le caret se pose, le popup esquive.
+editor.addEventListener('click', e => {
+  if (e.target.closest('.preview-popup')) return;
+  if (e.target.closest('.eye')) return;
+  const row = e.target.closest('.row');
+  if (!row) return;
+  const line = +row.dataset.line;
+  const rect = row.querySelector('.line-content').getBoundingClientRect();
+  const col = Math.max(0, Math.round((e.clientX - rect.left) / 6.4));
+  placeCaret(line, col);
+  if (open) placePopup();
+  log(`caret → ligne ${line + 1}, col ${col + 1}`);
+});
+
+// Tap hors de l'éditeur → fermeture douce.
+document.addEventListener('click', e => {
+  if (open && !e.target.closest('.editor-wrap') && !e.target.closest('.side')) {
+    open = false;
+    popup.classList.remove('open');
+    eyeEl.classList.remove('active');
+    log(`<span class="ok">fermeture</span> tap extérieur`);
+  }
+});
+
+/* ═══ Simulation de frappe ═════════════════════════════════════════ */
+const typeBtn = document.getElementById('typeBtn');
+let typing = false;
+typeBtn.addEventListener('click', () => {
+  if (typing) return;
+  if (!open) { eyeEl.click(); }
+  typing = true;
+  typeBtn.textContent = '⏳ Le curseur descend — le popup esquive…';
+  typeBtn.classList.add('running');
+  let line = 2;
+  const iv = setInterval(() => {
+    placeCaret(line, null);
+    if (open) placePopup();
+    line++;
+    if (line >= LINES.length) {
+      clearInterval(iv);
+      typing = false;
+      typeBtn.textContent = '▶ Simuler la frappe (le popup esquive)';
+      typeBtn.classList.remove('running');
+      log(`<span class="ok">simulation terminée</span> — le popup n'a jamais couvert le caret`);
+    }
+  }, 620);
+});
+
+/* ═══ Départ ═══════════════════════════════════════════════════════ */
+placeCaret(caretLine, null);
+window.addEventListener('resize', () => { placeCaret(caretLine, null); if (open) placePopup(); });
+log('maquette prête — <b>cliquez l\'œil 👁 ligne 2</b> puis tapez dans le code');
+</script>
+</body>
+</html>

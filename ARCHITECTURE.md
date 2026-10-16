@@ -204,8 +204,9 @@ jo.codeeditor/
 │                   code actions, go-to-symbol, go-to-line, rename,
 │                   références, diagnostics) + ancres et hit-test
 │                   (EditorPopupAnchors, EditorPopupHitTester)
-├── view/preview/ — aperçu XML délégué : EditorPreviewController,
-│                   EditorPreviewSheet, EditorPreviewHost (contrat hôte)
+├── view/preview/ — aperçu délégué au hôte : EditorPreviewController,
+│                   EditorPreviewSheet, EditorPreviewHost (contrat hôte),
+│                   EditorPreviewDrop/Geometry (carte « goutte d'eau » B27)
 ├── view/chrome/  — habillage : EditorTheme, GutterView, BreadcrumbBar,
 │                   SymbolBarView
 └── blocks/       — BlockEditor (édition par blocs : BlockNode, BlockType,
@@ -268,10 +269,12 @@ EditorView.onDraw → EditorRenderer (16 couches)            (:cel-ui)
    popups, minimap, aperçu XML, décorations de plugins
 ```
 
-## Aperçu XML — interface EditorPreviewHost
+## Aperçu — interface EditorPreviewHost
 
 L'éditeur ne dépend d'aucun moteur d'aperçu : le rendu d'aperçu est délégué
-à l'application hôte via une interface, `EditorPreviewHost` :
+à l'application hôte via une interface, `EditorPreviewHost` (six méthodes
+historiques + cinq méthodes B27 à défaut raisonnable — un hôte feuille
+n'implémente que les six premières) :
 
 ```java
 package jo.codeeditor.view;
@@ -280,7 +283,7 @@ public interface EditorPreviewHost {
     /** L'hôte peut-il prévisualiser ce fichier ? (.xml, .md, .html) */
     boolean canPreview(String fileName);
 
-    /** Le mode d'aperçu a changé (NONE/SPLIT/FULL). */
+    /** Le mode d'aperçu a changé (NONE/SPLIT/FULL/SHEET_*/DROP). */
     void onPreviewModeChanged(EditorView.PreviewMode mode,
                               int previewLeft, int previewWidth);
 
@@ -295,6 +298,24 @@ public interface EditorPreviewHost {
 
     /** Hit-teste un tap dans l'aperçu (sélection de vue). */
     boolean hitTestPreview(float x, float y);
+
+    // ── B27 : la carte « goutte d'eau » (popup de gouttière) ──────
+    /** Vrai = le tap d'aperçu ouvre la CARTE (hôtes canvas), faux
+     *  (défaut) = feuille/panneau (hôtes Vue). */
+    default boolean prefersDropPreview() { return false; }
+
+    /** Libellés des onglets de la carte (défaut : aucun). */
+    default List<String> previewDropTabs() { return List.of(); }
+
+    /** L'utilisateur a basculé l'onglet de la carte. */
+    default void onPreviewDropTabSelected(int index) { }
+
+    /** Rend l'écran du mini-téléphone (canvas translaté/échelonné/clippé). */
+    default void drawDropPreview(Canvas c, float x, float y,
+            float w, float h, int tab) { }
+
+    /** Libellé du badge d'exécution (défaut : aucun). */
+    default String previewDropBadge(int tab) { return null; }
 }
 ```
 
@@ -307,23 +328,35 @@ editorView.setPreviewHost(new XmlPreviewHost(this, editorView));
 // 2. Quand l'utilisateur change de fichier :
 editorView.setFileName("layout.xml");
 // → EditorView appelle previewHost.canPreview("layout.xml")
-// → Si true, dessine les icônes d'aperçu dans le coin haut-droit
+// → Si true, l'œil d'aperçu vit dans la gouttière (rangée du caret)
 
-// 3. L'utilisateur tape une icône d'aperçu :
-// → EditorView.setPreviewMode(SPLIT ou FULL)
+// 3. L'utilisateur tape l'œil de gouttière (ou une icône d'aperçu) :
+// → Hôte prefersDropPreview() ? carte DROP : feuille SHEET_*/panneau
 // → previewHost.onPreviewModeChanged(mode, left, width)
 // → previewHost.onPreviewContentChanged(text)
 // → l'hôte notifie editorView.invalidate() quand son rendu est prêt
 
-// 4. L'utilisateur édite le XML :
+// 4. L'utilisateur édite :
 // → EditorView.notifyTextChanged()
 // → previewUpdateTask (debounce 200 ms)
 // → previewHost.onPreviewContentChanged(text) → re-render → invalidate
+//   (carte : re-résolution du placement à chaque frame, le hôte ne
+//    s'occupe de RIEN de la géométrie — EditorPreviewDropGeometry)
 
 // 5. À chaque frame :
 // → EditorRenderer.draw()
 // → Si isXmlPreviewActive() : host.drawPreview(canvas, previewLeft, 0)
+// → Si DROP ouvert : EditorPreviewDropPainter.drawCard(canvas)
+//   (tige + goutte + carte + en-tête/onglets + mini-téléphone avec
+//    host.drawDropPreview clippé + badge + chips « rendu vivant / fit »)
 ```
+
+La carte « goutte d'eau » se décompose en trois classes :
+`EditorPreviewDrop` (état vivant : ancre gelée, onglets, hit-test),
+`EditorPreviewDropGeometry` (placement pur anti-recouvrement — testé en
+JUnit sans Android) et `EditorPreviewDropPainter` (chrome du canvas).
+La maquette de conception interactive est archivée dans
+`docs/maquettes/`.
 
 ## Principes directeurs
 

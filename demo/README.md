@@ -1,6 +1,6 @@
 # demo — atelier de la bibliothèque
 
-> 61 tests · Robolectric (fumée : lancement réel des activités,
+> 64 tests · Robolectric (fumée : lancement réel des activités,
 > chaîne LSP complète) + JUnit pur (parseur, serveur) · application
 > `com.android.application`, **non publiée sur Maven** — c'est une
 > vitrine et un banc d'essai, pas un artefact.
@@ -32,7 +32,10 @@ contrat d'une démo.
   `InProcessStreamConnectionProvider`, un serveur lsp4j (diagnostics
   uniquement) et la bascule moteur maison ↔ moteur LSP.
 - `DemoPreviewHost` implémente `EditorPreviewHost` (aperçu XML/HTML
-  rendu par la démo elle-même, mode SPLIT/FULL).
+  rendu par la démo elle-même, mode SPLIT/FULL) et, depuis B27, la
+  **carte « goutte d'eau »** pour l'échantillon XML (`activity_main.xml` :
+  œil de gouttière → onglets XML/Compose, badge « gonflé », mini-
+  téléphone simulé sur canvas).
 - `DemoTheme`/schemes : vitrine de la cascade thème → scheme.
 
 ## Ce qu'on y trouve
@@ -128,7 +131,7 @@ Le mini serveur LSP est **embarqué et in-process** : la démo reste
 ## Tests
 
 ```bash
-./gradlew :demo:testDebugUnitTest     # 61 tests
+./gradlew :demo:testDebugUnitTest     # 64 tests
 ```
 
 - `MiniJavaParserTest` (20) — chaque règle, ses déclencheurs ET ses
@@ -149,8 +152,9 @@ Le mini serveur LSP est **embarqué et in-process** : la démo reste
   du « ⋯ » du toolbar de sélection (icône + bascule pose/retrait).
 - `SampleDrawerTest` (3) — filtre sans casse ni accents, familles +
   échantillons filtrés en direct, remontée des sélections.
-- `DemoPreviewHostTest` (20) — inchangé : comportement de l'hôte
-  d'aperçu.
+- `DemoPreviewHostTest` (23) — comportement de l'hôte d'aperçu,
+  y compris la voie carte « goutte d'eau » B27 (xml prévisualisable,
+  préférence carte seulement pour les layouts, onglets/badges).
 
 ## Voir aussi
 

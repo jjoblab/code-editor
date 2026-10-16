@@ -121,10 +121,19 @@ scénarios reproductibles en atelier multi-onglets ; R3 à R5 constituent
 le « niveau bibliothèque publiée » sur les API 33/34 ; R6 à R9 peuvent
 attendre un retour terrain.
 
+**État d'avancement** : ✅ **R1 et R2 sont LIVRÉS** (3.73.0, passe
+B27/IME) — tests rouges avant / verts après
+(`SetSessionImeRestartTest` : purge de génération/jeton/mode ancre +
+restartInput compté par shadow, sans appel fantôme vers un clavier
+jamais attaché, la vieille connexion ne ressuscite pas le jeton ;
+`ImeSelectedTextBoundTest` : sélection de 500 000 caractères bornée à
+4 096, borne relative au début, garde document). R3 à R9 restent à
+venir.
+
 | N° | Recommandation | Fichiers touchés | Priorité | Effort |
 |---|---|---|---|---|
-| R1 | `restartInput` + purge de l'état IME dans `setSession` (génération, jeton d'extraction, mode ancre) + test multi-onglets | `EditorView.setSession`, `EditorImeBridge` | P1 | 0,5 JH |
-| R2 | Borner `getSelectedText` à `MAX_IPC_TEXT` (borne symétrique) + test sélection géante | `EditorImeBridge.EditorInputConnection` | P1 | 0,25 JH |
+| R1 | ✅ LIVRÉ — `restartInput` + purge de l'état IME dans `setSession` (génération, jeton d'extraction, mode ancre) + test multi-onglets | `EditorView.setSession`, `EditorImeBridge.purgeForSessionChange` | P1 | 0,5 JH |
+| R2 | ✅ LIVRÉ — `getSelectedText` borné à `MAX_IPC_TEXT` (borne symétrique + garde document) via `EditorSession.imeSelectedText` | `EditorImeBridge.EditorInputConnection`, `ImeBridge` (core) | P1 | 0,25 JH |
 | R3 | `getCursorCapsMode` réel sur sous-chaîne bornée ; `initialCapsMode` alimenté | `EditorImeBridge` | P2 | 0,5 JH |
 | R4 | `takeSnapshot` (API 33) : texte environnant + région de composition + capitales | sous-classe API 33 | P2 | 1 JH |
 | R5 | `setImeConsumesInput` (API 34) + invalidation de connexion | sous-classe API 34 | P2 | 0,5 JH |

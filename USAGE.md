@@ -536,22 +536,117 @@ editorView.setKeymap(EditorKeymap.defaults()
 // Ctrl+K Ctrl+C = commenter (accord de touches consécutif)
 ```
 
-## Aperçu XML
+## Aperçu — feuille, panneau, carte « goutte d'eau »
 
-L'éditeur délègue le rendu d'aperçu à l'hôte via `EditorPreviewHost` :
+L'éditeur ne sait PAS prévisualiser : il délègue tout le rendu à
+l'application hôte via `EditorPreviewHost`. Trois familles d'aperçu
+partagent la même interface — le hôte choisit la sienne par fichier :
+
+| Famille | Mode | Pour quoi | Corps fourni par le hôte |
+|---|---|---|---|
+| **Feuille flottante** | `SHEET_SPLIT` / `SHEET_FULL` | Markdown/HTML | une **Vue Android** (typiquement un WebView) via `onCreatePreviewView` |
+| **Panneau scindé inline** | `SPLIT` / `FULL` | rendu canvas côte à côte | `drawPreview(canvas, offsetX, offsetY)` |
+| **Carte « goutte d'eau »** (B27) | `DROP` | aperçu mobile non modal (layout XML, arbre simulé) | `drawDropPreview(canvas, x, y, w, h, tab)` |
 
 ```java
 editorView.setPreviewHost(new XmlPreviewHost(this, editorView));
 editorView.setFileName("layout.xml");
 // → EditorView interroge previewHost.canPreview("layout.xml")
-// → l'utilisateur tape une icône d'aperçu : setPreviewMode(SPLIT ou FULL)
-// → l'hôte dessine via drawPreview(canvas, offsetX, offsetY)
+// → l'utilisateur tape l'œil de gouttière (ou une icône d'aperçu)
+// → selon le type de fichier, la feuille, le panneau ou la carte s'ouvre
 ```
 
-Le contrat complet (6 méthodes : `canPreview`, `onPreviewModeChanged`,
-`onPreviewContentChanged`, `drawPreview`, `hasPreviewContent`,
-`hitTestPreview`) est décrit dans
-[`ARCHITECTURE.md`](ARCHITECTURE.md).
+### La carte « goutte d'eau » (B27) — guide de connexion
+
+La carte est l'alternative mobile au split view : l'aperçu vit dans un
+popup ancré à l'**œil de gouttière** (la pill de la rangée du caret),
+**non modal** — on peut continuer à taper derrière, la carte **esquive
+le bloc de frappe** (caret ± 1 ligne), glisse au-dessus ou en dessous
+selon la place, et se **compacte** (échelle bornée à 0,58) si l'écran
+est trop petit. Elle ne recouvre **jamais** la ligne où l'utilisateur
+tape — l'algorithme est prouvé par balayage de 18 positions dans les
+tests.
+
+Le contrat côté hôte (toutes les méthodes ont un défaut raisonnable —
+seules les utiles sont à surcharger) :
+
+```java
+public class MyDropHost implements EditorPreviewHost {
+    // — Décision —
+    @Override public boolean canPreview(String fileName) {
+        return fileName != null && fileName.endsWith(".xml");
+    }
+    // Vrai = le tap d'aperçu ouvre la CARTE (hôtes canvas) ;
+    // faux (défaut) = feuille/panneau (hôtes Vue — WebView…).
+    @Override public boolean prefersDropPreview() { return true; }
+
+    // — Carte —
+    @Override public List<String> previewDropTabs() {
+        return List.of("XML", "Compose");   // pilules d'en-tête (défaut : aucune)
+    }
+    @Override public void drawDropPreview(Canvas c, float x, float y,
+            float w, float h, int tab) {
+        // L'écran du mini-téléphone : le canvas est DÉJÀ translaté à la
+        // carte, échelonné (compactage) et clippé à l'écran — dessiner
+        // dans le rectangle (x, y, w, h), en coordonnées carte.
+        // « tab » = l'onglet sélectionné (re-rendu à chaque frame).
+    }
+    @Override public String previewDropBadge(int tab) {
+        return tab == 1 ? "MainActivity.kt · @Composable"
+                        : "activity_main.xml · gonflé";   // défaut : aucun
+    }
+    @Override public void onPreviewDropTabSelected(int index) {
+        // L'utilisateur a basculé d'onglet — l'invalidation est déjà
+        // posée par la bibliothèque ; ne maintenez que votre état.
+    }
+
+    // — Feuille/panneau (inutile pour un hôte carte seul) —
+    @Override public void onPreviewModeChanged(EditorView.PreviewMode mode,
+            int left, int width) { }
+    @Override public void onPreviewContentChanged(CharSequence text) {
+        // Contenu débouncé (200 ms) pendant la frappe : re-rendre ici.
+    }
+}
+```
+
+Les gestes, câblés par la bibliothèque (aucun code hôte) :
+
+- tap sur l'**œil** de gouttière → ouverture (l'ancre est la rangée du
+  caret) ; re-tap sur l'œil (resté **gelé** sur l'ancre) → fermeture ;
+- tap sur un **onglet** → bascule + `onPreviewDropTabSelected` ;
+- tap sur **✕** → fermeture ;
+- tap dans le **corps** → englouti (le caret ne bouge pas) ;
+- tap **ailleurs** → cascade normale (caret posé), la carte reste
+  ouverte et esquive la nouvelle zone de frappe au frame suivant ;
+- fermetures de sûreté : changement de session, fichier devenu
+  non-prévisualisable, détachement de la fenêtre.
+
+L'API programme : `openPreviewDropAt(ligne)`, `closePreviewDrop()`,
+`togglePreviewDrop()` ; l'état ouvert se lit sur le mode public :
+`getPreviewMode() == PreviewMode.DROP`.
+
+### La maquette de conception
+
+La carte a été dessinée et validée sur une maquette HTML interactive
+(ouvrir [`docs/maquettes/preview-drop-gouttiere.html`](
+docs/maquettes/preview-drop-gouttiere.html) dans un navigateur : elle
+simule la frappe et montre l'esquive en direct). La correspondance
+élément par élément est tablettée dans le [README](README.md) (section
+« Connecter l'application hôte »). Points de conception notables :
+
+- **l'œil se GÈLE** sur la rangée d'ancre tant que la carte vit (il ne
+  suit plus le caret — la tige relie l'œil à la goutte du popup quand
+  la carte s'esquive loin) ;
+- le placement est **re-résolu à chaque frame** en coordonnées écran :
+  la carte suit l'œil au scroll et esquive le caret à la frappe, sans
+  animation dédiée (seul le fondu d'entrée/sortie de 120 ms anime) ;
+- le **compactage** est une échelle du canvas autour du coin haut-gauche
+  — le hôte dessine toujours en coordonnées carte pleine taille ;
+- les **rectangles d'onglets** sont mesurés une fois à l'ouverture et
+  partagés entre le dessin et le hit-test (zéro divergence).
+
+Le contrat complet de l'interface (11 méthodes, défauts compris) est
+décrit dans [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
 ## LSP (Language Server Protocol)
 

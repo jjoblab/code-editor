@@ -208,6 +208,76 @@ editor.connect();
 project.shutdown(); // borné à 2 s par serveur
 ```
 
+### Connecter l'application hôte — aperçu « goutte d'eau » (B27)
+
+La bibliothèque ne sait PAS prévisualiser : c'est l'application hôte qui
+fournit le rendu via l'interface `EditorPreviewHost`. Trois familles
+d'aperçu sont câblées : la **feuille flottante** (Vue Android, typiquement
+un WebView — Markdown/HTML), le **panneau scindé** inline (canvas), et la
+**carte « goutte d'eau »** — un popup non modal ancré à l'œil de la
+gouttière, pensé pour le mobile (il esquive le bloc de frappe, se
+compacte si l'écran est petit, et suit l'édition en direct).
+
+```java
+EditorView editorView = new EditorView(context);
+editorView.setSession(session);
+
+// 1) Poser le hôte (rendu + décision d'aperçu).
+editorView.setPreviewHost(new MyPreviewHost());
+
+// 2) Dire quel fichier est ouvert — le hôte décide s'il est
+//    prévisualisable (l'œil apparaît alors dans la gouttière).
+editorView.setFileName("activity_main.xml");
+
+// 3) Rien d'autre : le tap sur l'œil de gouttière ouvre/ferme la carte.
+//    (L'API programme : openPreviewDropAt(ligne) / togglePreviewDrop().)
+```
+
+Le hôte minimal pour la carte « goutte d'eau » :
+
+```java
+public class MyPreviewHost implements EditorPreviewHost {
+    @Override public boolean canPreview(String fileName) {
+        return fileName != null && fileName.endsWith(".xml");
+    }
+    // Les hôtes CANVAS préfèrent la carte ; les hôtes VUE (WebView)
+    // laissent ce défaut à faux et gardent la feuille flottante.
+    @Override public boolean prefersDropPreview() { return true; }
+    @Override public List<String> previewDropTabs() {
+        return List.of("XML", "Compose");          // pilules d'en-tête
+    }
+    @Override public void drawDropPreview(Canvas c, float x, float y,
+            float w, float h, int tab) {
+        // Dessiner l'écran du mini-téléphone (déjà translaté + clippé).
+    }
+    @Override public String previewDropBadge(int tab) {
+        return "activity_main.xml · gonflé";       // badge d'exécution
+    }
+    @Override public void onPreviewDropTabSelected(int index) { /* re-rendu */ }
+}
+```
+
+**Correspondance maquette → implémentation.** La carte a été conçue sur
+une maquette HTML interactive (anti-recouvrement prouvé par QA
+automatisée sur 18 positions de caret), archivée dans
+[`docs/maquettes/preview-drop-gouttiere.html`](docs/maquettes/preview-drop-gouttiere.html) :
+
+| Élément de maquette | Implémentation |
+|---|---|
+| Œil en gouttière (rangée du caret) | `GutterView` pill B9c ; **gelé** sur la rangée d'ancre quand la carte vit |
+| Tap œil → ouverture / re-tap → fermeture | `EditorTapResolver` → `EditorPreviewController.togglePreviewDrop()` |
+| Popup « goutte d'eau » (coin asymétrique + goutte pivotée) | `EditorPreviewDropPainter` (Path à coins 18/18/18/4 + losange pivoté 45°) |
+| Placement anti-recouvrement 3 niveaux (ancré → esquive entière → compactage 0,58) | `EditorPreviewDropGeometry.place()` — testé par balayage de 18 positions |
+| Tige de liaison œil↔goutte | `Placement.stemVisible` (au-delà de 8 dp d'écart) |
+| Onglets XML / Compose + ✕ | `EditorPreviewHost.previewDropTabs()` + hit-test partagé dessin/tap |
+| Badge « activity_main.xml · gonflé » | `EditorPreviewHost.previewDropBadge(tab)` |
+| Chip « rendu vivant » + « fit · NN % » | poussée de contenu débouncée 200 ms + échelle de compactage réelle |
+| Frappe : la carte esquive, jamais sur la ligne du caret | zone de garde caret ± 1 ligne, re-résolue à chaque frame |
+
+La maquette complète (contrat des gestes, invariants, algorithme) et le
+guide pas-à-pas figurent dans [`USAGE.md`](USAGE.md) (section
+« Aperçu — feuille, panneau, carte goutte d'eau »).
+
 Le guide complet (thèmes, diagnostics, résolveurs, raccourcis, chords,
 aperçu XML, grammaires opt-in) figure dans [`USAGE.md`](USAGE.md).
 
@@ -245,8 +315,8 @@ interface `EditorPreviewHost`) figure dans
 
 ```bash
 ./gradlew test
-# 2 439 tests, 0 failure :
-#   cel-core 1 358 · cel-lsp-api 32 · cel-lsp 185 · cel-ui 722 · cel-textmate 81 · demo 61
+# 2 473 tests, 0 failure :
+#   cel-core 1 364 · cel-lsp-api 32 · cel-lsp 185 · cel-ui 747 · cel-textmate 81 · demo 64
 # (contrôle d'écart : scripts/check-doc-figures.sh, exécuté en CI)
 ```
 

@@ -84,8 +84,22 @@ budget() {
 # (popup, anchors, painter dédiés). Marge 12 lignes, style maison ;
 # champs 176/178 et méthodes 276/280 inchangés — le relèvement ne
 # dispense pas de la décomposition du plan 01.
-budget editor/cel-ui/src/main/java/jo/codeeditor/view/EditorView.java 3850 178 280
-budget editor/cel-core/src/main/java/jo/codeeditor/session/EditorSession.java 1600 15 100
+# Écart au ratchet : plafond LIGNES relevé 3850 → 3920 (B27, carte
+# d'aperçu « goutte d'eau » — maquette validée) : +3 relais d'API
+# publique (openPreviewDropAt/closePreviewDrop/togglePreviewDrop —
+# l'état ouvert se lit sur getPreviewMode() == DROP, aucun relais
+# de confort), l'œil GELÉ au hit-test de gouttière (B9c étendu),
+# la purge IME/setSession (R1 du plan 09) et le mode DROP de l'enum ;
+# la LOGIQUE est hors vue (EditorPreviewDrop, Geometry pure testable,
+# Painter dédiés — miroir des extractions du plan 01). Marge 12 lignes,
+# style maison ; champs 177/178 et méthodes 280/280 inchangés — le
+# relèvement ne dispense pas de la décomposition du plan 01.
+budget editor/cel-ui/src/main/java/jo/codeeditor/view/EditorView.java 3920 178 280
+# Écart au ratchet : plafonds LIGNES 1600 → 1610 et MÉTHODES 100 → 102
+# (R2 du plan 09, IME) : +1 méthode publique (imeSelectedText — la voie
+# IME bornée au plafond Binder, distincte de selectedText interne) et
+# +7 lignes de javadoc/impl ; le reste de la session est inchangé.
+budget editor/cel-core/src/main/java/jo/codeeditor/session/EditorSession.java 1610 15 102
 
 # ── Règle de paquet (plan 03, §5) : le client LSP ne référence jamais
 # la vue. cel-lsp programme contre EditorHost (cel-lsp-api) ;
