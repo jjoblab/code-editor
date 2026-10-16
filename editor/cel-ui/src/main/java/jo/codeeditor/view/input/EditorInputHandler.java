@@ -125,6 +125,10 @@ public class EditorInputHandler {
     // cascade handleTap, corps inerte) : pas de scroll, pas de caret,
     // pas d'appui long derrière elle.
     private boolean dropCardGesture = false;
+    /** ★ B27 (retour terrain n°3) : geste de la BARRE DE TAILLE de la
+     *  goutte (piste du pied) — press = saut, drag vivant, release →
+     *  hôte notifié. */
+    private boolean dropSliderGesture = false;
 
     // ── Tap gutter vs drag gutter ───────────────────────────
     // Un ACTION_DOWN dans la zone des numéros de ligne arme isScrolling
@@ -343,6 +347,20 @@ public class EditorInputHandler {
                     }
                     view.popupManager.dismissColorPicker();
                 }
+                // ★ B27 (retour terrain n°3) : barre de TAILLE de la goutte —
+                // le DOWN dans la piste (pied de carte, à côté de la puce
+                // « fit ») saute le curseur immédiatement (press = saut,
+                // miroir du sélecteur de couleur B26) ; le drag suit
+                // vivant, le relâchement notifie le hôte (persistance).
+                // Contrôlé AVANT la carte entière : la piste possède SON
+                // geste, le reste du pied reste englouti par le corps.
+                if (view.preview.hitTestDropSlider(x, y)) {
+                    dropSliderGesture = true;
+                    view.preview.dropSliderPress(x, y);
+                    scrollerCtl.abortAnimation();
+                    touchHover.cancel();
+                    return true;
+                }
                 // ★ B27 : carte d'aperçu « goutte d'eau » — un DOWN DANS
                 // la carte l'engloutit (le tap se résout au UP via
                 // handleTap : onglet bascule, ✕ ferme, corps inerte) ;
@@ -415,6 +433,16 @@ public class EditorInputHandler {
                 return true;
             case MotionEvent.ACTION_MOVE:
                 if (sheetGesture) return true; // scrim modal — englouti
+                // ★ B27 : drag vivant de la barre de taille — la carte
+                // se redimensionne au frame suivant et la piste suit le
+                // doigt (le placement et la piste se recalculent dans le
+                // même repère : le curseur reste sous le doigt).
+                if (dropSliderGesture) {
+                    view.preview.dropSliderDragTo(x, y);
+                    lastTouchX = x;
+                    lastTouchY = y;
+                    return true;
+                }
                 // ★ B27 : la carte « goutte d'eau » engloutit son geste —
                 // un drag commencé dans la carte ne scrolle ni ne
                 // sélectionne le texte derrière elle (elle n'a pas de
@@ -632,6 +660,16 @@ public class EditorInputHandler {
                         || ((x - touchStartX) * (x - touchStartX)
                             + (y - touchStartY) * (y - touchStartY) < TAP_SLOP_SQ);
                     if (wasTap) tapResolver.handleTap(x, y);
+                    scrollerCtl.recycleTracker();
+                    view.performClick();
+                    return true;
+                }
+                // ★ B27 (retour terrain n°3) : fin du geste de la barre de
+                // taille — le hôte est notifié du facteur choisi UNE fois
+                // (persistance), le geste est englouti par la carte.
+                if (dropSliderGesture) {
+                    dropSliderGesture = false;
+                    view.preview.dropSliderRelease();
                     scrollerCtl.recycleTracker();
                     view.performClick();
                     return true;

@@ -219,4 +219,17 @@ public interface EditorPreviewHost {
     default String previewDropBadge(int tab) {
         return null;
     }
+
+    /**
+     * B27 (retour terrain n°3) — l'utilisateur a relâché la barre de
+     * taille de la carte (pied, à côté de la puce « fit ») : le facteur
+     * d'agrandissement choisi est notifié UNE fois par geste (au
+     * relâchement — pas à chaque frame du drag). Hook de persistance
+     * côté application : la valeur est relue au prochain démarrage via
+     * {@code EditorView.setPreviewDropScale(float)}.
+     *
+     * @param scale le facteur choisi, borné dans [1, 1,5]
+     */
+    default void onPreviewDropScaleChanged(float scale) {
+    }
 }

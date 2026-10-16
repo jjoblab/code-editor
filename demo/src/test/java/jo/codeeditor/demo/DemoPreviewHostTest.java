@@ -70,6 +70,24 @@ public class DemoPreviewHostTest {
         assertEquals("MainActivity.kt · @Composable", host.previewDropBadge(1));
     }
 
+    // ── Retour terrain n°3 : sink de persistance de la barre de taille ──
+
+    @Test
+    public void b27_barreDeTaille_sinkDePersistanceBranché() {
+        DemoPreviewHost host = new DemoPreviewHost();
+        // Sans sink : le crochet par défaut est inoffensif (no-op).
+        host.onPreviewDropScaleChanged(1.3f);
+        // Avec sink : le facteur choisi dans la barre du pied de la
+        // goutte est transmis tel quel à l'atelier (→ EditorPrefs).
+        java.util.List<Float> vus = new java.util.ArrayList<>();
+        host.setScalePersistence(vus::add);
+        host.onPreviewDropScaleChanged(1.3f);
+        host.onPreviewDropScaleChanged(1.5f);
+        assertEquals(2, vus.size());
+        assertEquals(1.3f, vus.get(0), 0.0001f);
+        assertEquals(1.5f, vus.get(1), 0.0001f);
+    }
+
     // ── Blocs ─────────────────────────────────────────────────────
 
     @Test

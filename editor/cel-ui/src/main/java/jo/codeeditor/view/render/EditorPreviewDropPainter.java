@@ -23,7 +23,8 @@ import java.util.Calendar;
  * coin bas-gaubre arrondi en goutte, en-tête (titre + onglets du hôte
  * + fermeture), mini-téléphone (bezel + écran clair + barre d'état),
  * corps rendu par le hôte ({@code drawDropPreview}, clippé à l'écran),
- * badge d'exécution et pied à chips (rendu vivant + échelle).
+ * badge d'exécution et pied à chips (rendu vivant + barre de taille
+ * + échelle).
  *
  * <p>Le placement vient de {@link EditorPreviewDrop#placement()}
  * (source unique — le hit-test du contrôleur partage la même formule).
@@ -37,6 +38,16 @@ import java.util.Calendar;
  * animée (saveLayerAlpha). La TIGE reste opaque : l'ancre œil↔goutte
  * reste lisible quand l'eau devient translucide (le painter appelle
  * aussi updateVeil une fois par frame — le seul passage garanti).</p>
+ *
+ * <p><b>Variante B fantôme</b> (retour terrain n°3) : la même couche
+ * alpha porte la transparence PERMANENTE de la goutte (10–15 %
+ * d'opacité) — la complétion dessinée au-dessus reste lisible, le code
+ * derrière respire. Le minimum voile/fantôme pilote la couche, la
+ * tige reste opaque (miroir du voile).</p>
+ *
+ * <p><b>Barre de taille</b> (retour terrain n°3) : le pied porte une
+ * petite piste de progression à côté de la puce « fit » — le rect est
+ * POSÉDÉ PAR le contrôleur (formule partagée dessin/hit-test).</p>
  *
  * <p><b>Design resserré</b> (retour terrain) : marge mini-téléphone
  * réduite (10 → 4 dp) et bande du téléphone TROUÉE dans le verre — la
@@ -109,8 +120,10 @@ public class EditorPreviewDropPainter {
 
         // ── Voile d'eau : losange + carte sous une couche alpha ─────
         // globale (la carte entière devient eau translucide — pas de ─
-        // voile partiel en bande, plus lisible et plus simple). ──────
-        float veil = drop.veilAlpha();
+        // voile partiel en bande, plus lisible et plus simple). En ───
+        // VARIANTE B, la goutte est fantôme en PERMANENCE à 10–15 % ───
+        // (retour terrain n°3) : le minimum des deux pilote la couche.
+        float veil = Math.min(drop.veilAlpha(), drop.ghostAlpha());
         int veilSave = -1;
         if (veil < 0.999f) {
             float margin = 24f * density; // l'ombre et le losange débordent
@@ -189,8 +202,8 @@ public class EditorPreviewDropPainter {
         // ── Mini-téléphone : bezel + écran + barre d'état + hôte. ────
         drawPhone(canvas, drop, host, density, cardW, cardH);
 
-        // ── Pied : chips « rendu vivant » + échelle. ─────────────────
-        drawFooter(canvas, density, cardW, cardH, p.scale);
+        // ── Pied : chips « rendu vivant » + barre de taille + échelle. ─
+        drawFooter(canvas, drop, density, cardW, cardH, p.scale);
 
         canvas.restoreToCount(save);
         // ── Fin du voile : la couche alpha retombe, la tige (hors ─────
@@ -357,8 +370,8 @@ public class EditorPreviewDropPainter {
     // Pied à chips
     // ════════════════════════════════════════════════════════════════
 
-    private void drawFooter(Canvas canvas, float density,
-            float cardW, float cardH, float scale) {
+    private void drawFooter(Canvas canvas, EditorPreviewDrop drop,
+            float density, float cardW, float cardH, float scale) {
         float footerH = EditorPreviewDrop.FOOTER_H_DP * density;
         float footerTop = cardH - footerH;
         float cy = footerTop + footerH * 0.5f;
@@ -392,6 +405,34 @@ public class EditorPreviewDropPainter {
         canvas.drawCircle(scratch.left + 8f * density, cy, 2.5f * density, fillPaint);
         canvas.drawText(live, scratch.left + 8f * density + 5f * density,
                 cy + labelPaint.getTextSize() * 0.35f, labelPaint);
+
+        // ── Barre de taille (retour terrain n°3) : « c'est dans la ─────
+        // goutte d'eau qu'il faut ajouter le réglage, à côté du texte ──
+        // fit » — petite piste de progression + curseur rond : press = ─
+        // saut immédiat, drag vivant, relâchement → hôte notifié. Rect ─
+        // partagé avec le hit-test du contrôleur (même formule). ────────
+        RectF track = drop.scaleSliderRect();
+        if (!track.isEmpty()) {
+            float progress = EditorPreviewDrop.progressFromScale(drop.cardScale());
+            // Piste : fond discret arrondi.
+            fillPaint.setStyle(Paint.Style.FILL);
+            fillPaint.setColor(EditorView.applyAlphaToColor(view.theme.gutterText, 0.15f));
+            canvas.drawRoundRect(track, track.height() * 0.5f,
+                    track.height() * 0.5f, fillPaint);
+            // Remplissage : accent jusqu'au curseur.
+            if (progress > 0f) {
+                scratch.set(track.left, track.top,
+                        track.left + track.width() * progress, track.bottom);
+                fillPaint.setColor(view.theme.keyword);
+                canvas.drawRoundRect(scratch, scratch.height() * 0.5f,
+                        scratch.height() * 0.5f, fillPaint);
+            }
+            // Curseur : disque au bout du remplissage.
+            fillPaint.setColor(view.theme.keyword);
+            canvas.drawCircle(track.left + track.width() * progress,
+                    track.centerY(),
+                    EditorPreviewDrop.SCALE_THUMB_D_DP * 0.5f * density, fillPaint);
+        }
 
         // Chip d'échelle — « fit · NN % » (compactage courant).
         String fit = "fit · " + Math.round(scale * 100f) + " %";
