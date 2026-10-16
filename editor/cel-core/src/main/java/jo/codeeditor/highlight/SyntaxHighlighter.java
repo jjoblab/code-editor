@@ -47,6 +47,21 @@ import jo.codeeditor.languages.SyntaxFamily;
 public class SyntaxHighlighter {
 
     /**
+     * Garde des lignes monstres pour la voie grammaires : au-delà de
+     * cette LONGUEUR de ligne, la délégation TextMate est contournée et
+     * le tokéniseur intégré (machine à états au coût linéaire) prend le
+     * relais — une ligne minifiée (HTML/JS/CSS, dizaines de milliers de
+     * caractères sur une seule ligne) coûte au moteur de grammaires un
+     * essai de règle par position, plusieurs centaines de µs par tranche
+     * de 1000 caractères : le restyle d'un bundle entier s'étale en
+     * secondes même sur le fil worker. Alignée avec la porte de lignes
+     * de {@code EditorSession.TEXTMATE_LINE_LIMIT} (nombre de lignes) :
+     * deux axes indépendants du même garde-fou. Toute ligne
+     * {@code <=} cette limite est admise telle quelle.
+     */
+    static final int TEXTMATE_CHAR_LIMIT = 5000;
+
+    /**
      * Tokéniseur TextMate optionnel. S'il est non null et signale
      * {@link TextMateTokenizer#isAvailable(String)} pour un langage,
      * {@link #styleLine} lui délègue au lieu du switch-case intégré.
@@ -99,9 +114,14 @@ public class SyntaxHighlighter {
     public StyledLine styleLine(String line, int entryState, String language,
             boolean allowTextMate) {
         // Délégation TextMate (opt-in par langage), gardée par la
-        // barrière allowTextMate propre à chaque appel.
+        // barrière allowTextMate propre à chaque appel ET par la porte
+        // de lignes monstres : une ligne minifiée ne part JAMAIS sur la
+        // voie grammaires (coût par position), même sous la limite de
+        // 800 lignes du document — l'échantillon « minifié » de la démo
+        // (18 000 caractères sur UNE ligne) est le cas d'école.
         TextMateTokenizer tm = textMateTokenizer;
-        if (allowTextMate && tm != null && tm.isAvailable(language)) {
+        if (allowTextMate && tm != null && tm.isAvailable(language)
+                && (line == null || line.length() <= TEXTMATE_CHAR_LIMIT)) {
             return tm.tokenize(line, entryState, language);
         }
         // Parser maison : répartition par langage, pilotée par le registre :

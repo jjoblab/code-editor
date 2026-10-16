@@ -61,6 +61,14 @@ public interface TextMateTokenizer {
     /**
      * Tokénise une ligne unique.
      *
+     * <p><b>Contrat de garde des lignes monstres :</b> la délégation de
+     * {@link SyntaxHighlighter#styleLine} ne lui transmet JAMAIS une ligne
+     * plus longue que {@link SyntaxHighlighter#TEXTMATE_CHAR_LIMIT} — le
+     * coût par caractère du moteur de grammaires rend une ligne minifiée
+     * (dizaines de milliers de caractères) prohibitif. Les lignes au-delà
+     * retombent d'office sur le tokéniseur intégré, machine à états au
+     * coût linéaire.</p>
+     *
      * @param line       le texte de la ligne (sans le saut de ligne final)
      * @param entryState état opaque du lexer en entrée de ligne (0 = vierge)
      * @param language   clé de langage (ex. {@code "java"}, {@code "kotlin"})
