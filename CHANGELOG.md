@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Les sections antérieures à la période courante sont archivées dans
 [`docs/archive/CHANGELOG-archive.md`](docs/archive/CHANGELOG-archive.md) (A-08, audit 3.69.0).
 
-## [3.72.0] — non publié — Multi-langages (ADR-002 : chantiers C1→C3→C2)
+## [3.72.0] — 2026-10-16 — Multi-langages (ADR-002 : chantiers C1→C3→C2) + correctifs retour terrain démo
 
 ### Fixed (retour terrain démo 3.72.0-dev : bascule grammaires)
 
