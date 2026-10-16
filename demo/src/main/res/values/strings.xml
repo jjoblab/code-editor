@@ -61,13 +61,13 @@
 
     <!-- À propos -->
     <string name="about_title">À propos de la démo</string>
-    <string name="about_message">Terrain de jeu pour la bibliothèque code-editor v3.69.0 (Java, Canvas, MIT).
+    <string name="about_message">Terrain de jeu pour la bibliothèque code-editor (Java, Canvas, Apache-2.0).
 
-\u2022 28 langages : basculez via le menu Langage.
+\u2022 29 langages et un bundle minifié : basculez via le menu Langage.
 \u2022 Analyseur factice : diagnostics, complétion, signatures, quick doc et code actions synthétiques \u2014 sans serveur LSP.
 \u2022 Scheme de couleurs : la bascule Scheme applique « Crépuscule ambré » par-dessus le thème (sélection, caret, commentaires, fonctions, javadoc) \u2014 cascade de résolution, purge des caches incluse.
 \u2022 Distinctions fines : javadocs, contrôle de flux (if/for/return), modificateurs (public/static), caractères, chaînes brutes, namespaces XML, entités et emphase Markdown sont colorés distinctement.
-\u2022 Grammaires TextMate : la bascule du bas passe le langage courant (java, python, kotlin, css, html, javascript, lua, markdown, xml, C#) du tokéniseur intégré aux VRAIES grammaires VS Code/TextMate \u2014 sur l\u2019échantillon HTML, les blocs &lt;style&gt; sont colorés par la grammaire CSS incluse.
+\u2022 Grammaires TextMate : la bascule du bas passe le langage courant (java, python, kotlin, css, html, javascript, lua, markdown, xml, C#) du tokéniseur intégré aux grammaires TextMate embarquées \u2014 sur l\u2019échantillon HTML, les blocs &lt;style&gt; sont colorés par la grammaire CSS incluse.
 
 À essayer :
 \u2022 Tapez un identifiant \u2192 popup de complétion (badges par type).
