@@ -203,8 +203,9 @@ public class EditorIconsTest {
         assertEquals("couleur de l'appelant préservée", 0xFF7FD1A8,
                 shadow.getDrawnPathPaint(0).getColor());
 
-        // Famille STROKE (fermer) — trait calibré 2/24 de la taille, style
-        // de l'appelant (posé EXPLICITEMENT) restauré après l'appel.
+        // Famille STROKE (fermer) — trait calibré 1.5/24 de la taille (B24 :
+        // poids léger ~300, le 2/24 Material 400 paraissait gras), style de
+        // l'appelant (posé EXPLICITEMENT) restauré après l'appel.
         Bitmap bmp2 = Bitmap.createBitmap(48, 48, Bitmap.Config.ARGB_8888);
         Canvas canvas2 = new Canvas(bmp2);
         paint.setStyle(Paint.Style.FILL);
@@ -213,7 +214,7 @@ public class EditorIconsTest {
         assertEquals("CLOSE pose un drawPath", 1, shadow2.getPathPaintHistoryCount());
         assertEquals("CLOSE en STROKE", Paint.Style.STROKE,
                 shadow2.getDrawnPathPaint(0).getStyle());
-        assertEquals("trait 2/24 de la taille", 48f / 24f * 2f,
+        assertEquals("trait 1.5/24 de la taille", 48f / 24f * 1.5f,
                 shadow2.getDrawnPathPaint(0).getStrokeWidth(), 0.01f);
         assertEquals("style de l'appelant restauré (FILL)",
                 Paint.Style.FILL, paint.getStyle());
@@ -243,5 +244,50 @@ public class EditorIconsTest {
         EditorIcons.draw(null, EditorIcons.Icon.UNDO, 0, 0, 20, paint);
         EditorIcons.draw(new Canvas(), EditorIcons.Icon.UNDO, 0, 0, 0f, paint);
         EditorIcons.draw(new Canvas(), EditorIcons.Icon.UNDO, 0, 0, -5f, null);
+    }
+
+    // ── B24 : retour terrain « icônes trop grasses » ─────────────
+
+    @Test
+    public void b24_leTraitDesIcônesTraitResteAuPoidsLéger() {
+        // Le poids léger se verrouille par le rapport stroke/taille : un
+        // trait 1.5/24 à 24 px = 1.5 px, à 48 px = 3 px (l'ancien poids
+        // « gras » 2/24 donnait 2 et 4 — une régression vers le gras
+        // serait détectée immédiatement).
+        for (float size : new float[] {24f, 48f}) {
+            Bitmap bmp = Bitmap.createBitmap((int) size, (int) size,
+                    Bitmap.Config.ARGB_8888);
+            Canvas canvas = new Canvas(bmp);
+            Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            EditorIcons.draw(canvas, EditorIcons.Icon.CHEVRON_UP,
+                    size * 0.5f, size * 0.5f, size, paint);
+            org.robolectric.shadows.ShadowCanvas shadow = Shadows.shadowOf(canvas);
+            assertEquals("trait 1.5/24 à " + (int) size + " px",
+                    size / 24f * 1.5f,
+                    shadow.getDrawnPathPaint(0).getStrokeWidth(), 0.01f);
+        }
+    }
+
+    @Test
+    public void b24_partageEvidéEtPointDArrêtAffiné() {
+        // SHARE : les nœuds élargis (r 2.3 → 2.55) évident les donuts —
+        // l'encre s'étend de 3.65 à 20.35 (16.7 unités), à distinguer de
+        // l'ancien 16.0 des petits nœuds pleins de trait.
+        RectF share = EditorIcons.bounds(EditorIcons.Icon.SHARE);
+        assertEquals("encre du partage élargie (nœuds évidés)", 16.7f,
+                share.width(), 0.15f);
+        assertTrue("le partage reste borné", share.left >= -0.5f
+                && share.right <= 24.5f);
+
+        // BREAKPOINT : le disque plein passe de r = 8 (67 % du viewport)
+        // à r = 6.75 (13.5 × 13.5) — assez gras pour rester lisible en
+        // gouttière, assez fin pour ne pas dominer la rangée du ⋯.
+        RectF bp = EditorIcons.bounds(EditorIcons.Icon.BREAKPOINT);
+        assertEquals("disque du point d'arrêt affiné (largeur)", 13.5f,
+                bp.width(), 0.25f);
+        assertEquals("disque du point d'arrêt affiné (hauteur)", 13.5f,
+                bp.height(), 0.25f);
+        assertEquals("le disque reste centré", 12f, bp.centerX(), 0.1f);
+        assertEquals("le disque reste centré (v)", 12f, bp.centerY(), 0.1f);
     }
 }

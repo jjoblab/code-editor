@@ -406,14 +406,15 @@ public class GutterActionsTest {
 
     @Test
     public void icôneBreakpoint_disquePleinFamilleFill() {
-        // Bornes du viewport 24×24 : le disque couvre [4, 20] (r = 8
-        // autour du centre 12, approché par QUATRE cubiques — le
-        // parseur rejette les arcs elliptiques, parité SEARCH).
+        // Bornes du viewport 24×24 : le disque couvre [5.25, 18.75]
+        // (r = 6.75 autour du centre 12, approché par QUATRE cubiques —
+        // le parseur rejette les arcs elliptiques, parité SEARCH).
+        // B24 (retour terrain « icônes trop grasses ») : r 8 → 6.75.
         RectF bounds = EditorIcons.bounds(EditorIcons.Icon.BREAKPOINT);
-        assertEquals(4f, bounds.left, 0.1f);
-        assertEquals(4f, bounds.top, 0.1f);
-        assertEquals(20f, bounds.right, 0.1f);
-        assertEquals(20f, bounds.bottom, 0.1f);
+        assertEquals(5.25f, bounds.left, 0.1f);
+        assertEquals(5.25f, bounds.top, 0.1f);
+        assertEquals(18.75f, bounds.right, 0.1f);
+        assertEquals(18.75f, bounds.bottom, 0.1f);
 
         // Dessin : UN drawPath en FILL (disque plein), peinture de
         // l'appelant préservée (contrat EditorIcons.draw).

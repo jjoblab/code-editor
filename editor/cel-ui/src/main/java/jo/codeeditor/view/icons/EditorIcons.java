@@ -20,9 +20,11 @@ import android.graphics.RectF;
  *   <li><b>FILL</b> — formes pleines (annuler, rétablir, œil) ; rendues
  *       avec {@code Paint.Style.FILL} et {@code FillType.EVEN_ODD} pour les
  *       creux internes ;</li>
- *   <li><b>STROKE</b> — traits fins (scinder, étendre, fermer) ; rendues
- *       avec {@code Paint.Style.STROKE}, épaisseur {@code 2/24} de la
- *       taille — cohérents avec Material Symbols Weight 400.</li>
+ *   <li><b>STROKE</b> — traits (scinder, étendre, fermer) ; rendues
+ *       avec {@code Paint.Style.STROKE}, épaisseur {@code 1.5/24} de la
+ *       taille — poids léger entre Material Symbols Weight 300 et les
+ *       codicons de VS Code (retour terrain : le poids 400 « 2/24 »
+ *       paraissait gras à 16 dp dans le débordement de la pill).</li>
  * </ul>
  *
  * <h3>Usage</h3>
@@ -133,11 +135,14 @@ public final class EditorIcons {
          * Point d'arrêt — disque plein (Material « fiber_manual_record »
          * approché par QUATRE cubiques : le parseur du moteur rejette
          * les arcs elliptiques, parité SEARCH). Famille FILL, B15 :
-         * l'icône canonique des {@code GutterAction} d'hôte.
+         * l'icône canonique des {@code GutterAction} d'hôte. B24
+         * (retour terrain « icônes trop grasses ») : rayon 8 → 6.75 —
+         * le disque couvre 54 % du viewport au lieu de 67 %, lisible
+         * en gouttière sans dominer la rangée du débordement.
          */
         BREAKPOINT(true,
-                "M12 4 C16.42 4 20 7.58 20 12 C20 16.42 16.42 20 12 20 "
-                + "C7.58 20 4 16.42 4 12 C4 7.58 7.58 4 12 4 Z"),
+                "M12 5.25C15.73 5.25 18.75 8.27 18.75 12C18.75 15.73 15.73 18.75 12 18.75 "
+                + "C8.27 18.75 5.25 15.73 5.25 12C5.25 8.27 8.27 5.25 12 5.25 Z"),
 
         /**
          * Dupliquer — deux rectangles superposés (feuille + copie,
@@ -180,17 +185,20 @@ public final class EditorIcons {
          * chaque nœud approché par quatre cubiques, parité
          * SEARCH/BREAKPOINT sur les arcs). Famille STROKE. B16 :
          * icône de l'action intégrée « Share » dans le débordement
-         * de la pill de sélection.
+         * de la pill de sélection. B24 (retour terrain « icônes trop
+         * grasses ») : rayon des nœuds 2.3 → 2.55 — le trou du donut
+         * passe de ~43 % à ~65 % du diamètre, les traits reliants
+         * aboutissent exactement sur le pourtour.
          */
         SHARE(false,
-                "M3.9 12C3.9 10.73 4.93 9.7 6.2 9.7C7.47 9.7 8.5 10.73 8.5 12"
-                + "C8.5 13.27 7.47 14.3 6.2 14.3C4.93 14.3 3.9 13.27 3.9 12Z",
-                "M15.5 6.2C15.5 4.93 16.53 3.9 17.8 3.9C19.07 3.9 20.1 4.93 20.1 6.2"
-                + "C20.1 7.47 19.07 8.5 17.8 8.5C16.53 8.5 15.5 7.47 15.5 6.2Z",
-                "M15.5 17.8C15.5 16.53 16.53 15.5 17.8 15.5C19.07 15.5 20.1 16.53 20.1 17.8"
-                + "C20.1 19.07 19.07 20.1 17.8 20.1C16.53 20.1 15.5 19.07 15.5 17.8Z",
-                "M8.5 10.6L15.5 7.6",
-                "M8.5 13.4L15.5 16.4"),
+                "M3.65 12C3.65 10.59 4.79 9.45 6.2 9.45C7.61 9.45 8.75 10.59 8.75 12"
+                + "C8.75 13.41 7.61 14.55 6.2 14.55C4.79 14.55 3.65 13.41 3.65 12Z",
+                "M15.25 6.2C15.25 4.79 16.39 3.65 17.8 3.65C19.21 3.65 20.35 4.79 20.35 6.2"
+                + "C20.35 7.61 19.21 8.75 17.8 8.75C16.39 8.75 15.25 7.61 15.25 6.2Z",
+                "M15.25 17.8C15.25 16.39 16.39 15.25 17.8 15.25C19.21 15.25 20.35 16.39 20.35 17.8"
+                + "C20.35 19.21 19.21 20.35 17.8 20.35C16.39 20.35 15.25 19.21 15.25 17.8Z",
+                "M8.48 10.86L15.52 7.34",
+                "M8.48 13.14L15.52 16.66"),
 
         /**
          * Déplacer le bloc vers le haut — flèche montante + barre de
@@ -282,9 +290,11 @@ public final class EditorIcons {
         float restoreWidth = paint.getStrokeWidth();
         paint.setStyle(icon.fill ? Paint.Style.FILL : Paint.Style.STROKE);
         if (!icon.fill) {
-            // Trait 2/24 de la taille (Material Symbols Weight 400), jamais
-            // sous 1 px pour rester lisible en basse densité.
-            paint.setStrokeWidth(Math.max(1f, 2f * scale));
+            // Trait 1.5/24 de la taille (poids léger : Material Weight ~300,
+            // parité codicon VS Code — retour terrain : le « 2/24 » Weight 400
+            // paraissait gras, surtout en 16 dp dans le débordement de la
+            // pill), jamais sous 1 px pour rester lisible en basse densité.
+            paint.setStrokeWidth(Math.max(1f, 1.5f * scale));
             paint.setStrokeCap(Paint.Cap.ROUND);
             paint.setStrokeJoin(Paint.Join.ROUND);
         }
