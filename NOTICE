@@ -81,9 +81,24 @@ https://opensource.org/licenses/MIT
 | `python.tmLanguage.json` | `python` | https://github.com/MagicStack/MagicPython (grammars/MagicPython.tmLanguage) | MagicStack contributors |
 | `xml.tmLanguage.json` | `xml` | https://github.com/atom/language-xml (grammars/xml.cson) | GitHub Atom language-xml contributors |
 
-Chaque fichier porte son en-tête `information_for_contributors`
-d'origine pointant vers le dépôt amont. La grammaire **kotlin** de
-sora-editor (`Kotlin.tmLanguage`, plist) n'est PAS embarquée : le
-fichier ne porte ni en-tête d'attribution ni licence vérifiable dans
-la distribution — embarquement laissé à la décision du propriétaire
-une fois la provenance établie.
+Chaque fichier JSON porte son en-tête `information_for_contributors`
+d'origine pointant vers le dépôt amont.
+
+### Grammaire tierce Apache-2.0 (plist XML) — inactive par défaut
+
+`textmate/kotlin.tmLanguage` (format plist XML, le TextMate
+historique) est la grammaire Kotlin du dépôt vscode-kotlin, sous
+licence **Apache License 2.0** — embarquée à la demande du
+propriétaire (option (b) du point d'arrêt C3-quater) après
+établissement de la provenance : l'UUID de grammaire
+d9380650-5edc-447d-8dbd-98838c7d0adf identifie le fichier original,
+et le diff avec l'amont se réduit au PROLOG XML plist (déclaration
+DOCTYPE retirée : le parseur du module refuse les DOCTYPE,
+protection XXE — `disallow-doctype-decl`). C'est octet pour octet la
+copie distribuée par sora-editor. Apache-2.0 exige la conservation de
+la notice de licence : le texte complet est disponible à
+https://www.apache.org/licenses/LICENSE-2.0
+
+| Fichier | Langage | Source amont | Titulaire du copyright |
+|---|---|---|---|
+| `kotlin.tmLanguage` | `kotlin` | https://github.com/mathiasfrohlich/vscode-kotlin (syntaxes/Kotlin.tmLanguage, sans le prolog XML plist) | Mathias Fröhlich — Apache License 2.0 |

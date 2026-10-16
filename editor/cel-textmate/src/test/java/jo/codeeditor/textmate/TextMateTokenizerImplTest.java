@@ -83,16 +83,18 @@ class TextMateTokenizerImplTest {
 
     @Test
     void grammaireTierce_inventaireCompletChargeEtTokénise() {
-        // Les 8 grammaires tierces embarquées chargent (parse
-        // indulgent C3-bis) et tokénisent sans exception — l'échantillon
-        // typique de chaque langage rend un span non vide.
-        String[] langs = {"css", "html", "java", "javascript", "lua",
-                "markdown", "python", "xml"};
+        // Les 9 grammaires tierces embarquées chargent (parse
+        // indulgent C3-bis, plist XML inclus pour kotlin) et
+        // tokénisent sans exception — l'échantillon typique de chaque
+        // langage rend un span non vide.
+        String[] langs = {"css", "html", "java", "javascript", "kotlin",
+                "lua", "markdown", "python", "xml"};
         String[] samples = {
                 "body { color: red; }",
                 "<div class=\"x\">texte</div>",
                 "public class Foo { /* x */ }",
                 "const f = (a) => { return `tpl ${a}`; };",
+                "fun main() { println(\"salut\") } // note",
                 "local function f(x) return x * 2 end",
                 "# Titre avec `code`",
                 "def ma_fonction(x):  # commentaire",
@@ -271,6 +273,31 @@ class TextMateTokenizerImplTest {
         assertEquals(TokenType.CONSTANT, typeAt(l2, line.indexOf("red")));
         StyledLine l3 = impl.tokenize("</style>", l2.exitState, "html");
         assertEquals(0, l3.exitState, "la clôture referme le bloc style");
+    }
+
+    @Test
+    void grammaireKotlinPlist_activeParAppel_tokénise() {
+        // Option (b) : la grammaire KOTLIN (format plist XML, le
+        // TextMate historique) rejoint l'inventaire embarqué. La
+        // copie est l'originale du dépôt vscode-kotlin SANS le prolog
+        // XML plist (DOCTYPE refusé par le parseur du module,
+        // protection XXE) — UUID et contenu identiques à l'amont.
+        // fun → keyword.other → KEYWORD, chaîne → STRING ; val →
+        // storage.type → TYPE, littéral → NUMBER, commentaire de
+        // ligne → COMMENT.
+        TextMateTokenizerImpl impl = TextMateTokenizerImpl.create();
+        assertFalse(impl.isAvailable("kotlin"), "inactive après create()");
+        impl.loadEmbeddedGrammar("Kotlin"); // clé normalisée
+        assertTrue(impl.isAvailable("kotlin"));
+        String l1 = "fun main() { println(\"salut\") }";
+        StyledLine s1 = impl.tokenize(l1, 0, "kotlin");
+        assertEquals(TokenType.KEYWORD, typeAt(s1, l1.indexOf("fun")));
+        assertEquals(TokenType.STRING, typeAt(s1, l1.indexOf("\"salut\"")));
+        String l2 = "val reponse = 42 // réponse";
+        StyledLine s2 = impl.tokenize(l2, 0, "kotlin");
+        assertEquals(TokenType.TYPE, typeAt(s2, l2.indexOf("val")));
+        assertEquals(TokenType.NUMBER, typeAt(s2, l2.indexOf("42")));
+        assertEquals(TokenType.COMMENT, typeAt(s2, l2.indexOf("//")));
     }
 
     @Test

@@ -36,7 +36,9 @@ import java.util.Map;
  *       VS Code/TextMate — attribution par fichier dans NOTICE,
  *       décision D3) : {@code css}, {@code html}, {@code java},
  *       {@code javascript}, {@code lua}, {@code markdown},
- *       {@code python}, {@code xml}.
+ *       {@code python}, {@code xml} ; et
+ *       {@code textmate/<lang>.tmLanguage} — grammaire plist XML
+ *       (format TextMate historique) : {@code kotlin} (Apache-2.0).
  *       Elles sont INACTIVES au démarrage — un langage qui possède
  *       déjà un tokéniseur intégré ne bascule pas silencieusement
  *       sur la voie grammaires (contrat « opt-in par langage ») :
@@ -108,8 +110,9 @@ public final class TextMateTokenizerImpl implements TextMateTokenizer {
     /**
      * Active une grammaire TIÈRCE embarquée pour un langage ({@code
      * css}, {@code html}, {@code java}, {@code javascript}, {@code
-     * lua}, {@code markdown}, {@code python}, {@code xml} —
-     * l'inventaire MIT complet vit dans NOTICE). Les grammaires tierces ne sont PAS
+     * kotlin} (plist XML), {@code lua}, {@code markdown}, {@code
+     * python}, {@code xml} — l'inventaire complet et les licences
+     * vivent dans NOTICE). Les grammaires tierces ne sont PAS
      * actives après {@link #create()} : un langage pourvu d'un
      * tokéniseur intégré ne bascule sur la voie grammaires que par
      * cet appel explicite (ou {@link #registerGrammar} avec la source
@@ -130,16 +133,21 @@ public final class TextMateTokenizerImpl implements TextMateTokenizer {
         }
         String norm = normalize(language);
         // D'abord une grammaire du dépôt (.tmg.json), puis une
-        // tierce (.tmLanguage.json).
+        // tierce JSON (.tmLanguage.json), puis une tierce PLIST XML
+        // (.tmLanguage — format TextMate historique, kotlin) : le
+        // parseur détecte le format automatiquement (C3-bis).
         String source = readResource("textmate/" + norm + ".tmg.json");
         if (source == null) {
             source = readResource("textmate/" + norm + ".tmLanguage.json");
         }
         if (source == null) {
+            source = readResource("textmate/" + norm + ".tmLanguage");
+        }
+        if (source == null) {
             throw new TextMateGrammar.GrammarException(
                     "aucune grammaire embarquée pour « " + norm
                     + " » (inventaire : csharp, css, html, java, "
-                    + "javascript, lua, markdown, python, xml)");
+                    + "javascript, kotlin, lua, markdown, python, xml)");
         }
         return registerGrammar(norm, source);
     }
