@@ -149,6 +149,10 @@ public final class EditorPreviewDrop {
     private float veilAlpha = 1f;
     /** Animateur du voile (null au repos). */
     private ValueAnimator veilAnimator;
+    /** Vrai quand un popup de frappe recouvre la carte (variante B :
+     *  fantôme DYNAMIQUE — la goutte ne devient eau à 10–15 % QUE
+     *  pendant le chevauchement, retour terrain n°4). */
+    private boolean ghosted;
 
     // ── Options propriétaire (B27) ────────────────────────────────
 
@@ -174,8 +178,11 @@ public final class EditorPreviewDrop {
     /** Tolérance verticale du hit-test autour de la piste (dp). */
     public static final float SCALE_HIT_PAD_Y_DP = 13f;
     /** Alpha « fantôme » de la variante B — la goutte devient de l'eau
-     *  à 10–15 % d'opacité (retour terrain n°3 : la complétion au-dessus
-     *  reste lisible, le code derrière la carte respire). */
+     *  à 10–15 % d'opacité UNIQUEMENT pendant qu'un popup de frappe la
+     *  recouvre (retour terrain n°4 : « la goutte ne doit pas être
+     *  transparente dès le départ — seulement pendant que l'autre
+     *  popup la chevauche ; dès qu'il ferme, elle redevient
+     *  normale »). */
     static final float VARIANT_B_GHOST_ALPHA = 0.12f;
 
     /** Rectangle LOCAL de la piste de taille (px — partagé dessin/
@@ -251,13 +258,60 @@ public final class EditorPreviewDrop {
 
     /**
      * Alpha global de la goutte (1 opaque) — la variante B la rend
-     * « fantôme » à 10–15 % d'opacité (retour terrain n°3 : le painter
-     * enveloppe losange + carte dans une couche alpha, la TIGE reste
-     * opaque — l'ancre œil↔goutte reste lisible, miroir du voile).
+     * « fantôme » à 10–15 % d'opacité UNIQUEMENT pendant qu'un popup
+     * de frappe la recouvre (retour terrain n°4). Le painter enveloppe
+     * losange + carte dans une couche alpha pilotée par
+     * min(veilAlpha, ghostAlpha) : l'apparition du fantôme est
+     * instantanée (le popup qui survient AU-DESSUS masque le saut),
+     * le RETOUR à la normale est fluide (fondu de l'alpha animé,
+     * miroir du voile — la tige reste opaque, l'ancre œil↔goutte
+     * reste lisible).
      */
     public float ghostAlpha() {
-        return policy == EditorView.PreviewDropPolicy.VARIANT_B
+        return policy == EditorView.PreviewDropPolicy.VARIANT_B && ghosted
                 ? VARIANT_B_GHOST_ALPHA : 1f;
+    }
+
+    /** Vrai quand un popup de frappe recouvre la carte (variante B).
+     *  État SYNCHRONE — bascule au frame où le recouvrement franchit
+     *  les plateaux d'hystérésis, l'alpha animé vit sur appareil réel
+     *  (même constat Robolectric que le voile). */
+    public boolean isGhosted() { return ghosted; }
+
+    /**
+     * Machine d'états du fantôme (variante B) — miroir exact de
+     * l'hystérésis du voile, côté protégé inversé : le ratio est la
+     * fraction de l'AIRE DE LA CARTE recouverte par un popup (le voile
+     * protège les rangées de complétion, le fantôme protège la carte).
+     * Fantôme au-delà de {@link #VEIL_ON_RATIO}, retour à la normale
+     * en dessous de {@link #VEIL_OFF_RATIO}, STABLE entre les deux
+     * (la complétion change de hauteur à chaque frappe, l'état ne
+     * doit pas vaciller). Appelé par {@link #updateVeil} à chaque
+     * frame avec le ratio réel.
+     *
+     * <p>Composition du painter : couche = min(veilAlpha,
+     * ghostAlpha). L'engagement du fantôme est VISUELLEMENT instantané
+     * (la cible 0,12 clampé l'alpha interne qui descend vers elle —
+     * et le popup qui apparaît AU-DESSUS masque le changement). Le
+     * RETOUR est fluide : l'alpha interne repart du plancher fantôme
+     * (clampé en pleine descente — jamais au-dessus, aucun saut
+     * visible) et remonte vers 1 par le fondu de 180 ms.</p>
+     */
+    void updateGhostRatio(float ratio) {
+        if (!ghosted && ratio >= VEIL_ON_RATIO) {
+            ghosted = true;
+            animateVeil(VARIANT_B_GHOST_ALPHA, VEIL_IN_MS);
+        } else if (ghosted && ratio <= VEIL_OFF_RATIO) {
+            ghosted = false;
+            // Clamp de mi-descente (appareil réel uniquement — le
+            // harnais gelé à 1 saute ce clamp) : la couche visible
+            // était CLAMPÉ au plancher fantôme, l'alpha interne repart
+            // d'exactement là — le retour démarre sans saut.
+            if (veilAlpha < 1f && veilAlpha > VARIANT_B_GHOST_ALPHA) {
+                veilAlpha = VARIANT_B_GHOST_ALPHA;
+            }
+            animateVeil(1f, VEIL_OUT_MS);
+        }
     }
 
     /**
@@ -555,25 +609,55 @@ public final class EditorPreviewDrop {
      * Met à jour la cible du voile depuis le recouvrement restant du
      * placement courant — appelé par le painter à chaque frame (le
      * seul passage garanti quand la carte est dessinée). TROIS couches
-     * uniquement : l'ORIGINALE ne se voile jamais (la maquette est
-     * opaque), la variante B n'en a pas besoin (la complétion la
-     * recouvre). Hystérésis à deux plateaux : voile au-delà de
-     * {@link #VEIL_ON_RATIO}, dévoile en dessous de
+     * : hystérésis du voile (la carte au premier plan se voile quand
+     * elle recouvre la complétion). VARIANTE B : fantôme DYNAMIQUE —
+     * la carte se dessine SOUS les popups, elle devient eau à 10–15 %
+     * PENDANT le chevauchement et redevient normale dès que le popup
+     * referme (retour terrain n°4). L'ORIGINALE ne se voile JAMAIS
+     * (la maquette est opaque). Hystérésis à deux plateaux : voile
+     * au-delà de {@link #VEIL_ON_RATIO}, dévoile en dessous de
      * {@link #VEIL_OFF_RATIO}, STABLE entre les deux (la complétion
      * filtre à chaque frappe, l'état ne doit pas trembler).
      * Idempotent par frame : seul un CHANGEMENT de cible anime.
      */
     public void updateVeil(EditorPreviewDropGeometry.Placement p) {
         if (p == null) return;
-        if (policy != EditorView.PreviewDropPolicy.THREE_LAYERS) return;
-        float ratio = p.overlapRatio;
-        if (!veiled && ratio >= VEIL_ON_RATIO) {
-            veiled = true;
-            animateVeil(VEILED_ALPHA, VEIL_IN_MS);
-        } else if (veiled && ratio <= VEIL_OFF_RATIO) {
-            veiled = false;
-            animateVeil(1f, VEIL_OUT_MS);
+        if (policy == EditorView.PreviewDropPolicy.THREE_LAYERS) {
+            float ratio = p.overlapRatio;
+            if (!veiled && ratio >= VEIL_ON_RATIO) {
+                veiled = true;
+                animateVeil(VEILED_ALPHA, VEIL_IN_MS);
+            } else if (veiled && ratio <= VEIL_OFF_RATIO) {
+                veiled = false;
+                animateVeil(1f, VEIL_OUT_MS);
+            }
+        } else if (policy == EditorView.PreviewDropPolicy.VARIANT_B) {
+            updateGhostRatio(popupCoverageOfCard(p));
         }
+    }
+
+    /**
+     * Fraction de l'AIRE DE LA CARTE recouverte par un popup de frappe
+     * vivant (complétion, doc rapide — miroir du voile : la géométrie
+     * d'esquive protège le POPUP, le fantôme protège la CARTE).
+     * Maximum sur les obstacles — 0 si aucun popup vivant.
+     */
+    private float popupCoverageOfCard(EditorPreviewDropGeometry.Placement p) {
+        float[] obstacles = collectObstacles();
+        if (obstacles == null) return 0f;
+        float cardArea = p.visualWidth() * p.visualHeight();
+        if (cardArea <= 0f) return 0f;
+        float best = 0f;
+        for (int i = 0; i + 3 < obstacles.length; i += 4) {
+            float w = Math.min(p.cardLeft + p.visualWidth(), obstacles[i + 2])
+                    - Math.max(p.cardLeft, obstacles[i]);
+            float h = Math.min(p.cardTop + p.visualHeight(), obstacles[i + 3])
+                    - Math.max(p.cardTop, obstacles[i + 1]);
+            if (w > 0f && h > 0f) {
+                best = Math.max(best, (w * h) / cardArea);
+            }
+        }
+        return best;
     }
 
     /** Anime l'alpha du voile vers la cible (ValueAnimator + invalidation
@@ -595,13 +679,15 @@ public final class EditorPreviewDrop {
         view.postInvalidateOnAnimation();
     }
 
-    /** Réinitialise le voile (fermeture/ré-ouverture : opaque, aucun animateur). */
+    /** Réinitialise le voile ET le fantôme (fermeture/ré-ouverture,
+     * changement de politique : opaque, aucun animateur). */
     private void resetVeil() {
         if (veilAnimator != null) {
             veilAnimator.cancel();
             veilAnimator = null;
         }
         veiled = false;
+        ghosted = false;
         veilAlpha = 1f;
     }
 

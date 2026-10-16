@@ -40,8 +40,10 @@ import static org.junit.Assert.assertTrue;
  * exact d'avant le retour terrain) ; (2) <b>TROIS COUCHES</b> — opt-in
  * explicite : esquive + voile d'eau revivent ; (3) <b>VARIANTE B</b> —
  * la complétion se dessine au-dessus de la carte (drapeau du z-order)
- * et gagne les taps, mais AUCUN voile (la lisibilité brute n'en a
- * pas besoin).</p>
+ * et gagne les taps, et la goutte devient <b>fantôme dynamique</b> :
+ * opaque tant qu'aucun popup ne la chevauche, eau à 10–15 % PENDANT
+ * le chevauchement, normale dès que le popup referme (retour terrain
+ * n°4 — jamais transparente « dès le départ »).</p>
  *
  * <p>Verrouille aussi l'<b>option taille</b> (facteur d'agrandissement
  * borné [1, 1,5], placement et ✕ suivent) et le <b>design resserré</b>
@@ -295,20 +297,93 @@ public class PreviewDropPolicyTest {
         assertTrue(view.preview.drop().isOpen());
     }
 
-    // ── 4bis. VARIANTE B : la goutte devient transparente à 10–15 % ─
+    // ── 4bis. VARIANTE B : fantôme DYNAMIQUE, seulement pendant le ──
+    // chevauchement (retour terrain n°4 : « la goutte ne doit pas être
+    // transparente dès le départ, c'est seulement pendant que l'autre
+    // popup la chevauche ; dès que le popup ferme, elle redevient
+    // normale »).
 
     @Test
-    public void varianteB_goutteTransparenteÀ10à15Pourcent() {
+    public void varianteB_goutteOpaqueTantQuAucunPopupNeChevauche() {
         EditorView view = newView(1080, 900, 80f, 10f);
+        view.getSession().setSelection(0);
+        view.openPreview(false);
         EditorPreviewDrop drop = view.preview.drop();
-        assertEquals("ORIGINALE : opaque", 1f, drop.ghostAlpha(), 0.0001f);
-        view.setPreviewDropPolicy(EditorView.PreviewDropPolicy.THREE_LAYERS);
-        assertEquals("TROIS couches : opaque (le voile est SON mécanisme)",
-                1f, drop.ghostAlpha(), 0.0001f);
         view.setPreviewDropPolicy(EditorView.PreviewDropPolicy.VARIANT_B);
-        assertTrue("VARIANTE B : la goutte devient transparente à 10–15 % "
-                + "(alpha " + drop.ghostAlpha() + ")",
+        draw(view);
+        assertFalse("aucun popup au-dessus → pas de fantôme", drop.isGhosted());
+        assertEquals("VARIANTE B sans chevauchement : opaque (alpha 1, "
+                + "pas transparente dès le départ)",
+                1f, drop.ghostAlpha(), 0.0001f);
+    }
+
+    @Test
+    public void varianteB_lePopupQuiChevaucheLaRendFantôme() {
+        // « pendant la complétion le popup passe devant : la goutte
+        // devient transparente à 10–15 % » — le popup VIVANT posé
+        // AU-DESSUS de la carte déclenche le fantôme.
+        EditorView view = scenarioTaps();
+        view.setPreviewDropPolicy(EditorView.PreviewDropPolicy.VARIANT_B);
+        draw(view);
+        EditorPreviewDrop drop = view.preview.drop();
+        assertTrue("le popup chevauche la carte → fantôme", drop.isGhosted());
+        assertTrue("alpha fantôme dans [10 %, 15 %] (" + drop.ghostAlpha() + ")",
                 drop.ghostAlpha() >= 0.10f && drop.ghostAlpha() <= 0.15f);
+    }
+
+    @Test
+    public void varianteB_lePopupReferméRamèneLaGoutteNormale() {
+        // « dès que le popup de complétion ferme, la goutte d'eau
+        // redevient normale » — fermeture = retour à l'opacité pleine.
+        EditorView view = scenarioTaps();
+        view.setPreviewDropPolicy(EditorView.PreviewDropPolicy.VARIANT_B);
+        draw(view);
+        assertTrue("pré-condition : fantôme pendant le chevauchement",
+                view.preview.drop().isGhosted());
+        view.dismissCompletion();
+        draw(view);
+        EditorPreviewDrop drop = view.preview.drop();
+        assertFalse("popup refermé → plus de fantôme", drop.isGhosted());
+        assertEquals("la goutte redevient normale (alpha 1)",
+                1f, drop.ghostAlpha(), 0.0001f);
+    }
+
+    @Test
+    public void fantôme_hystérésisDeuxPlateauxMiroirDuVoile() {
+        // Mêmes plateaux que le voile (B27), côté protégé inversé :
+        // fantôme au-delà de 10 % de la CARTE recouverte, retour en
+        // dessous de 4 %, STABLE entre les deux — la complétion change
+        // de hauteur à chaque frappe, l'état ne doit pas trembler.
+        EditorView view = newView(640, 385, 60f, 6f);
+        view.setPreviewDropPolicy(EditorView.PreviewDropPolicy.VARIANT_B);
+        EditorPreviewDrop drop = view.preview.drop();
+
+        drop.updateGhostRatio(0.20f);
+        assertTrue("au-delà de 10 % → fantôme", drop.isGhosted());
+
+        drop.updateGhostRatio(0.06f);
+        assertTrue("bande [4 %, 10 %] → STABLE fantôme", drop.isGhosted());
+
+        drop.updateGhostRatio(0.03f);
+        assertFalse("en dessous de 4 % → normale", drop.isGhosted());
+
+        drop.updateGhostRatio(0.06f);
+        assertFalse("retour dans la bande → STABLE normale", drop.isGhosted());
+    }
+
+    @Test
+    public void fantôme_changementDePolitiqueRéinitialise() {
+        // Le miroir de « le changement de politique réinitialise le
+        // voile » : un fantôme engagé ne survit PAS au changement.
+        EditorView view = scenarioTaps();
+        view.setPreviewDropPolicy(EditorView.PreviewDropPolicy.VARIANT_B);
+        draw(view);
+        EditorPreviewDrop drop = view.preview.drop();
+        assertTrue(drop.isGhosted());
+        view.setPreviewDropPolicy(EditorView.PreviewDropPolicy.ORIGINAL);
+        assertFalse("le changement de politique réinitialise le fantôme",
+                drop.isGhosted());
+        assertEquals(1f, drop.ghostAlpha(), 0.0001f);
     }
 
     /** Canvas enregistreur : capture les couches alpha posées par le
@@ -325,34 +400,42 @@ public class PreviewDropPolicyTest {
     }
 
     @Test
-    public void varianteB_lePainterFantômeLaGoutte() {
-        EditorView view = newView(1080, 900, 80f, 10f);
-        view.getSession().setSelection(0);
-        view.openPreview(false);
+    public void varianteB_lePainterFantômeLaGouttePendantLeChevauchement() {
+        // La couche fantôme n'existe QUE pendant le chevauchement :
+        // sans popup par-dessus, AUCUNE couche (goutte opaque, « pas
+        // transparente dès le départ ») ; le popup au-dessus la pose à
+        // 10–15 % d'opacité (0,12 × 255 = 30) ; refermé, elle disparaît.
+        EditorView view = scenarioTaps();
+        view.setPreviewDropPolicy(EditorView.PreviewDropPolicy.VARIANT_B);
         Bitmap bmp = Bitmap.createBitmap(view.getWidth(), view.getHeight(),
                 Bitmap.Config.ARGB_8888);
 
-        // ORIGINALE : aucune couche alpha — la goutte est opaque.
+        // Popup vivant qui chevauche → couche fantôme posée.
         LayerCanvas c1 = new LayerCanvas(bmp);
         new EditorPreviewDropPainter(view).drawCard(c1);
-        assertEquals("ORIGINALE : aucune couche (opaque)", 0, c1.layers);
+        assertTrue("chevauchement : une couche fantôme est posée",
+                c1.layers >= 1);
+        assertTrue("alpha de la couche dans [10 %, 15 %] de 255 ("
+                        + c1.lastAlpha + ")",
+                c1.lastAlpha >= 26 && c1.lastAlpha <= 38);
 
-        // TROIS couches non voilée : toujours aucune couche.
-        view.setPreviewDropPolicy(EditorView.PreviewDropPolicy.THREE_LAYERS);
+        // ORIGINALE et TROIS couches non voilées : aucune couche.
+        view.setPreviewDropPolicy(EditorView.PreviewDropPolicy.ORIGINAL);
         LayerCanvas c2 = new LayerCanvas(bmp);
         new EditorPreviewDropPainter(view).drawCard(c2);
-        assertEquals("TROIS couches non voilée : aucune couche", 0, c2.layers);
-
-        // VARIANTE B : le painter enveloppe la goutte dans une couche à
-        // 10–15 % d'opacité (0,12 × 255 = 30).
-        view.setPreviewDropPolicy(EditorView.PreviewDropPolicy.VARIANT_B);
+        assertEquals("ORIGINALE : aucune couche (opaque)", 0, c2.layers);
+        view.setPreviewDropPolicy(EditorView.PreviewDropPolicy.THREE_LAYERS);
         LayerCanvas c3 = new LayerCanvas(bmp);
         new EditorPreviewDropPainter(view).drawCard(c3);
-        assertTrue("VARIANTE B : une couche fantôme est posée",
-                c3.layers >= 1);
-        assertTrue("alpha de la couche dans [10 %, 15 %] de 255 ("
-                        + c3.lastAlpha + ")",
-                c3.lastAlpha >= 26 && c3.lastAlpha <= 38);
+        assertEquals("TROIS couches non voilée : aucune couche", 0, c3.layers);
+
+        // Popup refermé, retour en VARIANTE B → plus AUCUNE couche.
+        view.setPreviewDropPolicy(EditorView.PreviewDropPolicy.VARIANT_B);
+        view.dismissCompletion();
+        LayerCanvas c4 = new LayerCanvas(bmp);
+        new EditorPreviewDropPainter(view).drawCard(c4);
+        assertEquals("popup refermé : plus de couche — la goutte redevient "
+                + "normale (opaque)", 0, c4.layers);
     }
 
     // ── 5. Option taille : facteur borné, carte agrandie ─────────

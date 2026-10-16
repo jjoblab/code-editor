@@ -39,11 +39,13 @@ import java.util.Calendar;
  * reste lisible quand l'eau devient translucide (le painter appelle
  * aussi updateVeil une fois par frame — le seul passage garanti).</p>
  *
- * <p><b>Variante B fantôme</b> (retour terrain n°3) : la même couche
- * alpha porte la transparence PERMANENTE de la goutte (10–15 %
- * d'opacité) — la complétion dessinée au-dessus reste lisible, le code
- * derrière respire. Le minimum voile/fantôme pilote la couche, la
- * tige reste opaque (miroir du voile).</p>
+ * <p><b>Variante B fantôme dynamique</b> (retour terrain n°4) : la
+ * même couche alpha porte la transparence de la goutte PENDANT — et
+ * seulement pendant — qu'un popup de frappe la recouvre : opaque au
+ * repos, eau à 10–15 % dès que la complétion passe devant, normale
+ * dès qu'elle referme (fondu fluide au retour). Le minimum
+ * voile/fantôme pilote la couche, la tige reste opaque (miroir du
+ * voile).</p>
  *
  * <p><b>Barre de taille</b> (retour terrain n°3) : le pied porte une
  * petite piste de progression à côté de la puce « fit » — le rect est
@@ -121,8 +123,10 @@ public class EditorPreviewDropPainter {
         // ── Voile d'eau : losange + carte sous une couche alpha ─────
         // globale (la carte entière devient eau translucide — pas de ─
         // voile partiel en bande, plus lisible et plus simple). En ───
-        // VARIANTE B, la goutte est fantôme en PERMANENCE à 10–15 % ───
-        // (retour terrain n°3) : le minimum des deux pilote la couche.
+        // VARIANTE B, la goutte devient fantôme à 10–15 % PENDANT le ──
+        // chevauchement avec un popup (retour terrain n°4 : opaque au ─
+        // repos, normale dès que le popup referme) : le minimum des ───
+        // deux pilote la couche.
         float veil = Math.min(drop.veilAlpha(), drop.ghostAlpha());
         int veilSave = -1;
         if (veil < 0.999f) {
