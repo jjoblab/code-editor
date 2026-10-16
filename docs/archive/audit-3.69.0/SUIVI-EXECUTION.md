@@ -1,6 +1,6 @@
 # Suivi d'exécution du plan d'audit 3.69.0
 
-> Journal d'exécution des lots L0→L10 (plan : [`03-plan-execution.md`](03-plan-execution.md) ; mandat et décisions : [`../adr/ADR-001-mandat-execution-audit.md`](../adr/ADR-001-mandat-execution-audit.md)).
+> Journal d'exécution des lots L0→L10 (plan : [`03-plan-execution.md`](03-plan-execution.md) ; mandat et décisions : [`../../adr/ADR-001-mandat-execution-audit.md`](../../adr/ADR-001-mandat-execution-audit.md)).
 > Chaque lot consigne : les commandes jouées, les mesures « rouge avant / vert après », les verdicts et les écarts. Mise à jour lot par lot.
 
 ## État global

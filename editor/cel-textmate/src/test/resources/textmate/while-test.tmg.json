@@ -1,0 +1,16 @@
+{
+  "scopeName": "source.w",
+  "name": "While Test",
+  "patterns": [
+    {
+      "begin": "(^>)(?=\\s)",
+      "beginCaptures": { "1": { "name": "punctuation.definition.quote.w" } },
+      "while": "(^|\\G)\\s*(>) ?",
+      "name": "markup.quote.w",
+      "patterns": [
+        { "match": "\\b\\d+\\b", "name": "constant.numeric.w" }
+      ]
+    },
+    { "match": "\\bnote\\b", "name": "keyword.control.w" }
+  ]
+}

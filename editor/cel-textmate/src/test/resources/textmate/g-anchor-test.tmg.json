@@ -1,0 +1,38 @@
+{
+    "scopeName": "source.g",
+    "name": "G Anchor Test",
+    "patterns": [
+        {
+            "begin": "(<)(emb)(?=\\s|/?>)",
+            "beginCaptures": {
+                "1": { "name": "punctuation.definition.tag.begin.g" },
+                "2": { "name": "entity.name.tag.g" }
+            },
+            "end": "(?i)((<)/)(emb)\\s*(>)",
+            "endCaptures": {
+                "1": { "name": "punctuation.definition.tag.begin.g" },
+                "3": { "name": "entity.name.tag.g" },
+                "4": { "name": "punctuation.definition.tag.end.g" }
+            },
+            "patterns": [
+                {
+                    "begin": "\\G",
+                    "end": "(>)",
+                    "name": "meta.tag.head.g",
+                    "patterns": [
+                        { "match": "\\w+", "name": "entity.other.attribute-name.g" }
+                    ]
+                },
+                {
+                    "begin": "(?!\\G)",
+                    "end": "(?=</emb)",
+                    "contentName": "source.embedded.g",
+                    "patterns": [
+                        { "match": "\\w+", "name": "keyword.control.content.g" }
+                    ]
+                }
+            ]
+        },
+        { "match": "\\b\\w+\\b", "name": "string.unquoted.g" }
+    ]
+}

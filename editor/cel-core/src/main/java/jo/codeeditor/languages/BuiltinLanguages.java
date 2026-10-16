@@ -263,6 +263,28 @@ final class BuiltinLanguages {
         "true", "false"
     )));
 
+    // ADR-002 (C3) : C# — langage « grammaire-only ». Aucun
+    // tokéniseur intégré dédié : la coloration passe par la
+    // grammaire embarquée du module optionnel :cel-textmate
+    // (textmate/csharp.tmg.json) ; sans le module, le repli est le
+    // C_LIKE générique (mots-clés ci-dessous pour la complétion
+    // intégrée, D5 « source unique »).
+    static final Set<String> CSHARP_KEYWORDS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
+        "abstract", "as", "async", "await", "base", "bool", "break", "byte",
+        "case", "catch", "char", "checked", "class", "const", "continue",
+        "decimal", "default", "delegate", "do", "double", "dynamic", "else",
+        "enum", "event", "explicit", "extern", "false", "finally", "fixed",
+        "float", "for", "foreach", "get", "goto", "if", "implicit", "in",
+        "init", "int", "interface", "internal", "is", "lock", "long", "namespace",
+        "new", "null", "object", "operator", "out", "override", "params",
+        "partial", "private", "protected", "public", "readonly", "record",
+        "ref", "remove", "return", "sbyte", "sealed", "set", "short", "sizeof",
+        "stackalloc", "static", "string", "struct", "switch", "this", "throw",
+        "true", "try", "typeof", "uint", "ulong", "unchecked", "unsafe",
+        "ushort", "using", "value", "var", "virtual", "void", "volatile",
+        "when", "where", "while", "yield"
+    )));
+
     // ═════════════════════════════════════════════════════════════
     // Raccourcis de syntaxes de commentaire (mêmes instances que le
     // switch forLanguage de CommentSyntax).
@@ -291,11 +313,29 @@ final class BuiltinLanguages {
         LanguageRegistry.put(LanguageProfile.builder("python")
                 .family(SyntaxFamily.PYTHON).alias("py")
                 .extension("py").keywordSet(PYTHON_KEYWORDS)
-                .commentSyntax(HASH).build());
+                .commentSyntax(HASH)
+                // ADR-002 (C1-é3) : indent trigger « : » + mot-clé de
+                // bloc — descendu du switch par nom canonique de
+                // SmartNewline vers la table (comportement repris
+                // octet pour octet, y compris les deux formes
+                // « try: » / « try : »).
+                .newlineTrigger(NewlineTrigger.onSuffix(":",
+                        "def ", "class ", "if ", "elif ", "for ",
+                        "while ", "try:", "try :", "with ", "except ",
+                        "else:", "finally:"))
+                .build());
         LanguageRegistry.put(LanguageProfile.builder("markdown")
                 .family(SyntaxFamily.MARKDOWN).alias("md")
                 .extension("md", "markdown")
-                .commentSyntax(XML_BLOCK).build());
+                .commentSyntax(XML_BLOCK)
+                // ADR-002 (C1, D5) : la liste historique de snippets de
+                // complétion (qui vivait en dur dans l'UI) descend dans
+                // la table — mêmes entrées, même ordre.
+                .snippets("# ", "## ", "### ", "- ", "* ", "1. ", "> ",
+                        "```", "```java", "```kotlin", "```xml",
+                        "[", "](", "![", "*italic*", "**bold**",
+                        "---", "| ", "---|---")
+                .build());
         LanguageRegistry.put(LanguageProfile.builder("json")
                 .family(SyntaxFamily.JSON).extension("json")
                 .keywordSet(JSON_KEYWORDS)
@@ -303,7 +343,11 @@ final class BuiltinLanguages {
         LanguageRegistry.put(LanguageProfile.builder("lua")
                 .family(SyntaxFamily.LUA).extension("lua")
                 .keywordSet(LUA_KEYWORDS)
-                .commentSyntax(LUA_STYLE).build());
+                .commentSyntax(LUA_STYLE)
+                // ADR-002 (C1-é3) : indent triggers « then » / « do ».
+                .newlineTrigger(NewlineTrigger.onSuffix("then"),
+                        NewlineTrigger.onSuffix("do"))
+                .build());
         LanguageRegistry.put(LanguageProfile.builder("xml")
                 .family(SyntaxFamily.XML).alias("html", "htm", "svg")
                 .extension("xml", "html", "htm", "svg")
@@ -317,11 +361,19 @@ final class BuiltinLanguages {
                 .family(SyntaxFamily.SHELL).alias("bash", "sh")
                 .extension("sh", "bash")
                 .keywordSet(SHELL_KEYWORDS)
-                .commentSyntax(HASH).build());
+                .commentSyntax(HASH)
+                // ADR-002 (C1-é3) : indent triggers « then » / « do ».
+                .newlineTrigger(NewlineTrigger.onSuffix("then"),
+                        NewlineTrigger.onSuffix("do"))
+                .build());
         LanguageRegistry.put(LanguageProfile.builder("yaml")
                 .family(SyntaxFamily.YAML).alias("yml")
                 .extension("yaml", "yml")
-                .commentSyntax(HASH).build());
+                .commentSyntax(HASH)
+                // ADR-002 (C1-é3) : indent trigger « : » sans valeur
+                // après (clé sans valeur = bloc imbriqué attendu).
+                .newlineTrigger(NewlineTrigger.onSuffix(":"))
+                .build());
         LanguageRegistry.put(LanguageProfile.builder("sql")
                 .family(SyntaxFamily.SQL).extension("sql")
                 .keywordSet(SQL_KEYWORDS)
@@ -355,7 +407,13 @@ final class BuiltinLanguages {
         LanguageRegistry.put(LanguageProfile.builder("kotlin")
                 .family(SyntaxFamily.C_LIKE).alias("kt")
                 .extension("kt", "kts").keywordSet(KT_KEYWORDS)
-                .commentSyntax(CommentSyntax.C_STYLE).build());
+                .commentSyntax(CommentSyntax.C_STYLE)
+                // ADR-002 (C1-é3) : la newline Kotlin (flèche when,
+                // pas de label case) devient une donnée du profil au
+                // lieu d'un « kotlin ».equals(language) en dur — les
+                // alias (kt, casse mixte) sont désormais honorés.
+                .newlineStrategy(NewlineStrategy.KOTLIN)
+                .build());
         LanguageRegistry.put(LanguageProfile.builder("javascript")
                 .family(SyntaxFamily.C_LIKE).alias("js")
                 .extension("js", "mjs", "jsx").keywordSet(JS_KEYWORDS)
@@ -406,6 +464,13 @@ final class BuiltinLanguages {
         LanguageRegistry.put(LanguageProfile.builder("scala")
                 .family(SyntaxFamily.C_LIKE).extension("scala")
                 .keywordSet(JAVA_KEYWORDS)
+                .commentSyntax(CommentSyntax.C_STYLE).build());
+        // ADR-002 (C3) : C#, langage « grammaire-only » — la coloration
+        // vient de la grammaire embarquée :cel-textmate quand le module
+        // est branché ; le C_LIKE générique reste le repli hors-ligne.
+        LanguageRegistry.put(LanguageProfile.builder("csharp")
+                .family(SyntaxFamily.C_LIKE).alias("cs", "c#")
+                .extension("cs").keywordSet(CSHARP_KEYWORDS)
                 .commentSyntax(CommentSyntax.C_STYLE).build());
 
         // ── Lot 1 (audit v3.41.0) — texte brut ─────────────────────

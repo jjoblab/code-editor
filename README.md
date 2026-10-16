@@ -1,29 +1,63 @@
 # Code Editor (cel)
 
-Une bibliothèque Java **standalone pour Android** qui fournit un éditeur de code
-complet — moteur d'édition pur, coloration syntaxique incrémentale, couche
-Android Canvas et intégration LSP — conçue et implémentée intégralement pour
-ce projet.
+Une bibliothèque **Java** pour Android qui fournit un éditeur de code
+complet : moteur d'édition pur, coloration syntaxique incrémentale
+(voie intégrée et voie grammaires), couche de rendu **Canvas** et
+intégration Language Server Protocol.
 
-> L'historique complet des versions figure dans [`CHANGELOG.md`](CHANGELOG.md).
-> Les fonctionnalités sont détaillées dans [`FEATURES.md`](FEATURES.md), le
-> guide d'intégration dans [`USAGE.md`](USAGE.md).
+Ce que c'est — et ce que ce n'est pas :
+
+- **Java, pas de Kotlin** ; **Canvas, ni Compose ni TextView par
+  ligne** — une seule vue dessine tout.
+- **Le moteur est écrit intégralement dans ce dépôt** ; les dépendances
+  réellement embarquées (LSP4J, Gson) et les grammaires tierces du
+  module optionnel sont attribuées dans [`NOTICE`](NOTICE).
+- **Publication** : coordonnées Maven `jo.codeeditor:<module>` —
+  version courante : `3.72.0` (multi-langages ADR-002 livré — voir
+  [`CHANGELOG.md`](CHANGELOG.md)).
 
 ## Modules
 
-| Module | Rôle | Dépend de |
-|--------|------|-----------|
-| `:cel-core` | Moteur pur (sans Android UI) : Rope, EditorDocument, EditorSession, EditOps, FindReplace, DiagnosticShift, SnippetSession, FoldModel, WrapModel, LineRenderCache, SyntaxHighlighter, complétion, registre de langages | — |
-| `:cel-lsp-api` | SPI langage : `Language`, 17 interfaces de providers (completion, hover, diagnostics, definition, rename, format, inlay hints…) et 15 classes de données | `:cel-core` |
-| `:cel-lsp` | Intégration LSP4J : `LspProject`, `LspEditor`, serveurs in-process/socket/process | `:cel-core`, `:cel-lsp-api` (compileOnly) — contrat `EditorHost` |
-| `:cel-ui` | Vues Android : `EditorView` (Canvas), renderer et painters, gutter, popups, IME bridge, bar tools, breadcrumb, minimap | `:cel-core`, `:cel-lsp-api` |
+Cinq modules publiables et une application de démonstration — chacun a
+son [`README.md`](#documentation) détaillé :
+
+| Module | Rôle | Dépend de | Détail |
+|--------|------|-----------|--------|
+| `:cel-core` | Moteur pur (sans Android UI) : rope, session, undo, coloration incrémentale, plis, wrap, complétion, snippets, recherche, registre de 29 langages | — | [`editor/cel-core`](editor/cel-core/README.md) |
+| `:cel-lsp-api` | SPI langage : `Language`, 17 interfaces de providers, 15 modèles de données, contrat hôte `EditorHost` | `:cel-core` | [`editor/cel-lsp-api`](editor/cel-lsp-api/README.md) |
+| `:cel-lsp` | Intégration LSP4J : projet multi-serveurs, synchronisation document, requêtes bornées | `:cel-core`, `:cel-lsp-api` (compileOnly) | [`editor/cel-lsp`](editor/cel-lsp/README.md) |
+| `:cel-textmate` | **Optionnel** — voie grammaires (ADR-002 C3) : moteur de grammaires, mapping portées → `TokenType`, grammaires embarquées | `:cel-core` seul | [`editor/cel-textmate`](editor/cel-textmate/README.md) |
+| `:cel-ui` | Vues Android : `EditorView` (Canvas), renderer, gestes, popups, gutter, recherche, fil d'Ariane, minimap | `:cel-core`, `:cel-lsp-api` | [`editor/cel-ui`](editor/cel-ui/README.md) |
+| `:demo` | Terrain de jeu (bascule voie intégrée/grammaires) — **non publiée** | `:cel-ui`, `:cel-textmate` | [`demo`](demo/README.md) |
+
+L'application hôte type ne dépend que de `cel-ui` (qui apporte
+transitivement le moteur et le SPI) ; `cel-lsp` et `cel-textmate` sont
+optionnels et s'ajoutent selon les besoins.
+
+## Documentation
+
+| Document | Contenu |
+|----------|---------|
+| [`FEATURES.md`](FEATURES.md) | Matrice factuelle des fonctionnalités (implémenté ✅ / piste 🧭), par module et fichier |
+| [`USAGE.md`](USAGE.md) | Guide d'intégration : thèmes, diagnostics, résolveurs, raccourcis, aperçu XML, R8, dépannage |
+| [`ARCHITECTURE.md`](ARCHITECTURE.md) | Couches, cycle d'édition, organisation interne des packages, interface `EditorPreviewHost` |
+| [`BUILD.md`](BUILD.md) | Toolchain, commandes, publication Maven (GitHub Packages, JitPack) |
+| [`CHANGELOG.md`](CHANGELOG.md) | Historique des versions (archives : [`docs/archive/CHANGELOG-archive.md`](docs/archive/CHANGELOG-archive.md)) |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | Mise en place de l'environnement, conventions, processus de PR |
+| [`AGENT.md`](AGENT.md) | Guide des contributeurs agents : commandes vérifiées, pièges connus, règles du dépôt |
+| [`SECURITY.md`](SECURITY.md) | Versions prises en charge, signalement des vulnérabilités |
+| `editor/<module>/README.md`, `demo/README.md` | Par module : rôle, fonctionnalités, liaisons, limites |
+| [`docs/adr/`](docs/adr/) | Décisions d'architecture enregistrées (ADR-001 audit 3.69.0, ADR-002 multi-langages) |
+| [`docs/plans/`](docs/plans/) | Plans de travail en cours (décomposition, stabilité API, minification…) |
+| [`docs/archive/`](docs/archive/) | Rapports historiques figés (audits, livraisons passées) — index et politique |
 
 ## Installation
 
 ### Via GitHub Packages (méthode principale)
 
-Les artefacts sont publiés sur `maven.pkg.github.com` avec les coordonnées
-`jo.codeeditor:<module>:<version>` (version courante : `3.71.0`).
+Les artefacts sont publiés sur `maven.pkg.github.com` avec les
+coordonnées `jo.codeeditor:<module>:<version>` (version courante :
+`3.72.0`).
 
 1. Créez un jeton d'accès personnel GitHub avec le droit `read:packages`.
 2. Renseignez vos identifiants dans `~/.gradle/gradle.properties` :
@@ -57,13 +91,20 @@ dependencyResolutionManagement {
 // app/build.gradle.kts
 dependencies {
     // Le module UI embarque transitivement cel-core et cel-lsp-api.
-    implementation("jo.codeeditor:cel-ui:3.71.0")
+    implementation("jo.codeeditor:cel-ui:3.72.0")
 
     // Optionnel — intégration Language Server Protocol (LSP4J).
     // Ses dépendances vers cel-core/cel-lsp-api sont compileOnly :
     // gardez la ligne cel-ui ci-dessus (l'adaptateur LspEditorViewHost
     // du pont LSP y vit — plan 03 : le client LSP ne dépend plus de la vue).
-    implementation("jo.codeeditor:cel-lsp:3.71.0")
+    implementation("jo.codeeditor:cel-lsp:3.72.0")
+
+    // Optionnel — voie grammaires (ADR-002 C3) : coloration par
+    // grammaires TextMate, grammaires embarquées + registration
+    // hôte (supporter un langage de plus = un FICHIER, pas du Java).
+    implementation("jo.codeeditor:cel-textmate:3.72.0")
+    // … puis UNE fois au démarrage, avant toute vue éditeur :
+    // SyntaxHighlighter.setTextMateTokenizer(TextMateTokenizerImpl.create());
 }
 ```
 
@@ -79,8 +120,9 @@ maven { url = uri("https://jitpack.io") }
 
 ```kotlin
 dependencies {
-    implementation("com.github.jjoblab.code-editor:cel-ui:v3.71.0")
-    implementation("com.github.jjoblab.code-editor:cel-lsp:v3.71.0") // optionnel
+    implementation("com.github.jjoblab.code-editor:cel-ui:v3.72.0")
+    implementation("com.github.jjoblab.code-editor:cel-lsp:v3.72.0") // optionnel
+    implementation("com.github.jjoblab.code-editor:cel-textmate:v3.72.0") // optionnel (voie grammaires)
 }
 ```
 
@@ -88,11 +130,12 @@ dependencies {
 
 ```kotlin
 // settings.gradle.kts
-include(":cel-core", ":cel-lsp-api", ":cel-lsp", ":cel-ui")
+include(":cel-core", ":cel-lsp-api", ":cel-lsp", ":cel-ui", ":cel-textmate")
 project(":cel-core").projectDir = file("code-editor/editor/cel-core")
 project(":cel-lsp-api").projectDir = file("code-editor/editor/cel-lsp-api")
 project(":cel-lsp").projectDir = file("code-editor/editor/cel-lsp")
 project(":cel-ui").projectDir = file("code-editor/editor/cel-ui")
+project(":cel-textmate").projectDir = file("code-editor/editor/cel-textmate")
 
 // app/build.gradle.kts
 dependencies {
@@ -100,35 +143,17 @@ dependencies {
 }
 ```
 
-## Architecture
+### Essayer avant d'intégrer
 
-L'éditeur repose sur une architecture en couches séparées, où chaque composant est **pur** (sans dépendance UI) et **testable unitairement** :
+L'application de démonstration installe un terrain de jeu complet
+(30 échantillons, bascules, menu) :
 
-```
-┌─────────────────────────────────────────────────┐
-│                  EditorView                      │  ← Rendu Android Canvas
-│  (gutter, caret, sélection, squiggles, touch)    │
-├─────────────────────────────────────────────────┤
-│               EditorSession                      │  ← Moteur d'édition (undo/redo, IME)
-│  ┌──────────┐ ┌──────────┐ ┌──────────────────┐ │
-│  │ EditOps  │ │ FindRepl │ │ DiagnosticShift  │ │
-│  │ (smart)  │ │ (search) │ │ (offset mapping) │ │
-│  └──────────┘ └──────────┘ └──────────────────┘ │
-├─────────────────────────────────────────────────┤
-│ SyntaxHighlighter │ FoldModel │ WrapModel       │  ← Analyse par ligne
-│ LineRenderCache   │ SnippetSession              │
-├─────────────────────────────────────────────────┤
-│            EditorDocument                        │  ← Modèle de texte indexé par ligne
-│  ┌──────────────────────────────────────────┐   │
-│  │              Rope (arbre équilibré)       │   │  ← O(log N) par édition
-│  └──────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────┘
+```bash
+./gradlew :demo:assembleDebug
+adb install demo/build/outputs/apk/debug/demo-debug.apk
 ```
 
-Voir [`ARCHITECTURE.md`](ARCHITECTURE.md) pour l'organisation détaillée des
-packages de chaque module.
-
-## Utilisation rapide
+## Démarrage rapide
 
 ### Éditeur basique (pur Java, testable)
 
@@ -157,41 +182,17 @@ editorView.setSession(session);
 editorView.setTheme(EditorTheme.dark());
 ```
 
-### Extensibilité
+### Enregistrer son propre langage (une entrée de table, zéro Java)
 
 ```java
-// 1. Enregistrer son propre langage — coloration + commentaires pris en
-//    charge immédiatement (registre observable) :
 LanguageRegistry.register(LanguageProfile.builder("mylang")
         .family(SyntaxFamily.C_LIKE)
         .alias("ml").extension("ml")
         .keywords("if", "else", "repeat", "until")
         .commentSyntax(new CommentSyntax("#", null, null))
+        .newlineTrigger(NewlineTrigger.onSuffix(":")) // +1 après « clé: »
         .build());
 session.setLanguage("mylang");
-
-// 2. Rebind un raccourci clavier :
-editorView.setKeymap(EditorKeymap.defaults()
-        .bind(EditorCommands.REDO, KeyEvent.KEYCODE_Z, true, true)); // Ctrl+Shift+Z
-
-// 2b. Ou lie une séquence à deux touches (chord) — la première touche
-//     arme un pending de 2 s, Escape annule :
-editorView.setKeymap(EditorKeymap.defaults()
-        .bindChord(EditorCommands.TOGGLE_LINE_COMMENT,
-                EditorKeymap.KeyStroke.of(KeyEvent.KEYCODE_K, true, false),
-                EditorKeymap.KeyStroke.of(KeyEvent.KEYCODE_C, true, false))
-        .bindChord(EditorCommands.TOGGLE_BLOCK_COMMENT,
-                EditorKeymap.KeyStroke.of(KeyEvent.KEYCODE_K, true, false),
-                EditorKeymap.KeyStroke.of(KeyEvent.KEYCODE_U, true, false)));
-// Ctrl+K Ctrl+C = commenter, Ctrl+K Ctrl+U = décommenter (accords de touches consécutifs)
-
-// 3. Décorer l'éditeur depuis un plugin (un painter qui throw est retiré,
-//    jamais un crash) :
-editorView.getPainterHost().register(new TodoPainter());
-
-// 4. Rafraîchir les diagnostics de tous les onglets ouverts (gap 40 ms,
-//    saute focus/read-only/gros fichiers) :
-OpenTabDiagnosticsSweep.start(openEditorViews);
 ```
 
 ### LSP (Language Server Protocol)
@@ -206,15 +207,45 @@ editor.connect();
 project.shutdown(); // borné à 2 s par serveur
 ```
 
-Le guide complet (thèmes, diagnostics, résolveurs, raccourcis, aperçu XML)
-figure dans [`USAGE.md`](USAGE.md).
+Le guide complet (thèmes, diagnostics, résolveurs, raccourcis, chords,
+aperçu XML, grammaires opt-in) figure dans [`USAGE.md`](USAGE.md).
+
+## Architecture
+
+L'éditeur repose sur une architecture en couches séparées, où chaque
+composant est **pur** (sans dépendance UI) et **testable unitairement** :
+
+```
+┌─────────────────────────────────────────────────┐
+│                  EditorView                      │  ← Rendu Android Canvas
+│  (gutter, caret, sélection, squiggles, touch)    │
+├─────────────────────────────────────────────────┤
+│               EditorSession                      │  ← Moteur d'édition (undo/redo, IME)
+│  ┌──────────┐ ┌──────────┐ ┌──────────────────┐ │
+│  │ EditOps  │ │ FindRepl │ │ DiagnosticShift  │ │
+│  │ (smart)  │ │ (search) │ │ (offset mapping) │ │
+│  └──────────┘ └──────────┘ └──────────────────┘ │
+├─────────────────────────────────────────────────┤
+│ SyntaxHighlighter │ FoldModel │ WrapModel       │  ← Analyse par ligne
+│ LineRenderCache   │ SnippetSession              │
+├─────────────────────────────────────────────────┤
+│            EditorDocument                        │  ← Modèle de texte indexé par ligne
+│  ┌──────────────────────────────────────────┐   │
+│  │              Rope (arbre équilibré)       │   │  ← O(log N) par édition
+│  └──────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────┘
+```
+
+Le détail (diagramme des dépendances entre modules, cycle d'édition,
+interface `EditorPreviewHost`) figure dans
+[`ARCHITECTURE.md`](ARCHITECTURE.md).
 
 ## Tests
 
 ```bash
 ./gradlew test
-# 1 897 tests, 0 failure :
-#   cel-core 961 · cel-lsp-api 32 · cel-lsp 180 · cel-ui 671 · demo 27
+# 2 385 tests, 0 failure :
+#   cel-core 1 358 · cel-lsp-api 32 · cel-lsp 185 · cel-ui 700 · cel-textmate 79 · demo 31
 # (contrôle d'écart : scripts/check-doc-figures.sh, exécuté en CI)
 ```
 
@@ -238,14 +269,34 @@ figure dans [`USAGE.md`](USAGE.md).
 | Chips diagnostics | O(lignes visibles) | Itération des buckets groupés, badge de compte |
 | Grands fichiers | gating | > 2,5 M chars ou > 50 k lignes : analyse/folding/inlays coupés, édition conservée |
 
+## Limites connues
+
+Écarts assumés et documentés (l'inventaire exhaustif vit dans
+[`FEATURES.md`](FEATURES.md) § Perspectives) :
+
+- **Édition multi-curseur : non implémentée** — une seule sélection par
+  session (plan de conception conservé comme piste).
+- **Droite-à-gauche : non supporté** — décision explicite de l'ADR-001
+  (n°7), avant-projet dans `docs/plans/05-accessibilite-i18n-rtl.md`.
+- **Grands fichiers** — coloration, plis et inlays coupés au-delà de
+  2,5 M chars / 50 k lignes (l'édition reste fonctionnelle).
+- **Voie grammaires : portes de 800 lignes et de 5 000 caractères** —
+  au-delà (en nombre de lignes du document, ou en longueur d'UNE
+  ligne : fichiers minifiés), repli sur le tokéniseur intégré (coût
+  de restyle mesuré supérieur — ADR-002).
+- **Chantier multi-langages (ADR-002) : C1/C2/C3/C4 livrés** en
+  3.72.0 — registre de langages, tokéniseur générique piloté par la
+  table, voie grammaires avec bascule en démo, calibrage des portées
+  (voir [`CHANGELOG.md`](CHANGELOG.md)).
+
 ## Build
 
 ```bash
 # Prérequis : JDK 17+, Android SDK (platform 34)
-./gradlew assembleDebug          # AARs debug des 4 modules
+./gradlew assembleDebug          # AARs debug des 5 modules + APK démo
 ./gradlew assembleRelease        # AARs release
 ./gradlew test                   # tests (AGP 9 : la variante debug porte les tests unitaires)
-./gradlew lint                   # lint des 4 modules
+./gradlew lint                   # lint des 5 modules
 ./gradlew publishToMavenLocal    # publication Maven locale (jo.codeeditor:*)
 ```
 

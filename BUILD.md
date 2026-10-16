@@ -33,7 +33,7 @@ sdk.dir=/path/to/android-sdk
 ## Commandes de build
 
 ```bash
-# AARs debug des 4 modules (editor/<module>/build/outputs/aar/)
+# AARs debug des modules editor/ (editor/<module>/build/outputs/aar/)
 ./gradlew assembleDebug
 
 # AARs release
@@ -42,7 +42,7 @@ sdk.dir=/path/to/android-sdk
 # Tests unitaires (JVM hôte) — AGP 9 : la variante debug porte les tests
 ./gradlew test
 
-# Lint des 4 modules
+# Lint des modules
 ./gradlew lint
 
 # Le tout
@@ -53,8 +53,8 @@ sdk.dir=/path/to/android-sdk
 
 ```
 code-editor/
-├── settings.gradle.kts        — inclut les 4 modules editor/
-├── build.gradle.kts           — AGP 9.0.0, group/version Maven (jo.codeeditor:3.71.0)
+├── settings.gradle.kts        — inclut les 5 modules editor/
+├── build.gradle.kts           — AGP 9.0.0, group/version Maven (jo.codeeditor:3.72.0)
 ├── gradle/wrapper/            — Gradle 9.5.1
 ├── gradle.properties          — jvmargs, parallélisme, cache
 ├── jitpack.yml                — JDK 17 pour les builds JitPack
@@ -63,6 +63,7 @@ code-editor/
 │   ├── cel-core/              — moteur pur Java (com.android.library)
 │   ├── cel-lsp-api/           — SPI langage (com.android.library)
 │   ├── cel-lsp/               — client LSP4J (com.android.library)
+│   ├── cel-textmate/          — voie grammaires optionnelle (com.android.library, ADR-002 C3)
 │   └── cel-ui/                — vues Android (com.android.library)
 │
 └── .github/workflows/ci.yml   — CI GitHub Actions
@@ -90,6 +91,7 @@ Après `./gradlew assembleDebug` :
 - `editor/cel-core/build/outputs/aar/cel-core-debug.aar`
 - `editor/cel-lsp-api/build/outputs/aar/cel-lsp-api-debug.aar`
 - `editor/cel-lsp/build/outputs/aar/cel-lsp-debug.aar`
+- `editor/cel-textmate/build/outputs/aar/cel-textmate-debug.aar`
 - `editor/cel-ui/build/outputs/aar/cel-ui-debug.aar`
 
 ## Publication Maven
@@ -101,16 +103,17 @@ un jar de sources :
 
 | Module | Coordonnées |
 |--------|-------------|
-| `:cel-core` | `jo.codeeditor:cel-core:3.71.0` |
-| `:cel-lsp-api` | `jo.codeeditor:cel-lsp-api:3.71.0` |
-| `:cel-lsp` | `jo.codeeditor:cel-lsp:3.71.0` |
-| `:cel-ui` | `jo.codeeditor:cel-ui:3.71.0` |
+| `:cel-core` | `jo.codeeditor:cel-core:3.72.0` |
+| `:cel-lsp-api` | `jo.codeeditor:cel-lsp-api:3.72.0` |
+| `:cel-lsp` | `jo.codeeditor:cel-lsp:3.72.0` |
+| `:cel-ui` | `jo.codeeditor:cel-ui:3.72.0` |
+| `:cel-textmate` | `jo.codeeditor:cel-textmate:3.72.0` |
 
 ### Publication locale (validation)
 
 ```bash
 ./gradlew publishToMavenLocal
-# → ~/.m2/repository/jo/codeeditor/<module>/3.51.1/ (AAR + sources + POM)
+# → ~/.m2/repository/jo/codeeditor/<module>/3.72.0/ (AAR + sources + POM)
 ```
 
 ### Publication sur GitHub Packages (méthode principale)

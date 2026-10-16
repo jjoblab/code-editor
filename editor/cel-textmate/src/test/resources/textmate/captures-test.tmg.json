@@ -1,0 +1,17 @@
+{
+  "scopeName": "source.capt",
+  "name": "Captures Test",
+  "patterns": [
+    {
+      "begin": "\"",
+      "end": "\"",
+      "name": "string.quoted.double.capt",
+      "contentName": "string.quoted.double.capt",
+      "beginCaptures": { "0": { "name": "punctuation.definition.string.begin.capt" } },
+      "endCaptures": { "0": { "name": "punctuation.definition.string.end.capt" } },
+      "patterns": [
+        { "match": "\\\\.", "name": "constant.character.escape.capt" }
+      ]
+    }
+  ]
+}

@@ -84,13 +84,13 @@ par responsabilité.
 | smartBackspace (effondrement ligne vide) | ✅ | `edit/SmartTyping.java` | Paire vide, sensible à l'indent |
 | smartDeleteForward | ✅ | `edit/SmartTyping.java` | Suppression avant intelligente |
 | Smart Enter (Java) | ✅ | `edit/SmartNewline.java` | Case labels, découpage de chaînes, raw strings |
-| Smart Enter (XML) | ✅ | `edit/XmlNewline.java` | Indentation structurelle, expansion de paire de tags |
-| Smart Enter (défaut) | ✅ | `edit/SmartNewline.java` | Indentation de base + expansion de bracket |
+| Smart Enter (XML) | ✅ | `edit/XmlNewline.java` | Indentation structurelle, expansion de paire de tags — stratégie `newlineStrategy` du profil (ADR-002 C1), surchargeable |
+| Smart Enter (défaut) | ✅ | `edit/SmartNewline.java` | Indentation de base + expansion de bracket + triggers `newlineTrigger` du profil |
 | smartEnterCompleteStatement | ✅ | `edit/EditOps.java` | Ajoute `;` ou `{ }` si nécessaire |
 | Paires de brackets | ✅ | `edit/BracketPairs.java` | Table ouvrant/fermant |
 | Word boundaries (left, right, rangeAt) | ✅ | `edit/WordBounds.java` | Bornes de mot |
 | detectIndentUnit / detectTabSize | ✅ | `edit/IndentDetection.java` | Tab vs 2/4/8 espaces |
-| Contexte de langage | ✅ | `edit/CodeContext.java`, `edit/LanguageIds.java` | Familles de langage pour les smart edits |
+| Contexte de langage | ✅ | `edit/CodeContext.java`, `edit/LanguageIds.java` | Chaînes/commentaires par les délimiteurs du profil (ADR-002 C1) |
 | Utilitaires texte | ✅ | `edit/EditTextUtils.java` | Analyse de contexte d'appel, extra word chars |
 | Syntaxe de commentaires | ✅ | `edit/CommentSyntax.java` | Ligne/bloc par langage |
 
@@ -194,6 +194,7 @@ par responsabilité.
 |----------------|------|---------|-------------|
 | Coloration incrémentale par ligne | ✅ | `highlight/SyntaxHighlighter.java` | État de sortie + cascade stop-rule |
 | Tokéniseurs intégrés (14) | ✅ | `highlight/tokenizer/` | CLike, Xml, Json, Python, Lua, Css, Shell, Yaml, Sql, Properties, Toml, Smali, Log, Markdown |
+| Voie grammaires optionnelle | ✅ | `:cel-textmate` (module optionnel, ADR-002 C3) | Moteur de grammaires TextMate-like (`TextMateTokenizerImpl`, `GrammarTokenizer`, `ScopeMapper`), grammaire C# embarquée, registration hôte par fichier |
 | Utilitaires de tokénisation | ✅ | `highlight/tokenizer/SpanUtils.java`, `highlight/tokenizer/KeywordTables.java` | Découpage de spans, tables de mots-clés |
 | Distinctions fines de tokens (lot 4 #26) | ✅ | `highlight/TokenType.java`, `tokenizer/CLikeTokenizer.java`, `tokenizer/XmlTokenizer.java`, `tokenizer/MarkdownTokenizer.java` | DOC_COMMENT (état porté), KEYWORD_CONTROL/KEYWORD_MODIFIER (tables partagées), CHAR, RAW_STRING, NAMESPACE, ENTITY (fenêtre 12), EMPHASIS (règle intra-mot `_` vs `*`) — héritent du parent tant qu'un scheme ne les sépare |
 | Interface TextMate optionnelle | ✅ | `highlight/TextMateTokenizer.java` | Point d'extension pour un module TextMate ; repli sur les tokéniseurs intégrés |
@@ -206,7 +207,7 @@ par responsabilité.
 | Fonctionnalité | État | Fichier | Description |
 |----------------|------|---------|-------------|
 | Registre de langages observable | ✅ | `languages/LanguageRegistry.java` | register/unregister/names/profiles |
-| 27 langages intégrés | ✅ | `languages/BuiltinLanguages.java` | java, kotlin, javascript, typescript, c, cpp, go, rust, swift, dart, php, ruby, scala, groovy, python, lua, xml/html, css, json, yaml, sql, shell, properties, toml, smali, log, markdown |
+| 29 langages intégrés | ✅ | `languages/BuiltinLanguages.java` | java, kotlin, javascript, typescript, c, cpp, go, rust, swift, dart, php, ruby, scala, groovy, csharp (grammaire-only, ADR-002), python, lua, xml/html, css, json, yaml, sql, shell, properties, toml, smali, log, markdown, text |
 | Profils de langage | ✅ | `languages/LanguageProfile.java` | family, alias, extensions, keywords, commentSyntax |
 | Familles syntaxiques | ✅ | `languages/SyntaxFamily.java` | C_LIKE, XML, JSON, PYTHON, LUA, CSS, SHELL, YAML, SQL, PROPERTIES, TOML, SMALI, LOG, MARKDOWN |
 

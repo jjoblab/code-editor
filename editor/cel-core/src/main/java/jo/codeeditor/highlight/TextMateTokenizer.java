@@ -3,25 +3,29 @@ package jo.codeeditor.highlight;
 /**
  * Interface optionnelle de tokénisation basée sur TextMate.
  *
- * <p>Isolation modulaire : l'implémentation de référence se trouve dans le
- * module {@code :textmate} ({@code jo.codeeditor.textmate.TextMateTokenizerImpl}).
- * Le module {@code :textmate} est un module de bibliothèque <em>optionnel</em>
- * qui ne dépend que de {@code :core}. Les consommateurs de code-editor
+ * <p>Isolation modulaire : l'implémentation de référence vit dans le
+ * module optionnel {@code :cel-textmate} du DÉPÔT (ADR-002, C3 —
+ * {@code jo.codeeditor.textmate.TextMateTokenizerImpl}), qui ne
+ * dépend que de ce module. Les consommateurs de code-editor
  * peuvent choisir :
  * <ul>
- *   <li><b>Avec TextMate</b> — dépendre de {@code :textmate} (récupère par
- *       transition les sources textmate embarquées + les grammaires/thèmes).
- *       Les 17 fichiers de grammaire (Java, Kotlin, XML, HTML, CSS, JS, TS,
- *       Python, etc.) sont chargés paresseusement depuis
- *       {@code assets/textmate/} au premier appel de
- *       {@link #isAvailable(String)}.</li>
- *   <li><b>Sans TextMate</b> — omettre entièrement {@code :textmate}. Le
- *       tokéniseur intégré de {@link SyntaxHighlighter} ({@code :core})
- *       gère tous les langages courants (Java, Kotlin, XML, HTML, CSS, JS,
- *       TS, Python, Go, Rust, C, C++, Shell, YAML, etc.) via une machine à
- *       états par langage (switch-case). La qualité est légèrement inférieure
- *       à TextMate (pas d'héritage de portées, pas d'injections) mais reste
- *       suffisante pour l'édition de code.</li>
+ *   <li><b>Avec la voie grammaires</b> — dépendre de
+ *       {@code :cel-textmate} et crocher une fois au démarrage :
+ *       {@code SyntaxHighlighter.setTextMateTokenizer(}
+ *       {@code TextMateTokenizerImpl.create())}. Les grammaires
+ *       embarquées du dépôt se chargent paresseusement depuis le
+ *       classpath ({@code textmate/<lang>.tmg.json} — p. ex. C#) ;
+ *       l'hôte enregistre les siennes par
+ *       {@code registerGrammar(lang, sourceJson)} — supporter un
+ *       nouveau langage reste ajouter un FICHIER, pas du Java.</li>
+ *   <li><b>Sans la voie grammaires</b> — omettre entièrement
+ *       {@code :cel-textmate}. Le tokéniseur intégré de
+ *       {@link SyntaxHighlighter} ({@code :cel-core}) gère tous les
+ *       langages courants via le registre par famille. La qualité
+ *       est légèrement inférieure à la voie grammaires (pas
+ *       d'héritage de portées, pas d'injections) mais reste
+ *       suffisante pour l'édition de code — c'est le repli
+ *       hors-ligne documenté par l'ADR-002.</li>
  * </ul>
  *
  * <p>Si aucune implémentation n'est enregistrée (ex. tests JVM purs, ou avant
@@ -56,6 +60,14 @@ public interface TextMateTokenizer {
 
     /**
      * Tokénise une ligne unique.
+     *
+     * <p><b>Contrat de garde des lignes monstres :</b> la délégation de
+     * {@link SyntaxHighlighter#styleLine} ne lui transmet JAMAIS une ligne
+     * plus longue que {@link SyntaxHighlighter#TEXTMATE_CHAR_LIMIT} — le
+     * coût par caractère du moteur de grammaires rend une ligne minifiée
+     * (dizaines de milliers de caractères) prohibitif. Les lignes au-delà
+     * retombent d'office sur le tokéniseur intégré, machine à états au
+     * coût linéaire.</p>
      *
      * @param line       le texte de la ligne (sans le saut de ligne final)
      * @param entryState état opaque du lexer en entrée de ligne (0 = vierge)

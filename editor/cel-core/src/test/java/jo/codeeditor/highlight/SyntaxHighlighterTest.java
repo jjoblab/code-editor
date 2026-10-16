@@ -327,6 +327,49 @@ class SyntaxHighlighterTest {
         }
     }
 
+    /**
+     * Garde des lignes monstres (retour terrain 3.72.0, échantillon
+     * « Minifié (JS) » de la démo) : une ligne plus longue que
+     * TEXTMATE_CHAR_LIMIT ne part JAMAIS sur la voie grammaires, même
+     * porte ouverte ET grammaire disponible — le coût par position du
+     * moteur de grammaires étalait le restyle d'un bundle minifié en
+     * secondes. Une ligne sous la limite délègue normalement.
+     */
+    @Test
+    void textMateGate_ligneTropLongueContournée() {
+        TextMateTokenizer stub = new TextMateTokenizer() {
+            @Override
+            public boolean isAvailable(String language) {
+                return "java".equals(language);
+            }
+            @Override
+            public StyledLine tokenize(String line, int entryState, String language) {
+                // Sentinelle : la délégation ne doit JAMAIS arriver sur
+                // une ligne monstre.
+                return new StyledLine(
+                    java.util.Collections.singletonList(
+                        new LineSpan(0, line.length(), TokenType.ANNOTATION)),
+                    entryState, entryState);
+            }
+        };
+        SyntaxHighlighter.setTextMateTokenizer(stub);
+        try {
+            String huge = "x".repeat(SyntaxHighlighter.TEXTMATE_CHAR_LIMIT + 1);
+            StyledLine gated = hl.styleLine(huge, LexState.NORMAL, "java", true);
+            assertTrue(
+                gated.spans.stream().noneMatch(s -> s.type == TokenType.ANNOTATION),
+                "une ligne > TEXTMATE_CHAR_LIMIT doit contourner la voie grammaires");
+            // La ligne exactement à la limite délègue encore (borne incluse).
+            String atLimit = "x".repeat(SyntaxHighlighter.TEXTMATE_CHAR_LIMIT);
+            StyledLine atLimitLine = hl.styleLine(atLimit, LexState.NORMAL, "java", true);
+            assertTrue(
+                atLimitLine.spans.stream().allMatch(s -> s.type == TokenType.ANNOTATION),
+                "une ligne <= TEXTMATE_CHAR_LIMIT délègue toujours");
+        } finally {
+            SyntaxHighlighter.setTextMateTokenizer(null);
+        }
+    }
+
     // ═══════════════════════════════════════════════════════════════════
     // PARSER MAISON : tests des tokenizers de langages intégrés.
     //

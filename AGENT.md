@@ -2,22 +2,27 @@
 
 Document court et factuel : uniquement ce qui a été constaté dans le dépôt.
 Pour le reste : [`README.md`](README.md) (présentation, installation),
+le `README.md` de chaque module (`editor/<module>/`,
+[`demo/README.md`](demo/README.md) — rôle, fonctionnalités, liaisons),
 [`BUILD.md`](BUILD.md) (toolchain, publication), [`ARCHITECTURE.md`](ARCHITECTURE.md)
 (design), [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## Vue d'ensemble
 
 Bibliothèque Android « éditeur de code » écrite en **Java** (aucun Kotlin),
-rendu **Canvas** (aucun Compose). Quatre modules (tous
-`com.android.library`, donc **tous** exigent le SDK Android — aucun build
-n'est possible sans SDK, pas même les tests « purs Java ») :
+rendu **Canvas** (aucun Compose). Cinq modules éditables + l'application de
+démonstration (tous `com.android.library` sauf la démo, donc **tous** exigent
+le SDK Android — aucun build n'est possible sans SDK, pas même les tests
+« purs Java ») :
 
 | Module | Rôle | Dépend de |
 |---|---|---|
 | `editor/cel-core` | moteur : rope, session, undo, styling, plis, wrap, complétion | — |
 | `editor/cel-lsp-api` | SPI langage (providers, modèles de données) | `cel-core` (api) |
 | `editor/cel-lsp` | client LSP4J | `cel-core`, `cel-lsp-api` (compileOnly) — programme contre `EditorHost` (`cel-lsp-api`), ne connaît plus la vue |
+| `editor/cel-textmate` | voie grammaires optionnelle (ADR-002 C3) : moteur de grammaires, mapping portées → `TokenType`, grammaires embarquées | `cel-core` (api) seul |
 | `editor/cel-ui` | vues Android (rendu, gestes, popups) | `cel-core`, `cel-lsp-api` |
+| `demo` | application de démonstration (terrain de jeu, non publiée) | `cel-ui`, `cel-textmate` |
 
 Toolchain vérifiée : **JDK 17+ avec `javac`** (un JRE headless fait échouer
 AGP avec `does not provide the required capabilities: [JAVA_COMPILER]`) ·
@@ -50,7 +55,7 @@ export ANDROID_HOME=<sdk>          # + local.properties : sdk.dir=<sdk>
 ./gradlew publishToMavenLocal      # publication locale (~/.m2)
 ```
 
-Base de référence constatée (3.71.0) : **1 897 tests verts, lint
+Base de référence constatée (3.72.0-dev, multi-langages) : **2 385 tests verts, lint
 bloquant vert** — toute régression est la vôtre. Le nombre annoncé est contrôlé en
 CI (`scripts/check-doc-figures.sh`, échoue si l'écart dépasse 5 %).
 

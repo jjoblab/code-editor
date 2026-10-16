@@ -1,6 +1,6 @@
 # Audit indépendant de contre-vérification — `jjoblab/code-editor` 3.69.0
 
-> Documents archivés (A-08) : audit de contre-vérification réalisé sur la base `4f84308` (v3.69.0), **avant** exécution du plan. Le suivi de l'exécution en cours vit dans [`SUIVI-EXECUTION.md`](SUIVI-EXECUTION.md) ; les décisions de pilotage dans [`../adr/ADR-001-mandat-execution-audit.md`](../adr/ADR-001-mandat-execution-audit.md).
+> Documents archivés (A-08) : audit de contre-vérification réalisé sur la base `4f84308` (v3.69.0), **avant** exécution du plan. Le suivi de l'exécution en cours vit dans [`SUIVI-EXECUTION.md`](SUIVI-EXECUTION.md) ; les décisions de pilotage dans [`../../adr/ADR-001-mandat-execution-audit.md`](../../adr/ADR-001-mandat-execution-audit.md).
 
 Re-vérification complète de l'audit `AUDIT-code-editor-3.69.0.md`, étude comparative avec un éditeur Android mature (désigné `[EXT-1]`, conformément à `AGENT.md`), et plan d'exécution consolidé.
 

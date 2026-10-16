@@ -1,0 +1,9 @@
+{
+  "scopeName": "source.b",
+  "name": "Backref Test",
+  "patterns": [
+    { "begin": "(\"\"\"|''')", "end": "\\1",
+      "name": "string.quoted.triple.b",
+      "contentName": "string.quoted.triple.b" }
+  ]
+}

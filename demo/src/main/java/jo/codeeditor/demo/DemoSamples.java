@@ -19,6 +19,10 @@ final class DemoSamples {
     static {
         LANGUAGES.put("Java", "java");
         LANGUAGES.put("Kotlin", "kotlin");
+        // ADR-002 (C3) : C#, langage « grammaire-only » — coloré par la
+        // grammaire embarquée :cel-textmate (crochée au démarrage de
+        // MainActivity), repli C_LIKE sans le module.
+        LANGUAGES.put("C#", "csharp");
         LANGUAGES.put("Scala", "scala");
         LANGUAGES.put("Groovy", "groovy");
         LANGUAGES.put("Python", "python");
@@ -126,6 +130,41 @@ final class DemoSamples {
                     when {
                         notes.isEmpty() -> println("Aucune note")
                         else -> onDone()
+                    }
+                }
+            }
+            """;
+
+    /** Échantillon C# (ADR-002, C3 — coloré par la grammaire :cel-textmate). */
+    private static final String CSHARP = """
+            using System;
+            using System.Collections.Generic;
+
+            namespace Demo.Inventory
+            {
+                /// <summary>
+                /// Registre des articles — échantillon « grammaire-only »
+                /// de la voie :cel-textmate (ADR-002, C3).
+                /// </summary>
+                public sealed class ItemRegistry
+                {
+                    private readonly Dictionary<string, decimal> prices = new();
+                    private const decimal TaxRate = 0.2m;
+
+                    public int Count => prices.Count;
+
+                    public async Task<decimal> TotalAsync(IEnumerable<string> ids)
+                    {
+                        decimal total = 0m;
+                        foreach (var id in ids)
+                        {
+                            if (!prices.TryGetValue(id, out var price))
+                            {
+                                continue; // article inconnu : ignoré
+                            }
+                            total += price * (1 + TaxRate);
+                        }
+                        return total; /* total TTC */
                     }
                 }
             }
@@ -955,6 +994,7 @@ final class DemoSamples {
     static String sampleFor(String language) {
         switch (language == null ? "" : language) {
             case "kotlin": return KOTLIN;
+            case "csharp": return CSHARP;
             case "scala": return SCALA;
             case "groovy": return GROOVY;
             case "python": return PYTHON;

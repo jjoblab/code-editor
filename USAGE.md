@@ -34,10 +34,14 @@ dependencyResolutionManagement {
 // app/build.gradle.kts
 dependencies {
     // Le module UI embarque transitivement cel-core et cel-lsp-api.
-    implementation("jo.codeeditor:cel-ui:3.71.0")
+    implementation("jo.codeeditor:cel-ui:3.72.0")
 
     // Optionnel — intégration Language Server Protocol (LSP4J).
-    implementation("jo.codeeditor:cel-lsp:3.71.0")
+    implementation("jo.codeeditor:cel-lsp:3.72.0")
+
+    // Optionnel — voie grammaires (ADR-002 C3) : coloration par
+    // grammaires TextMate-like + grammaires embarquées (C#).
+    implementation("jo.codeeditor:cel-textmate:3.72.0")
 }
 ```
 
@@ -49,7 +53,7 @@ maven { url = uri("https://jitpack.io") }
 
 // app/build.gradle.kts
 dependencies {
-    implementation("com.github.jjoblab.code-editor:cel-ui:v3.71.0")
+    implementation("com.github.jjoblab.code-editor:cel-ui:v3.72.0")
 }
 ```
 
@@ -367,6 +371,60 @@ editorView.setSymbolResolver((text) -> {
 `setDocumentHighlightResolver` — même principe : la vue appelle le résolveur
 à la commande clavier correspondante et affiche le résultat dans le popup
 adapté.
+
+## Coloration par grammaires — module optionnel `:cel-textmate` (ADR-002)
+
+La voie grammaires ajoute la coloration « TextMate-like » PAR FICHIER de
+grammaire déclarative, sans écrire de tokéniseur Java. Le module ne dépend
+que de `:cel-core` : l'hôte qui ne l'embarque pas garde le tokéniseur intégré
+(repli hors-ligne) — le chemin est strictement additif.
+
+```java
+import jo.codeeditor.highlight.SyntaxHighlighter;
+import jo.codeeditor.textmate.TextMateTokenizerImpl;
+
+// Une seule fois au démarrage, AVANT toute vue éditeur :
+SyntaxHighlighter.setTextMateTokenizer(TextMateTokenizerImpl.create());
+```
+
+Les grammaires embarquées du dépôt se chargent paresseusement (classpath
+`textmate/*.tmg.json` — C# aujourd'hui : langage « grammaire-only », aucun
+tokéniseur intégré dédié). Neuf grammaires tierces de l'écosystème sont
+aussi embarquées (css, html, java, javascript, kotlin, lua, markdown,
+python, xml — attribution dans `NOTICE`) : inactives au démarrage, un
+hôte les active par `tm.loadEmbeddedGrammar("java")` (opt-in par
+langage, idempotent). Pour vos langages :
+
+```java
+TextMateTokenizerImpl tm = TextMateTokenizerImpl.create();
+tm.registerGrammar("mylang", """
+        {
+          "scopeName": "source.mylang",
+          "patterns": [
+            { "match": "#[^\\n]*", "name": "comment.line.mylang" },
+            { "begin": "\\"", "end": "\\"", "name": "string.quoted.double.mylang",
+              "contentName": "string.quoted.double.mylang" }
+          ]
+        }
+        """);
+SyntaxHighlighter.setTextMateTokenizer(tm);
+```
+
+Format : règles `match` (portée `name` + `captures` par groupe), blocs
+`begin`/`end` (multilignes, `contentName`, backreferences `\1` du `end`),
+`include` (`#règle` du repository, `$self`). Les regex doivent être
+tables par `java.util.regex` (le sous-ensemble du moteur, documenté dans
+la javadoc de `TextMateGrammar`) — une grammaire invalide échoue à
+l'ENREGISTREMENT (exception), jamais en cours de coloration.
+
+Les portées standard se mappent sur les `TokenType` existants
+(`comment.block.documentation` → `DOC_COMMENT`, `keyword.control` →
+`KEYWORD_CONTROL`, `string.quoted.triple` → `RAW_STRING`… voir
+`ScopeMapper`) — un thème les colore sans clé par langage. Deux portes
+de garde-fou restent décidées hors module : les documents de plus de
+800 lignes (`TEXTMATE_LINE_LIMIT`, `EditorSession`) et les LIGNES de
+plus de 5 000 caractères (`TEXTMATE_CHAR_LIMIT`, `SyntaxHighlighter`)
+retombent sur le tokéniseur intégré au coût linéaire.
 
 ## Raccourcis clavier
 

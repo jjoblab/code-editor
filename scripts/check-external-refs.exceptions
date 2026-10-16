@@ -3,8 +3,10 @@
 
 # AGENT.md documente lui-même les formulations interdites pour les définir :
 # les lignes qui les citent « entre guillemets » ne sont pas des usages.
-^AGENT\.md:10[5-9].*(Formulations interdites|inspiré de|mieux que|équivalent de|port de|résumé de lecture)
-^AGENT\.md:106.*(comme X|mieux que X|équivalent de X|port de X)
+# (Ancres re-calées sur les lignes 111-114 après le rangement de la
+# documentation — la table des modules d'AGENT.md a gagné cel-textmate.)
+^AGENT\.md:11[0-9].*(Formulations interdites|inspiré de|mieux que|équivalent de|port de|résumé de lecture)
+^AGENT\.md:112.*(comme X|mieux que X|équivalent de X|port de X)
 
 # Le garde-fou et ses tests citent inévitablement les motifs qu'ils vérifient.
 ^scripts/check-external-refs\.sh:.*
@@ -15,3 +17,27 @@
 # « derived from » — texte juridique à ne pas reformuler, pas un usage de
 # comparaison de ce projet.
 ^LICENSE:.*
+
+# NOTICE documente l'attribution des grammaires TextMate tierces embarquées
+# (décision D3 de l'ADR-002 : vérification fichier par fichier) : la table
+# fichier → source amont → titulaire EXIGE les URL des dépôts MIT concernés
+# (textmate/atom/microsoft/MagicStack) — obligations de licence, pas des
+# usages de comparaison de ce projet.
+^NOTICE:URL github\.com/(textmate|atom|microsoft|MagicStack)$
+
+# Les grammaires tierces embarquées (C3-quater, VERBATIM MIT) portent leur
+# en-tête « information_for_contributors » d'origine — l'URL du dépôt amont
+# fait partie du fichier original (attribution upstream, TextMate/VS Code).
+^editor/cel-textmate/src/main/resources/textmate/[a-z]+\.tmLanguage\.json:URL github\.com/(textmate|atom|microsoft|MagicStack)$
+
+# Les commentaires internes des grammaires tierces (champ « comment » des
+# fichiers originaux VS Code/TextMate) peuvent employer des formulations
+# anglaises (« same as … ») : texte verbatim des fichiers originaux, pas
+# des usages de comparaison de CE projet.
+^editor/cel-textmate/src/main/resources/textmate/[a-z]+\.tmLanguage\.json:[0-9]+:
+
+# NOTICE documente l'attribution de la grammaire Kotlin embarquée (C3-sexties,
+# option (b) du propriétaire) : dépôt amont mathiasfrohlich/vscode-kotlin
+# (Apache-2.0, provenance vérifiée par UUID de grammaire identique) —
+# obligation de licence, pas un usage de comparaison de ce projet.
+^NOTICE:URL github\.com/mathiasfrohlich$

@@ -3,8 +3,10 @@ package jo.codeeditor.languages;
 import jo.codeeditor.edit.CommentSyntax;
 
 import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -22,7 +24,11 @@ import java.util.function.Predicate;
  * {@code toggleBlockComment}), ses <b>traits d'édition</b> (Lot 2) —
  * caractères à auto-fermer, stratégie de pliage — et, depuis S5 (lot
  * 2, J6), sa <b>détection de lignes sticky</b> : chaque langue décide
- * seule de ses en-têtes de bloc via {@link #isBlockHeaderLine}.</p>
+ * seule de ses en-têtes de bloc via {@link #isBlockHeaderLine}. Depuis
+ * ADR-002 (chantier C1), il porte aussi la {@link CompletionGate} de
+ * la complétion, les {@link #snippets} intégrés (D5 « source unique »),
+ * la {@link NewlineStrategy} de saut de ligne et ses
+ * {@link NewlineTrigger}s d'indentation.</p>
  *
  * <p>Les profils sont enregistrés dans le {@link LanguageRegistry}. Les
  * hôtes peuvent enregistrer leurs propres langages — y compris des
@@ -39,6 +45,8 @@ import java.util.function.Predicate;
  *     .autoCloseQuotes('"', '\'')
  *     .autoCloseBrackets('(', '{', '[')
  *     .foldStrategy(FoldStrategy.BRACE)
+ *     .newlineStrategy(NewlineStrategy.KOTLIN)      // flèche when, pas de label case
+ *     .newlineTrigger(NewlineTrigger.onSuffix(":")) // +1 après « clé: »
  *     .build();
  * LanguageRegistry.register(custom);
  * editorSession.setLanguage("mylang");
@@ -92,12 +100,86 @@ public final class LanguageProfile {
      * qu'un test de préfixe mais pas plus qu'un scan de document.
      */
     public final Predicate<CharSequence> stickyHeaderTest;
+    /**
+     * Politique de la porte de contexte de complétion (ADR-002, C1).
+     * Jamais null. Défaut par famille : LOG → {@link CompletionGate#OFF}
+     * (texte non-code), XML → {@link CompletionGate#ALWAYS} (le serveur
+     * LSP tranche lui-même les zones muettes), toutes les autres →
+     * {@link CompletionGate#STANDARD} (porte calibrée pour les littéraux
+     * C/Java). Un hôte surcharge via
+     * {@link Builder#completionGate(CompletionGate)}.
+     */
+    public final CompletionGate completionGate;
+    /**
+     * Snippets de complétion intégrée (ADR-002, C1 — D5 « source
+     * unique »). Liste immuable ordonnée, vide par défaut. Markdown
+     * déclare la liste historique (« # », « ## », « - », clôtures de
+     * blocs de code…) ; un hôte peut déclarer les siens par langage —
+     * la complétion intégrée les propose au même titre que les
+     * mots-clés, sans code dédié dans l'UI.
+     */
+    public final List<String> snippets;
+    /**
+     * Stratégie de saut de ligne intelligent (ADR-002, C1 — étape 3).
+     * Jamais null. Défaut calculé depuis la famille : XML →
+     * {@link NewlineStrategy#XML} (indentation structurelle), toutes
+     * les autres → {@link NewlineStrategy#C_LIKE}. Le profil
+     * {@code kotlin} déclare {@link NewlineStrategy#KOTLIN} (flèche
+     * when, pas de label case) ; un hôte surcharge via
+     * {@link Builder#newlineStrategy(NewlineStrategy)} — c'est la
+     * voie pour un langage XML qui veut la newline C, ou un langage
+     * maison Kotlin-like.
+     */
+    public final NewlineStrategy newlineStrategy;
+    /**
+     * Déclencheurs d'indentation +1 au saut de ligne (ADR-002, C1 —
+     * étape 3). Liste immuable, vide par défaut. Python déclare le
+     * déclencheur « : » avec mots-clés de bloc, YAML le « : » sans
+     * prérequis, Shell et Lua « then »/« do ». Un hôte ajoute les
+     * siens via {@link Builder#newlineTrigger(NewlineTrigger...)} —
+     * la newline C-like les consulte avant son comportement par
+     * défaut, sans code dédié.
+     */
+    public final List<NewlineTrigger> newlineTriggers;
+    /**
+     * Guillemets ouvrant les littéraux de chaîne pour le contexte
+     * lexical (ADR-002, C1-é4) — consommés par les prédicats
+     * {@code CodeContext.isInString}/isInStringOrComment et leurs
+     * gardes d'auto-close/complétion. Défaut uniforme {@code "} et
+     * {@code '} (comportement historique du scanner, y compris pour
+     * XML — les valeurs d'attribut sont des chaînes). Distinct du
+     * trait d'édition {@link #autoCloseQuotes} : un langage peut
+     * déclarer une backtick comme chaîne sans l'auto-fermer.
+     */
+    public final Set<Character> stringQuotes;
+    /**
+     * Ouvreur du commentaire de documentation (ADR-002, C1-é4), ou
+     * null quand le langage n'en distingue pas. Défaut famille
+     * C_LIKE : {@code /**}. Consommé par le motif « ouverture de doc +
+     * Entrée » de la newline C-like (continuation) ; servira de
+     * source de vérité au tokéniseur DOC_COMMENT (chantiers C2/C3).
+     */
+    public final String docCommentStart;
+    /** Fermeur du commentaire de documentation (souvent = le fermeur de bloc), ou null. */
+    public final String docCommentEnd;
+    /**
+     * Préfixe de continuation inséré au saut de ligne dans un
+     * commentaire de bloc / de documentation (ADR-002, C1-é4), ou
+     * null quand la newline doit rester simple. Défaut : «&#160;*&#160;» quand
+     * la syntaxe de bloc est C ({@code /* *&#47;}), null sinon (XML,
+     * Lua…). Un langage maison le déclare ({@code ///}…).
+     */
+    public final String blockCommentContinuation;
 
     private LanguageProfile(String name, SyntaxFamily family,
             Set<String> aliases, Set<String> extensions,
             Set<String> keywords, CommentSyntax commentSyntax,
             Set<Character> autoCloseQuotes, Set<Character> autoCloseBrackets,
-            FoldStrategy foldStrategy, Predicate<CharSequence> stickyHeaderTest) {
+            FoldStrategy foldStrategy, Predicate<CharSequence> stickyHeaderTest,
+            CompletionGate completionGate, List<String> snippets,
+            NewlineStrategy newlineStrategy, List<NewlineTrigger> newlineTriggers,
+            Set<Character> stringQuotes, String docCommentStart, String docCommentEnd,
+            String blockCommentContinuation) {
         this.name = name;
         this.family = family;
         this.aliases = aliases;
@@ -108,6 +190,14 @@ public final class LanguageProfile {
         this.autoCloseBrackets = autoCloseBrackets;
         this.foldStrategy = foldStrategy;
         this.stickyHeaderTest = stickyHeaderTest;
+        this.completionGate = completionGate;
+        this.snippets = snippets;
+        this.newlineStrategy = newlineStrategy;
+        this.newlineTriggers = newlineTriggers;
+        this.stringQuotes = stringQuotes;
+        this.docCommentStart = docCommentStart;
+        this.docCommentEnd = docCommentEnd;
+        this.blockCommentContinuation = blockCommentContinuation;
     }
 
     /** Builder fluent — voir la javadoc de la classe pour un exemple d'utilisation. */
@@ -197,6 +287,23 @@ public final class LanguageProfile {
         private FoldStrategy foldStrategy = null;
         // S5 (lot 2, J6) : détection sticky déléguée au SPI langue.
         private Predicate<CharSequence> stickyHeaderTest;
+        // ADR-002 (C1) : politique de la porte de complétion — donnée
+        // par langage, défaut calculé dans build() depuis la famille.
+        private CompletionGate completionGate;
+        // ADR-002 (C1, D5) : snippets de complétion intégrée — même
+        // table que les mots-clés (source unique).
+        private final List<String> snippets = new ArrayList<>();
+        // ADR-002 (C1-é3) : stratégie de saut de ligne + déclencheurs
+        // d'indentation — données par langage, défauts calculés dans
+        // build() depuis la famille.
+        private NewlineStrategy newlineStrategy;
+        private final List<NewlineTrigger> newlineTriggers = new ArrayList<>();
+        // ADR-002 (C1-é4) : délimiteurs du contexte lexical + doc.
+        private Set<Character> stringQuotes;
+        private String docCommentStart;
+        private String docCommentEnd;
+        private boolean docCommentOverridden;
+        private String blockCommentContinuation;
 
         private Builder(String name) {
             if (name == null) throw new IllegalArgumentException("name is null");
@@ -300,6 +407,112 @@ public final class LanguageProfile {
             return this;
         }
 
+        /**
+         * ADR-002 (C1) : politique de la porte de contexte de complétion
+         * pour CE langage. Si non appelé, la valeur par défaut dépend de
+         * la famille : LOG → {@link CompletionGate#OFF} (fichier de log,
+         * pas de complétion) ; XML → {@link CompletionGate#ALWAYS}
+         * (porte chaîne/commentaire écartée — le fournisseur LSP tranche
+         * lui-même les zones muettes : texte, fermantes, commentaires
+         * {@code <!--}, PI {@code <?}) ; toutes les autres familles →
+         * {@link CompletionGate#STANDARD} (porte calibrée pour les
+         * littéraux C/Java). Passer {@code null} retombe sur le défaut
+         * de famille.
+         */
+        public Builder completionGate(CompletionGate gate) {
+            this.completionGate = gate;
+            return this;
+        }
+
+        /**
+         * ADR-002 (C1, D5) : snippets de complétion intégrée pour CE
+         * langage (même table que les mots-clés — source unique). La
+         * complétion intégrée les propose filtrés par préfixe, au
+         * format snippet (badge « s », sans tri particulier — l'ordre
+         * déclaré est l'ordre de proposition). Les entrées nulles ou
+         * vides sont ignorées. Vide par défaut.
+         */
+        public Builder snippets(String... entries) {
+            if (entries != null) {
+                for (String s : entries) {
+                    if (s != null && !s.isEmpty()) snippets.add(s);
+                }
+            }
+            return this;
+        }
+
+        /**
+         * ADR-002 (C1-é3) : stratégie de saut de ligne pour CE
+         * langage. Si non appelé, la valeur par défaut dépend de la
+         * famille : XML → {@link NewlineStrategy#XML} (indentation
+         * structurelle des balises, alignement d'attributs) ; toutes
+         * les autres → {@link NewlineStrategy#C_LIKE}. Le profil
+         * intégré {@code kotlin} déclare {@link NewlineStrategy#KOTLIN}.
+         * Passer {@code null} retombe sur le défaut de famille.
+         */
+        public Builder newlineStrategy(NewlineStrategy strategy) {
+            this.newlineStrategy = strategy;
+            return this;
+        }
+
+        /**
+         * ADR-002 (C1-é3) : déclencheurs d'indentation +1 au saut de
+         * ligne pour CE langage (fin de ligne {@code :}, {@code then},
+         * {@code do}…, avec optionnellement des préfixes de
+         * mots-clés de bloc). Consultés par la newline C-like AVANT
+         * son comportement par défaut, dans l'ordre déclaré. Les
+         * entrées nulles sont ignorées. Vide par défaut.
+         */
+        public Builder newlineTrigger(NewlineTrigger... triggers) {
+            if (triggers != null) {
+                for (NewlineTrigger t : triggers) {
+                    if (t != null) newlineTriggers.add(t);
+                }
+            }
+            return this;
+        }
+
+        /**
+         * ADR-002 (C1-é4) : guillemets ouvrant les littéraux pour le
+         * CONTEXTE LEXICAL (scanner de chaînes des prédicats
+         * d'édition et de complétion). Si non appelé : {@code "} et
+         * {@code '} (comportement historique, uniforme). Passer une
+         * liste vide pour un langage sans chaîne (le scanner ne verra
+         * plus aucun littéral). Distinct de
+         * {@link #autoCloseQuotes(char...)} (trait d'édition).
+         */
+        public Builder stringQuotes(char... quotes) {
+            this.stringQuotes = new HashSet<>();
+            for (char c : quotes) this.stringQuotes.add(c);
+            return this;
+        }
+
+        /**
+         * ADR-002 (C1-é4) : délimiteur de commentaire de documentation
+         * du langage (ex. {@code /**}/{@code *&#47;} en C-like,
+         * {@code ///} pour un langage maison). Si non appelé : défaut
+         * de famille (C_LIKE → {@code /**}/{@code *&#47;}, autres →
+         * null). Passer {@code (null, null)} pour désactiver
+         * explicitement.
+         */
+        public Builder docComment(String start, String end) {
+            this.docCommentStart = start;
+            this.docCommentEnd = end;
+            this.docCommentOverridden = true;
+            return this;
+        }
+
+        /**
+         * ADR-002 (C1-é4) : préfixe de continuation inséré au saut de
+         * ligne dans un commentaire de bloc/doc (null = newline
+         * simple). Défaut : «&#160;*&#160;» quand le bloc est C
+         * ({@code /* *&#47;}), null sinon.
+         */
+        public Builder blockCommentContinuation(String prefix) {
+            this.blockCommentContinuation = prefix;
+            return this;
+        }
+
         public LanguageProfile build() {
             // Lot 2 : valeurs par défaut par famille (quand le builder
             // n'a pas été appelé explicitement pour ces traits).
@@ -309,6 +522,28 @@ public final class LanguageProfile {
                     ? autoCloseBrackets : defaultBrackets(family);
             FoldStrategy finalFold = foldStrategy != null
                     ? foldStrategy : defaultFoldStrategy(family);
+            CompletionGate finalGate = completionGate != null
+                    ? completionGate : defaultCompletionGate(family);
+            List<String> finalSnippets = Collections.unmodifiableList(
+                    new ArrayList<>(snippets));
+            NewlineStrategy finalNewline = newlineStrategy != null
+                    ? newlineStrategy : defaultNewlineStrategy(family);
+            List<NewlineTrigger> finalTriggers = Collections.unmodifiableList(
+                    new ArrayList<>(newlineTriggers));
+            Set<Character> finalStringQuotes = stringQuotes != null
+                    ? stringQuotes : defaultStringQuotes();
+            String finalDocStart;
+            String finalDocEnd;
+            if (docCommentOverridden) {
+                finalDocStart = docCommentStart;
+                finalDocEnd = docCommentEnd;
+            } else {
+                finalDocStart = family == SyntaxFamily.C_LIKE ? "/**" : null;
+                finalDocEnd = family == SyntaxFamily.C_LIKE ? "*/" : null;
+            }
+            String finalContinuation = blockCommentContinuation != null
+                    ? blockCommentContinuation
+                    : ("/*".equals(commentSyntax.blockStart) ? " * " : null);
             return new LanguageProfile(name, family,
                     Collections.unmodifiableSet(new HashSet<>(aliases)),
                     Collections.unmodifiableSet(new HashSet<>(extensions)),
@@ -317,7 +552,15 @@ public final class LanguageProfile {
                     Collections.unmodifiableSet(new HashSet<>(finalQuotes)),
                     Collections.unmodifiableSet(new HashSet<>(finalBrackets)),
                     finalFold,
-                    stickyHeaderTest);
+                    stickyHeaderTest,
+                    finalGate,
+                    finalSnippets,
+                    finalNewline,
+                    finalTriggers,
+                    Collections.unmodifiableSet(new HashSet<>(finalStringQuotes)),
+                    finalDocStart,
+                    finalDocEnd,
+                    finalContinuation);
         }
 
         /** Valeurs par défaut pour autoCloseQuotes selon la famille. */
@@ -412,6 +655,32 @@ public final class LanguageProfile {
                 default:
                     return FoldStrategy.OFF;
             }
+        }
+
+        /** Défaut de porte de complétion selon la famille (ADR-002, C1). */
+        private static CompletionGate defaultCompletionGate(SyntaxFamily family) {
+            switch (family) {
+                case LOG:
+                    return CompletionGate.OFF;
+                case XML:
+                    return CompletionGate.ALWAYS;
+                default:
+                    return CompletionGate.STANDARD;
+            }
+        }
+
+        /** Défaut de stratégie de saut de ligne selon la famille (ADR-002, C1-é3). */
+        private static NewlineStrategy defaultNewlineStrategy(SyntaxFamily family) {
+            return family == SyntaxFamily.XML
+                    ? NewlineStrategy.XML : NewlineStrategy.C_LIKE;
+        }
+
+        /** Défaut uniforme des guillemets du contexte lexical (ADR-002, C1-é4). */
+        private static Set<Character> defaultStringQuotes() {
+            Set<Character> s = new HashSet<>();
+            s.add('"');
+            s.add('\'');
+            return s;
         }
 
         private static Set<String> normalize(String... values) {
