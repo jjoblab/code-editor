@@ -17,7 +17,8 @@ import java.util.List;
  * du popup ancré à l'œil de gouttière : ouverture/fermeture, ligne
  * d'ancre GELÉE (l'œil ne suit plus le caret une fois la carte ouverte),
  * onglet sélectionné (fourni par le hôte), hit-tests des zones tactiles
- * (onglets, fermeture, corps) et calcul du placement frame par frame.
+ * (onglets, fermeture, corps, barre de taille du pied) et calcul du
+ * placement frame par frame.
  *
  * <p>Le dessin vit dans le painter dédié du pipeline de rendu
  * ({@code EditorPreviewDropPainter}) ; la géométrie pure est
@@ -32,8 +33,10 @@ import java.util.List;
  *   <li>tap sur l'<b>œil</b> de gouttière → ouverture (ancre = rangée
  *       du caret) / re-tap → fermeture ;</li>
  *   <li>tap <b>dans la carte</b> : onglet → bascule (le hôte est
- *       notifié, il re-rend) ; ✕ → fermeture ; corps → englouti (le
- *       caret ne bouge pas) ;</li>
+ *       notifié, il re-rend) ; ✕ → fermeture ; <b>barre de taille du
+ *       pied</b> → press = saut immédiat, drag vivant, relâchement →
+ *       hôte notifié (persistance, retour terrain n°3) ; corps →
+ *       englouti (le caret ne bouge pas) ;</li>
  *   <li>tap <b>ailleurs dans l'éditeur</b> → cascade normale (le caret
  *       se pose) — la carte reste ouverte et ESQUIVE la nouvelle zone
  *       de frappe (non modale, miroir de la maquette) ;</li>
@@ -158,6 +161,35 @@ public final class EditorPreviewDrop {
     /** Facteur d'agrandissement appliqué à toute la carte (1 = maquette). */
     private float cardScale = 1f;
 
+    // ── Barre de taille (retour terrain n°3) ──────────────────────
+
+    /** Largeur de la piste de la barre de taille (dp — pied de carte). */
+    public static final float SCALE_TRACK_W_DP = 48f;
+    /** Hauteur visuelle de la piste (dp). */
+    public static final float SCALE_TRACK_H_DP = 4f;
+    /** Diamètre du curseur rond de la piste (dp). */
+    public static final float SCALE_THUMB_D_DP = 11f;
+    /** Tolérance horizontale du hit-test autour de la piste (dp). */
+    public static final float SCALE_HIT_PAD_X_DP = 12f;
+    /** Tolérance verticale du hit-test autour de la piste (dp). */
+    public static final float SCALE_HIT_PAD_Y_DP = 13f;
+    /** Alpha « fantôme » de la variante B — la goutte devient de l'eau
+     *  à 10–15 % d'opacité (retour terrain n°3 : la complétion au-dessus
+     *  reste lisible, le code derrière la carte respire). */
+    static final float VARIANT_B_GHOST_ALPHA = 0.12f;
+
+    /** Rectangle LOCAL de la piste de taille (px — partagé dessin/
+     *  hit-test, posé à l'ouverture à côté de la puce « fit »). */
+    private final RectF scaleSliderRect = new RectF();
+    /** Repère de piste GELÉ au début du geste (px écran) — bord gauche.
+     *  Toute la progression du geste se calcule dans CE repère : la
+     *  carte peut grandir sous le doigt, la progression reste linéaire
+     *  et STABLE (le re-mappage sur le placement vivant crée une boucle
+     *  divergente — le doigt immobile ferait osciller la valeur). */
+    private float sliderBaseLeft;
+    /** Largeur de piste au repère gelé (px — 0 = pas de geste en cours). */
+    private float sliderBaseW;
+
     EditorPreviewDrop(EditorView view, EditorPreviewController preview) {
         this.view = view;
         this.preview = preview;
@@ -218,6 +250,102 @@ public final class EditorPreviewDrop {
     }
 
     /**
+     * Alpha global de la goutte (1 opaque) — la variante B la rend
+     * « fantôme » à 10–15 % d'opacité (retour terrain n°3 : le painter
+     * enveloppe losange + carte dans une couche alpha, la TIGE reste
+     * opaque — l'ancre œil↔goutte reste lisible, miroir du voile).
+     */
+    public float ghostAlpha() {
+        return policy == EditorView.PreviewDropPolicy.VARIANT_B
+                ? VARIANT_B_GHOST_ALPHA : 1f;
+    }
+
+    /**
+     * Hit-test de la barre de taille du pied (retour terrain n°3) —
+     * écran → local avec tolérance ({@link #SCALE_HIT_PAD_X_DP} ×
+     * {@link #SCALE_HIT_PAD_Y_DP}) : le doigt n'a pas besoin de viser
+     * une piste de 4 dp. Le point doit rester DANS la carte (le reste
+     * du pied reste englouti par le corps).
+     */
+    public boolean hitTestSlider(float x, float y) {
+        if (!open || scaleSliderRect.isEmpty()) return false;
+        EditorPreviewDropGeometry.Placement p = placement();
+        if (p == null || !p.contains(x, y)) return false;
+        float density = view.getResources().getDisplayMetrics().density;
+        float padX = SCALE_HIT_PAD_X_DP * density;
+        float padY = SCALE_HIT_PAD_Y_DP * density;
+        float lx = p.toLocalX(x);
+        float ly = p.toLocalY(y);
+        return lx >= scaleSliderRect.left - padX
+                && lx <= scaleSliderRect.right + padX
+                && ly >= scaleSliderRect.top - padY
+                && ly <= scaleSliderRect.bottom + padY;
+    }
+
+    /**
+     * Presse sur la piste (DOWN) : gèle le repère écran de la piste
+     * pour TOUT le geste puis saute le curseur à la position du doigt
+     * (press = saut immédiat, miroir du sélecteur de couleur B26).
+     * Le gel garantit la stabilité : la progression reste une fonction
+     * linéaire de la position du doigt, même quand la carte se
+     * redimensionne sous lui au fil du drag.
+     */
+    public void sliderPress(float x, float y) {
+        if (!open || scaleSliderRect.isEmpty()) return;
+        EditorPreviewDropGeometry.Placement p = placement();
+        if (p == null) return;
+        sliderBaseLeft = p.cardLeft + scaleSliderRect.left * p.scale;
+        sliderBaseW = scaleSliderRect.width() * p.scale;
+        sliderDragTo(x, y);
+    }
+
+    /**
+     * Drag sur la piste (MOVE) : traduit la position écran en facteur
+     * de taille (progression [0,1] → [1, 1,5]) dans le repère GELÉ au
+     * press — vivant au frame suivant (la carte se redimensionne sous
+     * le doigt), la progression reste exactement celle du doigt.
+     */
+    public void sliderDragTo(float x, float y) {
+        if (!open || sliderBaseW <= 0f) return;
+        float progress = (x - sliderBaseLeft) / sliderBaseW;
+        setCardScale(scaleFromProgress(progress));
+    }
+
+    /**
+     * Relâchement de la piste (UP) : dégèle le repère et notifie le
+     * hôte du facteur choisi UNE fois par geste (persistance côté
+     * application — {@link EditorPreviewHost#onPreviewDropScaleChanged(float)}).
+     */
+    public void sliderRelease() {
+        sliderBaseLeft = 0f;
+        sliderBaseW = 0f;
+        if (!open) return;
+        EditorPreviewHost host = preview.getHost();
+        if (host != null) host.onPreviewDropScaleChanged(cardScale());
+    }
+
+    /** Rectangle LOCAL de la piste de taille (px — lecture painter). */
+    public RectF scaleSliderRect() {
+        return scaleSliderRect;
+    }
+
+    /**
+     * Traduit une progression de piste [0,1] en facteur de taille
+     * (clampé — la piste ne peut pas sortir de ses bornes).
+     */
+    public static float scaleFromProgress(float progress) {
+        float p = Math.max(0f, Math.min(1f, progress));
+        return MIN_CARD_SCALE + p * (MAX_CARD_SCALE - MIN_CARD_SCALE);
+    }
+
+    /** Miroir de {@link #scaleFromProgress} — facteur → progression
+     *  [0,1] (clampé — pour dessiner le curseur). */
+    public static float progressFromScale(float scale) {
+        float p = (scale - MIN_CARD_SCALE) / (MAX_CARD_SCALE - MIN_CARD_SCALE);
+        return Math.max(0f, Math.min(1f, p));
+    }
+
+    /**
      * Ouvre la carte ancrée à la ligne donnée (typiquement la rangée du
      * caret au moment du tap sur l'œil). Pose les onglets du hôte
      * (mesure des libellés), réinitialise la sélection d'onglet, pousse
@@ -244,6 +372,9 @@ public final class EditorPreviewDrop {
         this.anchorLine = -1;
         this.tabLabels = List.of();
         this.tabRects = new RectF[0];
+        this.scaleSliderRect.setEmpty();
+        this.sliderBaseLeft = 0f;
+        this.sliderBaseW = 0f;
         resetVeil();
         view.invalidate();
     }
@@ -293,6 +424,20 @@ public final class EditorPreviewDrop {
         float cardW = CARD_W_DP * density;
         closeRect.set(cardW - CLOSE_TARGET_DP * density, 2f * density,
                 cardW - 2f * density, 2f * density + CLOSE_TARGET_DP * density);
+        // Barre de taille (retour terrain n°3) : piste dans le pied, à
+        // gauche de la puce « fit » LA PLUS LARGE possible — même
+        // formule que le painter (texte 9 dp + padding 16 dp) : le
+        // rect est partagé dessin/hit-test, aucun chevauchement
+        // possible quelle que soit la valeur affichée.
+        android.graphics.Paint p9 = new android.graphics.Paint(
+                android.graphics.Paint.ANTI_ALIAS_FLAG);
+        p9.setTextSize(9f * density);
+        float fitMaxW = p9.measureText("fit · 150 %") + 16f * density;
+        float footerCy = CARD_H_DP * density - FOOTER_H_DP * density * 0.5f;
+        float trackRight = cardW - 12f * density - fitMaxW - 8f * density;
+        scaleSliderRect.set(trackRight - SCALE_TRACK_W_DP * density,
+                footerCy - SCALE_TRACK_H_DP * 0.5f * density,
+                trackRight, footerCy + SCALE_TRACK_H_DP * 0.5f * density);
     }
 
     /** Libellés d'onglets courants (cache d'ouverture — lecture painter). */

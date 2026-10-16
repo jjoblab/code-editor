@@ -9,6 +9,7 @@ import org.robolectric.Shadows;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
+import android.graphics.RectF;
 import android.os.Looper;
 import android.os.SystemClock;
 import android.view.MotionEvent;
@@ -21,6 +22,7 @@ import jo.codeeditor.document.EditorDocument;
 import jo.codeeditor.session.EditorSession;
 import jo.codeeditor.view.EditorView;
 import jo.codeeditor.view.TestMetrics;
+import jo.codeeditor.view.render.EditorPreviewDropPainter;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -291,6 +293,66 @@ public class PreviewDropPolicyTest {
         draw(view); // branche de rendu pré-popups du pipeline
         draw(view);
         assertTrue(view.preview.drop().isOpen());
+    }
+
+    // ── 4bis. VARIANTE B : la goutte devient transparente à 10–15 % ─
+
+    @Test
+    public void varianteB_goutteTransparenteÀ10à15Pourcent() {
+        EditorView view = newView(1080, 900, 80f, 10f);
+        EditorPreviewDrop drop = view.preview.drop();
+        assertEquals("ORIGINALE : opaque", 1f, drop.ghostAlpha(), 0.0001f);
+        view.setPreviewDropPolicy(EditorView.PreviewDropPolicy.THREE_LAYERS);
+        assertEquals("TROIS couches : opaque (le voile est SON mécanisme)",
+                1f, drop.ghostAlpha(), 0.0001f);
+        view.setPreviewDropPolicy(EditorView.PreviewDropPolicy.VARIANT_B);
+        assertTrue("VARIANTE B : la goutte devient transparente à 10–15 % "
+                + "(alpha " + drop.ghostAlpha() + ")",
+                drop.ghostAlpha() >= 0.10f && drop.ghostAlpha() <= 0.15f);
+    }
+
+    /** Canvas enregistreur : capture les couches alpha posées par le
+     *  painter (voile d'eau / fantôme de la variante B). */
+    private static final class LayerCanvas extends Canvas {
+        int layers = 0;
+        int lastAlpha = 255;
+        LayerCanvas(Bitmap bmp) { super(bmp); }
+        @Override public int saveLayerAlpha(RectF bounds, int alpha) {
+            layers++;
+            lastAlpha = alpha;
+            return super.saveLayerAlpha(bounds, alpha);
+        }
+    }
+
+    @Test
+    public void varianteB_lePainterFantômeLaGoutte() {
+        EditorView view = newView(1080, 900, 80f, 10f);
+        view.getSession().setSelection(0);
+        view.openPreview(false);
+        Bitmap bmp = Bitmap.createBitmap(view.getWidth(), view.getHeight(),
+                Bitmap.Config.ARGB_8888);
+
+        // ORIGINALE : aucune couche alpha — la goutte est opaque.
+        LayerCanvas c1 = new LayerCanvas(bmp);
+        new EditorPreviewDropPainter(view).drawCard(c1);
+        assertEquals("ORIGINALE : aucune couche (opaque)", 0, c1.layers);
+
+        // TROIS couches non voilée : toujours aucune couche.
+        view.setPreviewDropPolicy(EditorView.PreviewDropPolicy.THREE_LAYERS);
+        LayerCanvas c2 = new LayerCanvas(bmp);
+        new EditorPreviewDropPainter(view).drawCard(c2);
+        assertEquals("TROIS couches non voilée : aucune couche", 0, c2.layers);
+
+        // VARIANTE B : le painter enveloppe la goutte dans une couche à
+        // 10–15 % d'opacité (0,12 × 255 = 30).
+        view.setPreviewDropPolicy(EditorView.PreviewDropPolicy.VARIANT_B);
+        LayerCanvas c3 = new LayerCanvas(bmp);
+        new EditorPreviewDropPainter(view).drawCard(c3);
+        assertTrue("VARIANTE B : une couche fantôme est posée",
+                c3.layers >= 1);
+        assertTrue("alpha de la couche dans [10 %, 15 %] de 255 ("
+                        + c3.lastAlpha + ")",
+                c3.lastAlpha >= 26 && c3.lastAlpha <= 38);
     }
 
     // ── 5. Option taille : facteur borné, carte agrandie ─────────

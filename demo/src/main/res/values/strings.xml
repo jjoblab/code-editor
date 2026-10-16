@@ -108,8 +108,6 @@
     <string name="settings_drop_policy_original">Originale</string>
     <string name="settings_drop_policy_layers">3 couches</string>
     <string name="settings_drop_policy_variant_b">Variante B</string>
-    <string name="settings_drop_scale">Taille de la goutte d\u2019eau</string>
-    <string name="settings_drop_scale_hint">Agrandissement de la carte d\u2019aperçu, marge transparente et marges resserrées incluses (100 % = maquette)</string>
     <string name="settings_footnote">Les réglages s\u2019appliquent à l\u2019atelier au retour (relus à chaque reprise). La bascule Moteur LSP du menu reste prioritaire sur la connexion automatique.</string>
 
     <!-- B12 (P1-4) : mode des numéros de ligne de la gouttière -->

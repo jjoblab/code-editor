@@ -434,6 +434,46 @@ public class EditorPreviewController {
     }
 
     /**
+     * B27 (retour terrain n°3) — hit-test de la BARRE DE TAILLE de la
+     * carte (pied, à côté de la puce « fit ») : vrai quand la carte est
+     * ouverte ET que le point tombe dans la piste (tolérance comprise).
+     * Contrôlé par l'input AVANT la carte entière : la piste possède
+     * son propre geste (press = saut immédiat, drag vivant,
+     * relâchement → hôte notifié).
+     */
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public boolean hitTestDropSlider(float x, float y) {
+        if (view.previewMode != EditorView.PreviewMode.DROP || !drop.isOpen()) {
+            return false;
+        }
+        return drop.hitTestSlider(x, y);
+    }
+
+    /** B27 — presse/drag vivant sur la piste de taille (relais interne). */
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public void dropSliderDragTo(float x, float y) {
+        drop.sliderDragTo(x, y);
+    }
+
+    /**
+     * B27 — presse sur la piste de taille : gèle le repère de la piste
+     * pour le geste puis saute le curseur (relais interne).
+     */
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public void dropSliderPress(float x, float y) {
+        drop.sliderPress(x, y);
+    }
+
+    /**
+     * B27 — relâchement de la piste : notification du hôte pour
+     * persistance (une fois par geste — relais interne).
+     */
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public void dropSliderRelease() {
+        drop.sliderRelease();
+    }
+
+    /**
      * Ouvre l'overlay de feuille popup pour le mode SHEET_* donné.
      * Package-private — les appelants passent par
      * {@link #setPreviewMode(EditorView.PreviewMode)} ou

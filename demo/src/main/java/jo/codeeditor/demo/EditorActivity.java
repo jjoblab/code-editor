@@ -208,7 +208,12 @@ public class EditorActivity extends AppCompatActivity {
 
         editor = new EditorView(this);
         editor.setSchemeBaseTheme(DemoTheme.emeraldNight());
-        editor.setPreviewHost(new DemoPreviewHost());
+        // Retour terrain n°3 : le réglage de taille vit DANS la goutte
+        // (barre du pied, à côté de « fit ») — le hôte persiste le choix
+        // dans les préférences (relu par applyPrefsToEditor au retour).
+        DemoPreviewHost demoHost = new DemoPreviewHost();
+        demoHost.setScalePersistence(scale -> prefs.setPreviewDropScale(scale));
+        editor.setPreviewHost(demoHost);
         // R9 (plan 09) : l'hôte a le dernier mot sur l'EditorInfo — la démo
         // coupe l'apprentissage personnalisé du clavier (frappe de code
         // privé, constante compat API < 26) et journalise les commandes
@@ -566,8 +571,11 @@ public class EditorActivity extends AppCompatActivity {
         editor.setFontLigatures(prefs.ligatures());
         editor.setShowNonPrintable(prefs.nonPrintable());
         // B27 (option propriétaire) : politique de cohabitation goutte
-        // d'eau / popups + taille de la carte — relus ici, appliqués au
-        // frame suivant (Retour des réglages → onResume → ici).
+        // d'eau / popups — relue ici, appliquée au frame suivant (Retour
+        // des réglages → onResume → ici). La TAILLE vit dans la goutte
+        // elle-même (barre du pied, retour terrain n°3) : la préférence
+        // persistée est réappliquée ici, l'utilisateur l'ajuste ensuite
+        // directement dans la carte.
         editor.setPreviewDropPolicy(dropPolicyFrom(prefs.previewDropPolicy()));
         editor.setPreviewDropScale(prefs.previewDropScale());
         editorLight = prefs.lightTheme();

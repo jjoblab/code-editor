@@ -77,6 +77,10 @@ public class DemoPreviewHost implements EditorPreviewHost {
     private CharSequence lastText = null;
     /** Compteur de chargements (observable par le harnais de test). */
     int reloadCount = 0;
+    /** Retour terrain n°3 : sink de PERSISTANCE de la taille choisie
+     *  dans la barre du pied de la goutte (branché par l'atelier sur
+     *  EditorPrefs — null dans les tests, aucun effet). */
+    private java.util.function.Consumer<Float> scaleSink;
 
     @Override
     public boolean canPreview(String fileName) {
@@ -158,6 +162,24 @@ public class DemoPreviewHost implements EditorPreviewHost {
     public void onPreviewDropTabSelected(int index) {
         // Le rendu suivant relit l'index (drawDropPreview reçoit tab) —
         // aucun état à maintenir ici.
+    }
+
+    /**
+     * Retour terrain n°3 — branche le sink de persistance de la barre
+     * de taille de la goutte (l'atelier y écrit ses préférences).
+     */
+    public void setScalePersistence(java.util.function.Consumer<Float> sink) {
+        this.scaleSink = sink;
+    }
+
+    /**
+     * Retour terrain n°3 — l'utilisateur a relâché la barre de taille
+     * du pied de la goutte : le facteur choisi est persisté par
+     * l'atelier (relu au prochain démarrage).
+     */
+    @Override
+    public void onPreviewDropScaleChanged(float scale) {
+        if (scaleSink != null) scaleSink.accept(scale);
     }
 
     /**

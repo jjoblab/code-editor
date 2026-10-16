@@ -80,8 +80,9 @@ public class SettingsActivity extends AppCompatActivity {
                 prefs.nonPrintable()));
 
         // B27 (option propriétaire) : politique de cohabitation goutte
-        // d'eau / popups + taille de la carte — choix segmentés, l'atelier
-        // relit au retour (onResume).
+        // d'eau / popups — choix segmentés, l'atelier relit au retour
+        // (onResume). La TAILLE de la goutte vit DANS la carte (barre du
+        // pied à côté de « fit », retour terrain n°3) : plus ici.
         root.addView(section(R.string.settings_section_preview));
         root.addView(choiceRow(R.string.settings_drop_policy,
                 R.string.settings_drop_policy_hint,
@@ -91,12 +92,6 @@ public class SettingsActivity extends AppCompatActivity {
                 new String[]{"original", "three_layers", "variant_b"},
                 prefs.previewDropPolicy(),
                 prefs::setPreviewDropPolicy));
-        root.addView(choiceRow(R.string.settings_drop_scale,
-                R.string.settings_drop_scale_hint,
-                new String[]{"100 %", "115 %", "130 %", "150 %"},
-                new String[]{"1.0", "1.15", "1.3", "1.5"},
-                String.valueOf(prefs.previewDropScale()),
-                value -> prefs.setPreviewDropScale(Float.parseFloat(value))));
 
         root.addView(section(R.string.settings_section_engine));
         root.addView(switchRow(prefs, R.string.settings_grammars,
@@ -121,7 +116,7 @@ public class SettingsActivity extends AppCompatActivity {
     /**
      * Ligne de choix segmentés (boutons exclusifs) — miroir de
      * {@link #switchRow} pour les réglages à plusieurs valeurs (politique
-     * de cohabitation, taille de la goutte d'eau). La valeur courante est
+     * de cohabitation de la goutte d'eau). La valeur courante est
      * cochée AVANT l'écoute (aucune écriture parasite à l'ouverture).
      */
     private LinearLayout choiceRow(int titleRes, int hintRes, String[] labels,
