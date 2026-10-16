@@ -633,7 +633,7 @@ défaut (`EditorView.PreviewDropPolicy`) :
 |---|---|---|---|
 | `ORIGINAL` (défaut) | carte au premier plan (au-dessus des popups) | aveugle aux popups (bande de frappe seule — maquette d'origine) | carte d'abord : le corps engloutit, la complétion enterrée reste ouverte |
 | `THREE_LAYERS` | carte au premier plan | esquive par obstacles (creux, latéral grand écran, compactage) | complétion d'abord : la surface de frappe gagne toujours |
-| `VARIANT_B` | **z-order inversé : la complétion se dessine AU-DESSUS de la carte — la goutte devient FANTÔME à 10–15 % d'opacité en permanence** (retour terrain n°3 : la complétion reste brute, le code derrière la carte respire ; la tige/œil restent opaques — l'ancre demeure lisible) | aveugle aux popups | complétion d'abord |
+| `VARIANT_B` | **z-order inversé : la complétion se dessine AU-DESSUS de la carte — la goutte devient FANTÔME à 10–15 % d'opacité PENDANT le chevauchement** (retour terrain n°4 : opaque tant qu'aucun popup ne la recouvre, eau à 12 % dès que la complétion passe devant, normale dès qu'elle referme — retour fluide 180 ms ; la tige/œil restent opaques — l'ancre demeure lisible) | aveugle aux popups | complétion d'abord |
 
 En `THREE_LAYERS`, la carte traite les popups vivants comme des
 **obstacles** — elle cherche un creux libre hors de la bande de frappe
@@ -649,13 +649,17 @@ rangée de complétion tapée sous la carte voilée est acceptée ; un tap
 ailleurs referme la complétion puis continue sa cascade. L'aide de
 signature (bannière passive, sans bornes mesurables exposées) ne
 compte pas encore comme obstacle — la liste est extensible côté
-bibliothèque.
+bibliothèque. Le **fantôme de la variante B est son exact miroir** :
+quand un popup recouvre ≥ 10 % de l'AIRE de la carte (hystérésis
+identique), la goutte devient eau à 12 % d'opacité pendant le
+chevauchement et redevient normale (fondu 180 ms) dès qu'il cesse.
 
 ```java
 // La politique (défaut ORIGINAL — la maquette d'origine) :
 editorView.setPreviewDropPolicy(EditorView.PreviewDropPolicy.THREE_LAYERS);
 // La variante B : lisibilité brute, la complétion recouvre la carte —
-// la goutte devient un fantôme translucide à 10–15 % d'opacité :
+// la goutte devient un fantôme translucide à 10–15 % PENDANT que la
+// complétion la chevauche, normale dès qu'elle referme :
 editorView.setPreviewDropPolicy(EditorView.PreviewDropPolicy.VARIANT_B);
 // L'option taille — facteur d'agrandissement borné [1, 1,5] :
 editorView.setPreviewDropScale(1.3f); // carte entière +30 %
