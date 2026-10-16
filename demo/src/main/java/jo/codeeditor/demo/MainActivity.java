@@ -24,6 +24,7 @@ import java.util.Set;
 import jo.codeeditor.document.EditorDocument;
 import jo.codeeditor.highlight.SyntaxHighlighter;
 import jo.codeeditor.session.EditorSession;
+import jo.codeeditor.textmate.TextMateGrammar;
 import jo.codeeditor.textmate.TextMateTokenizerImpl;
 import jo.codeeditor.view.EditorView;
 import jo.codeeditor.view.GutterAction;
@@ -52,6 +53,15 @@ public class MainActivity extends AppCompatActivity {
     private boolean editorLight = false;
     private boolean schemeOn = false;
     private MenuItem languageItem;
+    // C3-sexties (option (a)) : le module de grammaires, gardé en champ
+    // pour la bascule voie grammaires / voie intégrée — package-private
+    // : accès par le test de fumée.
+    TextMateTokenizerImpl textMate;
+    private MaterialButton grammarToggle;
+    // Garde anti-boucle : la resynchronisation programmatique de la
+    // bascule (changement de langage) ne doit pas repasser par le
+    // listener (qui re-stylerait pour rien).
+    private boolean syncingGrammarToggle;
     // B15 (P2-2) : état des points d'arrêt de démo — le fournisseur
     // actif des GutterAction le relit à chaque rendu (armé = accent).
     private final Set<Integer> armedBreakpoints = new HashSet<>();
@@ -63,7 +73,10 @@ public class MainActivity extends AppCompatActivity {
         // :cel-textmate (une seule fois, avant toute vue éditeur) : les
         // langages couverts par une grammaire embarquée (C#) passent au
         // moteur de grammaires, les autres gardent le tokéniseur intégré.
-        SyntaxHighlighter.setTextMateTokenizer(TextMateTokenizerImpl.create());
+        // C3-sexties : l'instance est gardée en champ pour la bascule
+        // « Grammaires TextMate » de la bande du bas (option (a)).
+        textMate = TextMateTokenizerImpl.create();
+        SyntaxHighlighter.setTextMateTokenizer(textMate);
         buildUi();
         loadLanguage("Java", "java");
     }
@@ -155,14 +168,23 @@ public class MainActivity extends AppCompatActivity {
         MaterialButton nonPrintable = toggle(R.string.toggle_non_printable, false);
         MaterialButton theme = toggle(R.string.toggle_theme, false);
         MaterialButton scheme = toggle(R.string.toggle_scheme, false);
+        // C3-sexties (option (a)) : bascule « Grammaires TextMate » — la
+        // voie grammaires CONTRE la voie intégrée pour le langage courant
+        // (java, python, kotlin, css, html, javascript, lua, markdown,
+        // xml, C#…). La vérité vit dans le registre du module
+        // (isAvailable) ; la bascule altère le registre puis restyle.
+        MaterialButton grammars = toggle(R.string.toggle_grammars, false);
         toggles.addView(wrap);
         toggles.addView(minimap);
         toggles.addView(ligatures);
         toggles.addView(nonPrintable);
         toggles.addView(theme);
         toggles.addView(scheme);
+        toggles.addView(grammars);
+        grammarToggle = grammars;
         int[] wrapIds = {wrap.getId(), minimap.getId(), ligatures.getId(),
-                nonPrintable.getId(), theme.getId(), scheme.getId()};
+                nonPrintable.getId(), theme.getId(), scheme.getId(),
+                grammars.getId()};
         for (int i = 0; i < wrapIds.length; i++) toggles.check(wrapIds[i]);
 
         editor.setWordWrap(true);
@@ -174,6 +196,9 @@ public class MainActivity extends AppCompatActivity {
             else if (id == nonPrintable.getId()) editor.setShowNonPrintable(checked);
             else if (id == theme.getId()) applyEditorTheme(checked);
             else if (id == scheme.getId()) applyColorScheme(checked);
+            else if (id == grammars.getId() && !syncingGrammarToggle) {
+                applyGrammarMode(checked);
+            }
         });
 
         // B5 : les boutons d'action montent dans la barre de fil d'Ariane
@@ -245,6 +270,44 @@ public class MainActivity extends AppCompatActivity {
                 () -> armedBreakpoints.contains(line)));
         Toast.makeText(this, getString(R.string.breakpoint_set, line + 1),
                 Toast.LENGTH_SHORT).show();
+    }
+
+    /**
+     * C3-sexties (option (a)) : bascule la voie de coloration du langage
+     * COURANT — grammaire TextMate embarquée contre tokéniseur intégré.
+     *
+     * <p>La vérité vit dans le registre du module ({@code isAvailable}) :
+     * la bascule altère le registre puis restyle (setLanguage déclenche
+     * le restyle complet asynchrone). Le cas {@code html} co-active la
+     * grammaire {@code css} — l'imbrication des blocs {@code <style>}
+     * (include {@code source.css} de la grammaire html) ne colore que
+     * si les deux sont enregistrées ; c'est la vitrine de l'option (c).
+     * Un langage sans grammaire embarquée (php, ruby…) reste à la voie
+     * intégrée et la bascule se désactive visuellement.</p>
+     */
+    void applyGrammarMode(boolean on) {
+        if (textMate == null || session == null) return;
+        // L'échantillon « Minifié (JS) » partage la coloration JS.
+        String id = "minified-js".equals(languageId) ? "javascript" : languageId;
+        if (on) {
+            try {
+                textMate.loadEmbeddedGrammar(id);
+                if ("html".equals(id)) {
+                    textMate.loadEmbeddedGrammar("css");
+                    Toast.makeText(this, R.string.grammars_html_css,
+                            Toast.LENGTH_SHORT).show();
+                }
+            } catch (TextMateGrammar.GrammarException e) {
+                Toast.makeText(this,
+                        getString(R.string.grammars_none, languageLabel),
+                        Toast.LENGTH_SHORT).show();
+                if (grammarToggle != null) grammarToggle.setChecked(false);
+                return;
+            }
+        } else {
+            textMate.unregisterGrammar(id);
+        }
+        session.setLanguage(id);
     }
 
     /** Bascule thème jour/nuit — la base du scheme suit (lot 4 #25). */
@@ -451,6 +514,16 @@ public class MainActivity extends AppCompatActivity {
         session = new EditorSession(EditorDocument.of(sample));
         editor.setSession(session);
         session.setLanguage(editorLanguageId);
+        // C3-sexties : la bascule « Grammaires TextMate » reflète le
+        // registre (la vérité) — C# coché (grammaire-only par défaut),
+        // un langage activé plus tôt reste coché, les autres non. La
+        // resynchronisation passe par la garde anti-boucle.
+        if (grammarToggle != null) {
+            syncingGrammarToggle = true;
+            grammarToggle.setChecked(
+                    textMate != null && textMate.isAvailable(editorLanguageId));
+            syncingGrammarToggle = false;
+        }
         analyzer = new DemoAnalyzer(editor, session, editorLanguageId);
         analyzer.attach();
         // B6 : nom de fichier fictif — déclenche canPreview du hôte

@@ -54,6 +54,10 @@
     <string name="toggle_non_printable">Non-imprimables</string>
     <string name="toggle_theme">Thème clair</string>
     <string name="toggle_scheme">Scheme</string>
+    <!-- C3-sexties (option (a)) : voie grammaires TextMate contre voie intégrée -->
+    <string name="toggle_grammars">Grammaires TextMate</string>
+    <string name="grammars_html_css">Grammaires html + css actives — les blocs &lt;style&gt; sont colorés par la grammaire CSS incluse</string>
+    <string name="grammars_none">Aucune grammaire embarquée pour %1$s — coloration intégrée conservée</string>
 
     <!-- À propos -->
     <string name="about_title">À propos de la démo</string>
@@ -63,6 +67,7 @@
 \u2022 Analyseur factice : diagnostics, complétion, signatures, quick doc et code actions synthétiques \u2014 sans serveur LSP.
 \u2022 Scheme de couleurs : la bascule Scheme applique « Crépuscule ambré » par-dessus le thème (sélection, caret, commentaires, fonctions, javadoc) \u2014 cascade de résolution, purge des caches incluse.
 \u2022 Distinctions fines : javadocs, contrôle de flux (if/for/return), modificateurs (public/static), caractères, chaînes brutes, namespaces XML, entités et emphase Markdown sont colorés distinctement.
+\u2022 Grammaires TextMate : la bascule du bas passe le langage courant (java, python, kotlin, css, html, javascript, lua, markdown, xml, C#) du tokéniseur intégré aux VRAIES grammaires VS Code/TextMate \u2014 sur l\u2019échantillon HTML, les blocs &lt;style&gt; sont colorés par la grammaire CSS incluse.
 
 À essayer :
 \u2022 Tapez un identifiant \u2192 popup de complétion (badges par type).
@@ -74,6 +79,7 @@
 \u2022 Ampoule de la gouttière \u2192 code actions.
 \u2022 Point d\u2019arr\u00eat (menu) \u2192 pill de gouttière sur la ligne du caret, tap sur la pill = armé/désarmé (API GutterAction B15).
 \u2022 Pincez pour zoomer, double-tap pour sélectionner un mot, glissez les poignées (loupe de sélection).
+\u2022 Basculez Grammaires TextMate sur Java puis Kotlin \u2014 comparez la voie grammaires et la voie intégrée.
 
 Clavier physique : Ctrl+Z/Y annuler/rétablir, Ctrl+F recherche, Ctrl+Shift+O aller au symbole.</string>
 </resources>

@@ -185,4 +185,83 @@ public class MainActivitySmokeTest {
             });
         }
     }
+
+    // ── C3-sexties (option (a)) : voie grammaires contre voie intégrée ──
+
+    @Test
+    public void laBasculeGrammairesActivePuisRenvoieALintégré() {
+        try (ActivityScenario<MainActivity> scenario =
+                     ActivityScenario.launch(MainActivity.class)) {
+            scenario.onActivity(activity -> {
+                // C# est « grammaire-only » : chargé par create(), la
+                // bascule reflète le registre dès le lancement.
+                assertTrue("csharp est actif par défaut (grammaire-only)",
+                        activity.textMate.isAvailable("csharp"));
+                // Java démarre à la voie intégrée, la bascule l'active…
+                assertFalse("java démarre à la voie intégrée",
+                        activity.textMate.isAvailable("java"));
+                activity.applyGrammarMode(true);
+                assertTrue("la bascule active la grammaire java",
+                        activity.textMate.isAvailable("java"));
+                // …et la rend : le chemin est additif, réversible.
+                activity.applyGrammarMode(false);
+                assertFalse("la bascule rend le tokéniseur intégré",
+                        activity.textMate.isAvailable("java"));
+            });
+        }
+    }
+
+    @Test
+    public void laBasculeGrammairesSurvitAuChangementDeLangage() {
+        try (ActivityScenario<MainActivity> scenario =
+                     ActivityScenario.launch(MainActivity.class)) {
+            scenario.onActivity(activity -> {
+                // Le registre est global : python activé ici le reste
+                // après un passage par un autre échantillon (la bascule
+                // se resynchronise sur le registre à chaque chargement).
+                activity.loadLanguage("Python", "python");
+                activity.applyGrammarMode(true);
+                assertTrue(activity.textMate.isAvailable("python"));
+                activity.loadLanguage("Java", "java");
+                assertFalse("java n'est pas activé pour autant",
+                        activity.textMate.isAvailable("java"));
+                activity.loadLanguage("Python", "python");
+                assertTrue("python reste actif au retour",
+                        activity.textMate.isAvailable("python"));
+            });
+        }
+    }
+
+    @Test
+    public void laBasculeGrammairesHtmlCoActiveCss() {
+        try (ActivityScenario<MainActivity> scenario =
+                     ActivityScenario.launch(MainActivity.class)) {
+            scenario.onActivity(activity -> {
+                // Option (c) : activer la voie grammaires sur html
+                // co-active css — l'imbrication <style> ne colore que
+                // si les DEUX grammaires sont enregistrées.
+                activity.loadLanguage("HTML", "html");
+                activity.applyGrammarMode(true);
+                assertTrue("la grammaire html est active",
+                        activity.textMate.isAvailable("html"));
+                assertTrue("la grammaire css est co-activée",
+                        activity.textMate.isAvailable("css"));
+            });
+        }
+    }
+
+    @Test
+    public void laBasculeGrammairesSansGrammaireResteIntégrée() {
+        try (ActivityScenario<MainActivity> scenario =
+                     ActivityScenario.launch(MainActivity.class)) {
+            scenario.onActivity(activity -> {
+                // Un langage sans grammaire embarquée (php) : la bascule
+                // ne fait rien de visible, la voie intégrée est gardée.
+                activity.loadLanguage("PHP", "php");
+                activity.applyGrammarMode(true);
+                assertFalse("php reste à la voie intégrée",
+                        activity.textMate.isAvailable("php"));
+            });
+        }
+    }
 }
