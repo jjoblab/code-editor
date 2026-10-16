@@ -3,8 +3,10 @@
 
 # AGENT.md documente lui-même les formulations interdites pour les définir :
 # les lignes qui les citent « entre guillemets » ne sont pas des usages.
-^AGENT\.md:10[5-9].*(Formulations interdites|inspiré de|mieux que|équivalent de|port de|résumé de lecture)
-^AGENT\.md:106.*(comme X|mieux que X|équivalent de X|port de X)
+# (Ancres re-calées sur les lignes 111-114 après le rangement de la
+# documentation — la table des modules d'AGENT.md a gagné cel-textmate.)
+^AGENT\.md:11[0-9].*(Formulations interdites|inspiré de|mieux que|équivalent de|port de|résumé de lecture)
+^AGENT\.md:112.*(comme X|mieux que X|équivalent de X|port de X)
 
 # Le garde-fou et ses tests citent inévitablement les motifs qu'ils vérifient.
 ^scripts/check-external-refs\.sh:.*
