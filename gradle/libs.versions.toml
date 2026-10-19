@@ -23,7 +23,7 @@ junitVintage = "6.1.3"
 robolectric = "4.17"
 # 1.8.0 disponible mais retenue : l'exige compileSdk 35+, lui-même maintenu à
 # dessein en 34 (décision de toolchain du propriétaire — voir la baseline).
-appcompat = "1.7.0"
+appcompat = "1.8.0"
 # 1.14.0 disponible mais retenue : exige compileSdk 35+ (core-ktx 1.16 en
 # transitif) — même décision.
 material = "1.12.0"
