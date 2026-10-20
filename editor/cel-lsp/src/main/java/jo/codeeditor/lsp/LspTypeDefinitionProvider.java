@@ -27,7 +27,7 @@ class LspTypeDefinitionProvider implements TypeDefinitionProvider {
 
     @Override
     public List<DefinitionLocation> typeDefinitions(CharSequence text, int offset) {
-        LanguageServer server = wrapper.getServer();
+        LanguageServer server = editor.readyServer(wrapper); // garde commun 3.74.0 : null si déconnecté (C1)
         if (server == null) return Collections.emptyList();
         org.eclipse.lsp4j.TypeDefinitionParams params = new org.eclipse.lsp4j.TypeDefinitionParams();
         params.setTextDocument(editor.getTextDocumentIdentifier());

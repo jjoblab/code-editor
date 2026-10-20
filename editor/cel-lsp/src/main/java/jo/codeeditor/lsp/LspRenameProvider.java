@@ -39,7 +39,7 @@ class LspRenameProvider implements RenameProvider {
      */
     @Override
     public String prepareRename(CharSequence text, int offset) {
-        LanguageServer server = wrapper.getServer();
+        LanguageServer server = editor.readyServer(wrapper); // garde commun 3.74.0 : null si déconnecté (C1)
         if (server == null || !prepareSupported()) return null;
         editor.flushPendingChange();
         org.eclipse.lsp4j.PrepareRenameParams params = new org.eclipse.lsp4j.PrepareRenameParams(
@@ -91,7 +91,7 @@ class LspRenameProvider implements RenameProvider {
 
     @Override
     public RenameResult rename(CharSequence text, int offset, String newName) {
-        LanguageServer server = wrapper.getServer();
+        LanguageServer server = editor.readyServer(wrapper); // garde commun 3.74.0 : null si déconnecté (C1)
         if (server == null) return null;
         // Flush didChange en attente (cf. complete). Un rename
         // sur un identifiant qui vient d'être tapé doit voir le texte à jour.

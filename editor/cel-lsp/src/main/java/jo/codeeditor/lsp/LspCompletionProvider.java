@@ -46,7 +46,7 @@ class LspCompletionProvider implements CompletionProvider {
     @Override
     public void complete(CharSequence text, int caret, String triggerCharacter,
                          CompletionPublisher publisher) {
-        LanguageServer server = wrapper.getServer();
+        LanguageServer server = editor.readyServer(wrapper); // garde commun 3.74.0 : null si déconnecté (C1)
         if (server == null) {
             log("completion: server is null — not connected?", null);
             return;

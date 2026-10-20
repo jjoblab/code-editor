@@ -607,11 +607,33 @@ public class LspEditor {
     public boolean isConnected() { return connected; }
 
     /**
-     * ★ 3.74.0 — la session document↔serveur est-elle fermée (avant la
-     * première connexion, après {@link #disconnect()}) ? Accès package :
-     * garde des publications de diagnostics tardives.
+     * ★ 3.74.0 — la session document↔serveur est-elle fermée (didClose
+     * parti sans didOpen vivant depuis : après {@link #disconnect()} ou
+     * un échec de connexion) ? Accès package : garde des publications de
+     * diagnostics tardives et des providers.
      */
     boolean isClosed() { return closed; }
+
+    /**
+     * ★ 3.74.0 — garde commun de tous les providers LSP (défense en
+     * profondeur, C1) : le serveur prêt à servir une requête, ou
+     * {@code null} quand la session est fermée (déconnexion) ou que le
+     * serveur n'est pas joignable. Chaque provider remplace son accès
+     * direct au wrapper par CETTE méthode : après une déconnexion, il
+     * renvoie son vide documenté (null / liste vide) et n'envoie
+     * AUCUNE requête — même si un résolveur restait branché par un
+     * hôte qui ne respecte pas le cycle de vie. Le wrapper du provider
+     * sert de repli quand l'éditeur n'est pas passé par connect()
+     * (câblage unitaire direct d'un serveur factice).
+     */
+    org.eclipse.lsp4j.services.LanguageServer readyServer(LanguageServerWrapper providerWrapper) {
+        if (closed) return null;
+        // Le wrapper de l'éditeur (connexion courante) prime ; le
+        // wrapper du provider sert de repli aux câblages directs qui
+        // n'instantient pas l'éditeur par connect() (harnais unitaires).
+        LanguageServerWrapper actif = wrapper != null ? wrapper : providerWrapper;
+        return actif != null ? actif.getServer() : null;
+    }
 
     /** Retourne le {@link LspLanguage} (null tant que non connecté). */
     public LspLanguage getLanguage() { return language; }

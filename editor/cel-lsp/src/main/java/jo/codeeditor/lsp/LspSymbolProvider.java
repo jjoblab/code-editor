@@ -31,7 +31,7 @@ class LspSymbolProvider implements SymbolProvider {
 
     @Override
     public List<jo.codeeditor.lang.model.Symbol> symbols(CharSequence text) {
-        LanguageServer server = wrapper.getServer();
+        LanguageServer server = editor.readyServer(wrapper); // garde commun 3.74.0 : null si déconnecté (C1)
         if (server == null) return Collections.emptyList();
         DocumentSymbolParams params = new DocumentSymbolParams(editor.getTextDocumentIdentifier());
         log("documentSymbol: requesting");

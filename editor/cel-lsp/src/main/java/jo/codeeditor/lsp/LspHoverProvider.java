@@ -27,7 +27,7 @@ class LspHoverProvider implements HoverProvider {
 
     @Override
     public HoverContent hover(CharSequence text, int offset) {
-        LanguageServer server = wrapper.getServer();
+        LanguageServer server = editor.readyServer(wrapper); // garde commun 3.74.0 : null si déconnecté (C1)
         if (server == null) return null;
         // Flush didChange en attente (cf. complete). Le hover
         // déclenché par frappe/live doit voir le texte serveur à jour.

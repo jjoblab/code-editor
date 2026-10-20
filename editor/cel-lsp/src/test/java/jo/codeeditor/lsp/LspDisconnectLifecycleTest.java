@@ -441,7 +441,28 @@ public class LspDisconnectLifecycleTest {
 
     // ── Défense en profondeur : providers muets une fois déconnecté ──
 
-    
+    @Test
+    public void providersMuetsUneFoisDéconnectés() throws Exception {
+        HoteFactice host = new HoteFactice(TEXTE);
+        connecter(host);
+        LspLanguage language = editor.getLanguage();
+        assertNotNull(language.getHoverProvider());
+        assertNotNull(language.getFormatter());
+
+        editor.disconnect();
+        int requêtesAvant = serveur.requêtes.size();
+
+        // Le provider de survol capté avant la déconnexion : muet.
+        assertNull("hover muet une fois déconnecté",
+                language.getHoverProvider().hover(TEXTE, 4));
+        // Le formateur capté avant la déconnexion : muet, texte intact.
+        assertEquals(TEXTE, language.getFormatter().format(TEXTE, 0, TEXTE.length()).toString());
+
+        int nouvelles = serveur.requêtes.size() - requêtesAvant;
+        assertEquals("aucune requête envoyée par un provider déconnecté",
+                0, nouvelles);
+    }
+
     @Test
     public void diagnosticsTardifsIgnorésAprèsDéconnexion() throws Exception {
         HoteFactice host = new HoteFactice(TEXTE);

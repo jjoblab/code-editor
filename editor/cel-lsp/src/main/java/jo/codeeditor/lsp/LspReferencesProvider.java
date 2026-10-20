@@ -32,7 +32,7 @@ class LspReferencesProvider implements ReferencesProvider {
 
     @Override
     public List<DefinitionLocation> references(CharSequence text, int offset) {
-        LanguageServer server = wrapper.getServer();
+        LanguageServer server = editor.readyServer(wrapper); // garde commun 3.74.0 : null si déconnecté (C1)
         if (server == null) return Collections.emptyList();
         // Flush didChange en attente (cf. complete).
         editor.flushPendingChange();

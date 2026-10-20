@@ -20,6 +20,10 @@ class LspDiagnosticsProvider implements DiagnosticsProvider {
 
     @Override
     public List<Diagnostic> computeDiagnostics(CharSequence text) {
+        // Garde commun 3.74.0 (C1) : les diagnostics du fichier fermé ne
+        // sont plus exposés une fois la session fermée (déconnexion) —
+        // le cache est de toute façon vidé par disconnect().
+        if (editor.isClosed()) return java.util.Collections.emptyList();
         // Les diagnostics sont poussés par le serveur via
         // publishDiagnostics, pas tirés. Retourne la liste en cache de
         // l'éditeur.

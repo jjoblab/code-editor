@@ -29,7 +29,7 @@ class LspDocumentHighlightProvider implements DocumentHighlightProvider {
 
     @Override
     public List<DocumentHighlight> highlights(CharSequence text, int offset) {
-        LanguageServer server = wrapper.getServer();
+        LanguageServer server = editor.readyServer(wrapper); // garde commun 3.74.0 : null si déconnecté (C1)
         if (server == null) return Collections.emptyList();
         org.eclipse.lsp4j.DocumentHighlightParams params = new org.eclipse.lsp4j.DocumentHighlightParams();
         params.setTextDocument(editor.getTextDocumentIdentifier());

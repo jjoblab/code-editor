@@ -30,7 +30,7 @@ class LspSignatureHelpProvider implements SignatureHelpProvider {
 
     @Override
     public SignatureHelp signatureHelp(CharSequence text, int caret) {
-        LanguageServer server = wrapper.getServer();
+        LanguageServer server = editor.readyServer(wrapper); // garde commun 3.74.0 : null si déconnecté (C1)
         if (server == null) return null;
         // Flush didChange en attente (cf. complete). La
         // signature-help déclenchée par frappe/live doit voir le texte

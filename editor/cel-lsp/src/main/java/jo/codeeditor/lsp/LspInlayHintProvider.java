@@ -57,7 +57,7 @@ class LspInlayHintProvider implements InlayHintProvider {
 
     @Override
     public List<InlayHint> inlayHints(CharSequence text, int startLine, int endLine) {
-        LanguageServer server = wrapper.getServer();
+        LanguageServer server = editor.readyServer(wrapper); // garde commun 3.74.0 : null si déconnecté (C1)
         if (server == null) return Collections.emptyList();
         // Flush didChange en attente (cf. complete).
         // Les inlay hints sont déduits par inférence de type sur le
@@ -181,7 +181,7 @@ class LspInlayHintProvider implements InlayHintProvider {
         final String commandId = lspCommand.getCommand();
         final List<Object> args = lspCommand.getArguments();
         return () -> {
-            LanguageServer server = wrapper.getServer();
+            LanguageServer server = editor.readyServer(wrapper); // garde commun 3.74.0 : null si déconnecté (C1)
             if (server == null) {
                 log("inlayHint command: serveur parti — ignorée (" + commandId + ")");
                 return;
@@ -210,7 +210,7 @@ class LspInlayHintProvider implements InlayHintProvider {
     @Override
     public InlayHint resolveHint(CharSequence text, InlayHint hint) {
         if (hint == null) return null;
-        LanguageServer server = wrapper.getServer();
+        LanguageServer server = editor.readyServer(wrapper); // garde commun 3.74.0 : null si déconnecté (C1)
         if (server == null || !resolveSupported()) return hint;
         org.eclipse.lsp4j.InlayHint original = serverHints.get(key(hint));
         if (original == null) {

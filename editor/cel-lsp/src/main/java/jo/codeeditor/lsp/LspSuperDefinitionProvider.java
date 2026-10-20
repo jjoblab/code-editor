@@ -32,6 +32,8 @@ class LspSuperDefinitionProvider implements SuperDefinitionProvider {
 
     @Override
     public List<DefinitionLocation> superTargets(CharSequence text, int offset) {
+        // Garde commun 3.74.0 (C1) : aucune requête une fois déconnecté.
+        if (editor.readyServer(wrapper) == null) return Collections.emptyList();
         CodeIdeLanguageServer ext = wrapper.getExtendedServer();
         if (ext == null) {
             return Collections.emptyList();

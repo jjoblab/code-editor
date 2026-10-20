@@ -26,7 +26,7 @@ class LspFormatter implements Formatter {
 
     @Override
     public CharSequence format(CharSequence text, int startOffset, int endOffset) {
-        LanguageServer server = wrapper.getServer();
+        LanguageServer server = editor.readyServer(wrapper); // garde commun 3.74.0 : null si déconnecté (C1)
         if (server == null) return text;
         // Flush didChange en attente (cf. complete / inlayHints).
         // Le formatter LSP calcule des éditions sur le texte serveur — si

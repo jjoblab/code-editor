@@ -77,7 +77,7 @@ class LspCodeActionsProvider implements CodeActionsProvider {
      */
     private List<CodeAction> requestCodeActions(String src, org.eclipse.lsp4j.Range range,
             List<String> onlyKinds) {
-        LanguageServer server = wrapper.getServer();
+        LanguageServer server = editor.readyServer(wrapper); // garde commun 3.74.0 : null si déconnecté (C1)
         if (server == null) return Collections.emptyList();
         // Flush didChange en attente (cf. complete). Les quick-fixes
         // doivent s'appuyer sur le texte live.
