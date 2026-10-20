@@ -566,14 +566,14 @@ class GrammarTokenizerTest {
     }
 
     @Test
-    void classesPosix_traduitesCommeEnOniguruma() {
+    void classesPosix_natives() {
         // [[:alpha:]] (idiome des grammaires python/javascript) :
-        // java.util.regex ne connaît PAS les classes POSIX dans
-        // [\[\]] — sans traduction, la classe se parse en union
-        // littérale {\[, :, a, l, p, h} et « abc » ne matche qu'un
-        // caractère (le nom de fonction coupé en trois). La traduction
-        // RegexCompat doit s'appliquer même sans accolade ni (?# dans
-        // la regex (le chemin rapide sautait la traduction).
+        // NATIF dans le moteur du dialecte (plan 10) — là où
+        // java.util.regex ne connaissait pas les classes POSIX dans
+        // [\[\]] (la classe se parsait en union littérale {\[, :, a,
+        // l, p, h} et « abc » ne matchait qu'un caractère, le nom de
+        // fonction coupé en trois), le port les exécute telles
+        // quelles, sémantique Unicode.
         String source = "{\"scopeName\": \"source.test\", \"patterns\": [{"
                 + "\"match\": \"([[:alpha:]]+)\\\\s*\\\\(\","
                 + "\"captures\": {"
