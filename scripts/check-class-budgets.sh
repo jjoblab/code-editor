@@ -44,6 +44,13 @@ budget() {
     fi
 }
 
+# Plan 11 (2026-10, exigences du propriétaire avant fusion 4.0.0) : le
+# plafond MÉTHODES PUBLIQUES d'EditorSession est relevé de 102 à 104 —
+# deux API nouvelles du régime progressif des grands documents :
+# hintViewport(first, last) (câblée par la vue, priorise la passe
+# d'arrière-plan) et awaitPendingRestyle() rendue publique (les tests
+# E2E d'équivalence du module démo l'exigent, hors package). Le
+# décompte LIGNES baisse par ailleurs (extraction SyntaxSpanQuery).
 # ── Plafonds = valeurs mesurées à l'étape S (Phase 2) ───────────────
 # Écart au ratchet : plafond LIGNES d'EditorView relevé de 3350 à 4100
 # par décision explicite du propriétaire (2026-10, session J2) — marge
@@ -123,7 +130,7 @@ budget editor/cel-ui/src/main/java/jo/codeeditor/view/EditorView.java 4045 178 2
 # (R2 du plan 09, IME) : +1 méthode publique (imeSelectedText — la voie
 # IME bornée au plafond Binder, distincte de selectedText interne) et
 # +7 lignes de javadoc/impl ; le reste de la session est inchangé.
-budget editor/cel-core/src/main/java/jo/codeeditor/session/EditorSession.java 1610 15 102
+budget editor/cel-core/src/main/java/jo/codeeditor/session/EditorSession.java 1610 15 104
 
 # ── Règle de paquet (plan 03, §5) : le client LSP ne référence jamais
 # la vue. cel-lsp programme contre EditorHost (cel-lsp-api) ;

@@ -46,7 +46,7 @@ Cartes de capacité — chaque carte ouvre l'atelier préconfiguré pour
 la fonctionnalité : **Diagnostics LSP Java** (moteur LSP connecté),
 Atelier multi-langages, Grammaires TextMate (C#), Aperçu XML/HTML,
 Stress bundle minifié, Cascade de thèmes. Les chiffres de tête
-(29 langages · 10 grammaires · 5 modules) et l'entrée Réglages.
+(32 langages · 23 grammaires · 5 modules) et l'entrée Réglages.
 
 ### Coquille IDE (`EditorActivity`)
 

@@ -85,14 +85,27 @@ règle muette).
 | Fichier | Langage | Origine | Licence |
 |---|---|---|---|
 | `csharp.tmg.json` | `csharp` | ce dépôt | Apache-2.0 |
+| `c.tmLanguage.json` | `c` | tierce, plan 11 | MIT |
+| `cpp.tmLanguage.json` | `cpp` | tierce, plan 11 | MIT |
 | `css.tmLanguage.json` | `css` | tierce (MIT) | MIT |
+| `dockerfile.tmLanguage.json` | `dockerfile` | tierce, plan 11 | Apache-2.0 |
+| `go.tmLanguage.json` | `go` | tierce, plan 11 | MIT |
 | `html.tmLanguage.json` | `html` | tierce (MIT) | MIT |
 | `java.tmLanguage.json` | `java` | tierce (MIT) | MIT |
 | `javascript.tmLanguage.json` | `javascript` | tierce (MIT) | MIT |
+| `json.tmLanguage.json` | `json` | tierce, plan 11 | MIT |
 | `lua.tmLanguage.json` | `lua` | tierce (MIT) | MIT |
 | `markdown.tmLanguage.json` | `markdown` | tierce (MIT) | MIT |
+| `php.tmLanguage.json` | `php` | tierce, plan 11 | MIT |
 | `python.tmLanguage.json` | `python` | tierce (MIT) | MIT |
+| `ruby.tmLanguage.json` | `ruby` | tierce, plan 11 | MIT |
+| `rust.tmLanguage.json` | `rust` | tierce, plan 11 | MIT |
+| `shell.tmLanguage.json` | `shell` | tierce, plan 11 | MIT |
+| `sql.tmLanguage.json` | `sql` | tierce, plan 11 | MIT |
+| `toml.tmLanguage.json` | `toml` | tierce, plan 11 | MIT |
+| `typescript.tmLanguage.json` | `typescript` | tierce, plan 11 | MIT |
 | `xml.tmLanguage.json` | `xml` | tierce (MIT) | MIT |
+| `yaml.tmLanguage.json` | `yaml` | tierce, plan 11 | MIT |
 | `kotlin.tmLanguage` | `kotlin` | tierce (plist XML) | Apache-2.0 |
 
 Les copies tierces sont **verbatim** (en-têtes d'origine conservés),
@@ -104,13 +117,17 @@ obligation de licence. Les grammaires tierces sont opt-in ;
 
 ## Limites connues (honnêteté du module)
 
-- **Deux portes de garde-fou** — le coût de restyle par grammaire est
-  supérieur au tokéniseur intégré : au-delà de `TEXTMATE_LINE_LIMIT`
-  (800 lignes par document, décision ADR-002 maintenue) OU de
+- **Une porte de garde-fou par ligne** — le coût de restyle par
+  grammaire est supérieur au tokéniseur intégré : au-delà de
   `TEXTMATE_CHAR_LIMIT` (5 000 caractères sur UNE ligne — fichiers
   minifiés HTML/JS/CSS, la décision vivant côté crochet
   `SyntaxHighlighter`), le moteur **retombe** sur le tokéniseur
-  intégré au coût linéaire.
+  intégré au coût linéaire. La porte LIGNES historique
+  (`TEXTMATE_LINE_LIMIT`, 800) a changé de sens au plan 11 : elle
+  devient `TEXTMATE_EAGER_LIMIT`, seuil de bascule vers le régime
+  PROGRESSIF de `cel-core` (états en arrière-plan, spans à la
+  demande) — la coloration riche n'est plus JAMAIS coupée par la
+  taille du document.
 - **Plus riche, pas identique** — la bascule démo « voie intégrée /
   voie grammaires » ne produit PAS un rendu pixel-identique : le
   calibrage C4 aligne les constructions que les deux voies typent

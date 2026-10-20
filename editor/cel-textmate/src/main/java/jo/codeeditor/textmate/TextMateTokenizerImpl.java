@@ -33,12 +33,15 @@ import java.util.Map;
  *       (langage « grammaire-only » : la voie grammaires est la
  *       SEULE pour ce langage) ;</li>
  *   <li>{@code textmate/<lang>.tmLanguage.json} — grammaires
- *       TIERCES vérifiées (MIT, fichiers originaux de l'écosystème
- *       tierces de l'écosystème TextMate — attribution par fichier dans
- *       NOTICE,
- *       décision D3) : {@code css}, {@code html}, {@code java},
- *       {@code javascript}, {@code lua}, {@code markdown},
- *       {@code python}, {@code xml} ; et
+ *       TIERCES vérifiées (MIT/Apache-2.0, fichiers originaux de
+ *       l'écosystème tierces de l'écosystème TextMate — attribution
+ *       par fichier dans NOTICE,
+ *       décision D3) : {@code c}, {@code cpp}, {@code css},
+ *       {@code dockerfile}, {@code go}, {@code html}, {@code java},
+ *       {@code javascript}, {@code json}, {@code php}, {@code python},
+ *       {@code ruby}, {@code rust}, {@code shell}, {@code sql},
+ *       {@code toml}, {@code typescript}, {@code xml}, {@code yaml} ;
+ *       et
  *       {@code textmate/<lang>.tmLanguage} — grammaire plist XML
  *       (format TextMate historique) : {@code kotlin} (Apache-2.0).
  *       Elles sont INACTIVES au démarrage — un langage qui possède
@@ -57,7 +60,7 @@ import java.util.Map;
  * <p>Sans le module (ou pour un langage non couvert), le
  * tokéniseur intégré de {@code :cel-core} reste actif — la voie
  * grammaires est strictement additive. La porte des 800 lignes
- * ({@code TEXTMATE_LINE_LIMIT}) est décidée par l'appelant
+ * ({@code TEXTMATE_EAGER_LIMIT}) est décidée par l'appelant
  * ({@code EditorSession}), pas par ce module.</p>
  */
 public final class TextMateTokenizerImpl implements TextMateTokenizer {
@@ -69,6 +72,25 @@ public final class TextMateTokenizerImpl implements TextMateTokenizer {
     /** Références externes déjà signalées (une fois). */
     private final java.util.Set<String> warnedExternals =
             java.util.Collections.synchronizedSet(new java.util.HashSet<>());
+
+    /**
+     * Instantané IMMUTABLE du registre externe (scopeName → grammaire),
+     * rebâti UNIQUEMENT à l'enregistrement/retrait d'une grammaire
+     * (plan 11, correctif P1-b) : la tokénisation d'une ligne ne
+     * reconstruit plus la carte à chaque appel — sur un document de
+     * centaines de milliers de lignes, c'était autant de HashMap et
+     * de sections synchronisées que de lignes.
+     */
+    private volatile Map<String, TextMateGrammar> externalsSnapshot = Map.of();
+
+    /** Rebâtit l'instantané du registre externe (appelé sous verrou). */
+    private void rebuildExternalsSnapshot() {
+        Map<String, TextMateGrammar> snapshot = new HashMap<>();
+        for (TextMateGrammar g : grammars.values()) {
+            snapshot.put(g.scopeName, g);
+        }
+        externalsSnapshot = java.util.Collections.unmodifiableMap(snapshot);
+    }
 
     /** Constructeur vide — voir {@link #create()} pour le chargement embarqué. */
     public TextMateTokenizerImpl() {
@@ -114,9 +136,12 @@ public final class TextMateTokenizerImpl implements TextMateTokenizer {
 
     /**
      * Active une grammaire TIÈRCE embarquée pour un langage ({@code
-     * css}, {@code html}, {@code java}, {@code javascript}, {@code
-     * kotlin} (plist XML), {@code lua}, {@code markdown}, {@code
-     * python}, {@code xml} — l'inventaire complet et les licences
+     * c}, {@code cpp}, {@code css}, {@code dockerfile}, {@code go},
+     * {@code html}, {@code java}, {@code javascript}, {@code json},
+     * {@code kotlin} (plist XML), {@code lua}, {@code markdown},
+     * {@code php}, {@code python}, {@code ruby}, {@code rust},
+     * {@code shell}, {@code sql}, {@code toml}, {@code typescript},
+     * {@code xml}, {@code yaml} — l'inventaire complet et les licences
      * vivent dans NOTICE). Les grammaires tierces ne sont PAS
      * actives après {@link #create()} : un langage pourvu d'un
      * tokéniseur intégré ne bascule sur la voie grammaires que par
@@ -151,8 +176,10 @@ public final class TextMateTokenizerImpl implements TextMateTokenizer {
         if (source == null) {
             throw new TextMateGrammar.GrammarException(
                     "aucune grammaire embarquée pour « " + norm
-                    + " » (inventaire : csharp, css, html, java, "
-                    + "javascript, kotlin, lua, markdown, python, xml)");
+                    + " » (inventaire : c, cpp, csharp, css, dockerfile, "
+                    + "go, html, java, javascript, json, kotlin, lua, "
+                    + "markdown, php, python, ruby, rust, shell, sql, "
+                    + "toml, typescript, xml, yaml)");
         }
         return registerGrammar(norm, source);
     }
@@ -218,6 +245,7 @@ public final class TextMateTokenizerImpl implements TextMateTokenizer {
         }
         synchronized (grammars) {
             grammars.put(normalize(language), grammar);
+            rebuildExternalsSnapshot();
         }
         return this;
     }
@@ -226,6 +254,7 @@ public final class TextMateTokenizerImpl implements TextMateTokenizer {
     public void unregisterGrammar(String language) {
         synchronized (grammars) {
             grammars.remove(normalize(language));
+            rebuildExternalsSnapshot();
         }
     }
 
@@ -262,6 +291,19 @@ public final class TextMateTokenizerImpl implements TextMateTokenizer {
 
     @Override
     public StyledLine tokenize(String line, int entryState, String language) {
+        return tokenize(line, entryState, language,
+                jo.codeeditor.textmate.regex.MatchBudget.MATCH_TIMEOUT_NS);
+    }
+
+    /**
+     * Tokénise une ligne avec un budget d'essai EXPLICITE (plan 11,
+     * D2) : la demande interactive au fil UI passe un budget réduit
+     * (borne de frozen frame), la passe d'arrière-plan garde le budget
+     * plein. Le repli en non-correspondance reste identique.
+     */
+    @Override
+    public StyledLine tokenize(String line, int entryState, String language,
+            long timeoutNs) {
         TextMateGrammar grammar;
         synchronized (grammars) {
             grammar = grammars.get(normalize(language));
@@ -287,16 +329,13 @@ public final class TextMateTokenizerImpl implements TextMateTokenizer {
         // source.xxx de la grammaire se résolvent vers les AUTRES
         // grammaires enregistrées — l'hôte qui embarque html ET css
         // obtient l'imbrication ; une référence absente dégrade (règle
-        // muette) et est signalée UNE fois via EditorLog.
-        Map<String, TextMateGrammar> externals = new HashMap<>();
-        synchronized (grammars) {
-            for (TextMateGrammar g : grammars.values()) {
-                externals.put(g.scopeName, g);
-            }
-        }
+        // muette) et est signalée UNE fois via EditorLog. L'instantané
+        // IMMUTABLE est lu sans verrou (correctif P1-b : il était
+        // rebâti à CHAQUE ligne).
+        Map<String, TextMateGrammar> externals = externalsSnapshot;
         warnUnresolved(grammar, externals);
         return engine.tokenize(grammar, line == null ? "" : line, entryState,
-                externals);
+                externals, timeoutNs);
     }
 
     /** Signale une seule fois les références externes non résolues —

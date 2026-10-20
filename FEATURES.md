@@ -194,7 +194,7 @@ par responsabilité.
 |----------------|------|---------|-------------|
 | Coloration incrémentale par ligne | ✅ | `highlight/SyntaxHighlighter.java` | État de sortie + cascade stop-rule |
 | Tokéniseurs intégrés (14) | ✅ | `highlight/tokenizer/` | CLike, Xml, Json, Python, Lua, Css, Shell, Yaml, Sql, Properties, Toml, Smali, Log, Markdown |
-| Voie grammaires optionnelle | ✅ | `:cel-textmate` (module optionnel, ADR-002 C3) | Moteur de grammaires TextMate-like (`TextMateTokenizerImpl`, `GrammarTokenizer`, `ScopeMapper`), 10 grammaires embarquées (csharp originale + 9 tierces VERBATIM — attributions dans `NOTICE`), registration hôte par fichier |
+| Voie grammaires optionnelle | ✅ | `:cel-textmate` (module optionnel, ADR-002 C3) | Moteur de grammaires TextMate-like (`TextMateTokenizerImpl`, `GrammarTokenizer`, `ScopeMapper`), 23 grammaires embarquées (csharp originale + 22 tierces VERBATIM — plan 11 : 13 nouvelles, attributions dans `NOTICE`), registration hôte par fichier |
 | Utilitaires de tokénisation | ✅ | `highlight/tokenizer/SpanUtils.java`, `highlight/tokenizer/KeywordTables.java` | Découpage de spans, tables de mots-clés |
 | Distinctions fines de tokens (lot 4 #26) | ✅ | `highlight/TokenType.java`, `tokenizer/CLikeTokenizer.java`, `tokenizer/XmlTokenizer.java`, `tokenizer/MarkdownTokenizer.java` | DOC_COMMENT (état porté), KEYWORD_CONTROL/KEYWORD_MODIFIER (tables partagées), CHAR, RAW_STRING, NAMESPACE, ENTITY (fenêtre 12), EMPHASIS (règle intra-mot `_` vs `*`) — héritent du parent tant qu'un scheme ne les sépare |
 | Interface TextMate optionnelle | ✅ | `highlight/TextMateTokenizer.java` | Point d'extension pour un module TextMate ; repli sur les tokéniseurs intégrés |
@@ -377,10 +377,10 @@ parallèle.
 
 | Indicateur | Valeur |
 |------------|--------|
-| Fichiers source | 286 (`:cel-core` 81 · `:cel-lsp-api` 39 · `:cel-lsp` 45 · `:cel-ui` 98 · `:cel-textmate` 7 · `demo` 16) |
+| Fichiers source | 288 (`:cel-core` 83 · `:cel-lsp-api` 39 · `:cel-lsp` 45 · `:cel-ui` 98 · `:cel-textmate` 7 · `demo` 16) |
 | Fichiers de test | 300 |
 | Lignes de code (main) | ≈ 70 600 (bibliothèques ≈ 64 200 · démo ≈ 6 500) |
-| Tests unitaires | 2 594 (`:cel-core` 1 376 · `:cel-lsp-api` 32 · `:cel-lsp` 185 · `:cel-ui` 839 · `:cel-textmate` 96 · `demo` 66) |
+| Tests unitaires | 2 605 (`:cel-core` 1 385 · `:cel-lsp-api` 32 · `:cel-lsp` 185 · `:cel-ui` 839 · `:cel-textmate` 96 · `demo` 68) |
 | Langages colorés intégrés | 29 |
 | Tokéniseurs intégrés | 14 (+ utilitaires SpanUtils, KeywordTables) |
 | Grammaires embarquées | 10 (`:cel-textmate` : csharp, css, html, java, javascript, kotlin, lua, markdown, python, xml) |

@@ -26,7 +26,7 @@ import java.util.concurrent.atomic.AtomicReference;
 final class RestyleEngine {
 
     private final EditorSession session;
-    private final SyntaxHighlighter highlighter;
+    final SyntaxHighlighter highlighter;
 
     /**
      * Volatile pour que le remplacement par le thread de restyle en arrière-plan
@@ -34,8 +34,22 @@ final class RestyleEngine {
      * synchronisation. La liste elle-même est remplacée (jamais mutée) à
      * chaque restyle : un lecteur itérant une ancienne référence voit donc
      * toujours un instantané cohérent.
+     *
+     * <p>Régime PROGRESSIF (plan 11) : ce champ est alors inutilisé et la
+     * liste servie est {@link #progressive}.</p>
      */
     private volatile List<StyledLine> styledLines;
+
+    /**
+     * Régime PROGRESSIF (plan 11 §2.2) — non null quand le document
+     * dépasse {@link EditorSession#TEXTMATE_EAGER_LIMIT} lignes : liste
+     * paresseuse à deux pistes d'états, remplissage par le worker,
+     * spans à la demande. Bascule décidée à chaque passe COMPLÈTE
+     * (ouverture, changement de langue, annulation) ; l'épissure ne
+     * rebascule que dans le sens eager → progressif (croissance par
+     * édition — un retour arrière attend la prochaine passe complète).
+     */
+    private volatile ProgressiveStyledLines progressive;
 
     // ── Tampons de révision par ligne pour le cache de rendu ──
     // lineTextRevisions[i] n'est incrémenté QUE quand la ligne i est
@@ -58,7 +72,10 @@ final class RestyleEngine {
     }
 
     /** La liste de lignes stylées courante (remplacée à chaque restyle). */
-    List<StyledLine> styledLines() { return styledLines; }
+    List<StyledLine> styledLines() {
+        ProgressiveStyledLines p = progressive;
+        return p != null ? p : styledLines;
+    }
 
     /**
      * Retourne le tampon de révision de texte de la ligne donnée. Le cache de
@@ -82,9 +99,26 @@ final class RestyleEngine {
         for (int i = 0; i < insertion.length(); i++) {
             if (insertion.charAt(i) == '\n') newLineCount++;
         }
+        // Régime PROGRESSIF (plan 11) : déléguer à la liste paresseuse
+        // (pistes d'états, bornes synchrones, worker pour la suite).
+        ProgressiveStyledLines p = progressive;
+        if (p != null) {
+            int purgeEnd = p.splice(firstLine, removedLines, newLineCount);
+            progressiveResizeRevisions(firstLine, removedLines, newLineCount, purgeEnd);
+            notifyShift(firstLine, newLineCount - removedLines);
+            submitProgressiveFill();
+            return;
+        }
+        // Croissance par édition au-delà du seuil eager : basculer en
+        // progressif (l'épissure massive serait un gel UI de centaines
+        // de ms sur la voie intégrée complète, plan 11 §1).
+        if (session.doc.lineCount() > EditorSession.TEXTMATE_EAGER_LIMIT) {
+            switchToProgressive();
+            return;
+        }
         // Porte TextMate calculée depuis la taille de CE document (et non un
         // drapeau statique global partagé entre toutes les sessions).
-        boolean allowTextMate = session.doc.lineCount() <= EditorSession.TEXTMATE_LINE_LIMIT;
+        boolean allowTextMate = session.doc.lineCount() <= EditorSession.TEXTMATE_EAGER_LIMIT;
         for (int i = 0; i < removedLines && firstLine < styledLines.size(); i++) {
             styledLines.remove(firstLine);
         }
@@ -167,9 +201,16 @@ final class RestyleEngine {
 
     /** Re-tokenise TOUTES les lignes du document courant (bloquant). */
     void restyleAll() {
+        // Régime PROGRESSIF (plan 11) : aucune passe complète synchrone
+        // sur un grand document — init bornée + worker.
+        if (session.doc.lineCount() > EditorSession.TEXTMATE_EAGER_LIMIT) {
+            switchToProgressive();
+            return;
+        }
+        progressive = null;
         styledLines.clear();
         // Porte TextMate par appel (et non drapeau statique global).
-        boolean allowTextMate = session.doc.lineCount() <= EditorSession.TEXTMATE_LINE_LIMIT;
+        boolean allowTextMate = session.doc.lineCount() <= EditorSession.TEXTMATE_EAGER_LIMIT;
         int state = LexState.NORMAL;
         for (int i = 0; i < session.doc.lineCount(); i++) {
             String lineText = session.doc.lineText(i);
@@ -281,6 +322,12 @@ final class RestyleEngine {
     private volatile long restyleGeneration = 0;
 
     /**
+     * Détection de plis différée en attente (plan 11) — exécutée par
+     * le worker avant le remplissage des pistes, puis consommée.
+     */
+    private volatile Runnable pendingFolds = null;
+
+    /**
      * Version asynchrone de {@link #restyleAll()}. Lance le travail de
      * tokenization sur un thread en arrière-plan ; le thread UI peut
      * rendre la main immédiatement à l'utilisateur (l'ouverture de fichier
@@ -336,6 +383,13 @@ final class RestyleEngine {
         // strictement monotone pour tous les appelants. (Moniteur = la
         // session, comme historiquement.)
         synchronized (session) {
+        // Régime PROGRESSIF (plan 11) : remise à zéro des pistes +
+        // worker — jamais de passe complète sur un grand document.
+        if (session.doc.lineCount() > EditorSession.TEXTMATE_EAGER_LIMIT) {
+            switchToProgressive();
+            return;
+        }
+        progressive = null;
         // Snapshot de l'état du doc.
         final String textSnapshot = session.doc.getText();
         final int lineCountSnapshot = session.doc.lineCount();
@@ -411,7 +465,7 @@ final class RestyleEngine {
         int state = LexState.NORMAL;
         // Porte TextMate calculée depuis la taille du SNAPSHOT — décidée
         // par passe asynchrone, insensible aux interférences entre sessions.
-        boolean allowTextMate = lineCountSnapshot <= EditorSession.TEXTMATE_LINE_LIMIT;
+        boolean allowTextMate = lineCountSnapshot <= EditorSession.TEXTMATE_EAGER_LIMIT;
         int start = 0;
         for (int i = 0; i < lineCountSnapshot; i++) {
             // Vérifier l'interruption (annulation).
@@ -509,6 +563,220 @@ final class RestyleEngine {
     boolean isAsyncRestylePending() {
         Future<?> task = pendingRestyle.get();
         return task != null && !task.isDone();
+    }
+
+    // ── Régime progressif (plan 11) ────────────────────────────
+
+    /**
+     * Bascule (ou rebascule) en régime progressif : remise à zéro des
+     * pistes pour le document courant, init synchronisée bornée puis
+     * passe d'arrière-plan. Appelé sous moniteur session.
+     */
+    private void switchToProgressive() {
+        cancelPending();
+        ProgressiveStyledLines fresh = new ProgressiveStyledLines(this);
+        progressive = fresh;
+        fresh.resetForCurrentDoc();
+        // Tampons de révision : couvrir le document entier (la vue
+        // relit les lignes à la demande au fil de la couverture).
+        synchronized (session) {
+            lineTextRevisions = new int[session.doc.lineCount()];
+            for (int i = 0; i < lineTextRevisions.length; i++) {
+                lineTextRevisions[i] = ++lineTextRevCounter;
+            }
+        }
+        if (linesShiftListener != null) {
+            linesShiftListener.onLinesReset();
+        }
+        submitProgressiveFill();
+    }
+
+    /** Annule la tâche worker en vol (si aucune). */
+    private void cancelPending() {
+        Future<?> prev = pendingRestyle.getAndSet(null);
+        if (prev != null) {
+            prev.cancel(true);
+        }
+    }
+
+    /**
+     * Soumet la passe de remplissage progressif (piste intégrée puis
+     * piste grammaires, par morceaux interruptibles). Remplace toute
+     * passe en vol — la plus récente gagne.
+     */
+    private void submitProgressiveFill() {
+        if (disposed) {
+            return; // repli : la demande suivante passera par restyleAll
+        }
+        final ProgressiveStyledLines p = progressive;
+        if (p == null) {
+            return;
+        }
+        synchronized (session) {
+            final long myGeneration = ++restyleGeneration;
+            cancelPending();
+            Future<?> task = restyleExecutor.submit(() -> {
+                try {
+                    while (!Thread.interrupted()) {
+                        if (restyleGeneration != myGeneration
+                                || progressive != p || disposed) {
+                            return; // remplacée ou périmée
+                        }
+                        // Détection de plis différée : AVANT le premier
+                        // morceau (la structure avant la couleur).
+                        Runnable folds = pendingFolds;
+                        if (folds != null) {
+                            pendingFolds = null;
+                            folds.run();
+                        }
+                        if (!p.fillNextChunk()) {
+                            return; // remplissage complet
+                        }
+                    }
+                } catch (Exception t) {
+                    jo.codeeditor.util.EditorLog.error("RestyleEngine",
+                            "remplissage progressif échoué", t);
+                }
+            });
+            pendingRestyle.set(task);
+        }
+    }
+
+    /**
+     * Tampons de révision après épissure progressive : le tableau est
+     * redimensionné/décalé comme la liste styledLines eager (préfixe
+     * conservé, aval décalé), et la zone d'instabilité purgée par la
+     * liste paresseuse est incrémentée — le cache de rendu y sera en
+     * cache-miss et relira les spans recalculés.
+     */
+    private void progressiveResizeRevisions(int firstLine, int removedLines,
+            int insertedLines, int purgeEnd) {
+        int n = session.doc.lineCount();
+        int[] old = lineTextRevisions;
+        int[] fresh = new int[n];
+        int keep = Math.min(firstLine, old.length);
+        System.arraycopy(old, 0, fresh, 0, keep);
+        int delta = insertedLines - removedLines;
+        int suffixSrc = firstLine + removedLines;
+        int suffixLen = Math.min(Math.max(0, old.length - suffixSrc),
+                Math.max(0, n - (firstLine + insertedLines)));
+        if (suffixLen > 0) {
+            System.arraycopy(old, suffixSrc, fresh,
+                    firstLine + insertedLines, suffixLen);
+        }
+        int end = Math.min(purgeEnd, n);
+        for (int i = firstLine; i < end; i++) {
+            fresh[i] = ++lineTextRevCounter;
+        }
+        lineTextRevisions = fresh;
+    }
+
+    /** Notifie le cache de rendu du décalage de lignes. */
+    private void notifyShift(int firstLine, int delta) {
+        if (linesShiftListener != null && delta != 0) {
+            linesShiftListener.onLinesShifted(firstLine, delta);
+        }
+    }
+
+    /**
+     * Indique à la passe d'arrière-plan la plage de lignes VISIBLE
+     * (priorité de franchissement + notification de montée en couche).
+     */
+    void hintViewport(int first, int last) {
+        ProgressiveStyledLines p = progressive;
+        if (p != null) {
+            p.hintViewport(first, last);
+        }
+    }
+
+    /**
+     * Détection de plis différée (plan 11) : la passe de découpage du
+     * texte d'un document géant (600 ms à 480k lignes sur desktop,
+     * 1,5-3 s sur mobile) ne doit JAMAIS geler le fil UI — en régime
+     * progressif, la tâche est exécutée par le worker AVANT le
+     * remplissage des pistes (la structure du document arrive avant
+     * la coloration complète). En régime eager (≤ 800 lignes, découpage
+     * de ~1-2 ms), elle reste synchrone — comportement inchangé.
+     */
+    void scheduleFoldDetection(Runnable detection) {
+        ProgressiveStyledLines p = progressive;
+        if (p == null || disposed) {
+            detection.run();
+            return;
+        }
+        pendingFolds = detection;
+        // Si aucune passe n'est en vol (document déjà rempli), en
+        // soumettre une qui exécutera la détection puis s'arrêtera.
+        if (!isAsyncRestylePending()) {
+            submitProgressiveFill();
+        }
+    }
+
+    /** Attend la fin de la passe progressive en vol (tests/diagnostic). */
+    void awaitProgressiveIdle() throws InterruptedException {
+        Future<?> task = pendingRestyle.get();
+        if (task != null) {
+            try {
+                task.get();
+            } catch (java.util.concurrent.ExecutionException e) {
+                jo.codeeditor.util.EditorLog.error("RestyleEngine",
+                        "attente du remplissage progressif échouée", e);
+            }
+        }
+    }
+
+    // ── Hôte de la liste progressive (package, appelés sous lock piste) ──
+
+    /** Le surligneur partagé (voie intégrée + délégation grammaires). */
+    SyntaxHighlighter highlighterForProgressive() {
+        return highlighter;
+    }
+
+    /** Nombre de lignes du document courant. */
+    int progressiveLineCount() {
+        return session.doc.lineCount();
+    }
+
+    /** Texte de la ligne i du document courant (borné). */
+    String progressiveLineText(int i) {
+        jo.codeeditor.document.EditorDocument d = session.doc;
+        if (i < 0 || i >= d.lineCount()) return "";
+        return d.lineText(i);
+    }
+
+    /** Langage courant de la session. */
+    String progressiveLanguage() {
+        return session.language;
+    }
+
+    /**
+     * La voie grammaires est-elle tentée pour la piste grammaires ?
+     * Toujours (la disponibilité réelle par langage est résolue par
+     * {@code styleLine}, et la porte des lignes monstres est gardée
+     * séparément) — la piste intégré reste la couche de repli.
+     */
+    boolean progressiveAllowTextMate() {
+        return true;
+    }
+
+    /** Incrémente le tampon de révision d'une ligne (montée en couche). */
+    void progressiveBumpRevision(int line) {
+        synchronized (session) {
+            if (line >= 0 && line < lineTextRevisions.length) {
+                lineTextRevisions[line] = ++lineTextRevCounter;
+            }
+        }
+    }
+
+    /**
+     * Une plage vient de gagner une couche (franchissement du hint ou
+     * piste complète) : notifier la vue pour qu'elle relise les lignes
+     * concernées (le listener poste sur le fil UI).
+     */
+    void progressiveUpgraded(int from, int to) {
+        if (linesShiftListener != null) {
+            linesShiftListener.onLinesReset();
+        }
     }
 
     // ── Cycle de vie ─────────────────────────────────────────

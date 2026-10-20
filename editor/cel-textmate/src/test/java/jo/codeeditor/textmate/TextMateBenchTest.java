@@ -54,6 +54,20 @@ class TextMateBenchTest {
         m.put("markdown", "**[lien imbriqué](https://example.org)** et du texte");
         m.put("python", "def calcule(montant: float) -> float: return montant * 1.2");
         m.put("xml", "<module état=\"actif\">cellule</module>");
+        // Plan 11 : corpus élargi aux 13 nouvelles grammaires.
+        m.put("c", "static const char *noms[] = { \"aa\", \"bb\" };");
+        m.put("cpp", "template <typename T> class Pile : private std::vector<T> {};");
+        m.put("dockerfile", "RUN apt-get install -y --no-install-recommends curl");
+        m.put("go", "func (s *Serveur) Traite(w io.Writer, r *Requête) error {");
+        m.put("json", "{ \"nom\": \"app\", \"version\": 1.0, \"liste\": [1, 2] }");
+        m.put("php", "public function ajoute(int $a, int $b): int { return $a + $b; }");
+        m.put("ruby", "def mise_en_forme(texte) = texte.strip.gsub(/\\s+/, \" \")");
+        m.put("rust", "pub fn compte_mots(texte: &str) -> HashMap<&str, usize> {");
+        m.put("shell", "for f in *.txt; do echo \"traitement de $f (${#f})\"; done");
+        m.put("sql", "SELECT u.id, COUNT(o.id) AS n FROM utilisateurs u JOIN c");
+        m.put("toml", "serde = { version = \"1\", features = [\"derive\"] }");
+        m.put("typescript", "export interface Point { x: number; y: number }");
+        m.put("yaml", "      - uses: actions/checkout@v4");
         return m;
     }
 

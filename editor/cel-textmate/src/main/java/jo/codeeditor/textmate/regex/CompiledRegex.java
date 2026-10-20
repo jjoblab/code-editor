@@ -70,11 +70,25 @@ public final class CompiledRegex {
         return source;
     }
 
-    /** Matcher lié à une ligne encodée (un par motif × ligne). */
+    /**
+     * Matcher lié à une ligne encodée (un par motif × ligne) — budget
+     * d'essai par défaut ({@link MatchBudget#MATCH_TIMEOUT_NS}).
+     */
     public LineMatcher matcher(EncodedLine line) {
+        return matcher(line, MatchBudget.MATCH_TIMEOUT_NS);
+    }
+
+    /**
+     * Matcher lié à une ligne encodée avec un budget d'essai EXPLICITE
+     * (plan 11, D2) : la demande interactive au fil UI passe un budget
+     * réduit (borne de frozen frame), la passe d'arrière-plan garde le
+     * budget plein — le repli en non-correspondance reste identique,
+     * seule la durée maximale d'un essai change.
+     */
+    public LineMatcher matcher(EncodedLine line, long timeoutNs) {
         return new LineMatcher(this, line,
                 joni.matcher(line.bytes(), 0, line.bytes().length,
-                        MatchBudget.MATCH_TIMEOUT_NS));
+                        timeoutNs));
     }
 
     @Override

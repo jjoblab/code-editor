@@ -86,14 +86,18 @@ class TextMateTokenizerImplTest {
     @Test
     void hasEmbeddedGrammar_sondeSansChargerNiActiver() {
         TextMateTokenizerImpl impl = TextMateTokenizerImpl.create();
-        // L'inventaire complet (dépôt + tierces) est VISIBLE sans
-        // activation — c'est la sonde de visibilité d'une bascule hôte.
-        for (String lang : new String[]{"csharp", "css", "html", "java",
-                "javascript", "kotlin", "lua", "markdown", "python", "xml"}) {
+        // L'inventaire complet (dépôt + tierces, plan 11 : 23) est
+        // VISIBLE sans activation — c'est la sonde de visibilité d'une
+        // bascule hôte.
+        for (String lang : new String[]{"c", "cpp", "csharp", "css",
+                "dockerfile", "go", "html", "java", "javascript", "json",
+                "kotlin", "lua", "markdown", "php", "python", "ruby",
+                "rust", "shell", "sql", "toml", "typescript", "xml",
+                "yaml"}) {
             assertTrue(impl.hasEmbeddedGrammar(lang), "embarquée : " + lang);
         }
         // Langages sans grammaire embarquée : la voie intégrée seule.
-        for (String lang : new String[]{"go", "rust", "sql", "brainfuck"}) {
+        for (String lang : new String[]{"brainfuck", "cobol", "erlang"}) {
             assertFalse(impl.hasEmbeddedGrammar(lang), "absente : " + lang);
         }
         // Null / vide / blanc : faux, sans exception.
@@ -132,22 +136,37 @@ class TextMateTokenizerImplTest {
 
     @Test
     void grammaireTierce_inventaireCompletChargeEtTokénise() {
-        // Les 9 grammaires tierces embarquées chargent (parse
+        // Les 22 grammaires tierces embarquées chargent (parse
         // indulgent C3-bis, plist XML inclus pour kotlin) et
         // tokénisent sans exception — l'échantillon typique de chaque
-        // langage rend un span non vide.
-        String[] langs = {"css", "html", "java", "javascript", "kotlin",
-                "lua", "markdown", "python", "xml"};
+        // langage rend un span non vide (plan 11 : 13 nouvelles).
+        String[] langs = {"c", "cpp", "css", "dockerfile", "go", "html",
+                "java", "javascript", "json", "kotlin", "lua", "markdown",
+                "php", "python", "ruby", "rust", "shell", "sql", "toml",
+                "typescript", "xml", "yaml"};
         String[] samples = {
+                "int main(int argc, char **argv) { return 0; }",
+                "template <typename T> class S : private std::vector<T> {};",
                 "body { color: red; }",
+                "FROM eclipse-temurin:17-jre AS base",
+                "func main() { fmt.Println(\"salut\") }",
                 "<div class=\"x\">texte</div>",
                 "public class Foo { /* x */ }",
                 "const f = (a) => { return `tpl ${a}`; };",
+                "{ \"name\": \"app\", \"version\": 1.0 }",
                 "fun main() { println(\"salut\") } // note",
                 "local function f(x) return x * 2 end",
                 "# Titre avec `code`",
+                "<?php function add(int $a, int $b): int { return $a + $b; }",
                 "def ma_fonction(x):  # commentaire",
-                "<TextView android:text=\"salut\" />"};
+                "module App; class User < ApplicationRecord; end",
+                "pub fn word_count(text: &str) -> usize { 0 }",
+                "#!/usr/bin/env bash\nfor f in *.txt; do echo \"$f\"; done",
+                "SELECT u.id, u.name FROM users u WHERE u.active = TRUE;",
+                "[package]\nname = \"app\"\nversion = \"1.0.0\"",
+                "export interface Point { x: number; y: number }",
+                "<TextView android:text=\"salut\" />",
+                "name: CI\non: [push, pull_request]"};
         for (int i = 0; i < langs.length; i++) {
             TextMateTokenizerImpl impl = TextMateTokenizerImpl.create();
             impl.loadEmbeddedGrammar(langs[i]);

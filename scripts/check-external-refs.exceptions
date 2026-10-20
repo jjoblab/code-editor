@@ -41,3 +41,12 @@
 # (Apache-2.0, provenance vérifiée par UUID de grammaire identique) —
 # obligation de licence, pas un usage de comparaison de ce projet.
 ^NOTICE:URL github\.com/mathiasfrohlich$
+
+# NOTICE documente l'attribution des treize grammaires tierces du plan 11
+# (mêmes obligations de licence MIT/Apache-2.0 que l'entrée précédente,
+# sources amont identifiées par le cgmanifest VS Code) :
+# jeff-hykin (better-c/cpp/shell-syntax), worlpaker (go-syntax),
+# Shopify (ruby-lsp), dustypomerleau (rust-syntax), tamasfe (taplo),
+# redhat-developer (vscode-yaml) — obligations de licence, pas des
+# usages de comparaison de ce projet.
+^NOTICE:URL github\.com/(jeff-hykin|worlpaker|Shopify|dustypomerleau|tamasfe|redhat-developer)$

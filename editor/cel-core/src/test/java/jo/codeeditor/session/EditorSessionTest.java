@@ -466,14 +466,16 @@ class EditorSessionTest {
     }
 
     /**
-     * Document au-delà de TEXTMATE_LINE_LIMIT → le gate local se ferme pour
-     * SA passe de restyle : le parser maison tokenise tout, le tokenizer
-     * enregistré n'est jamais consulté.
+     * Document au-delà de TEXTMATE_EAGER_LIMIT → régime PROGRESSIF
+     * (plan 11, D1) : la coloration riche n'est PLUS coupée — le
+     * tokéniseur enregistré est consulté pour les lignes couvertes
+     * par la piste grammaires (remplissage d'arrière-plan), et le
+     * nombre de lignes stylées correspond au document entier.
      */
     @Test
-    void setLanguage_largeDocument_skipsRegisteredTokenizer() throws Exception {
+    void setLanguage_largeDocument_progressiveDelegation() throws Exception {
         StringBuilder big = new StringBuilder();
-        int lines = jo.codeeditor.session.EditorSession.TEXTMATE_LINE_LIMIT + 1;
+        int lines = jo.codeeditor.session.EditorSession.TEXTMATE_EAGER_LIMIT + 1;
         for (int i = 0; i < lines; i++) {
             big.append("line ").append(i).append('\n');
         }
@@ -482,26 +484,26 @@ class EditorSessionTest {
             EditorSession s = new SessionBuilder(big.toString()).build();
             s.setLanguage("java");
             if (s.isAsyncRestylePending()) s.awaitPendingRestyle();
+            assertEquals(lines + 1, s.getStyledLines().size(),
+                "progressif : la liste couvre tout le document");
             assertTrue(
-                s.getStyledLines().stream().noneMatch(l -> l.spans.stream()
+                s.getStyledLines().stream().anyMatch(l -> l.spans.stream()
                     .anyMatch(x -> x.type == jo.codeeditor.highlight.TokenType.ANNOTATION)),
-                "large doc must skip TextMate (per-call gate closed)");
+                "progressif : le tokéniseur enregistré est consulté (coloration riche non coupée)");
         } finally {
             jo.codeeditor.highlight.SyntaxHighlighter.setTextMateTokenizer(null);
         }
     }
 
     /**
-     * Test clé d'isolation : le drapeau global statique coupé par la
-     * session du gros document ne doit PAS désactiver la délégation
-     * TextMate pour la session du petit document. Le gate étant local
-     * à chaque passe de restyle, les deux sessions coexistent sans
-     * interférer.
+     * Test clé d'isolation : le régime progressif de la session du
+     * gros document ne doit PAS perturber la session du petit
+     * document — chaque session détient SES pistes d'états.
      */
     @Test
     void setLanguage_largeSession_doesNotAffectSmallSession() throws Exception {
         StringBuilder big = new StringBuilder();
-        int lines = jo.codeeditor.session.EditorSession.TEXTMATE_LINE_LIMIT + 1;
+        int lines = jo.codeeditor.session.EditorSession.TEXTMATE_EAGER_LIMIT + 1;
         for (int i = 0; i < lines; i++) {
             big.append("x\n");
         }
@@ -586,16 +588,14 @@ class EditorSessionTest {
     }
 
     /**
-     * Les gros documents utilisent AUSSI le restyle asynchrone : tous les
-     * setLanguage déclenchent restyleAllAsync, peu importe la taille du
-     * doc. Le parser maison est ~10-50x plus rapide que textmate par ligne,
-     * donc même un 5000-lignes se tokenise en moins d'une seconde en
-     * arrière-plan.
+     * Les gros documents restent ASYNCHRONES bout en bout (régime
+     * progressif, plan 11) : jamais de passe complète synchrone, la
+     * liste stylée couvre le document entier à la demande.
      */
     @Test
     void largeDocument_usesSyncRestyle_populatesImmediately() throws Exception {
         StringBuilder big = new StringBuilder();
-        int lines = jo.codeeditor.session.EditorSession.TEXTMATE_LINE_LIMIT + 1;
+        int lines = jo.codeeditor.session.EditorSession.TEXTMATE_EAGER_LIMIT + 1;
         for (int i = 0; i < lines; i++) {
             big.append("x\n");
         }

@@ -55,11 +55,11 @@ public class SyntaxHighlighter {
      * essai de règle par position, plusieurs centaines de µs par tranche
      * de 1000 caractères : le restyle d'un bundle entier s'étale en
      * secondes même sur le fil worker. Alignée avec la porte de lignes
-     * de {@code EditorSession.TEXTMATE_LINE_LIMIT} (nombre de lignes) :
+     * de {@code EditorSession.TEXTMATE_EAGER_LIMIT} (nombre de lignes) :
      * deux axes indépendants du même garde-fou. Toute ligne
      * {@code <=} cette limite est admise telle quelle.
      */
-    static final int TEXTMATE_CHAR_LIMIT = 5000;
+    public static final int TEXTMATE_CHAR_LIMIT = 5000;
 
     /**
      * Tokéniseur TextMate optionnel. S'il est non null et signale
@@ -104,7 +104,7 @@ public class SyntaxHighlighter {
      * <p>La protection contre les gros documents voyage via ce paramètre
      * par appel, calculé à partir de la taille du propre document de
      * l'appelant : {@code EditorSession} passe
-     * {@code lineCount <= TEXTMATE_LINE_LIMIT} afin que deux sessions avec
+     * {@code lineCount <= TEXTMATE_EAGER_LIMIT} afin que deux sessions avec
      * des documents de tailles différentes ne puissent jamais interférer.</p>
      *
      * @param allowTextMate {@code false} contourne entièrement la voie
@@ -113,6 +113,34 @@ public class SyntaxHighlighter {
      */
     public StyledLine styleLine(String line, int entryState, String language,
             boolean allowTextMate) {
+        return styleLine(line, entryState, language, allowTextMate,
+                DEFAULT_TM_TIMEOUT_NS);
+    }
+
+    /**
+     * Budget d'essai par défaut de la voie grammaires (délégué à
+     * l'implémentation du tokéniseur).
+     */
+    static final long DEFAULT_TM_TIMEOUT_NS = Long.MAX_VALUE;
+
+    /**
+     * Budget d'essai INTERACTIF de la voie grammaires (plan 11, D2) :
+     * 10 ms par essai — avec la garde anti-interruptions (3 essais
+     * interrompus par motif et par ligne), la pire frozen frame au fil
+     * UI est bornée à ~30 ms, invisible au doigt. Les lignes
+     * interactivement interrompues sont reprises en arrière-plan au
+     * budget plein (aucune perte de coloration finale).
+     */
+    public static final long INTERACTIVE_TM_TIMEOUT_NS = 10_000_000L;
+
+    /**
+     * Tokénise une ligne unique avec coupe-circuit TextMate local et
+     * budget d'essai EXPLICITE (plan 11, D2) — le chemin interactif
+     * du régime progressif des grands documents passe
+     * {@link #INTERACTIVE_TM_TIMEOUT_NS}.
+     */
+    public StyledLine styleLine(String line, int entryState, String language,
+            boolean allowTextMate, long tmTimeoutNs) {
         // Délégation TextMate (opt-in par langage), gardée par la
         // barrière allowTextMate propre à chaque appel ET par la porte
         // de lignes monstres : une ligne minifiée ne part JAMAIS sur la
@@ -122,7 +150,7 @@ public class SyntaxHighlighter {
         TextMateTokenizer tm = textMateTokenizer;
         if (allowTextMate && tm != null && tm.isAvailable(language)
                 && (line == null || line.length() <= TEXTMATE_CHAR_LIMIT)) {
-            return tm.tokenize(line, entryState, language);
+            return tm.tokenize(line, entryState, language, tmTimeoutNs);
         }
         // Parser maison : répartition par langage, pilotée par le registre :
         // la famille de tokéniseur vient du profil de langage

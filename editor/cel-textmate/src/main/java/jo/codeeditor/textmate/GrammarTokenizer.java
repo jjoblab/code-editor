@@ -177,21 +177,27 @@ public final class GrammarTokenizer {
     }
 
     /**
-     * Tokénise une ligne avec la grammaire et un registre de grammaires
-     * EXTERNES (C3-bis, compatibilité grammaires tierces) : les includes
-     * {@code source.css} et consorts de la grammaire y sont résolus —
-     * portée par portée, la carte est {@code scopeName → grammaire}
-     * (l'hôte construit la vue depuis ses grammaires enregistrées).
-     * Une référence absente du registre ne matche RIEN : la grammaire
-     * mère rend le texte avec ses règles locales — dégradation
-     * documentée (html sans css colorie les balises, pas le contenu
-     * des {@code <style>}).
+     * Tokénise avec registre externe et budget d'essai PAR DÉFAUT
+     * ({@link jo.codeeditor.textmate.regex.MatchBudget#MATCH_TIMEOUT_NS}).
      */
     public StyledLine tokenize(TextMateGrammar grammar, String line, int entryState,
             Map<String, TextMateGrammar> externals) {
+        return tokenize(grammar, line, entryState, externals,
+                jo.codeeditor.textmate.regex.MatchBudget.MATCH_TIMEOUT_NS);
+    }
+
+    /**
+     * Tokénise une ligne avec registre externe et budget d'essai
+     * EXPLICITE (plan 11, D2) : la demande interactive au fil UI passe
+     * un budget réduit, la passe d'arrière-plan garde le budget plein.
+     * Le repli en non-correspondance reste identique — seule la durée
+     * maximale d'un essai change.
+     */
+    public StyledLine tokenize(TextMateGrammar grammar, String line, int entryState,
+            Map<String, TextMateGrammar> externals, long timeoutNs) {
         List<Frame> stack = resolve(entryState);
         List<LineSpan> spans = new ArrayList<>();
-        tokenizeLine(new Ctx(grammar, line, externals), stack, spans);
+        tokenizeLine(new Ctx(grammar, line, externals, timeoutNs), stack, spans);
         // Fusion des spans adjacents de même type (le rendu n'a pas
         // besoin de la granularité règle par règle).
         return new StyledLine(merge(spans), entryState, intern(stack));
@@ -264,18 +270,23 @@ public final class GrammarTokenizer {
          * ne peuvent pas matcher au démarrage d'une ligne). */
         int lastBeginEnd = -1;
 
+        /** Budget d'essai de CE contexte (plan 11, D2) — réduit au fil
+         * UI par l'appelant interactif, plein en passe d'arrière-plan. */
+        final long timeoutNs;
+
         Ctx(TextMateGrammar grammar, String line,
-                Map<String, TextMateGrammar> externals) {
+                Map<String, TextMateGrammar> externals, long timeoutNs) {
             this.grammar = grammar;
             this.line = line;
             this.encoded = EncodedLine.of(line);
             this.externals = externals;
+            this.timeoutNs = timeoutNs;
         }
 
         LineMatcher matcher(CompiledRegex pattern) {
             LineMatcher m = matchers.get(pattern);
             if (m == null) {
-                m = pattern.matcher(encoded);
+                m = pattern.matcher(encoded, timeoutNs);
                 matchers.put(pattern, m);
             }
             return m;
