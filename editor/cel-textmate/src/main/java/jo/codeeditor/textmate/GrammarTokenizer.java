@@ -5,16 +5,18 @@ import jo.codeeditor.highlight.StyledLine;
 import jo.codeeditor.highlight.TokenType;
 import jo.codeeditor.textmate.TextMateGrammar.Rule;
 
-import jo.codeeditor.textmate.internal.RegexCompat;
+import jo.codeeditor.textmate.regex.CompiledRegex;
+import jo.codeeditor.textmate.regex.DialectNormalizer;
+import jo.codeeditor.textmate.regex.EncodedLine;
+import jo.codeeditor.textmate.regex.LineMatcher;
+import jo.codeeditor.textmate.regex.MatchBudget;
+import jo.codeeditor.textmate.regex.RegexCache;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.regex.PatternSyntaxException;
 
 /**
  * Moteur d'application d'une {@link TextMateGrammar} ligne par ligne
@@ -80,14 +82,20 @@ public final class GrammarTokenizer {
 
     /** Fermante ne matchant jamais : les cadres à clause while (sans
      * end) n'ont PAS de fermante en ligne — la clause est une garde de
-     * début de ligne (C3-quinquies). */
-    private static final Pattern NEVER = Pattern.compile("(?!)");
+     * début de ligne (C3-quinquies). Natif dans le dialecte ((?!) =
+     * lookahead vide négatif) : la traduction spécifique disparaît
+     * avec le traducteur (plan 10). */
+    private static final CompiledRegex NEVER = CompiledRegex.compile("(?!)");
 
-    /** Cadre de pile : règle begin/end ouverte, end compilé (backrefs résolues). */
+    /** Cadre de pile : règle begin/end ouverte, end compilé (backrefs
+     * résolues). */
     private static final class Frame {
         final Rule rule;
-        /** Pattern end résolu (backrefs substituées par les groupes du begin). */
-        final Pattern endPattern;
+        /** Fermante résolue (backrefs substituées par les groupes du
+         * begin) — source normalisée = clé de {@link RegexCache} et
+         * identité du cadre (l'égalité compare les SOURCES, pas les
+         * objets compilés). */
+        final CompiledRegex endPattern;
         /** Position de fin du begin (début du contenu) — ancre de
          * l'idiome {@code (?!\G)} : la fermante ne matche qu'une fois
          * le scan DÉPASSÉ ce point (idiome des wrappers
@@ -104,9 +112,9 @@ public final class GrammarTokenizer {
          * il se poursuit tant que le while matche en tête de ligne et
          * se dépile sinon (markdown : bloc de code clôturé par la
          * ligne de clôture, citation poursuivie par son préfixe). */
-        final Pattern whilePattern;
+        final CompiledRegex whilePattern;
 
-        Frame(Rule rule, Pattern endPattern, Pattern whilePattern,
+        Frame(Rule rule, CompiledRegex endPattern, CompiledRegex whilePattern,
                 int contentStart, boolean notGEnd) {
             this.rule = rule;
             this.endPattern = endPattern;
@@ -129,16 +137,16 @@ public final class GrammarTokenizer {
             return rule == f.rule
                     && contentStart == f.contentStart
                     && notGEnd == f.notGEnd
-                    && Objects.equals(endPattern.pattern(), f.endPattern.pattern())
-                    && Objects.equals(whilePattern == null ? null : whilePattern.pattern(),
-                            f.whilePattern == null ? null : f.whilePattern.pattern());
+                    && Objects.equals(endPattern.source(), f.endPattern.source())
+                    && Objects.equals(whilePattern == null ? null : whilePattern.source(),
+                            f.whilePattern == null ? null : f.whilePattern.source());
         }
 
         @Override
         public int hashCode() {
             return 31 * (31 * (31 * System.identityHashCode(rule) + contentStart)
-                    + (notGEnd ? 1 : 0)) + endPattern.pattern().hashCode()
-                    + (whilePattern == null ? 0 : whilePattern.pattern().hashCode());
+                    + (notGEnd ? 1 : 0)) + endPattern.source().hashCode()
+                    + (whilePattern == null ? 0 : whilePattern.source().hashCode());
         }
     }
 
@@ -197,31 +205,27 @@ public final class GrammarTokenizer {
     // ── Moteur d'une ligne ───────────────────────────────────────
 
     /**
-     * Contexte d'une ligne : matchers RÉUTILISÉS (un par Pattern —
-     * l'allocation d'un Matcher par règle×position dominait le coût
+     * Contexte d'une ligne : matchers RÉUTILISÉS (un par motif —
+     * l'allocation d'un matcher par règle×position dominait le coût
      * des grammaires réelles) et includes résolus MÉMOÏSÉS (la
      * résolution allouait une règle synthétique à chaque tentative).
-     * Les matchers sont remis à zéro avant chaque essai — SÉMANTIQUE
-     * DU MATCHER FRAIS : bornes TRANSPARENTES + ancrage désactivé, un
-     * « \b » ou un lookbehind à la position courante voit le VRAI
-     * caractère précédent (la sémantique TextMate d'un matcher lancé
-     * sur la ligne entière), « ^ » ne matche qu'en 0, « \G » ancre à
-     * la frontière de région comme un matcher neuf.
+     * Chaque essai est budgété par la couture (plan 10, règle d'or 5)
+     * ; la sémantique « matcher frais » (lookbehind sur le contexte
+     * gauche, ^ et \A en tête de ligne, \G à la position d'essai) est
+     * native dans le moteur.
      */
     private static final class Ctx {
         final TextMateGrammar grammar;
         final String line;
-        /** Ligne + « \n » VIRTUEL : les grammaires réelles terminent
-         * leurs règles de ligne par un « \n » littéral ou « $ » (le
-         * commentaire de ligne java, par exemple) — sans lui, la
-         * fermante ne matche JAMAIS et le contexte avale le reste du
-         * fichier. Les positions émises sont BORNÉES à la ligne réelle. */
-        final String matchLine;
+        /** Ligne + « \n » VIRTUEL encodée pour le moteur (plan 10) :
+        * les fermantes « \n »/« $ » des règles de ligne MATCHENT en fin
+        * de ligne sans fuiter dans les spans (positions émises
+         * BORNÉES à la ligne réelle). */
+        final EncodedLine encoded;
         final Map<String, TextMateGrammar> externals;
-        /** Identité des Pattern (compilés une fois par règle, partagés) :
-         * Pattern ne met pas hashCode en cache — l'IdentitéHashMap
-         * évite de recalculer l'arbre du pattern à chaque lookup. */
-        final Map<Pattern, Matcher> matchers = new java.util.IdentityHashMap<>();
+        /** Identité des motifs compilés (partagés) : l'IdentitéHashMap
+         * évite le recalcul du hash profond à chaque lookup. */
+        final Map<CompiledRegex, LineMatcher> matchers = new java.util.IdentityHashMap<>();
         final Map<Rule, Rule> resolvedIncludes = new java.util.IdentityHashMap<>();
         /** Règles begin DE LARGEUR NULLE déjà poussées à chaque
          * position (BitSet par règle, index = position) : un lookahead
@@ -242,33 +246,25 @@ public final class GrammarTokenizer {
                 Map<String, TextMateGrammar> externals) {
             this.grammar = grammar;
             this.line = line;
-            this.matchLine = line + "\n";
+            this.encoded = EncodedLine.of(line);
             this.externals = externals;
         }
 
-        Matcher matcher(Pattern pattern) {
-            Matcher m = matchers.get(pattern);
+        LineMatcher matcher(CompiledRegex pattern) {
+            LineMatcher m = matchers.get(pattern);
             if (m == null) {
-                m = pattern.matcher(matchLine);
-                // Bornes posées UNE fois : elles persistent sur le
-                // matcher (réinitialisées par reset(), reposées ici).
-                m.useAnchoringBounds(false);
-                m.useTransparentBounds(true);
+                m = pattern.matcher(encoded);
                 matchers.put(pattern, m);
             }
             return m;
         }
 
-        /** Match ANCRÉ à pos (lookingAt sur région), sans allouer ni
-         * balayer l'aval — équivalent sémantique du matcher frais
-         * lancé à pos sur la ligne (plus le « \n » virtuel). */
-        boolean matchAt(Pattern pattern, int pos, boolean allowEmpty) {
-            Matcher m = matcher(pattern);
-            m.reset();
-            m.region(pos, matchLine.length());
-            m.useAnchoringBounds(false);
-            m.useTransparentBounds(true);
-            if (!m.lookingAt()) return false;
+        /** Match ANCRÉ à pos : équivalent sémantique du matcher frais
+         * lancé à pos sur la ligne (plus le « \n » virtuel), chaque
+         * essai budgété par la couture (règle d'or 5). */
+        boolean matchAt(CompiledRegex pattern, int pos, boolean allowEmpty) {
+            LineMatcher m = matcher(pattern);
+            if (!m.matchAt(pos)) return false;
             return allowEmpty || m.end() > m.start();
         }
 
@@ -321,7 +317,7 @@ public final class GrammarTokenizer {
             Frame top = stack.get(stack.size() - 1);
             if (top.whilePattern == null) break;
             if (ctx.matchAt(top.whilePattern, 0, true)) {
-                Matcher m = ctx.matcher(top.whilePattern);
+                LineMatcher m = ctx.matcher(top.whilePattern);
                 if (m.end() > 0) {
                     emitWithCaptures(m, Map.of(), top.rule.name, spans, limit);
                     pos = Math.min(m.end(), limit);
@@ -526,23 +522,24 @@ public final class GrammarTokenizer {
         }
         if (rule.begin != null) {
             // Ouverture de bloc : résoudre les backrefs du end avec
-            // les groupes du begin, compiler UNE fois, empiler, émettre
-            // le begin — puis rendre la main à la boucle : le contenu
-            // (sous-règles et end) est évalué au tour SUIVANT, en
-            // leftmost, pour qu'un échappement situé AVANT le
-            // fermateur soit consommé par la sous-règle (ex. \" dans
-            // une chaîne) et ne précipite pas la fermeture.
-            // Idiome (?!\G) : préfixe retiré du pattern (garde portée
+            // les groupes du begin, compiler UNE fois (cache LRU de la
+            // couture — plan 10 §3.2), empiler, émettre le begin — puis
+            // rendre la main à la boucle : le contenu (sous-règles et
+            // end) est évalué au tour SUIVANT, en leftmost, pour qu'un
+            // échappement situé AVANT le fermateur soit consommé par la
+            // sous-règle (ex. \" dans une chaîne) et ne précipite pas la
+            // fermeture.
+            // Idiome (?!\G) : préfixe retiré du motif (garde portée
             // par le cadre), ancre = fin du begin.
             boolean notG = rule.end != null && rule.end.startsWith("(?!\\G)");
             String endSrc = notG && rule.end != null
                     ? rule.end.substring(6) : rule.end;
-            Pattern endPat = endSrc != null
+            CompiledRegex endPat = endSrc != null
                     ? resolveEnd(endSrc, step.matcher) : NEVER;
             // Clause while : compilée avec les backrefs du begin (la
             // garde de continuation peut référencer les groupes de
             // l'ouverture, comme une fermante).
-            Pattern whilePat = rule.whileSrc != null
+            CompiledRegex whilePat = rule.whileSrc != null
                     ? resolveEnd(rule.whileSrc, step.matcher) : null;
             // Plafond de profondeur : une grammaire dégénérée ne doit
             // pas empiler sans fin — au-delà, le begin est émis mais
@@ -560,10 +557,12 @@ public final class GrammarTokenizer {
     }
 
     /**
-     * Compile le pattern end avec les backreferences {@code \1..\9}
-     * substituées par les groupes du begin (quoted literals).
+     * Compile la fermante/garde avec les backreferences {@code \1..\9}
+     * substituées par les groupes du begin (quoted literals), via le
+     * cache LRU de la couture — deux ouvertures du même cadre avec la
+     * même capture partagent le motif compilé.
      */
-    private static Pattern resolveEnd(String end, Matcher begin) {
+    private static CompiledRegex resolveEnd(String end, LineMatcher begin) {
         int n = begin.groupCount();
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < end.length(); i++) {
@@ -574,7 +573,7 @@ public final class GrammarTokenizer {
                 if (group <= n) {
                     String g = begin.group(group);
                     if (g != null) {
-                        sb.append(Pattern.quote(g));
+                        sb.append(DialectNormalizer.escapeLiteral(g));
                         i++;
                         continue;
                     }
@@ -583,12 +582,13 @@ public final class GrammarTokenizer {
             sb.append(c);
         }
         try {
-            return Pattern.compile(RegexCompat.translate(sb.toString()));
-        } catch (PatternSyntaxException e) {
+            return RegexCache.getOrCompile(sb.toString());
+        } catch (RuntimeException e) {
             // Garde du contrat « jamais d'échec en coloration » : une
             // fermante au dialecte intraduisible ne ferme jamais (le
             // bloc porte l'état inter-lignes jusqu'au rebouclage).
-            return Pattern.compile("(?!)");
+            MatchBudget.logEndCompileFailure(sb.toString(), e);
+            return NEVER;
         }
     }
 
@@ -611,7 +611,7 @@ public final class GrammarTokenizer {
      *       traitée en dernier) remplace l'externe.</li>
      * </ul>
      */
-    private void emitWithCaptures(Matcher m, Map<Integer, String> captures,
+    private void emitWithCaptures(LineMatcher m, Map<Integer, String> captures,
             String name, List<LineSpan> spans, int limit) {
         int start = Math.min(m.start(), limit);
         int end = Math.min(m.end(), limit);
@@ -686,7 +686,7 @@ public final class GrammarTokenizer {
      * la ligne réelle (le « \n » virtuel peut être consommé par la
      * fermante sans fuiter dans les spans). */
     private static final class Step {
-        final Matcher matcher;
+        final LineMatcher matcher;
         final Rule rule;
         /** Vrai quand le match est le end du sommet de pile (dépilement). */
         final boolean isEnd;
@@ -695,7 +695,7 @@ public final class GrammarTokenizer {
         /** Fin du match, bornée à la ligne. */
         final int end;
 
-        Step(Matcher matcher, Rule rule, boolean isEnd, int limit) {
+        Step(LineMatcher matcher, Rule rule, boolean isEnd, int limit) {
             this.matcher = matcher;
             this.rule = rule;
             this.isEnd = isEnd;

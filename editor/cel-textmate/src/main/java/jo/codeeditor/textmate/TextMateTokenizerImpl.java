@@ -2,6 +2,7 @@ package jo.codeeditor.textmate;
 
 import jo.codeeditor.highlight.StyledLine;
 import jo.codeeditor.highlight.TextMateTokenizer;
+import jo.codeeditor.util.EditorLog;
 
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
@@ -65,7 +66,7 @@ public final class TextMateTokenizerImpl implements TextMateTokenizer {
     private final Map<String, TextMateGrammar> grammars = new HashMap<>();
     /** Moteurs par grammaire (l'interning des piles est par moteur). */
     private final Map<TextMateGrammar, GrammarTokenizer> engines = new HashMap<>();
-    /** Références externes déjà signalées sur stderr (une fois). */
+    /** Références externes déjà signalées (une fois). */
     private final java.util.Set<String> warnedExternals =
             java.util.Collections.synchronizedSet(new java.util.HashSet<>());
 
@@ -76,7 +77,7 @@ public final class TextMateTokenizerImpl implements TextMateTokenizer {
     /**
      * Fabrique l'implémentation avec les grammaires embarquées
      * ({@code textmate/*.tmg.json} du classpath). Un fichier invalide
-     * est signalé sur stderr et ignoré — une grammaire cassée ne doit
+     * est signalé via EditorLog et ignoré — une grammaire cassée ne doit
      * jamais casser le démarrage de l'hôte.
      */
     public static TextMateTokenizerImpl create() {
@@ -102,8 +103,11 @@ public final class TextMateTokenizerImpl implements TextMateTokenizer {
                     registerGrammar(lang, source);
                 }
             } catch (TextMateGrammar.GrammarException e) {
-                System.err.println("cel-textmate: grammaire embarquée invalide ("
-                        + lang + ") : " + e.getMessage());
+                // C1 (plan 10, étape 5) : plus de stderr — le canal
+                // EditorLog de cel-core, inert si l'hôte n'installe rien.
+                EditorLog.get().error("cel-textmate",
+                        "grammaire embarquée invalide (" + lang + ") : "
+                                + e.getMessage(), e);
             }
         }
     }
@@ -175,10 +179,11 @@ public final class TextMateTokenizerImpl implements TextMateTokenizer {
      * Enregistre (ou remplace) la grammaire d'une clé de langage.
      * Lève une {@link TextMateGrammar.GrammarException} sur source
      * illisible — au moment de l'enregistrement, jamais en coloration.
-     * Le parse est INDULGENT (C3-bis) : une règle au dialecte
-     * Oniguruma intraduisible est ignorée avec un avertissement sur
-     * stderr (le gras de la grammaire markdown tierce, qui appelle des
-     * sous-expressions) — la grammaire charge et le reste colorea.
+     * Le parse est INDULGENT (C3-bis) : une règle que le moteur ne peut
+     * pas compiler est ignorée avec un avertissement via EditorLog,
+     * publié UNE FOIS PAR GRAMMAIRE (C7, plan 10) — la grammaire charge
+     * et le reste colorent ; les constructions concernées restent
+     * neutres (dégradation contrôlée, jamais d'échec en coloration).
      * Les sources plist XML (kotlin tierce) sont acceptées :
      * la détection de format est automatique.
      *
@@ -191,9 +196,25 @@ public final class TextMateTokenizerImpl implements TextMateTokenizer {
             throw new IllegalArgumentException("language is blank");
         }
         TextMateGrammar grammar = TextMateGrammar.parse(grammarSource, true);
-        for (String warning : grammar.warnings) {
-            System.err.println("cel-textmate: grammaire " + language
-                    + " — règle ignorée : " + warning);
+        // C7 (plan 10, étape 5) : publication UNE FOIS PAR GRAMMAIRE —
+        // un résumé (nombre + échantillons), jamais un flux par règle
+        // ni par ligne. Les avertissements sont désormais réellement
+        // peuplés (correctif C7 de TextMateGrammar : la liste était
+        // copiée avant le parse et restait vide à jamais).
+        if (!grammar.warnings.isEmpty()) {
+            StringBuilder sb = new StringBuilder("grammaire ").append(language)
+                    .append(" : ").append(grammar.warnings.size())
+                    .append(" règle(s) ignorée(s) au dialecte intraduisible — ");
+            for (int i = 0; i < grammar.warnings.size() && i < 3; i++) {
+                if (i > 0) sb.append(" ; ");
+                String w = grammar.warnings.get(i);
+                sb.append(w.length() > 160 ? w.substring(0, 160) + "…" : w);
+            }
+            if (grammar.warnings.size() > 3) {
+                sb.append(" ; … (").append(grammar.warnings.size() - 3).append(" autres)");
+            }
+            sb.append(" — les constructions concernées ne colorent rien");
+            EditorLog.get().warn("cel-textmate", sb.toString());
         }
         synchronized (grammars) {
             grammars.put(normalize(language), grammar);
@@ -266,7 +287,7 @@ public final class TextMateTokenizerImpl implements TextMateTokenizer {
         // source.xxx de la grammaire se résolvent vers les AUTRES
         // grammaires enregistrées — l'hôte qui embarque html ET css
         // obtient l'imbrication ; une référence absente dégrade (règle
-        // muette) et est signalée UNE fois sur stderr.
+        // muette) et est signalée UNE fois via EditorLog.
         Map<String, TextMateGrammar> externals = new HashMap<>();
         synchronized (grammars) {
             for (TextMateGrammar g : grammars.values()) {
@@ -303,8 +324,10 @@ public final class TextMateTokenizerImpl implements TextMateTokenizer {
         if (missing.size() > 5) {
             sb.append(", … (").append(missing.size() - 5).append(" autres)");
         }
-        sb.append(" — les règles concernées ne colorea rien");
-        System.err.println(sb);
+        sb.append(" — les règles concernées ne colorent rien");
+        // C1 (plan 10, étape 5) : canal EditorLog de cel-core, inert
+        // par défaut — plus de stderr.
+        EditorLog.get().warn("cel-textmate", sb.toString());
     }
 
     private static String normalize(String language) {

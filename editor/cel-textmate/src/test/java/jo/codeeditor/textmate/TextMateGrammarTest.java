@@ -167,23 +167,32 @@ class TextMateGrammarTest {
 
     @Test
     void regexOniguruma_commentairesEtAccolades() {
-        // Deux écarts du dialecte Oniguruma signalés par les grammaires
-        // réelles (java : accolade « { » seule ; python : (?# …)
-        // commentaire inline) — traduits vers java.util.regex au parse.
+        // Constructions du dialecte auparavant TRADUITES (accolade seule
+        // échappée, (?# …) retiré) : natives dans le moteur embarqué
+        // (plan 10) — la traduction a disparu avec le traducteur, ces
+        // tests verrouillent désormais le comportement NATIF.
         TextMateGrammar braces = TextMateGrammar.parse(
                 "{\"scopeName\": \"s\", \"patterns\": "
                         + "[{\"match\": \"\\\\{\", \"name\": \"punct\"}]}");
-        assertTrue(braces.patterns.get(0).match.matcher("{").matches(),
+        assertTrue(matchSur(braces.patterns.get(0).match, "{"),
                 "accolade littérale");
         TextMateGrammar comment = TextMateGrammar.parse(
                 "{\"scopeName\": \"s\", \"patterns\": "
                         + "[{\"match\": \"a(?# comment)b\", \"name\": \"kw\"}]}");
-        assertTrue(comment.patterns.get(0).match.matcher("ab").matches(),
-                "le commentaire inline est retiré");
-        // {3} reste un quantificateur valide — jamais échappé.
+        assertTrue(matchSur(comment.patterns.get(0).match, "ab"),
+                "le commentaire inline est natif");
+        // {3} reste un quantificateur valide — natif, jamais échappé.
         TextMateGrammar quant = TextMateGrammar.parse(
                 "{\"scopeName\": \"s\", \"patterns\": "
                         + "[{\"match\": \"a{3}\", \"name\": \"kw\"}]}");
-        assertTrue(quant.patterns.get(0).match.matcher("aaa").matches());
+        assertTrue(matchSur(quant.patterns.get(0).match, "aaa"));
+    }
+
+    /** Essai ancré du motif compilé sur un texte nu (via la couture). */
+    private static boolean matchSur(jo.codeeditor.textmate.regex.CompiledRegex motif,
+            String texte) {
+        jo.codeeditor.textmate.regex.EncodedLine ligne =
+                jo.codeeditor.textmate.regex.EncodedLine.of(texte);
+        return motif.matcher(ligne).matchAt(0);
     }
 }

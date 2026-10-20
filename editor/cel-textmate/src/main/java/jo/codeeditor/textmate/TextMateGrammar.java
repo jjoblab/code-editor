@@ -2,15 +2,13 @@ package jo.codeeditor.textmate;
 
 import jo.codeeditor.textmate.internal.JsonLite;
 import jo.codeeditor.textmate.internal.PlistParser;
-import jo.codeeditor.textmate.internal.RegexCompat;
+import jo.codeeditor.textmate.regex.CompiledRegex;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeSet;
-import java.util.regex.Pattern;
-import java.util.regex.PatternSyntaxException;
 
 /**
  * Grammaire déclarative chargée depuis un fichier JSON (ADR-002, C3).
@@ -69,10 +67,13 @@ public final class TextMateGrammar {
      * silencieusement. */
     public List<String> externalRefs;
     /** Avertissements du mode indulgent (règle au dialecte
-     * intraduisible — ex. {@code \g<n>}, appel de sous-expression
-     * Oniguruma) : la règle est ignorée, la grammaire charge. Vide en
-     * mode strict (une règle intraduisible lève). */
-    public final List<String> warnings;
+     * intraduisible — ex. {@code \g<n>}, appel de sous-expression du
+     * dialecte) : la règle est ignorée, la grammaire charge. Vide en
+     * mode strict (une règle intraduisible lève).
+     * Installés à la fin du parse (comme {@link #patterns}) : la liste
+     * est remplie PENDANT l'analyse des règles — plan 10, correctif C7
+     * (l'ancienne copie, prise AVANT le parse, restait vide à jamais :\n     * les rejets de règles ne se voyaient nulle part). */
+    public List<String> warnings;
 
     private TextMateGrammar(String scopeName, String name,
             List<Rule> patterns, Map<String, Rule> repository,
@@ -89,13 +90,18 @@ public final class TextMateGrammar {
      * Installe les règles analysées SUR CETTE INSTANCE (seconde phase
      * du parse) : les règles portent déjà cette instance comme owner —
      * une copie ferait pointer les owner vers un repository vide.
+     * Les AVERTISSEMENTS sont installés ICI, une fois l'analyse des
+     * règles terminée (correctif C7, plan 10) : la liste passée au
+     * constructeur est encore vide à ce stade — c'est pendant le parse
+     * des règles qu'elle se remplit.
      * Appelé UNE fois à la fin de {@link #parse}, avant publication.
      */
     private void install(List<Rule> patterns, Map<String, Rule> repository,
-            List<String> externalRefs) {
+            List<String> externalRefs, List<String> warnings) {
         this.patterns = List.copyOf(patterns);
         this.repository = Map.copyOf(repository);
         this.externalRefs = List.copyOf(externalRefs);
+        this.warnings = List.copyOf(warnings);
     }
 
     /**
@@ -159,7 +165,7 @@ public final class TextMateGrammar {
         TreeSet<String> refs = new TreeSet<>();
         for (Rule r : patterns) collectExternals(r, refs);
         for (Rule r : repository.values()) collectExternals(r, refs);
-        grammar.install(patterns, repository, new ArrayList<>(refs));
+        grammar.install(patterns, repository, new ArrayList<>(refs), warnings);
         return grammar;
     }
 
@@ -198,9 +204,9 @@ public final class TextMateGrammar {
         /** Nom déclaratif de la règle (repository) pour les diagnostics. */
         public final String ruleName;
         /** Regex de match simple, ou null pour begin/end / include. */
-        public final Pattern match;
+        public final CompiledRegex match;
         /** Regex d'ouverture de bloc, ou null. */
-        public final Pattern begin;
+        public final CompiledRegex begin;
         /** Regex de fermeture de bloc (backrefs \1..n résolues au vol), ou null. */
         public final String end;
         /** Portée de la zone matched (match) ou de la construction (begin/end). */
@@ -243,7 +249,7 @@ public final class TextMateGrammar {
          * dernier begin » portée par le moteur. Installé au parse. */
         boolean beginNotG;
 
-        Rule(String ruleName, Pattern match, Pattern begin, String end, String name,
+        Rule(String ruleName, CompiledRegex match, CompiledRegex begin, String end, String name,
                 String contentName, String whileSrc, Map<Integer, String> captures,
                 Map<Integer, String> beginCaptures, Map<Integer, String> endCaptures,
                 List<Rule> patterns, String include, TextMateGrammar owner) {
@@ -388,13 +394,12 @@ public final class TextMateGrammar {
                     Map.of(), Map.of(), Map.of(), sub, null, owner);
         }
 
-        private static Pattern compile(String regex, String ruleName) {
+        private static CompiledRegex compile(String regex, String ruleName) {
             try {
-                // Traduction du dialecte Oniguruma (C3-bis) : (?#…)
-                // retirés, accolades seules échappées — les grammaires
-                // java/python/javascript tierces chargent.
-                return Pattern.compile(RegexCompat.translate(regex));
-            } catch (PatternSyntaxException e) {
+                // Compilation native du dialecte (plan 10) : normalisation
+                // des écarts du port, puis moteur — plus aucune traduction.
+                return CompiledRegex.compile(regex);
+            } catch (CompiledRegex.RegexSyntaxException e) {
                 throw new GrammarException("regex invalide dans la règle " + ruleName
                         + " : « " + regex + " » (" + e.getMessage() + ")", e);
             }
