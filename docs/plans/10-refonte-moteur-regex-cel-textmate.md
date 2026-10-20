@@ -403,3 +403,64 @@ en demi-teinte.
 - **Conformité** : 28 cas verts contre la référence C (ancres, Unicode,
   POSIX, possessifs, `\k`, `\g`, lookbehinds, `(?#)`, `(?x)`,
   bornes char↔octet dont paires de substitution) + budget + cache.
+
+
+## 12. Résultats P3 (mesures et clôture)
+
+### 12.1 Banc (étape 11) — TextMateBenchTest
+
+Corpus réel (moyenne sur 20 essais par ligne, une ligne représentative
+par grammaire embarquée) :
+
+| Grammaire | µs/ligne | | Grammaire | µs/ligne |
+|---|---|---|---|---|
+| xml | 110 | | kotlin (plist) | 1 340 |
+| lua | 180 | | javascript | 1 302 |
+| markdown | 271 | | python | 1 690 |
+| csharp | 291 | | html | 2 654 |
+| java | 486 | | css | 2 728 |
+
+Pire grammaire : 2,7 ms/ligne — plafond D4 (10 ms/ligne) respecté
+avec ×3,7 de marge. Les grammaires lourdes (css, html) sont celles au
+plus grand nombre de règles essayées par position ; aucune dérive.
+
+Cas adversarial (grammaire hôte portant `(a+)+$` en règle match,
+essayée à chaque position d'une ligne de 41 caractères) : 3 lignes
+successives en 909 ms — soit ~303 ms/ligne. Sans garde, la ligne
+consommerait « positions × budget » (41 × 100 ms ≈ 4,1 s ; 12,3 s
+pour les trois). **La garde anti-interruptions borne à ~3 × budget
+par ligne** : au troisième essai interrompu d'un même motif, il est
+sauté pour le reste de la ligne (il échouait de toute façon) et le
+rendu dégrade proprement en PLAIN.
+
+### 12.2 Valeurs D4 calées (étape 12 — sans nouveau plan)
+
+| Garde-fou | Valeur | Source |
+|---|---|---|
+| Budget par essai | 100 ms | MatchBudget, mesuré (interruption exacte au budget) |
+| Garde anti-interruptions | 3 par motif et par ligne, puis saut | GrammarTokenizer (nouvelle, §12.1) |
+| Garde anti-boucle (largeur nulle) | 50 étapes, constante nommée MAX_ZERO_WIDTH_STEPS | existente, nommée en P3 |
+| Limites de ligne | 800 lignes / 5 000 caractères | conservées (crochet cel-core) |
+| Cache LRU | 512 motifs | RegexCache |
+
+### 12.3 Clôture
+
+- Version **4.0.0** (versionCode démo 15) ; `CHANGELOG` [4.0.0] ;
+  `NOTICE` complété (dépendance moteur, licences MIT, sommes épinglées,
+  écart du port brut consigné).
+- Démo : échantillon markdown enrichi — section « crochets imbriqués »
+  (gras, italique, image, lien imbriqué dans du gras) exerçant la
+  récursion native.
+- Contribution amont au port (lookbehind avec backref, groupes
+  variables en lookbehind) : proposée hors dépôt — la forme du texte
+  est prête, elle attend l'envoi au propriétaire.
+
+### 12.4 Point d'arrêt : GO
+
+Banc conforme (D4) ✓ — les critères de sortie P3 du §8 sont franchis.
+**GO recommandé pour la fusion de `feature/4.0`** — la décision
+d'appartient au propriétaire (fusion et publication sur son ordre,
+comme convenu pour toute la session). L'empreinte Android (dex/AAR
+après R8) reste à mesurer sur le poste de publication : l'étude n'a
+pas de SDK Android de build d'AAR ; les jars font 2,0 Mo avant
+shrinking ( licences consignées, module optionnel côté hôte).
