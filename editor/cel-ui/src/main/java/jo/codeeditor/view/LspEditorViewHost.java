@@ -86,4 +86,23 @@ public class LspEditorViewHost implements EditorHost {
         android.os.Looper main = android.os.Looper.getMainLooper();
         return main != null && main == android.os.Looper.myLooper();
     }
+
+    /**
+     * ★ 3.74.0 — options de formatage posées par l'application hôte sur
+     * la vue ({@code EditorView.setFormattingOptions}), ou -1 si aucune.
+     */
+    @Override
+    public int formattingTabSize() {
+        Integer posed = view.posedTabSize;
+        return posed != null ? posed : -1;
+    }
+
+    /**
+     * ★ 3.74.0 — espaces vs tabulations posés par l'application hôte sur
+     * la vue, ou null si aucune valeur (détection dans le document).
+     */
+    @Override
+    public Boolean formattingInsertSpaces() {
+        return view.posedInsertSpaces;
+    }
 }

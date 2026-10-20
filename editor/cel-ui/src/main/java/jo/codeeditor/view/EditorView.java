@@ -3815,6 +3815,33 @@ public class EditorView extends View {
         return formatterResolver != null && formatterResolver.supportsRange();
     }
 
+    /**
+     * Options de formatage posées par l'hôte (largeur de tabulation,
+     * espaces vs tabulations). Prioritaires sur l'indentation détectée
+     * dans le document ; sans appel, le formateur détecte l'indentation
+     * du document (repli 4 espaces).
+     *
+     * <p>Typique : alimenter depuis le réglage « largeur de tabulation »
+     * de l'application, à chaque changement d'onglet si le réglage y est
+     * par fichier.</p>
+     *
+     * <p>Thread UI. Les options sont lues par le formateur du langage
+     * courant sur sa voie de travail (champs volatils).</p>
+     *
+     * @param tabSize      largeur de tabulation (doit être >= 1)
+     * @param insertSpaces vrai = indenter avec des espaces
+     * @since 3.74.0
+     */
+    public void setFormattingOptions(int tabSize, boolean insertSpaces) {
+        posedTabSize = Math.max(1, tabSize);
+        posedInsertSpaces = insertSpaces;
+    }
+
+    /** Options de formatage posées par l'hôte (null = non posées) — accès pont LSP. */
+    volatile Integer posedTabSize;
+    /** Options de formatage posées par l'hôte (null = non posées) — accès pont LSP. */
+    volatile Boolean posedInsertSpaces;
+
     /** Referme le popup go-to-symbol. */
     public void dismissGoToSymbol() {
         popupManager.dismissGoToSymbol();

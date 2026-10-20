@@ -119,4 +119,32 @@ public interface EditorHost {
     default boolean isOnUiThread() {
         return !isAttachedToWindow();
     }
+
+    /**
+     * Largeur de tabulation demandée pour le formatage du document,
+     * telle que posée par l'application hôte sur son éditeur — ou une
+     * valeur {@code <= 0} si aucune n'a été posée (le formateur détecte
+     * alors l'indentation du document, repli 4 espaces).
+     *
+     * <p>Source des options de formatage par ordre de priorité :
+     * valeur posée par l'hôte → indentation détectée dans le document →
+     * 4 espaces.</p>
+     *
+     * @since 3.74.0
+     */
+    default int formattingTabSize() {
+        return -1;
+    }
+
+    /**
+     * Le formatage doit-il insérer des espaces plutôt que des
+     * tabulations ? Valeur posée par l'application hôte, ou {@code null}
+     * si aucune n'a été posée (détection dans le document : tabulations
+     * détectées → tabulations conservées).
+     *
+     * @since 3.74.0
+     */
+    default Boolean formattingInsertSpaces() {
+        return null;
+    }
 }

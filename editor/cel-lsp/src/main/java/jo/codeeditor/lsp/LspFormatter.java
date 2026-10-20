@@ -4,7 +4,6 @@ import jo.codeeditor.lang.provider.Formatter;
 import org.eclipse.lsp4j.services.LanguageServer;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Traduit le formatage de document du SPI éditeur en requête LSP
@@ -38,6 +37,10 @@ class LspFormatter implements Formatter {
             org.eclipse.lsp4j.DocumentFormattingParams params =
                 new org.eclipse.lsp4j.DocumentFormattingParams();
             params.setTextDocument(editor.getTextDocumentIdentifier());
+            // ★ 3.74.0 : le protocole exige des options de formatage
+            // (tabSize, insertSpaces) — sans elles, un serveur strict
+            // peut rejeter la requête.
+            params.setOptions(optionsDeFormatage(text));
             CompletableFuture<List<org.eclipse.lsp4j.TextEdit>> future =
                 (CompletableFuture<List<org.eclipse.lsp4j.TextEdit>>) (CompletableFuture<?>)
                 server.getTextDocumentService().formatting(params);
@@ -58,5 +61,46 @@ class LspFormatter implements Formatter {
         } catch (Exception e) {
             return text;
         }
+    }
+
+    /**
+     * ★ 3.74.0 — options de formatage de la requête (tabSize,
+     * insertSpaces). Source par ordre de priorité :
+     * <ol>
+     *   <li>valeur posée par l'application hôte
+     *       ({@link jo.codeeditor.lang.host.EditorHost#formattingTabSize()}
+     *       / {@link jo.codeeditor.lang.host.EditorHost#formattingInsertSpaces()},
+     *       relayées par {@code EditorView.setFormattingOptions}) ;</li>
+     *   <li>sinon indentation détectée dans le document (unité
+     *       statistique tabulation contre 2/4/8 espaces — tabulations
+     *       détectées → tabulations conservées) ;</li>
+     *   <li>sinon 4 espaces.</li>
+     * </ol>
+     * Les options LSP facultatives (trimTrailingWhitespace,
+     * insertFinalNewline…) restent hors périmètre.
+     */
+    private org.eclipse.lsp4j.FormattingOptions optionsDeFormatage(CharSequence text) {
+        int tabSize = -1;
+        Boolean insertSpaces = null;
+        jo.codeeditor.lang.host.EditorHost host = editor.getHost();
+        if (host != null) {
+            int posed = host.formattingTabSize();
+            if (posed > 0) tabSize = posed;
+            insertSpaces = host.formattingInsertSpaces();
+        }
+        if (tabSize < 0 || insertSpaces == null) {
+            String unit = jo.codeeditor.edit.EditOps.detectIndentUnit(text);
+            if ("\t".equals(unit)) {
+                // Tabulations détectées → tabulations conservées ; la
+                // largeur visuelle d'une tabulation n'est pas décelable
+                // dans le texte, repli 4.
+                if (tabSize < 0) tabSize = 4;
+                if (insertSpaces == null) insertSpaces = Boolean.FALSE;
+            } else {
+                if (tabSize < 0) tabSize = unit.length();
+                if (insertSpaces == null) insertSpaces = Boolean.TRUE;
+            }
+        }
+        return new org.eclipse.lsp4j.FormattingOptions(tabSize, insertSpaces.booleanValue());
     }
 }
