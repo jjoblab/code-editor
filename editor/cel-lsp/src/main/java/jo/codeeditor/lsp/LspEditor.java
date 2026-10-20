@@ -37,9 +37,32 @@ public class LspEditor {
     private final String fileUri;
     private final String ext;
     private LanguageServerWrapper wrapper;
-    private LspLanguage language;
+    private volatile LspLanguage language;
     private EditorHost host;
     private volatile boolean connected = false;
+
+    /**
+     * ★ 3.74.0 — vrai quand la session document↔serveur est FERMÉE :
+     * un didClose est parti (ou la connexion a échoué) sans didOpen
+     * vivant depuis. Les publications de diagnostics tardives (serveur
+     * qui n'a pas encore traité le didClose) sont ignorées : elles
+     * décrivent le fichier fermé et ne doivent pas marquer le document
+     * du nouvel onglet. Faux à la naissance et pendant une connexion
+     * vivante — un éditeur jamais connecté reste « ouvert » : les
+     * harnais qui câblent un serveur factice directement sur les
+     * providers (sans le cycle de vie complet) gardent le comportement
+     * historique.
+     */
+    private volatile boolean closed = false;
+
+    /**
+     * ★ 3.74.0 (C1c) — l'écouteur d'éditions posé sur la session hôte
+     * par la connexion courante. Conservé pour être RETIRÉ à la
+     * déconnexion (il ne doit pas survivre au fichier qu'il suit :
+     * sinon il continue d'alimenter le serveur avec le texte du nouvel
+     * onglet sous l'URI du fichier fermé).
+     */
+    private volatile jo.codeeditor.session.EditorSession.OnTextEditListener editListener;
 
     /**
      * Le language SPI est-il posé sur l'hôte ? Les tirs
@@ -106,6 +129,9 @@ public class LspEditor {
     public synchronized java.util.concurrent.CompletableFuture<Void> connect() {
         if (connected) return java.util.concurrent.CompletableFuture.completedFuture(null);
         wrapper = project.getWrapper(ext);
+        // La session document↔serveur s'ouvre : les publications de
+        // diagnostics redeviennent acceptables (cf. closed).
+        closed = false;
         final LspLogSink logSink = project.getLogSink();
         log(logSink, "connect: starting wrapper...");
         return wrapper.start().thenRun(() -> {
@@ -142,19 +168,25 @@ public class LspEditor {
                     // de l'édition (O(log n)) et capture la rope (O(1)) :
                     // plus AUCUNE matérialisation du document par frappe
                     // (l'ancien pont appelait getText() à chaque édition).
-                    h.session().addOnTextEditListener(
-                            new jo.codeeditor.session.EditorSession.OnTextEditListener() {
-                        @Override
-                        public void onTextEdit(int start, int end, String inserted) {
-                            // Variante héritée — le pont surcharge la 4-arg.
-                        }
-                        @Override
-                        public void onTextEdit(int start, int end,
-                                String inserted, String removed) {
-                            self.onTextEdit(h.session(),
-                                    start, end, inserted, removed);
-                        }
-                    });
+                    // ★ 3.74.0 (C1c) : l'écouteur est conservé pour être
+                    // retiré à la déconnexion.
+                    if (h.session() != null) {
+                        jo.codeeditor.session.EditorSession.OnTextEditListener listener =
+                                new jo.codeeditor.session.EditorSession.OnTextEditListener() {
+                            @Override
+                            public void onTextEdit(int start, int end, String inserted) {
+                                // Variante héritée — le pont surcharge la 4-arg.
+                            }
+                            @Override
+                            public void onTextEdit(int start, int end,
+                                    String inserted, String removed) {
+                                self.onTextEdit(h.session(),
+                                        start, end, inserted, removed);
+                            }
+                        };
+                        h.session().addOnTextEditListener(listener);
+                        editListener = listener;
+                    }
                     // Le SPI est posé — les folds serveur peuvent désormais
                     // s'appliquer sans être écrasés par le detectFolds lexical
                     // de setLanguage. Premier tir dès maintenant (les tirs
@@ -226,11 +258,71 @@ public class LspEditor {
         foldPuller.scheduleFoldPull();
     }
 
-    /** Se déconnecte du serveur (envoie didClose). */
+    /**
+     * ★ 3.74.0 (C1) — se déconnecte du serveur de façon idempotente et
+     * referme TOUTES les capacités LSP sur l'hôte :
+     * <ol>
+     *   <li>envoie {@code didClose} au serveur ;</li>
+     *   <li>retire l'écouteur d'éditions de la session hôte (C1c) ;</li>
+     *   <li><b>restaure {@code EmptyLanguage}</b> sur l'hôte
+     *       ({@code host.setLanguage(null)}) avec la même règle de thread
+     *       que {@code connect()} — sans langage LSP connecté à la vue,
+     *       TOUTES les capacités LSP sont fermées (aucun résolveur actif,
+     *       aucune requête envoyée) ;</li>
+     *   <li>vide le cache de diagnostics et les diagnostics de la session
+     *       hôte (aucune marque du fichier fermé ne survit au changement
+     *       d'onglet), remet {@code language} à {@code null}.</li>
+     * </ol>
+     * Un second appel ne fait rien (idempotent).
+     */
     public synchronized void disconnect() {
-        if (!connected) return;
-        synchronizer.sendDidClose();
+        if (!connected && language == null) {
+            // Jamais connecté, ou déjà déconnecté (idempotent).
+            closed = true;
+            return;
+        }
         connected = false;
+        closed = true;
+        synchronizer.sendDidClose();
+        // Retire l'écouteur d'éditions (C1c) : sans cela, il continue
+        // d'envoyer didChange avec le texte du NOUVEL onglet sous l'URI
+        // du fichier fermé.
+        EditorHost h = host;
+        jo.codeeditor.session.EditorSession.OnTextEditListener listener = editListener;
+        editListener = null;
+        if (h != null && listener != null && h.session() != null) {
+            h.session().removeOnTextEditListener(listener);
+        }
+        // Purge les diagnostics : le cache ne doit plus rien exposer et
+        // la session ne doit plus porter les marques du fichier fermé.
+        diagnostics.clear();
+        if (h != null && h.session() != null) {
+            Runnable purge = () -> {
+                if (closed && h.session() != null) {
+                    h.session().setDiagnostics(new java.util.ArrayList<>());
+                    h.notifyDiagnosticsChanged();
+                }
+            };
+            if (h.isAttachedToWindow()) {
+                h.post(purge);
+            } else {
+                purge.run();
+            }
+        }
+        // Restaure EmptyLanguage — UNIQUEMENT si un langage avait été posé
+        // (sinon la restauration effacerait un langage posé par
+        // l'application entre-temps). Même règle de thread que connect().
+        if (h != null && languageApplied) {
+            Runnable restore = () -> h.setLanguage(null);
+            if (h.isAttachedToWindow()) {
+                h.post(restore);
+            } else {
+                restore.run();
+            }
+        }
+        language = null;
+        languageApplied = false;
+        log(project.getLogSink(), "disconnect: didClose envoyé, EmptyLanguage restauré, écouteur retiré");
     }
 
     /**
@@ -452,6 +544,13 @@ public class LspEditor {
 
     /** Retourne true si connecté au serveur. */
     public boolean isConnected() { return connected; }
+
+    /**
+     * ★ 3.74.0 — la session document↔serveur est-elle fermée (avant la
+     * première connexion, après {@link #disconnect()}) ? Accès package :
+     * garde des publications de diagnostics tardives.
+     */
+    boolean isClosed() { return closed; }
 
     /** Retourne le {@link LspLanguage} (null tant que non connecté). */
     public LspLanguage getLanguage() { return language; }

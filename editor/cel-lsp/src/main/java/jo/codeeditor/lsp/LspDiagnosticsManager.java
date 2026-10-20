@@ -43,6 +43,17 @@ class LspDiagnosticsManager {
      * invalide la vue.
      */
     void publishDiagnostics(PublishDiagnosticsParams params) {
+        // ★ 3.74.0 : les publications tardives d'une session fermée
+        // (serveur qui n'a pas encore traité le didClose) décrivent le
+        // fichier FERMÉ — elles ne doivent ni marquer le document du
+        // nouvel onglet ni nourrir un cache obsolète. La fenêtre
+        // didOpen→connected reste ouverte (closed passe à false dès
+        // connect(), avant la poignée de main).
+        if (editor.isClosed()) {
+            jo.codeeditor.util.EditorLog.info("LspEditor",
+                "publishDiagnostics ignoré (session fermée)");
+            return;
+        }
         List<Diagnostic> diags = new ArrayList<>();
         if (params.getDiagnostics() != null) {
             for (org.eclipse.lsp4j.Diagnostic lspDiag : params.getDiagnostics()) {
@@ -87,6 +98,10 @@ class LspDiagnosticsManager {
         if (host != null) {
             final List<Diagnostic> diagsFinal = diags;
             Runnable push = () -> {
+                // ★ 3.74.0 : re-contrôle à l'exécution — la déconnexion a
+                // pu survenir entre la réception et le passage effectif
+                // sur le thread UI.
+                if (editor.isClosed()) return;
                 EditorHost current = editor.getHost();
                 if (current != null && current.session() != null) {
                     current.session().setDiagnostics(
@@ -119,6 +134,16 @@ class LspDiagnosticsManager {
             // session.applyCodeFolds (état utilisateur préservé).
             editor.scheduleFoldPull();
         }
+    }
+
+    /**
+     * ★ 3.74.0 — vide les caches (déconnexion) : les diagnostics du
+     * fichier fermé ne doivent plus être exposés par
+     * {@link LspDiagnosticsProvider} après la déconnexion.
+     */
+    void clear() {
+        cachedDiagnostics = new CopyOnWriteArrayList<>();
+        cachedLspDiagnostics = new CopyOnWriteArrayList<>();
     }
 
     /** Convertit notre liste de Diagnostic vers l'ancien format DiagnosticShift.Diagnostic. */
