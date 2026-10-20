@@ -18,6 +18,11 @@ gson = "2.14.0"
 # l'adoption exige d'implémenter les éditions SNIPPET dans l'application
 # d'édits (lot de fonctionnalité à part entière, tests délibérés requis).
 lsp4j = "0.22.0"
+# Plan 10 (D3) : moteur d'expressions rationnelles du dialecte des grammaires
+# TextMate — dépendance unique du module cel-textmate (licences MIT,
+# attributions et épinglage des sommes dans NOTICE). Pur Java, JDK 8.
+joni = "2.2.7"
+jcodings = "1.0.64"
 junitJupiter = "6.1.3"
 junitVintage = "6.1.3"
 robolectric = "4.17"
@@ -40,6 +45,9 @@ junit-jupiter = { group = "org.junit.jupiter", name = "junit-jupiter", version.r
 junit-platform-launcher = { group = "org.junit.platform", name = "junit-platform-launcher" }
 junit-vintage-engine = { group = "org.junit.vintage", name = "junit-vintage-engine", version.ref = "junitVintage" }
 robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
+# Plan 10 (D3) : couture jo.codeeditor.textmate.regex — moteur du dialecte.
+joni = { group = "org.jruby.joni", name = "joni", version.ref = "joni" }
+jcodings = { group = "org.jruby.jcodings", name = "jcodings", version.ref = "jcodings" }
 # Dépendances propres à la démo (A-03 : le catalogue couvre l'ensemble du build)
 androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
 material = { group = "com.google.android.material", name = "material", version.ref = "material" }
