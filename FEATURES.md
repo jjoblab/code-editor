@@ -301,9 +301,9 @@ et les barres d'habillage dans `view/chrome/`.
 |----------------|------|---------|-------------|
 | LspLanguage (adaptateur Language) | ✅ | `lsp/LspLanguage.java` | Orchestration des providers |
 | Fournisseurs LSP (14) | ✅ | `lsp/Lsp*Provider.java` | Completion, Diagnostics, Hover, Definition, TypeDefinition, Implementations, SuperDefinition, References, Rename, CodeActions, Symbol, SignatureHelp, InlayHint, DocumentHighlight |
-| LspEditor | ✅ | `lsp/LspEditor.java` + `LspDocumentSynchronizer`, `LspDiagnosticsManager`, `LspSemanticTokensPuller`, `LspFoldPuller`, `LspWorkspaceEditApplier` | Cycle de vie document ↔ serveur |
+| LspEditor | ✅ | `lsp/LspEditor.java` + `LspDocumentSynchronizer`, `LspDiagnosticsManager`, `LspSemanticTokensPuller`, `LspFoldPuller`, `LspWorkspaceEditApplier` | Cycle de vie document ↔ serveur ; 3.74.0 (ADR-003) : `disconnect()` restaure `EmptyLanguage` (toutes capacités fermées), jeton de génération anti-course, garde commune des providers, annulation des tâches différées |
 | LspProject | ✅ | `lsp/LspProject.java`, `lsp/LanguageServerWrapper.java`, `lsp/LanguageServerDefinition.java` | Gestion multi-serveurs, shutdown borné 2 s |
-| Formateur / analyzer no-op | ✅ | `lsp/LspFormatter.java`, `lsp/LspNoopAnalyzer.java` | textDocument/formatting |
+| Formateur / analyzer no-op | ✅ | `lsp/LspFormatter.java`, `lsp/LspNoopAnalyzer.java` | textDocument/formatting ; 3.74.0 : options (tabSize, insertSpaces — hôte → détection → 4 espaces), rangeFormatting quand le serveur l'annonce, refus propre sinon ; éditions validées (bornes, chevauchements) et échecs journalisés sans fuite du document |
 | Providers de connexion (5) | ✅ | `lsp/connection/` | Stream, InProcess, LocalSocket, ProcessBuilder, Socket |
 | Client par défaut / logs | ✅ | `lsp/DefaultLanguageClient.java`, `lsp/LspLogSink.java`, `lsp/IoCompat.java` | Pont client→éditeur, compat fichiers API 24 |
 
@@ -380,7 +380,7 @@ parallèle.
 | Fichiers source | 286 (`:cel-core` 81 · `:cel-lsp-api` 39 · `:cel-lsp` 45 · `:cel-ui` 98 · `:cel-textmate` 7 · `demo` 16) |
 | Fichiers de test | 300 |
 | Lignes de code (main) | ≈ 70 600 (bibliothèques ≈ 64 200 · démo ≈ 6 500) |
-| Tests unitaires | 2 579 (`:cel-core` 1 376 · `:cel-lsp-api` 32 · `:cel-lsp` 185 · `:cel-ui` 839 · `:cel-textmate` 81 · `demo` 66) |
+| Tests unitaires | 2 610 (`:cel-core` 1 376 · `:cel-lsp-api` 32 · `:cel-lsp` 209 · `:cel-ui` 846 · `:cel-textmate` 81 · `demo` 66) |
 | Langages colorés intégrés | 29 |
 | Tokéniseurs intégrés | 14 (+ utilitaires SpanUtils, KeywordTables) |
 | Grammaires embarquées | 10 (`:cel-textmate` : csharp, css, html, java, javascript, kotlin, lua, markdown, python, xml) |

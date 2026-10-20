@@ -152,11 +152,14 @@ jo.codeeditor.lsp/
 │                                     references, rename, codeActions,
 │                                     symbol, signatureHelp, inlayHint,
 │                                     documentHighlight
-├── LspEditor.java (~405 l.)       — cycle de vie document ↔ serveur,
+├── LspEditor.java (~740 l.)       — cycle de vie document ↔ serveur,
 │                                     assisté par LspDocumentSynchronizer,
 │                                     LspDiagnosticsManager,
 │                                     LspSemanticTokensPuller,
-│                                     LspFoldPuller, LspWorkspaceEditApplier
+│                                     LspFoldPuller, LspWorkspaceEditApplier ;
+│                                     3.74.0 (ADR-003) : disconnect()
+│                                     restaure EmptyLanguage, jeton de
+│                                     génération, garde commune providers
 ├── LspProject.java, LanguageServerWrapper.java,
 │   LanguageServerDefinition.java  — gestion multi-serveurs, shutdown
 │                                     borné à 2 s
@@ -373,6 +376,46 @@ JUnit sans Android) et `EditorPreviewDropPainter` (chrome du canvas).
 La maquette de conception interactive est archivée dans
 `docs/maquettes/`.
 
+## Cycle de vie du langage LSP (3.74.0, ADR-003)
+
+**Invariant : sans langage LSP connecté à la vue, TOUTES les capacités
+LSP sont fermées** — aucun résolveur actif, aucune requête émise. Une
+capacité ne s'ouvre que si le serveur du type de fichier courant
+l'annonce ET qu'elle n'est pas désactivée (`LspFeature`).
+
+Le cycle connect/disconnect est SYMÉTRIQUE :
+
+```
+connect()                                disconnect() (idempotent)
+├─ (async) initialize + négociation      ├─ didClose
+├─ didOpen                               ├─ EmptyLanguage restaurée sur
+├─ LspLanguage posé sur l'hôte           │    l'hôte (setLanguage(null),
+│   (setLanguage — même règle de         │    même règle de thread)
+│    thread : attaché → post UI,         ├─ écouteur d'édition retiré
+│    détaché → en ligne)                 ├─ langage remis à null
+├─ écouteur d'édition posé               └─ jeton de génération invalidé
+└─ jeton de génération pris
+```
+
+- **Jeton de génération** (C1b) : incrémenté à CHAQUE connect() et
+  CHAQUE disconnect() — une continuation de connect() dont le jeton ne
+  correspond plus s'abandonne (ni langage, ni écouteur, ni
+  `connected = true`, `didClose` de rattrapage si besoin). Un changement
+  d'onglet pendant la poignée de main asynchrone ne peut plus brancher
+  le langage du fichier fermé sur la vue du nouvel onglet.
+- **Garde commune** (`readyServer()`, C1 en défense en profondeur) :
+  tout `Lsp*Provider` renvoie vide/`null` et n'émet AUCUNE requête une
+  fois la session fermée — une seule implémentation, pas quatorze copies.
+- **Annulation des tâches différées** : `setLanguage(null)` efface tous
+  les résolveurs du pont ET annule leurs tâches différées (survol
+  programmé, tirs clients throttés) — un tir tardif du langage précédent
+  ne peut pas atterrir sur le nouveau document.
+- HORS du périmètre LSP (jamais touchés par la déconnexion) : coloration
+  lexicale, plis lexicaux, frappe intelligente, IME.
+- Séquences couvertes par les tests (`LspDisconnectLifecycleTest`) :
+  java → sans serveur → java ; java → xml ; connect puis disconnect
+  immédiat ; disconnect appelé deux fois.
+
 ## Principes directeurs
 
 1. **Pureté du moteur** — `:cel-core` et `:cel-lsp-api` ne dépendent
@@ -382,7 +425,7 @@ La maquette de conception interactive est archivée dans
    collaborateurs vivent dans le sous-package de leur orchestrateur
    (render/, input/, popup/, preview/), reliés par des scells
    `@RestrictTo(LIBRARY_GROUP)` quand l'état partagé l'exige.
-3. **Testabilité** — 2 385 tests unitaires JVM (JUnit 5, Robolectric pour le
+3. **Testabilité** — 2 610 tests unitaires JVM (JUnit 5, Robolectric pour le
    cycle de vie des vues) ; aucun test instrumenté requis.
 4. **Défensif côté rendu** — tous les offsets sont clampés à
    `[0, doc.length()]` dans le chemin de dessin ; un painter de plugin qui

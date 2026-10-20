@@ -34,14 +34,14 @@ dependencyResolutionManagement {
 // app/build.gradle.kts
 dependencies {
     // Le module UI embarque transitivement cel-core et cel-lsp-api.
-    implementation("jo.codeeditor:cel-ui:3.73.0")
+    implementation("jo.codeeditor:cel-ui:3.74.0")
 
     // Optionnel — intégration Language Server Protocol (LSP4J).
-    implementation("jo.codeeditor:cel-lsp:3.73.0")
+    implementation("jo.codeeditor:cel-lsp:3.74.0")
 
     // Optionnel — voie grammaires (ADR-002 C3) : coloration par
     // grammaires TextMate-like + grammaires embarquées (C#).
-    implementation("jo.codeeditor:cel-textmate:3.73.0")
+    implementation("jo.codeeditor:cel-textmate:3.74.0")
 }
 ```
 
@@ -53,7 +53,7 @@ maven { url = uri("https://jitpack.io") }
 
 // app/build.gradle.kts
 dependencies {
-    implementation("com.github.jjoblab.code-editor:cel-ui:v3.73.0")
+    implementation("com.github.jjoblab.code-editor:cel-ui:v3.74.0")
 }
 ```
 
@@ -571,6 +571,7 @@ retombent sur le tokéniseur intégré au coût linéaire.
 | `Ctrl+.` | Code actions |
 | `Ctrl+Shift+O` | Aller au symbole |
 | `Ctrl+Shift+I` | Formater le document |
+| `Ctrl+Shift+K` | Formater la sélection (3.74.0 — refus propre si le formateur ne gère pas les plages) |
 | `Ctrl+Shift+L` | Code actions au caret |
 | `F1` | Quick doc |
 | `F2` | Renommer |
@@ -815,6 +816,62 @@ project.shutdown(); // borné à 2 s par serveur
 
 Cinq providers de connexion sont disponibles (`lsp/connection/`) : flux
 directs, in-process, socket local Unix, `ProcessBuilder`, socket TCP.
+
+### Cycle de vie : hôte à vue unique, changement d'onglet (3.74.0, ADR-003)
+
+L'application hôte qui réutilise UNE `EditorView` pour tous ses onglets
+n'a RIEN à faire de spécial : l'invariant est garanti par la
+bibliothèque —
+
+```java
+// Onglet .java : connexion du serveur de langage
+editor.connect();          // didOpen + pose du langage LSP sur la vue
+// …
+// Changement d'onglet vers un fichier SANS serveur (ex. .txt) :
+editor.disconnect();       // didClose + EmptyLanguage restaurée sur la vue :
+                           // complétion, survol, formateur, indices, diagnostics —
+                           // TOUT est fermé, aucune requête ne part
+```
+
+- `disconnect()` est **idempotent** (le rappeler deux fois ne casse rien)
+  et referme toutes les capacités LSP : la vue revient à la coloration
+  lexicale de son propre tokenizer (un `.txt` reste lisible, un `.xml`
+  garde sa coloration lexicale intégrée). La coloration lexicale, les
+  plis lexicaux, la frappe intelligente et l'IME ne dépendent PAS de LSP
+  — ils survivent à la déconnexion.
+- La course « changer d'onglet pendant la connexion » est neutralisée :
+  la continuation de `connect()` abandonne si une déconnexion (ou une
+  reconnexion) est intervenue entre-temps.
+- **Ne posez PAS de `setLanguage(null)` de contournement dans votre
+  coordinateur** : la bibliothèque s'en charge désormais (l'appel
+  resterait inoffensif mais redondant).
+- De retour sur l'onglet `.java` : un nouveau `connect()` rétablit tout
+  (les débounceurs didChange/didSave renaissent à chaque connexion).
+
+### Formatage : disponibilité, options, sélection (3.74.0)
+
+```java
+// Disponibilité (thread UI) — griser/masquer l'action « Formater » :
+menu.findItem(R.id.action_format).setEnabled(editorView.canFormat());
+menu.findItem(R.id.action_format_selection)
+        .setEnabled(editorView.canFormatSelection());
+
+// Options (avant le formatage ; sinon détection dans le document) :
+editorView.setFormattingOptions(4, true);   // tabSize, insertSpaces
+
+// Formatage de la sélection : un seul pas d'undo, caret conservé.
+// Callback (thread UI) : TRUE = texte changé ; FALSE = refus propre
+// (formateur sans plages, sélection vide, aucune édition) ;
+// null = aucun formateur installé.
+editorView.formatSelection(ok -> { /* rafraîchir l'état de l'action */ });
+```
+
+Un serveur qui n'annonce PAS le formatage de plage rend
+`canFormatSelection()` faux et `formatSelection` refuse proprement
+(texte inchangé, aucune requête) : le document entier n'est JAMAIS
+formaté à la place de la sélection demandée. Les échecs du formateur
+(délai, erreur serveur) sont journalisés via le récepteur
+(`LspProject.setLogSink`) — sans jamais y écrire le contenu du document.
 
 ## ProGuard / R8
 

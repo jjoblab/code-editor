@@ -1,6 +1,6 @@
 # cel-lsp — intégration Language Server Protocol
 
-> 185 tests · JUnit 5 (+ moteur vintage) · LSP4J 0.22.0 et Gson 2.14.0
+> 209 tests · JUnit 5 (+ moteur vintage) · LSP4J 0.22.0 et Gson 2.14.0
 > embarquées (voir [`NOTICE`](../../NOTICE)) · `compileOnly` sur
 > `:cel-core` et `:cel-lsp-api`.
 
@@ -47,6 +47,14 @@ le SPI sait consommer.
   `LspDocumentSynchronizer` (sync incrémentale versionnée),
   `LspDiagnosticsManager`, `LspSemanticTokensPuller` (jetons sémantiques
   → styles), `LspFoldPuller`, `LspWorkspaceEditApplier`.
+- **Déconnexion complète (3.74.0, ADR-003)** — `disconnect()` est
+  idempotent et restaure `EmptyLanguage` sur l'hôte (toutes les
+  capacités LSP fermées, aucune requête), retire l'écouteur d'édition,
+  invalide le jeton de génération (une continuation de `connect()` dont
+  le jeton est périmé s'abandonne : impossible de brancher le langage
+  du fichier fermé pendant un changement d'onglet). Garde commune : tout
+  provider est muet une fois la session fermée. Les débounceurs
+  didChange/didSave renaissent à chaque reconnexion.
 
 ### Connexions (`connection/`)
 
@@ -64,7 +72,13 @@ tags), hover, définition / définition de type / implémentations /
 super-définition / références, renommage (préparation + application),
 actions de code (avec résolution et application des éditions),
 symboles document, aide de signature, inlay hints (avec résolution),
-surlignage de document. Le formateur vit dans `LspFormatter`.
+surlignage de document. Le formateur vit dans `LspFormatter` :
+formatage de document ET de plage (`rangeFormatting` quand le serveur
+l'annonce, refus propre sinon — le document entier n'est JAMAIS formaté
+à la place d'une plage), options `FormattingOptions` (hôte → détection
+d'indentation → 4 espaces), éditions serveur validées (bornes,
+chevauchements, tri stable) et échecs journalisés sans jamais écrire le
+contenu du document.
 
 ### Robustesse (constats d'audit, testés)
 
@@ -109,7 +123,7 @@ LSP. Un hôte **sans vue** fournit sa propre implémentation de
 ## Tests
 
 ```bash
-./gradlew :cel-lsp:test     # 185 tests
+./gradlew :cel-lsp:test     # 209 tests
 ```
 
 Les tests branchent de **vrais serveurs faux in-process**
