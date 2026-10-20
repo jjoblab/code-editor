@@ -118,7 +118,19 @@ budget() {
 # painter, résolveur) — miroir des extractions du plan 01. Marge 14
 # lignes / 3 méthodes, style maison ; le relèvement ne dispense pas de
 # la décomposition du plan 01.
-budget editor/cel-ui/src/main/java/jo/codeeditor/view/EditorView.java 4045 178 290
+# Écart au ratchet : plafonds LIGNES 4045 → 4165 et MÉTHODES 290 → 292
+# (3.74.0, cycle de vie LSP et formatage) : +5 méthodes publiques exigées
+# par la spécification 3.74.0 (canFormat/canFormatSelection —
+# disponibilité du formatage pour piloter l'action « Formater » de
+# l'hôte ; formatSelection ; setFormattingOptions — options posées par
+# l'hôte ; +1 méthode default dans l'interface imbriquée
+# FormatterResolver) et leurs javadoc @since ; l'ÉTAT ajouté se limite
+# à 2 champs scalaires (options de formatage posées, déléguées au
+# pont LSP), la LOGIQUE est hors vue (EditorDocumentActions porte le
+# formatage, le SPI Formatter porte les plages) — miroir des
+# extractions du plan 01. Marge ~10 lignes / 1 méthode, style maison ;
+# le relèvement ne dispense pas de la décomposition du plan 01.
+budget editor/cel-ui/src/main/java/jo/codeeditor/view/EditorView.java 4165 180 292
 # Écart au ratchet : plafonds LIGNES 1600 → 1610 et MÉTHODES 100 → 102
 # (R2 du plan 09, IME) : +1 méthode publique (imeSelectedText — la voie
 # IME bornée au plafond Binder, distincte de selectedText interne) et

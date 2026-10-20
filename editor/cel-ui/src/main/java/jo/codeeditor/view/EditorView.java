@@ -799,9 +799,24 @@ public class EditorView extends View {
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
     public RenameResolver renameResolver;
 
-    /** Résolveur du formatage. Retourne le nouveau texte complet. */
+    /**
+     * Résolveur du formatage. Retourne le nouveau texte complet.
+     *
+     * <p>★ 3.74.0 : le résolveur peut annoncer la prise en charge des
+     * PLAGES partielles ({@link #supportsRange()}) — la variante à
+     * plage arrive avec le formatage de sélection.</p>
+     */
     public interface FormatterResolver {
+        /** Formate tout le document : retourne le nouveau texte complet. */
         String format(String text);
+
+        /**
+         * Le formateur prend-il en charge les plages partielles ?
+         * @since 3.74.0
+         */
+        default boolean supportsRange() {
+            return false;
+        }
     }
     FormatterResolver formatterResolver;
 
@@ -3759,6 +3774,45 @@ public class EditorView extends View {
     /** {@link #performOrganizeImports} pour « source.fixAll ». @since 3.51.0 */
     public void performFixAll(java.util.function.Consumer<Boolean> callback) {
         documentActions.performFixAll(callback);
+    }
+
+    // ── Disponibilité du formatage (3.74.0) ──────────────────────────
+
+    /**
+     * Un formateur est-il installé sur le langage courant ?
+     *
+     * <p>Sert à l'hôte à masquer/griser son action « Formater » : vrai
+     * uniquement si le langage courant expose un formateur (pour un
+     * langage LSP : le serveur du type de fichier courant annonce
+     * {@code documentFormattingProvider} et la fonctionnalité n'est pas
+     * désactivée). Sans formateur, {@link #formatDocument} répond
+     * {@code null} au callback.</p>
+     *
+     * <p>Thread UI (lit le résolveur posé par le langage courant).</p>
+     *
+     * @return vrai si {@link #formatDocument} peut formater
+     * @since 3.74.0
+     */
+    public boolean canFormat() {
+        return formatterResolver != null;
+    }
+
+    /**
+     * Le formateur courant prend-il en charge le formatage d'une
+     * SÉLECTION (plage partielle) ?
+     *
+     * <p>Vrai uniquement si un formateur est installé ET qu'il gère les
+     * plages ({@code documentRangeFormattingProvider} annoncé par le
+     * serveur). Sans cette capacité, le formatage de sélection est un
+     * no-op — jamais le document entier formaté à la place.</p>
+     *
+     * <p>Thread UI (lit le résolveur posé par le langage courant).</p>
+     *
+     * @return vrai si le formatage de sélection est disponible
+     * @since 3.74.0
+     */
+    public boolean canFormatSelection() {
+        return formatterResolver != null && formatterResolver.supportsRange();
     }
 
     /** Referme le popup go-to-symbol. */
