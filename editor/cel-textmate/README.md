@@ -149,7 +149,7 @@ obligation de licence. Les grammaires tierces sont opt-in ;
 ## Tests
 
 ```bash
-./gradlew :cel-textmate:test     # 93 tests
+./gradlew :cel-textmate:test     # 94 tests
 ```
 
 Grammaires de travail dédiées (`src/test/resources/textmate/`) pour

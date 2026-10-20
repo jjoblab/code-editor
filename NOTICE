@@ -6,6 +6,40 @@ Distribué sous licence **Apache License 2.0** — texte complet dans
 
 # Notices tierces
 
+## Moteur d'expressions rationnelles du dialecte TextMate (module `cel-textmate`)
+
+Le module `:cel-textmate` (refonte 4.0, plan 10 — voir
+`docs/plans/10-refonte-moteur-regex-cel-textmate.md`) embarque en
+dépendance directe unique le moteur d'expressions rationnelles du
+dialecte des grammaires TextMate :
+
+- `org.jruby.joni:joni:2.2.7` — licence **MIT** — somme SHA-256 de
+  l'artefact : `6054ab5bbf2dcc633fe62a359f1b39518e591fa76c90f9d50c7abb987d1f6774`
+- `org.jruby.jcodings:jcodings:1.0.64` — licence **MIT** — somme
+  SHA-256 de l'artefact :
+  `0b4d0b0c1e2f1bdf17f4c30ecf5261bf62763af6f18b0fd1e743226c994ccf96`
+
+Ces artefacts sont consommés par la couture interne
+`jo.codeeditor.textmate.regex` (uniquement) ; leur embarquement suit
+la même discipline que LSP4J/Gson : coordonnées d'artefacts, jamais
+d'URL de dépôt tiers. Conformément au MIT, cette notice tient lieu
+d'attribution ; le texte complet est disponible à
+https://opensource.org/licenses/MIT
+
+### Écart connu du port Java du dialecte (consigné — plan 10, D2)
+
+La forme BRUTE « lookbehind avec référence arrière » du dialecte
+(ex. la fermante `docstring-statement` de la grammaire python tierce
+embarquée : `((?<=\1)|^)(?!\s*[rR]?(\'\'\'|\"\"\"|\'|\"))`)
+n'est PAS compilable par le port Java du dialecte, alors que le moteur
+de référence du dialecte l'accepte. Dans la grammaire embarquée, la
+fermante est résolue au runtime avec substitution de la backref — la
+forme substituée (lookbehind de longueur fixe) compile : la docstring
+python fonctionne à l'identique (test de non-régression). Une grammaire
+hôte qui utiliserait cette forme sans backref substituable dégrade en
+règle muette avec avertissement publié (jamais d'échec en coloration).
+Contribution amont au port proposée hors dépôt.
+
 Ce fichier ne documente que les dépendances **réellement embarquées** par
 les artefacts publiés (obligations de licence) — les dépendances
 `compileOnly`, de test et l'outillage de build n'y figurent pas.
