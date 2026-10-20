@@ -69,7 +69,11 @@ public class LspFormattingTest {
         private ServerCapabilities capabilities() {
             ServerCapabilities caps = new ServerCapabilities();
             caps.setDocumentFormattingProvider(Boolean.TRUE);
-            caps.setDocumentRangeFormattingProvider(plageAnnoncée);
+            // Vrai OU FAUX explicite : un booléen faux n'est PAS une
+            // capacité (le formateur doit évaluer la VALEUR, pas la
+            // seule présence).
+            caps.setDocumentRangeFormattingProvider(
+                    plageAnnoncée ? Boolean.TRUE : Boolean.FALSE);
             return caps;
         }
 
@@ -291,5 +295,57 @@ public class LspFormattingTest {
         assertTrue("sans indentation décelable : repli 4 espaces : "
                         + serveur.requêtes,
                 serveur.requêtes.contains("formatting:tabSize=4,insertSpaces=true"));
+    }
+
+    // ── L4 : formatage de la sélection (plage partielle) ───────────
+
+    @Test
+    public void supportsRange_vraiQuandLaCapacitéEstAnnoncée() throws Exception {
+        serveur.plageAnnoncée = true;
+        HoteFormatage host = new HoteFormatage(TEXTE_DEUX_ESPACES);
+        jo.codeeditor.lang.provider.Formatter formatter = connecter(host);
+        assertTrue("documentRangeFormattingProvider annoncé : plage supportée",
+                formatter.supportsRange());
+        // (Le cas non annoncé — booléen faux explicite — est couvert par
+        // plageRefuséeSansCapacité_texteIntactAucuneRequête : le même
+        // serveur factice ne re-négocie pas ses capacités d'une connexion
+        // à l'autre, chaque cas vit dans SON instance de test.)
+    }
+
+    @Test
+    public void rangeFormatting_envoyéPourUnePlage() throws Exception {
+        serveur.plageAnnoncée = true;
+        HoteFormatage host = new HoteFormatage(TEXTE_DEUX_ESPACES);
+        jo.codeeditor.lang.provider.Formatter formatter = connecter(host);
+
+        // Plage = ligne 1 entière : offsets [10, 23) → Position(1,0)-(2,0).
+        CharSequence résultat = formatter.format(TEXTE_DEUX_ESPACES, 10, 23);
+
+        assertTrue("la requête rangeFormatting porte options + plage : "
+                        + serveur.requêtes,
+                serveur.requêtes.contains(
+                        "rangeFormatting:tabSize=2,insertSpaces=true,range=1:0-2:0"));
+        assertFalse("une plage partielle ne déclenche PAS le formatage complet",
+                serveur.requêtes.contains("formatting"));
+        assertEquals("sans éditions retournées, le texte est inchangé",
+                TEXTE_DEUX_ESPACES, résultat.toString());
+    }
+
+    @Test
+    public void plageRefuséeSansCapacité_texteIntactAucuneRequête() throws Exception {
+        serveur.plageAnnoncée = false; // le serveur ne sait PAS formater les plages
+        HoteFormatage host = new HoteFormatage(TEXTE_DEUX_ESPACES);
+        jo.codeeditor.lang.provider.Formatter formatter = connecter(host);
+        assertFalse(formatter.supportsRange());
+
+        CharSequence résultat = formatter.format(TEXTE_DEUX_ESPACES, 10, 28);
+
+        assertEquals("refus propre : texte inchangé (JAMAIS le document "
+                        + "entier formaté à la place de la plage)",
+                TEXTE_DEUX_ESPACES, résultat.toString());
+        assertFalse("aucune requête rangeFormatting partie",
+                serveur.requêtes.contains("rangeFormatting"));
+        assertFalse("aucune requête formatting (le document entier ne part "
+                        + "PAS à la place)", serveur.requêtes.contains("formatting"));
     }
 }
