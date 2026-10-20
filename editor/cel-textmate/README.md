@@ -1,6 +1,6 @@
 # cel-textmate — coloration par grammaires (module optionnel)
 
-> 79 tests · JUnit 5 · `api(:cel-core)` **seul** — aucune dépendance
+> 88 tests · JUnit 5 · `api(:cel-core)` **seul** — aucune dépendance
 > externe, parseurs JSON et plist internes.
 
 `cel-textmate` est la **voie grammaires** de l'ADR-002 (chantier C3) :
@@ -142,7 +142,7 @@ obligation de licence. Les grammaires tierces sont opt-in ;
 ## Tests
 
 ```bash
-./gradlew :cel-textmate:test     # 79 tests
+./gradlew :cel-textmate:test     # 88 tests
 ```
 
 Grammaires de travail dédiées (`src/test/resources/textmate/`) pour

@@ -380,7 +380,7 @@ parallèle.
 | Fichiers source | 286 (`:cel-core` 81 · `:cel-lsp-api` 39 · `:cel-lsp` 45 · `:cel-ui` 98 · `:cel-textmate` 7 · `demo` 16) |
 | Fichiers de test | 300 |
 | Lignes de code (main) | ≈ 70 600 (bibliothèques ≈ 64 200 · démo ≈ 6 500) |
-| Tests unitaires | 2 579 (`:cel-core` 1 376 · `:cel-lsp-api` 32 · `:cel-lsp` 185 · `:cel-ui` 839 · `:cel-textmate` 81 · `demo` 66) |
+| Tests unitaires | 2 586 (`:cel-core` 1 376 · `:cel-lsp-api` 32 · `:cel-lsp` 185 · `:cel-ui` 839 · `:cel-textmate` 88 · `demo` 66) |
 | Langages colorés intégrés | 29 |
 | Tokéniseurs intégrés | 14 (+ utilitaires SpanUtils, KeywordTables) |
 | Grammaires embarquées | 10 (`:cel-textmate` : csharp, css, html, java, javascript, kotlin, lua, markdown, python, xml) |
