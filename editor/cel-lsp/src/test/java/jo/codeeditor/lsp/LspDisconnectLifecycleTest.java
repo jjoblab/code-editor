@@ -42,9 +42,10 @@ import jo.codeeditor.AttenteBornee;
  * {@link LspDetachedViewBridgeTest}) qui ENREGISTRE les requêtes reçues,
  * hôte factice qui trace les appels, document réel (cel-core).</p>
  *
- * <p>Rouge avant le correctif 3.74.0 : disconnect() n'appelait pas
- * host.setLanguage(null) (C1) et ne retirait pas l'écouteur d'éditions
- * (C1c) — les scénarios de restauration et d'écouteur échouaient.</p>
+ * <p>Rouge avant les correctifs 3.74.0 : disconnect() n'appelait pas
+ * host.setLanguage(null) (C1), ne retirait pas l'écouteur d'éditions
+ * (C1c), et la course connect/disconnect posait quand même le langage
+ * (C1b) — les trois scénarios échouaient.</p>
  */
 @RunWith(RobolectricTestRunner.class)
 public class LspDisconnectLifecycleTest {
@@ -317,6 +318,59 @@ public class LspDisconnectLifecycleTest {
         assertEquals("le second disconnect() ne renvoie pas un second didClose",
                 didCloseAprèsPremière, serveur.didClose.size());
         assertFalse(editor.isConnected());
+    }
+
+    // ── C1b : course connect/disconnect ────────────────────────────
+
+    @Test
+    public void déconnexionPendantLeDémarrage_laContinuationSAbandonne() throws Exception {
+        HoteFactice host = new HoteFactice(TEXTE);
+        editor.setHost(host);
+        CountDownLatch blocage = new CountDownLatch(1);
+        serveur.blocageInitialize = blocage;
+
+        CompletableFuture<Void> futur = editor.connect();
+        // Le changement d'onglet arrive PENDANT la poignée de main.
+        editor.disconnect();
+        blocage.countDown();
+        futur.get(10, TimeUnit.SECONDS);
+
+        assertFalse("la continuation périmée ne passe pas connected à true",
+                editor.isConnected());
+        assertFalse("la continuation périmée ne pose pas le langage",
+                editor.isLanguageApplied());
+        assertTrue("aucun langage posé sur l'hôte", host.langagesPosés.isEmpty());
+        assertFalse("didOpen n'est pas parti (abandon avant l'envoi), aucun didClose",
+                serveur.requêtes.contains("didOpen"));
+    }
+
+    @Test
+    public void déconnexionAlorsQueLaPoseEstEnFile_laPoseAnnuleEtDidClose() throws Exception {
+        // Hôte attaché : la pose du langage est capturée par post() ;
+        // la déconnexion survient AVANT son exécution — didOpen est
+        // déjà parti, la pose annulée ne doit rien poser.
+        HoteFactice host = new HoteFactice(TEXTE);
+        host.attache = true;
+        editor.setHost(host);
+        editor.connect().get(10, TimeUnit.SECONDS);
+        assertTrue(editor.isConnected());
+        assertEquals("la pose est en file, pas encore exécutée",
+                0, host.langagesPosés.size());
+
+        editor.disconnect();
+        // Exécute la pose périmée capturée dans la file.
+        assertFalse("la file de l'hôte porte la pose annulée",
+                host.enAttente.isEmpty());
+        host.enAttente.remove(0).run();
+
+        assertFalse("la pose périmée ne pose PAS le langage",
+                editor.isLanguageApplied());
+        assertTrue("aucun langage posé au total", host.langagesPosés.isEmpty());
+        // didOpen est parti → didClose envoyé (disconnect() l'a fait) —
+        // le flux in-process est asynchrone, attente bornée de la
+        // réception côté serveur.
+        assertTrue("didOpen est parti → didClose envoyé : " + serveur.didClose,
+                AttenteBornee.jusquA(5000, () -> serveur.didClose.contains(URI)));
     }
 
     // ── Séquence java → aucun serveur → java ────────────────────────

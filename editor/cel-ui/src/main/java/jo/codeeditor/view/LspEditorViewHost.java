@@ -73,4 +73,17 @@ public class LspEditorViewHost implements EditorHost {
     public void postDelayed(Runnable task, long delayMillis) {
         view.postDelayed(task, delayMillis);
     }
+
+    /**
+     * ★ 3.74.0 — appartenance réelle au thread UI : une mutation de
+     * l'hôte (poser/retirer le langage) demandée depuis le thread UI
+     * d'une vue attachée s'exécute immédiatement, sans passer derrière
+     * la file (elle serait sinon rétrogradée APRÈS les poses du nouvel
+     * onglet faites par l'application, qu'elle effacerait).
+     */
+    @Override
+    public boolean isOnUiThread() {
+        android.os.Looper main = android.os.Looper.getMainLooper();
+        return main != null && main == android.os.Looper.myLooper();
+    }
 }

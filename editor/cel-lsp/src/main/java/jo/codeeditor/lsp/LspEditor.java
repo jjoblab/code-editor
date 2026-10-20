@@ -65,6 +65,18 @@ public class LspEditor {
     private volatile jo.codeeditor.session.EditorSession.OnTextEditListener editListener;
 
     /**
+     * ★ 3.74.0 (C1b) — jeton de génération de la connexion. Incrémenté à
+     * CHAQUE tentative de connect() et à CHAQUE disconnect() : une
+     * continuation de connect() dont le jeton ne correspond plus au
+     * jeton courant s'abandonne (ni langage, ni écouteur, ni
+     * {@code connected = true}) — le changement d'onglet pendant la
+     * poignée de main asynchrone ne peut plus brancher le langage du
+     * fichier fermé sur la vue du nouveau fichier.
+     */
+    private final java.util.concurrent.atomic.AtomicInteger connectionGeneration =
+            new java.util.concurrent.atomic.AtomicInteger();
+
+    /**
      * Le language SPI est-il posé sur l'hôte ? Les tirs
      * foldingRange arrivés AVANT (didOpen publie les diagnostics avant le
      * setLanguage posté) restent en attente : appliquer des folds serveur
@@ -125,16 +137,32 @@ public class LspEditor {
     /**
      * Se connecte au serveur LSP, envoie didOpen et crée le
      * {@link LspLanguage}. Retourne un futur complété à la connexion.
+     *
+     * <p>★ 3.74.0 (C1b) : la continuation vérifie son jeton de
+     * génération avant CHAQUE effet de bord (didOpen, pose du langage,
+     * écouteur, {@code connected = true}) — un disconnect() survenu
+     * pendant la poignée de main asynchrone invalide le jeton et la
+     * continuation s'abandonne proprement (didClose si didOpen est
+     * déjà parti).</p>
      */
     public synchronized java.util.concurrent.CompletableFuture<Void> connect() {
         if (connected) return java.util.concurrent.CompletableFuture.completedFuture(null);
         wrapper = project.getWrapper(ext);
+        // Jeton de CETTE tentative : toute déconnexion (ou reconnexion)
+        // ultérieure l'incrémentera et périmera cette continuation.
+        final int generation = connectionGeneration.incrementAndGet();
         // La session document↔serveur s'ouvre : les publications de
         // diagnostics redeviennent acceptables (cf. closed).
         closed = false;
         final LspLogSink logSink = project.getLogSink();
         log(logSink, "connect: starting wrapper...");
         return wrapper.start().thenRun(() -> {
+            if (generation != connectionGeneration.get()) {
+                // Déconnecté pendant le démarrage : la connexion a été
+                // annulée — didOpen n'est pas parti, rien à défaire.
+                log(logSink, "connect: abandonnée (déconnexion pendant le démarrage)");
+                return;
+            }
             // Câble le pont client→éditeur AVANT sendDidOpen. Le gestionnaire
             // didOpen du serveur appelle publishDiagnostics de façon
             // synchrone — si setLspEditor n'a pas encore été exécuté quand
@@ -160,6 +188,21 @@ public class LspEditor {
                 final LspEditor self = LspEditor.this;
                 final EditorHost h = host;
                 Runnable applyLanguage = () -> {
+                    if (generation != connectionGeneration.get()) {
+                        // Déconnecté pendant que la pose était en file :
+                        // didOpen est déjà parti → didClose pour refermer
+                        // le document côté serveur, SAUF si disconnect()
+                        // l'a déjà fait (langage alors remis à null — il
+                        // ne restait rien à refermer) ou si une nouvelle
+                        // connexion a repris la main (closed repassé à
+                        // false : son didOpen doit vivre). NI le langage
+                        // NI l'écouteur ne sont posés.
+                        if (closed && language != null) {
+                            synchronizer.sendDidClose();
+                        }
+                        log(logSink, "connect: pose abandonnée (déconnexion) — didClose envoyé");
+                        return;
+                    }
                     h.setLanguage(lang);
                     // Utilise addOnTextEditListener (et non set) pour ne pas
                     // remplacer l'écouteur existant de l'application.
@@ -196,31 +239,17 @@ public class LspEditor {
                     scheduleFoldPull();
                     log(logSink, "connect: setLanguage done, didChange forwarder wired");
                 };
-                if (h.isAttachedToWindow()) {
-                    // Hôte attaché — exécution sur le thread UI (une vue
-                    // mutée depuis un thread de fond concurrence les
-                    // lectures du thread UI de rendu).
-                    h.post(applyLanguage);
-                } else {
-                    // Hôte NON attaché — exécution en ligne. Bug découvert
-                    // par le test dédié : post() sur un hôte détaché
-                    // n'échoue PAS — il met l'action en file d'attente
-                    // JUSQU'À L'ATTACHEMENT. L'ancien code comptait sur le
-                    // retour de post() pour détecter la non-attache
-                    // (branche réputée morte : post() retourne vrai même
-                    // détaché) : un hôte jamais attaché (usage headless,
-                    // tests) ne posait NI le langage NI le pont d'éditions
-                    // suivies — le LSP restait silencieusement mort alors
-                    // que connect() avait annoncé SUCCESS. Un hôte détaché
-                    // n'a pas de thread de rendu qui le lise : la pose en
-                    // ligne est sûre.
-                    applyLanguage.run();
-                    log(logSink, "connect: setLanguage done inline (host not attached)");
-                }
+                runOnHostThread(h, applyLanguage,
+                        "connect: setLanguage done inline (host not attached)");
             }
-            connected = true;
-            log(logSink, "connect: SUCCESS — server ready, version=" + synchronizer.getDocumentVersion());
+            if (generation == connectionGeneration.get()) {
+                connected = true;
+                log(logSink, "connect: SUCCESS — server ready, version=" + synchronizer.getDocumentVersion());
+            } else {
+                log(logSink, "connect: complétée après déconnexion — connexion ignorée");
+            }
         }).exceptionally(throwable -> {
+            closed = true;
             log(logSink, "connect: FAILED — " + throwable.getClass().getSimpleName()
                 + ": " + throwable.getMessage());
             Throwable cause = throwable.getCause();
@@ -231,6 +260,39 @@ public class LspEditor {
             }
             return null;
         });
+    }
+
+    /**
+     * ★ 3.74.0 — règle de thread commune à connect()/disconnect() pour
+     * les mutations de l'hôte (poser/retirer le langage) : hôte non
+     * attaché → exécution en ligne ; hôte attaché → sur le thread UI —
+     * immédiatement si l'appelant y est déjà ({@link EditorHost#isOnUiThread()},
+     * l'ordre vis-à-vis des poses suivantes de l'application est alors
+     * garanti), sinon via {@link EditorHost#post(Runnable)} (sémantique
+     * FIFO avec les autres tâches postées).
+     */
+    private void runOnHostThread(EditorHost h, Runnable task, String journalInline) {
+        if (!h.isAttachedToWindow()) {
+            // Hôte NON attaché — exécution en ligne. Un post() sur un
+            // hôte détaché n'échoue PAS : il met l'action en file
+            // JUSQU'À L'ATTACHEMENT. Un hôte jamais attaché (usage
+            // headless, tests) n'aurait donc NI le langage NI le pont
+            // d'éditions suivies — le LSP resterait silencieusement
+            // mort alors que connect() avait annoncé SUCCESS. Un hôte
+            // détaché n'a pas de thread de rendu qui le lise : la pose
+            // en ligne est sûre.
+            task.run();
+            if (journalInline != null) log(project.getLogSink(), journalInline);
+        } else if (h.isOnUiThread()) {
+            // Hôte attaché et appelant DÉJÀ sur le thread UI : exécuter
+            // maintenant (même effet que post, sans le délai). Retarder
+            // la pose/retrait derrière la file ferait passer la
+            // restauration APRÈS les poses du nouvel onglet faites par
+            // l'application — elle les effacerait.
+            task.run();
+        } else {
+            h.post(task);
+        }
     }
 
     /** Journalise vers le récepteur de journal du projet (panneau de la démo) + logcat. */
@@ -262,6 +324,8 @@ public class LspEditor {
      * ★ 3.74.0 (C1) — se déconnecte du serveur de façon idempotente et
      * referme TOUTES les capacités LSP sur l'hôte :
      * <ol>
+     *   <li>invalide le jeton de génération (les continuations de
+     *       {@link #connect()} en vol s'abandonnent — course C1b) ;</li>
      *   <li>envoie {@code didClose} au serveur ;</li>
      *   <li>retire l'écouteur d'éditions de la session hôte (C1c) ;</li>
      *   <li><b>restaure {@code EmptyLanguage}</b> sur l'hôte
@@ -276,8 +340,13 @@ public class LspEditor {
      * Un second appel ne fait rien (idempotent).
      */
     public synchronized void disconnect() {
+        // Invalide TOUTE connexion en cours d'établissement (course C1b) :
+        // une continuation de connect() qui s'exécuterait après ce point
+        // voit un jeton périmé et s'abandonne.
+        connectionGeneration.incrementAndGet();
         if (!connected && language == null) {
-            // Jamais connecté, ou déjà déconnecté (idempotent).
+            // Jamais connecté, ou déjà déconnecté (idempotent) : seule
+            // l'invalidation du jeton était nécessaire.
             closed = true;
             return;
         }
@@ -303,22 +372,14 @@ public class LspEditor {
                     h.notifyDiagnosticsChanged();
                 }
             };
-            if (h.isAttachedToWindow()) {
-                h.post(purge);
-            } else {
-                purge.run();
-            }
+            runOnHostThread(h, purge, null);
         }
         // Restaure EmptyLanguage — UNIQUEMENT si un langage avait été posé
         // (sinon la restauration effacerait un langage posé par
         // l'application entre-temps). Même règle de thread que connect().
         if (h != null && languageApplied) {
             Runnable restore = () -> h.setLanguage(null);
-            if (h.isAttachedToWindow()) {
-                h.post(restore);
-            } else {
-                restore.run();
-            }
+            runOnHostThread(h, restore, null);
         }
         language = null;
         languageApplied = false;

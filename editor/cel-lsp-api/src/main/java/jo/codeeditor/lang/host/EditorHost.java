@@ -100,4 +100,23 @@ public interface EditorHost {
      * (sémantique {@code View.postDelayed}).
      */
     void postDelayed(Runnable task, long delayMillis);
+
+    /**
+     * L'appelant est-il déjà sur le thread UI de l'hôte ? Complète la
+     * règle de marshalling des mutations (poser/retirer le langage) :
+     * un hôte attaché dont l'appelant est déjà sur le thread UI peut
+     * exécuter la mutation immédiatement — la poster ne ferait que la
+     * retarder derrière les poses suivantes de l'application hôte
+     * (changement d'onglet), qui seraient alors effacées par erreur.
+     *
+     * <p>Défaut prudent : « non » pour un hôte attaché (la mutation est
+     * postée, comportement historique), « oui » pour un hôte détaché
+     * (tout est déjà exécuté en ligne). L'adaptateur de référence
+     * ({@code cel-ui}) retourne l'appartenance réelle au thread UI.</p>
+     *
+     * @since 3.74.0
+     */
+    default boolean isOnUiThread() {
+        return !isAttachedToWindow();
+    }
 }
