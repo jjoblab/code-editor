@@ -391,6 +391,28 @@ public class LspDisconnectLifecycleTest {
         assertTrue(editor.isLanguageApplied());
     }
 
+    @Test
+    public void reconnexion_puisÉdition_leDidChangeRepart() throws Exception {
+        // Suite de la séquence java → onglet sans serveur → java : le
+        // didClose a FERMÉ les débounceurs (arrêt des threads, test de
+        // non-fuite) — la reconnexion doit les faire RENAÎTRE, sinon
+        // toute édition suivante se perd (ou lève dans le pipeline de la
+        // session hôte : l'exécuteur arrêté refuse la programmation).
+        HoteFactice host = new HoteFactice(TEXTE);
+        connecter(host);
+        editor.disconnect();
+        connecter(host);
+        assertTrue(editor.isConnected());
+
+        // Une édition de la session hôte (chemin du listener posé par
+        // connect) : ne doit ni lever ni se perdre.
+        host.session.replaceRange(0, 5, "CLASS");
+
+        assertTrue("l'édition repart en didChange après reconnexion : "
+                        + serveur.requêtes,
+                AttenteBornee.jusquA(5000, () -> serveur.requêtes.contains("didChange")));
+    }
+
     // ── C1c : l'écouteur d'édition est retiré ──────────────────────
 
     @Test

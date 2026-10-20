@@ -17,13 +17,20 @@ import java.util.concurrent.TimeUnit;
  * gagne toujours).</p>
  *
  * <p>L'arrêt est explicite ({@link #shutdown()}) : après fermeture, plus
- * aucun thread « lsp-* » n'est vivant.</p>
+ * aucun thread « lsp-* » n'est vivant. La reconnexion RENAÎT le
+ * débounceur ({@link LspDocumentSynchronizer} le recrée au didOpen
+ * suivant) — un appel à {@link #debounce(Runnable)} sur un débounceur
+ * fermé est ignoré sans lever (une édition qui arrive pendant la
+ * fenêtre de fermeture ne doit JAMAIS faire planter le pipeline de la
+ * session hôte).</p>
  */
 final class LspDebouncer {
 
     private final ScheduledExecutorService scheduler;
     private final long delayMs;
     private ScheduledFuture<?> pending;
+    /** ★ 3.74.0 — fermé (arrêt définitif de CETTE instance) ? */
+    private volatile boolean shutdown;
 
     /**
      * @param name    préfixe du nom du thread (« lsp-&lt;name&gt;-N »)
@@ -45,6 +52,12 @@ final class LspDebouncer {
      * annulée/supplantée d'ici là.
      */
     synchronized void debounce(Runnable task) {
+        if (shutdown) {
+            // ★ 3.74.0 : fermé (déconnexion) — l'exécuteur est arrêté,
+            // reprogrammer lèverait ; l'éditeur est de toute façon
+            // déconnecté, la reconnexion recréera un débounceur sain.
+            return;
+        }
         if (pending != null) {
             pending.cancel(false); // jamais interrupt() : un envoi en
                                    // cours doit finir proprement
@@ -70,9 +83,12 @@ final class LspDebouncer {
 
     /**
      * Ferme le débounceur : arrêt du thread daemon, attente bornée des
-     * tâches déjà démarrées. Idempotent.
+     * tâches déjà démarrées. Idempotent. ★ 3.74.0 : marque l'instance
+     * fermée — la reconnexion recrée une instance neuve (un
+     * ScheduledExecutorService arrêté ne redémarre pas).
      */
     void shutdown() {
+        shutdown = true;
         cancel();
         scheduler.shutdown();
         try {
@@ -83,5 +99,10 @@ final class LspDebouncer {
             scheduler.shutdownNow();
             Thread.currentThread().interrupt();
         }
+    }
+
+    /** ★ 3.74.0 — cette instance est-elle fermée (arrêt définitif) ? */
+    boolean isShutdown() {
+        return shutdown;
     }
 }

@@ -116,10 +116,15 @@ class LspDocumentSynchronizer {
 
     private static final long DID_SAVE_DEBOUNCE_MS = 800;
 
-    /** Débounce didChange/didSave : exécuteur mono-thread daemon. */
-    private final LspDebouncer didChangeDebouncer =
+    /** Débounce didChange/didSave : exécuteur mono-thread daemon.
+     *  ★ 3.74.0 : non final — la reconnexion RENAÎT l'instance fermée
+     *  par le didClose précédent (un exécuteur arrêté ne redémarre
+     *  pas : sans renaissance, toute édition suivant une reconnexion
+     *  serait perdue — ou pire, lèverait dans le pipeline de la
+     *  session hôte). */
+    private volatile LspDebouncer didChangeDebouncer =
             new LspDebouncer("didchange-debounce", DID_CHANGE_DEBOUNCE_MS);
-    private final LspDebouncer didSaveDebouncer =
+    private volatile LspDebouncer didSaveDebouncer =
             new LspDebouncer("didsave-debounce", DID_SAVE_DEBOUNCE_MS);
 
     /**
@@ -419,6 +424,16 @@ class LspDocumentSynchronizer {
         EditorHost host = editor.getHost();
         LanguageServerWrapper wrapper = editor.currentWrapper();
         if (host == null || wrapper == null || wrapper.getServer() == null) return;
+        // ★ 3.74.0 : les débounceurs ont pu être fermés par le didClose
+        // d'une déconnexion précédente (séquence java → onglet sans
+        // serveur → java) — la reconnexion les RENAÎT ici, AVANT toute
+        // édition suivie.
+        if (didChangeDebouncer.isShutdown()) {
+            didChangeDebouncer = new LspDebouncer("didchange-debounce", DID_CHANGE_DEBOUNCE_MS);
+        }
+        if (didSaveDebouncer.isShutdown()) {
+            didSaveDebouncer = new LspDebouncer("didsave-debounce", DID_SAVE_DEBOUNCE_MS);
+        }
         jo.codeeditor.document.EditorDocument doc = host.session().getDocument();
         CharSequence rope = doc.charSequence();
         DidOpenTextDocumentParams params = new DidOpenTextDocumentParams();
