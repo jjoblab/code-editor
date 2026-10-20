@@ -1,6 +1,6 @@
 # cel-textmate — coloration par grammaires (module optionnel)
 
-> 94 tests · JUnit 5 · `api(:cel-core)` + le moteur d'expressions
+> 96 tests · JUnit 5 · `api(:cel-core)` + le moteur d'expressions
 > rationnelles du dialecte TextMate (dépendance unique du module,
 > consommée par la couture interne — plan 10, refonte 4.0) ; parseurs
 > JSON et plist internes.
@@ -149,7 +149,7 @@ obligation de licence. Les grammaires tierces sont opt-in ;
 ## Tests
 
 ```bash
-./gradlew :cel-textmate:test     # 94 tests
+./gradlew :cel-textmate:test     # 96 tests
 ```
 
 Grammaires de travail dédiées (`src/test/resources/textmate/`) pour

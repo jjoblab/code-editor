@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Les sections antérieures à la période courante sont archivées dans
 [`docs/archive/CHANGELOG-archive.md`](docs/archive/CHANGELOG-archive.md) (A-08, audit 3.69.0).
 
-## [Unreleased] — Refonte du moteur de regex de `cel-textmate` (plan 10 — la version 4.0.0 portera la refonte)
+## [4.0.0] — 2026-10-20 — Refonte du moteur de regex de `cel-textmate` (plan 10 : moteur natif du dialecte, budget par essai, Unicode conforme à la référence)
 
 ### Changed (refonte du moteur — plan 10, docs/plans/10)
 
