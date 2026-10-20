@@ -203,7 +203,7 @@ Lectures :
 | C9 | `\b`, `\B` | ASCII | **Natifs Unicode** (vérifié `\bété\b`) |
 | C9 | `\w`, `\W` | ASCII (`ann` sur « année ») | **Normalisation vérifiée** (`\p{Word}` / `\p{^Word}`) |
 | C9 | `[:alpha:]`, `[:word:]` | traduits en classes ASCII (`\p{Alpha}`, `a-zA-Z0-9_`) | **Natifs Unicode** |
-| C9 | `\d`, `\s` | ASCII | Surveillés par la suite de conformité (entrée de table si divergence contre la référence) |
+| C9 | `\d`, `\s` | ASCII | **Normalisés en P1** (divergences mesurées par la suite : chiffres arabo-indiens, NBSP) : `\d` → `\p{Nd}` ; `\s` → table d'espaces de la référence (tabulations, {\p Z}, NEL, ZWSP) |
 | C2 | budget par correspondance | aucun | **Natif** (budget par essai ; interruption → non-correspondance + `EditorLog`) |
 | C2 | garde anti-boucle | disjoncteur 50 étapes vides | Conservé ; valeur calée en P3 (D4) |
 | C2 | limite de ligne | 800 lignes / 5 000 caractères | Conservée |
@@ -341,7 +341,7 @@ en demi-teinte.
 | 2 | Performance du chemin chaud (~+25 % indicatif sur motif trivial ; coût char↔octet par ligne) | moyen | `EncodedLine` (index de préfixes) + `RegexCache` ; banc obligatoire en P3 (D4) |
 | 3 | Portée de la refonte (cœur du tokenizer d'un module publié) | élevé | Golden tests **avant** toute modification (P0) ; un commit par changement ; phases à critères de sortie ; branche fusionnée uniquement au GO |
 | 4 | Règle python `(?<=\1)` (écart du port Java) | faible | Variante locale + `NOTICE` ; contribution amont proposée |
-| 5 | Divergences résiduelles du port (lookbehind à longueur variable refusé ; `\d`/`\s` à surveiller) | moyen | Suite de conformité permanente + table de normalisation extensible (règle d'or 3) |
+| 5 | Divergences résiduelles du port (lookbehinds : longueurs variables et groupes alternatifs imbriqués refusés ; `\S` en classe sans équivalent membre) | moyen | **P1** : deux idiomes du corpus couverts par la table (aplatissement `(^|[^\:])\s`, distribution de l'échappement hexa borné) ; `\d`/`\s` normalisés ; le reste dégrade en règle muette + `EditorLog` (C7) — suite de conformité permanente (règle d'or 3) |
 | 6 | Dépendance tierce (maintenance du moteur) | faible | Dépendance unique, licences MIT, épinglage des sommes ; veille de versions par la suite de conformité |
 | 7 | Rupture de l'API interne (types moteur dans `Rule`) | moyen | Inventaire §6 ; palier 4.0.0 ; `CHANGELOG` « Changed » |
 
@@ -350,7 +350,7 @@ en demi-teinte.
 | # | Décision | Statut |
 |---|---|---|
 | D1 | Moteur et architecture | **Tranché — propriétaire, 2026-10-20** : moteur unique en dépendance directe, traducteur supprimé, couture confinée, pas de point d'extension public |
-| D2 | Règle python `docstring-statement` | **Reconduit** : variante locale + `NOTICE` (confirmation en P1, étape 7) |
+| D2 | Règle python `docstring-statement` | **Éclairci en P1** : la grammaire embarquée n'a BESOIN d'aucune variante — la fermante est résolue au runtime avec substitution de la backref, et la forme substituée (lookbehind de longueur fixe) compile dans le port comme dans la référence (test de non-régression). La forme BRUTE `(?<=\1)` reste un écart du port (motifs hôtes sans backref substituable) — consigné pour `NOTICE` en P2 |
 | D3 | Coordonnées Maven et `NOTICE` | **Reconduit** : dépendance déclarée dans le catalogue de versions du build, licences et épinglage des sommes dans `NOTICE` |
 | D4 | Valeurs de garde-fous | **Propositions à caler au banc (P3)** : budget 100 ms par essai, garde anti-boucle existante, limites de ligne conservées. Calibrage sans nouveau plan |
 | D5 | Ordre d'exécution | **Tranché par implication** : la refonte est le véhicule — C9 subsumé par le moteur, C1/C7 en P1 (étape 5) |
@@ -372,3 +372,34 @@ en demi-teinte.
   la référence C.
 - **Limite** : pas de SDK Android pendant l'étude (l'empreinte dex/AAR
   sera mesurée à la livraison) ; la sémantique est vérifiée sur JVM.
+
+
+## 11. Résultats P1 (bascule effectuée)
+
+- **Couture livrée** : `jo.codeeditor.textmate.regex` (six composants
+  du §3.2). L'enveloppe d'ancre `\G(?:…)` rend chaque essai ancré ET
+  budgété — la recherche est la seule voie du moteur qui arme
+  réellement le chronomètre du budget par essai (vérifié : sain lourd
+  6,8 ms ; pathologique interrompu à 150,0 ms pour un budget de
+  150 ms ; réarmement par appel).
+- **Correctif d'enveloppe** : un motif `(?x)` peut se terminer par une
+  ligne de commentaire — la fermante de l'enveloppe est avalée ; une
+  seconde tentative avec saut de ligne avant `)` la sauve (un motif
+  réellement déséquilibré échoue aux deux).
+- **Table de normalisation complétée** (mesures de la suite) :
+  `\w`/`\W` (étude), `\d`/`\D` (chiffres arabo-indiens), `\s`
+  hors et dans classe (table d'espaces de la référence : tabulations,
+  séparateurs {\p Z}, NEL U+0085, ZWSP U+200B), aplatissement de
+  `(^|[^\:])\s` et distribution de `\\(?:[hex]{1,6}|.)` en
+  lookbehind (idiomes du corpus CSS : les règles selector et
+  shared-names compilent et colorent désormais nativement).
+- **C8 mesuré sur le corpus embarqué** : markdown 7/7 règles natives
+  (zéro avertissement), python docstring non-régression (fermante
+  substituée), CSS 0 règle muette (8 règles ressuscitées par la table
+  + le correctif d'enveloppe).
+- **C7 mesuré** : `grammar.warnings` est désormais peuplé (la liste
+  était copiée AVANT le parse — vide à jamais) ; publication une fois
+  par grammaire via `EditorLog`.
+- **Conformité** : 28 cas verts contre la référence C (ancres, Unicode,
+  POSIX, possessifs, `\k`, `\g`, lookbehinds, `(?#)`, `(?x)`,
+  bornes char↔octet dont paires de substitution) + budget + cache.

@@ -1,7 +1,9 @@
 # cel-textmate — coloration par grammaires (module optionnel)
 
-> 88 tests · JUnit 5 · `api(:cel-core)` **seul** — aucune dépendance
-> externe, parseurs JSON et plist internes.
+> 93 tests · JUnit 5 · `api(:cel-core)` + le moteur d'expressions
+> rationnelles du dialecte TextMate (dépendance unique du module,
+> consommée par la couture interne — plan 10, refonte 4.0) ; parseurs
+> JSON et plist internes.
 
 `cel-textmate` est la **voie grammaires** de l'ADR-002 (chantier C3) :
 un moteur de grammaires au format TextMate (`.tmLanguage` plist XML,
@@ -65,9 +67,8 @@ désactivation, rendant le retour impossible.
 | `TextMateGrammar` | chargement des trois formats (détection automatique), règles d'un langage |
 | `GrammarTokenizer` | exécution des règles : `begin`/`end`/`while`/`patterns`, `captures`, imbrications, injections |
 | `ScopeMapper` | listes de portées (séparées par espaces) → `TokenType` ; la première portée non neutre de l'interne vers l'externe l'emporte — amorce du chantier C4 (schéma de portées commun aux deux voies) |
-| `internal/JsonLite` | parseur JSON minimal |
-| `internal/PlistParser` | parseur plist XML ; **refuse les DOCTYPE** (protection XXE, jamais affaiblie) |
-| `internal/RegexCompat` | sous-ensemble `java.util.regex` sûr pour les motifs de grammaires |
+| `internal/JsonLite` · `internal/PlistParser` | parseurs internes (inchangés) ; plist **refuse les DOCTYPE** (protection XXE, jamais affaiblie) |
+| `regex/` (couture interne — plan 10) | `DialectNormalizer` (écarts du port Java du dialecte), `EncodedLine` (ligne UTF-8 + index char↔octet), `CompiledRegex`/`LineMatcher` (essai ancré, budget par essai), `MatchBudget` (100 ms, journal throttlé), `RegexCache` (LRU 512, clé = source normalisée) |
 
 Sémantique couverte (chacune gardée par des tests) : largeur nulle
 sémantique, `\n` virtuel en fin de ligne, idiome `\G`/`(?!\G)` en tête
@@ -126,9 +127,15 @@ obligation de licence. Les grammaires tierces sont opt-in ;
   zéro en fin de ligne » : en `kotlin`, un commentaire posé sur la
   même ligne qu'une déclaration `fun` fermée n'est pas coloré
   (comportement conforme au modèle de grammaire, documenté par test).
-- **Sous-ensemble de regex** — les motifs hors du sous-ensemble
-  `RegexCompat` sont rejetés au chargement (échec explicite, jamais
-  de coloration silencieusement fausse).
+- **Dialecte natif** (refonte 4.0, plan 10) — les motifs du dialecte
+  TextMate sont exécutés nativement (récursion `\g<nom>`, possessifs,
+  `\k<nom>`, `(?#…)`, `\h` hexadécimal, Unicode conforme à la
+  référence) ; chaque essai est budgété (100 ms) et se replie en
+  non-correspondance, une grammaire défaillante ne plante jamais le
+  rendu. Les écarts du port Java du dialecte sont normalisés
+  (`\w`→`\p{Word}`, `\d`→`\p{Nd}`, `\s`→ table d'espaces de la
+  référence) et gardés par la suite de conformité permanente
+  (`RegexConformityTest`, valeurs établies sur la référence C).
 - **Registre d'états du moteur** — les piles inter-lignes sont
   internées dans une carte qui vit pour la durée du processus
   (partagée entre documents par grammaire) : croissance bornée par
@@ -142,7 +149,7 @@ obligation de licence. Les grammaires tierces sont opt-in ;
 ## Tests
 
 ```bash
-./gradlew :cel-textmate:test     # 88 tests
+./gradlew :cel-textmate:test     # 93 tests
 ```
 
 Grammaires de travail dédiées (`src/test/resources/textmate/`) pour

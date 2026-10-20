@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Les sections antérieures à la période courante sont archivées dans
 [`docs/archive/CHANGELOG-archive.md`](docs/archive/CHANGELOG-archive.md) (A-08, audit 3.69.0).
 
+## [Unreleased] — Refonte du moteur de regex de `cel-textmate` (plan 10 — la version 4.0.0 portera la refonte)
+
+### Changed (refonte du moteur — plan 10, docs/plans/10)
+
+- **`cel-textmate` exécute les grammaires TextMate sur un moteur natif du dialecte** (refonte 4.0, plan 10) : la couche de traduction `RegexCompat` est remplacée par une couture interne `jo.codeeditor.textmate.regex` (seul importateur du moteur — confinement vérifié par test en P2) ; les motifs s'exécutent nativement, sans transformation de dialecte.
+- **Constat C8 résolu** : les 7 règles markdown à récursion `\g<square>` (gras, italique, 2 images, 3 liens) sont natives — `**gras**`, `*italique*`, les liens à crochets et le lien imbriqué dans du gras colorent ; la règle CSS `selector` et ses idiomes lookbehind compilent nativement (8 règles ressuscitées au total par la table de normalisation).
+- **Constat C9 résolu** : `\w`/`\W`/`\d`/`\D`/`\s`/`\b` suivent la référence du dialecte (Unicode) — `var année = 3;` colore le mot entier, `def énorme(x)` colore le nom, `\bété\b` correspond ; `\h` vaut chiffre hexadécimal (plus jamais espace horizontal).
+- **Constat C2 résolu** : chaque essai de correspondance est budgété (100 ms, proposition D4) — un motif catastrophique se replie en non-correspondance au lieu de bloquer le thread de restyle ; le journal est throttlé par motif.
+- **C1/C7** : le module journalise via `EditorLog` (plus de stderr) ; les avertissements de règles muettes sont désormais peuplés (la liste était copiée avant le parse et restait vide à jamais) et publiés une fois par grammaire.
+
+### Added
+
+- Suite de conformité permanente `RegexConformityTest` (28 cas, valeurs établies sur la référence C du dialecte) + corpus de l'audit `AuditCorpusTest` et ressource `unicode-audit.tmg.json`.
+
 ## [3.73.0] — 2026-10-16 — Carte d'aperçu « goutte d'eau » (B27 : cohabitation avec les popups, voile, fantôme dynamique, glissement fluide — cinq retours terrain) + IME au niveau plateforme (plan 09 : R1–R9) + refonte de la démo : coquille IDE + mini serveur LSP Java (les cinq modules exercés) + passe UX (bottom sheet, tiroir filtrable, outils IDE)
 
 ### Changed (retour terrain n°5 : fluidité des re-placements — la goutte GLISSE en trois couches et en variante B)
