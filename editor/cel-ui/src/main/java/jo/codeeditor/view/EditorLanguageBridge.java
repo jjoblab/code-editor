@@ -88,8 +88,17 @@ final class EditorLanguageBridge {
      * Corps de {@link EditorView#setLanguage(Language)} : détache le
      * langage précédent, branche l'analyzer + tous les providers SPI, et
      * déclenche les rafraîchissements initiaux.
+     *
+     * <p>★ 3.74.0 (L1) : les tâches différées du langage précédent
+     * (indications en ligne, re-requête au scroll, occurrences du
+     * symbole) sont ANNULÉES avant le branchement — les Runnable
+     * possèdent chacun une garde de fraîcheur à l'exécution, mais les
+     * retirer des files évite les réveils inutiles d'un langage fermé
+     * (l'invariant : sans langage LSP connecté, AUCUNE tâche différée
+     * ne vit).</p>
      */
     void setLanguage(Language language) {
+        cancelDeferredLanguageTasks();
         if (view.language != null) {
             view.language.destroy();
         }
@@ -617,6 +626,29 @@ final class EditorLanguageBridge {
     }
 
     // ── Code actions (résolues à la demande) ───────────────────────
+
+    /**
+     * ★ 3.74.0 (L1) — retire des files les tâches différées du langage
+     * courant (appelé au CHANGEMENT de langage, y compris vers
+     * EmptyLanguage via {@code setLanguage(null)}). Les tâches ont
+     * chacune une garde à l'exécution (provider null, génération), ce
+     * retrait est la moitié défensive : plus aucun réveil ne part d'un
+     * langage fermé.
+     */
+    private void cancelDeferredLanguageTasks() {
+        if (inlayHintTask != null) {
+            handler().removeCallbacks(inlayHintTask);
+        }
+        if (inlayScrollIdleTask != null) {
+            handler().removeCallbacks(inlayScrollIdleTask);
+            if (view.getHandler() != null) {
+                view.getHandler().removeCallbacks(inlayScrollIdleTask);
+            }
+        }
+        if (view.getHandler() != null) {
+            view.getHandler().removeCallbacks(documentHighlightTask);
+        }
+    }
 
     /**
      * Nettoyage des tâches différées du pont langage (détachement de la
