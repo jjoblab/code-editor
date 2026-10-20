@@ -80,6 +80,22 @@ import java.util.Objects;
  */
 public final class GrammarTokenizer {
 
+    /**
+     * Garde anti-boucle (plan 10, D4) : plafond d'étapes de largeur nulle
+     * consécutives à la même position avant d'avancer d'un caractère —
+     * valeur calée au banc (P3), sans nouveau plan.
+     */
+    private static final int MAX_ZERO_WIDTH_STEPS = 50;
+
+    /**
+     * Garde anti-interruptions (plan 10, D4 — complément C2) : au-delà de
+     * ce nombre d'essais interrompus par le budget POUR UN MÊME MOTIF sur
+     * UNE ligne, le motif est sauté pour le reste de la ligne — un motif
+     * adversarial ne consomme pas « positions × budget » (il échouait de
+     * toute façon : aucune régression de rendu n'est possible).
+     */
+    private static final int MAX_INTERRUPTIONS_PER_LINE = 3;
+
     /** Fermante ne matchant jamais : les cadres à clause while (sans
      * end) n'ont PAS de fermante en ligne — la clause est une garde de
      * début de ligne (C3-quinquies). Natif dans le dialecte ((?!) =
@@ -234,6 +250,12 @@ public final class GrammarTokenizer {
          * grammaires tierces à wrapper lookahead — java class, python
          * docstring). */
         final Map<Rule, java.util.BitSet> emptyPushedAt = new java.util.IdentityHashMap<>();
+        /** Essais interrompus par le budget, par motif (garde
+         * anti-interruptions D4) : au seuil, le motif est sauté pour
+         * le reste de la ligne (il échouait de toute façon). */
+        final Map<CompiledRegex, int[]> interruptions = new java.util.IdentityHashMap<>();
+        /** Motifs sourds pour le reste de la ligne (garde D4). */
+        final Map<CompiledRegex, Boolean> sourds = new java.util.IdentityHashMap<>();
         /** Fin du DERNIER begin de la ligne (C3-sexties) : l'ancre
          * réelle des idiomes {@code \G}/{@code (?!\G)} en tête de
          * begin — java.util.regex évalue {@code \G} au début de
@@ -261,10 +283,23 @@ public final class GrammarTokenizer {
 
         /** Match ANCRÉ à pos : équivalent sémantique du matcher frais
          * lancé à pos sur la ligne (plus le « \n » virtuel), chaque
-         * essai budgété par la couture (règle d'or 5). */
+         * essai budgété par la couture (règle d'or 5). Un motif sourdu
+         * (garde anti-interruptions D4) ne tente plus : il échouait de
+         * toute façon, et « positions × budget » ne doit pas partir en
+         * fumée sur un motif adversarial. */
         boolean matchAt(CompiledRegex pattern, int pos, boolean allowEmpty) {
+            if (sourds.containsKey(pattern)) return false;
             LineMatcher m = matcher(pattern);
-            if (!m.matchAt(pos)) return false;
+            if (!m.matchAt(pos)) {
+                if (m.wasInterrupted()) {
+                    int[] n = interruptions.get(pattern);
+                    if (n == null) { n = new int[1]; interruptions.put(pattern, n); }
+                    if (++n[0] >= MAX_INTERRUPTIONS_PER_LINE) {
+                        sourds.put(pattern, Boolean.TRUE);
+                    }
+                }
+                return false;
+            }
             return allowEmpty || m.end() > m.start();
         }
 
@@ -364,9 +399,9 @@ public final class GrammarTokenizer {
             } else {
                 // Match vide (poussé ou dépile) : RETENTER à la même
                 // position — chaque étape a changé la pile (progression
-                // garantie). Disjoncteur : après 50 étapes vides
-                // consécutives, avancer d'un (grammaire dégénérée).
-                if (zeroWidth++ < 50) {
+                // garantie). Disjoncteur : au-delà de MAX_ZERO_WIDTH_STEPS
+                // étapes vides consécutives, avancer d'un (grammaire dégénérée).
+                if (zeroWidth++ < MAX_ZERO_WIDTH_STEPS) {
                     pos = step.start;
                 } else {
                     pos = step.start + 1;

@@ -26,6 +26,8 @@ public final class LineMatcher {
     private final org.joni.Matcher joni;
     /** Région du dernier essai réussi — nulle avant. */
     private Region lastRegion;
+    /** Le DERNIER essai a-t-il été interrompu par le budget ? */
+    private boolean interrupted;
 
     LineMatcher(CompiledRegex regex, EncodedLine line, org.joni.Matcher joni) {
         this.regex = regex;
@@ -40,6 +42,7 @@ public final class LineMatcher {
      */
     public boolean matchAt(int charPos) {
         lastRegion = null;
+        interrupted = false;
         int at = line.byteOffset(charPos);
         int res;
         try {
@@ -50,11 +53,21 @@ public final class LineMatcher {
         }
         if (res == Matcher.FAILED) return false;
         if (res == Matcher.INTERRUPTED) {
+            interrupted = true;
             MatchBudget.logInterrupted(regex.source(), line.line());
             return false;
         }
         lastRegion = joni.getEagerRegion();
         return true;
+    }
+
+    /**
+     * Le dernier essai a-t-il été interrompu par le budget ? (Consulté
+     * par le tokéniseur pour sa garde anti-interruptions — plan 10 D4 :
+     * un motif adversarial ne consomme pas « positions × budget ».)
+     */
+    public boolean wasInterrupted() {
+        return interrupted;
     }
 
     /** Début du dernier essai réussi (caractères). */
