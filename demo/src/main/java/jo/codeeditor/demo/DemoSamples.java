@@ -924,6 +924,13 @@ public final class DemoSamples {
             | cel-ui    | vue Canvas   | active   |
             | cel-lsp   | pont lsp4j   | expérimental |
 
+            ## Crochets imbriqués (coloration native du dialecte)
+
+            Du **gras**, de *l'italique*, une ![image](https://example.org/banniere.png),
+            et le cas d'école : **[lien imbriqué dans du gras](https://example.org)** —
+            la récursion du dialecte est native depuis la refonte du moteur 4.0 :
+            ce que l'ancienne traduction laissait en texte brut colorent désormais.
+
             Voir la [documentation](https://github.com/jjoblab/code-editor) —
             les ~~promesses~~ fonctionnalités ci-dessus sont ~~presque~~ toutes livrées.
             """;
