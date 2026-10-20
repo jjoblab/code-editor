@@ -380,7 +380,25 @@ final class EditorLanguageBridge {
             // Formatter
             if (language.getFormatter() != null) {
                 final jo.codeeditor.lang.provider.Formatter spiFmt = language.getFormatter();
-                view.setFormatterResolver((text) -> spiFmt.format(text, 0, text.length()).toString());
+                view.setFormatterResolver(new EditorView.FormatterResolver() {
+                    @Override
+                    public String format(String text) {
+                        return spiFmt.format(text, 0, text.length()).toString();
+                    }
+                    @Override
+                    // ★ 3.74.0 : plage supportée = annoncée par le serveur
+                    // (documentRangeFormattingProvider).
+                    public boolean supportsRange() {
+                        return spiFmt.supportsRange();
+                    }
+                    @Override
+                    public String formatRange(String text, int start, int end) {
+                        // Refus propre sans capacité de plage — jamais le
+                        // document entier à la place (surprise destructive).
+                        if (!spiFmt.supportsRange()) return null;
+                        return spiFmt.format(text, start, end).toString();
+                    }
+                });
             } else {
                 view.setFormatterResolver(null);
             }

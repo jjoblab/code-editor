@@ -803,8 +803,8 @@ public class EditorView extends View {
      * Résolveur du formatage. Retourne le nouveau texte complet.
      *
      * <p>★ 3.74.0 : le résolveur peut annoncer la prise en charge des
-     * PLAGES partielles ({@link #supportsRange()}) — la variante à
-     * plage arrive avec le formatage de sélection.</p>
+     * PLAGES partielles ({@link #supportsRange()}) — le formatage de
+     * sélection passe alors par {@link #formatRange(String, int, int)}.</p>
      */
     public interface FormatterResolver {
         /** Formate tout le document : retourne le nouveau texte complet. */
@@ -816,6 +816,21 @@ public class EditorView extends View {
          */
         default boolean supportsRange() {
             return false;
+        }
+
+        /**
+         * Formate la plage {@code [start, end)} du texte — retourne le
+         * nouveau texte COMPLET, ou {@code null} si le formateur refuse
+         * la plage (il ne gère pas les plages partielles).
+         *
+         * <p>Contrat : ne JAMAIS formater le document entier à la place
+         * de la plage demandée — ce serait une surprise destructive.
+         * Le défaut retourne {@code null} (refus).</p>
+         *
+         * @since 3.74.0
+         */
+        default String formatRange(String text, int start, int end) {
+            return null;
         }
     }
     FormatterResolver formatterResolver;
@@ -3835,6 +3850,32 @@ public class EditorView extends View {
     public void setFormattingOptions(int tabSize, boolean insertSpaces) {
         posedTabSize = Math.max(1, tabSize);
         posedInsertSpaces = insertSpaces;
+    }
+
+    /**
+     * Formate la SÉLECTION courante via le resolver de formatage :
+     * requête LSP {@code textDocument/rangeFormatting} hors du thread UI,
+     * résultat appliqué en un seul pas d'undo quand il arrive.
+     *
+     * <p>Garanties :</p>
+     * <ul>
+     *   <li>le formateur ne gère PAS les plages ({@link #canFormatSelection()}
+     *       faux) → <b>refus propre</b> : rien n'est modifié (le document
+     *       entier n'est JAMAIS formaté à la place) ;</li>
+     *   <li>sélection vide → no-op documenté ;</li>
+     *   <li>sélection et caret conservés (bornés au nouveau texte),
+     *       plis et marqueurs de diagnostics décalés par la voie commune
+     *       d'édition, un seul pas d'undo.</li>
+     * </ul>
+     *
+     * @param callback thread UI : {@code Boolean.TRUE} si le texte a
+     *                 changé, {@code Boolean.FALSE} sinon (refus de plage,
+     *                 sélection vide, aucune édition), {@code null} si
+     *                 aucun formateur n'est installé. Peut être null.
+     * @since 3.74.0
+     */
+    public void formatSelection(java.util.function.Consumer<Boolean> callback) {
+        documentActions.formatSelection(callback);
     }
 
     /** Options de formatage posées par l'hôte (null = non posées) — accès pont LSP. */

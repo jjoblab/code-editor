@@ -139,6 +139,81 @@ class EditorDocumentActions {
     }
 
     /**
+     * ★ 3.74.0 — formate la SÉLECTION courante via le resolver de
+     * formatage. La requête LSP rangeFormatting quitte le thread UI ; le
+     * résultat est appliqué en un seul step d'undo quand il arrive.
+     *
+     * <p>Refus propre sans capacité de plage (le document entier n'est
+     * JAMAIS formaté à la place) ; sélection vide = no-op.</p>
+     *
+     * @param callback exécuté sur le thread UI après application :
+     *                 {@code Boolean.TRUE} si le texte a changé, FALSE
+     *                 sinon (refus/sélection vide/aucune édition), null
+     *                 si aucun formatteur. Peut être null.
+     */
+    void formatSelection(java.util.function.Consumer<Boolean> callback) {
+        if (view.formatterResolver == null || view.session == null) {
+            if (callback != null) callback.accept(null);
+            return;
+        }
+        if (!view.formatterResolver.supportsRange()) {
+            // Refus propre : sans capacité de plage, ne rien modifier —
+            // formater le document entier à la place serait une surprise
+            // destructive.
+            if (callback != null) callback.accept(Boolean.FALSE);
+            return;
+        }
+        jo.codeeditor.document.Selection sel = view.session.getSelection();
+        if (sel == null || sel.start >= sel.end) {
+            // Sélection vide (caret simple) : no-op documenté.
+            if (callback != null) callback.accept(Boolean.FALSE);
+            return;
+        }
+        final String current = view.session.getText().toString();
+        // Bornage défensif de la plage sélectionnée.
+        final int start = Math.max(0, Math.min(sel.start, current.length()));
+        final int end = Math.max(start, Math.min(sel.end, current.length()));
+        // Sélection (bornes d'origine) conservée après application.
+        final int selStart = start;
+        final int selEnd = end;
+        jo.codeeditor.view.EditorTaskLanes.submitFeature(() -> {
+            String formatted = null;
+            try {
+                formatted = view.formatterResolver.formatRange(current, start, end);
+            } catch (Exception e) {
+                // Formateur d'hôte défaillant : journalisé, le document
+                // reste inchangé (résultat null).
+                jo.codeeditor.util.EditorLog.warn("EditorActions",
+                    "formatage de la sélection échoué", e);
+            }
+            final String result = formatted;
+            Runnable apply = () -> {
+                boolean changed = false;
+                if (result != null && !result.equals(current) && view.session != null) {
+                    try {
+                        // UN seul pas d'undo : une seule mutation remplace
+                        // le document (plis/diagnostics décalés par la voie
+                        // commune, EditorSession.replaceRange).
+                        view.session.replaceRange(0, view.session.getDocument().length(), result);
+                        // Sélection et caret conservés, bornés au nouveau texte.
+                        view.session.setSelection(new jo.codeeditor.document.Selection(
+                                Math.min(selStart, result.length()),
+                                Math.min(selEnd, result.length())));
+                        view.invalidate();
+                        changed = true;
+                    } catch (Exception ignored) {
+                        // Application du format reformaté : si elle échoue,
+                        // repli sur « non modifié » signalé au callback.
+                    }
+                }
+                if (callback != null) callback.accept(changed);
+            };
+            android.os.Handler h = view.getHandler();
+            if (h != null) h.post(apply); else apply.run();
+        });
+    }
+
+    /**
      * Exécute l'action « source.organizeImports » via le fournisseur
      * d'actions LSP (l'action est reconstruite par le serveur à la demande
      * et applique son WorkspaceEdit localement). Résout en arrière-plan —

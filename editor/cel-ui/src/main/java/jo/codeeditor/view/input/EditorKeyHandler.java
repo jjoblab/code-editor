@@ -338,6 +338,12 @@ public class EditorKeyHandler {
             case EditorCommands.FORMAT_DOCUMENT:
                 view.formatDocument();
                 return true;
+            case EditorCommands.FORMAT_SELECTION:
+                // ★ 3.74.0 — Ctrl+Shift+K : formate la sélection courante
+                // (refus propre sans capacité de plage ; sélection vide
+                // = no-op, documentés sur EditorView.formatSelection).
+                view.formatSelection(null);
+                return true;
 
             // ── Navigation ────────────────────────────────────────
             case EditorCommands.GO_TO_LINE:

@@ -44,6 +44,8 @@ public final class EditorCommands {
     public static final String QUICK_DOC = "editor.quick_doc";
     public static final String RENAME = "editor.rename";
     public static final String FORMAT_DOCUMENT = "editor.format_document";
+    /** ★ 3.74.0 — formate la sélection courante (plage partielle). */
+    public static final String FORMAT_SELECTION = "editor.format_selection";
 
     // ── Navigation ────────────────────────────────────────────────
     public static final String GO_TO_LINE = "editor.go_to_line";

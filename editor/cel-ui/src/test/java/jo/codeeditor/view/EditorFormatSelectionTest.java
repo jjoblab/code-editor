@@ -221,4 +221,153 @@ public class EditorFormatSelectionTest {
         assertFalse("résolveur retiré", view.canFormat());
         assertFalse(view.canFormatSelection());
     }
+
+    // ── L4 : formatSelection ────────────────────────────────────────
+
+    /** Réception asynchrone du callback (voie features + post). */
+    private static final class Rappel {
+        final java.util.concurrent.CountDownLatch latch =
+                new java.util.concurrent.CountDownLatch(1);
+        volatile Boolean reçu;
+        void accepter(Boolean b) { reçu = b; latch.countDown(); }
+        Boolean attendre() throws InterruptedException {
+            latch.await(10, java.util.concurrent.TimeUnit.SECONDS);
+            return reçu;
+        }
+    }
+
+    /** Texte de base : lignes 1-3 non indentées, la « bonne » indentation
+     *  est 2 espaces par niveau. */
+    private static final String TEXTE = "class A {\nvoid m() {\nx();\n}\n}\n";
+    /** TEXTE avec lignes 1-3 ([10, 28)) réindentées : le résultat attendu. */
+    private static final String TEXTE_FORMATÉ =
+            "class A {\n  void m() {\n    x();\n  }\n}\n";
+
+    private static EditorView.FormatterResolver formateurÀPlage() {
+        return new EditorView.FormatterResolver() {
+            @Override
+            public String format(String text) { return text; }
+            @Override
+            public boolean supportsRange() { return true; }
+            @Override
+            public String formatRange(String text, int start, int end) {
+                return new StringBuilder(text)
+                        .replace(start, end, "  void m() {\n    x();\n  }\n")
+                        .toString();
+            }
+        };
+    }
+
+    @Test
+    public void formatSelection_formateLaPlage_unSeulPasDUndoCaretConservé()
+            throws Exception {
+        EditorView view = newView(TEXTE);
+        // Sélection = lignes 1 à 3 ("void m() {\nx();\n}") : [10, 28).
+        view.getSession().setSelection(new jo.codeeditor.document.Selection(10, 28));
+        view.setFormatterResolver(formateurÀPlage());
+
+        Rappel rappel = new Rappel();
+        view.formatSelection(rappel::accepter);
+
+        assertEquals("callback TRUE : le texte a changé", Boolean.TRUE, rappel.attendre());
+        assertEquals(TEXTE_FORMATÉ, view.getSession().getText().toString());
+        // Sélection conservée (bornée au nouveau texte).
+        assertEquals(10, view.getSession().getSelection().start);
+        assertEquals(28, view.getSession().getSelection().end);
+        // UN SEUL pas d'undo : un undo() restaure TOUT l'original.
+        assertTrue(view.getSession().undo());
+        assertEquals(TEXTE, view.getSession().getText().toString());
+        assertFalse("un seul pas d'undo pour le formatage de sélection",
+                view.getSession().undo());
+    }
+
+    @Test
+    public void formatSelection_sansPlage_refusPropreTexteIntact() throws Exception {
+        EditorView view = newView(TEXTE);
+        view.getSession().setSelection(new jo.codeeditor.document.Selection(10, 28));
+        view.setFormatterResolver(new EditorView.FormatterResolver() {
+            @Override
+            public String format(String text) {
+                throw new AssertionError("le document entier ne part jamais "
+                        + "à la place d'une plage");
+            }
+        });
+
+        Rappel rappel = new Rappel();
+        view.formatSelection(rappel::accepter);
+
+        assertEquals("callback FALSE : refus propre (pas de capacité de plage)",
+                Boolean.FALSE, rappel.attendre());
+        assertEquals("rien n'a été modifié", TEXTE,
+                view.getSession().getText().toString());
+    }
+
+    @Test
+    public void formatSelection_sansFormateur_rappelNull() throws Exception {
+        EditorView view = newView(TEXTE);
+        view.getSession().setSelection(new jo.codeeditor.document.Selection(10, 28));
+
+        Rappel rappel = new Rappel();
+        view.formatSelection(rappel::accepter);
+
+        assertNull("callback null : aucun formateur installé", rappel.attendre());
+        assertEquals(TEXTE, view.getSession().getText().toString());
+    }
+
+    @Test
+    public void formatSelection_sélectionVide_noOp() throws Exception {
+        EditorView view = newView(TEXTE);
+        view.getSession().setSelection(
+                jo.codeeditor.document.Selection.cursor(12));
+        view.setFormatterResolver(new EditorView.FormatterResolver() {
+            @Override
+            public String format(String text) { return text; }
+            @Override
+            public boolean supportsRange() { return true; }
+            @Override
+            public String formatRange(String text, int start, int end) {
+                throw new AssertionError("une sélection vide ne formate rien");
+            }
+        });
+
+        Rappel rappel = new Rappel();
+        view.formatSelection(rappel::accepter);
+
+        assertEquals("callback FALSE : sélection vide = no-op", Boolean.FALSE,
+                rappel.attendre());
+        assertEquals(TEXTE, view.getSession().getText().toString());
+    }
+
+    @Test
+    public void formatSelection_commandeEtRaccourciSansCollision() {
+        // La table par défaut lie FORMAT_SELECTION à Ctrl+Shift+K —
+        // aucune autre commande n'y vit (les voisins : Ctrl+Shift+I =
+        // formatage du document, Ctrl+Shift+L = actions au caret).
+        jo.codeeditor.view.input.EditorKeymap km =
+                jo.codeeditor.view.input.EditorKeymap.defaults();
+        jo.codeeditor.view.input.EditorKeymap.Binding b =
+                km.resolve(android.view.KeyEvent.KEYCODE_K, true, true);
+        assertNotNull("Ctrl+Shift+K est lié par défaut", b);
+        assertEquals(jo.codeeditor.view.EditorCommands.FORMAT_SELECTION, b.command);
+        assertEquals("Ctrl+Shift+I reste le formatage de document",
+                jo.codeeditor.view.EditorCommands.FORMAT_DOCUMENT,
+                km.resolve(android.view.KeyEvent.KEYCODE_I, true, true).command);
+
+        // Le dispatch du raccourci clavier physique déclenche bien le
+        // formatage de la sélection (observable par le texte réindenté).
+        EditorView view = newView(TEXTE);
+        view.setKeymap(km);
+        view.getSession().setSelection(new jo.codeeditor.document.Selection(10, 28));
+        view.setFormatterResolver(formateurÀPlage());
+        boolean consommé = view.onKeyDown(android.view.KeyEvent.KEYCODE_K,
+                new android.view.KeyEvent(0L, 0L, android.view.KeyEvent.ACTION_DOWN,
+                        android.view.KeyEvent.KEYCODE_K, 0,
+                        android.view.KeyEvent.META_CTRL_ON
+                                | android.view.KeyEvent.META_SHIFT_ON));
+        assertTrue("Ctrl+Shift+K consommé par l'éditeur", consommé);
+        assertTrue("le texte a été réindenté par le raccourci",
+                jo.codeeditor.AttenteBornee.jusquA(5000,
+                        () -> TEXTE_FORMATÉ.equals(
+                                view.getSession().getText().toString())));
+    }
 }

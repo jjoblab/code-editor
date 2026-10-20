@@ -222,6 +222,10 @@ public final class EditorKeymap {
         km.bind(EditorCommands.CODE_ACTIONS, KeyEvent.KEYCODE_PERIOD, true, false);
         km.bind(EditorCommands.GO_TO_SYMBOL, KeyEvent.KEYCODE_O, true, true);
         km.bind(EditorCommands.FORMAT_DOCUMENT, KeyEvent.KEYCODE_I, true, true);
+        // ★ 3.74.0 : formatage de la SÉLECTION — même famille que le
+        // formatage de document (Ctrl+Shift+I), touche voisine libre
+        // (aucune collision dans la table par défaut).
+        km.bind(EditorCommands.FORMAT_SELECTION, KeyEvent.KEYCODE_K, true, true);
         km.bind(EditorCommands.CODE_ACTIONS_AT_CARET, KeyEvent.KEYCODE_L, true, true);
         km.bind(EditorCommands.QUICK_DOC, KeyEvent.KEYCODE_F1, false, false);
         km.bind(EditorCommands.RENAME, KeyEvent.KEYCODE_F2, false, false);
