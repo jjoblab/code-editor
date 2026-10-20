@@ -2,10 +2,25 @@
   "scopeName": "source.unicode-audit",
   "name": "Audit Unicode (plan 10 — corpus C9)",
   "patterns": [
-    { "match": "\\w+", "name": "variable.other.audit" },
-    { "match": "\\bété\\b", "name": "keyword.audit" },
-    { "match": "[[:alpha:]]+", "name": "entity.name.audit" },
-    { "match": "\\h+", "name": "constant.numeric.audit" },
-    { "match": "\\W+", "name": "comment.audit" }
+    {
+      "match": "\\bété\\b",
+      "name": "keyword.audit"
+    },
+    {
+      "match": "\\w+",
+      "name": "variable.other.audit"
+    },
+    {
+      "match": "[[:alpha:]]+",
+      "name": "entity.name.audit"
+    },
+    {
+      "match": "\\h+",
+      "name": "constant.numeric.audit"
+    },
+    {
+      "match": "\\W+",
+      "name": "comment.audit"
+    }
   ]
 }
