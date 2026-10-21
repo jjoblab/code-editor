@@ -171,7 +171,10 @@ progressive de la coloration riche.
   aucun identifiant d'état ne franchit la frontière (P1-a).
 - **Inventaire** : les 23 grammaires chargent, comptes d'avertissements
   documentés, échantillons tokénisés.
-- **Banc étendu** : plafond 10 ms/ligne maintenu sur le corpus élargi.
+- **Banc étendu** : plafond 10 ms/ligne maintenu sur le corpus élargi
+  (ajustement post-publication : plafond CI 30 ms/ligne sur runners
+  partagés, mesurés 1,2–2,1x plus lents selon les passages — discipline
+  D4 inchangée sur machine de référence, voir CHANGELOG 4.0.0).
 - Campagne complète du dépôt : `clean assembleDebug test lint --continue`
   vert, `check-doc-figures`, `check-class-budgets`, `check-external-refs`.
 
@@ -253,7 +256,7 @@ potentiels, hors périmètre : optimisation corde/GC.
 
 ### 9.5 Charge (exigence (3)) — `ProgressiveLoadTest` (3)
 
-Ouverture 480k < 450 ms (mesuré 200-390 ms selon bruit), delta tas < 80 Mo (mesuré ~26 Mo), sauts de viewport pire < 65 ms (mesuré 0-28 ms), typeChar médian < 12 ms (mesuré ~10 ms, dont ~0,3 ms du régime progressif), pire < 150 ms (pics préexistants bissectés).
+Ouverture 480k < 450 ms (mesuré 200-390 ms selon bruit), delta tas < 80 Mo (mesuré ~26 Mo), sauts de viewport pire < 65 ms (mesuré 0-28 ms), typeChar médian < 12 ms (mesuré ~10 ms, dont ~0,3 ms du régime progressif), pire < 150 ms (pics préexistants bissectés). Ajustement post-publication : plafonds CI relevés sur runners partagés (médiane < 20 ms, pire < 400 ms — pire de 100 essais constaté à 166 ms par pics ordonnanceur/GC d'un seul essai, médiane saine à 8,8 ms) ; bornes machine de référence inchangées (voir CHANGELOG 4.0.0).
 
 ### 9.6 Vérification du dépôt
 
