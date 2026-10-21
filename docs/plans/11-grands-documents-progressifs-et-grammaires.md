@@ -260,8 +260,16 @@ Ouverture 480k < 450 ms (mesuré 200-390 ms selon bruit), delta tas < 80 Mo (mes
 `test` vert (2 605 tests), `lint` vert (aucun nouveau problème),
 `check-doc-figures` conforme (annoncé/exécuté resynchronisés),
 `check-class-budgets` conforme (EditorSession 1 596/1 610 l., 104/104
-publiques — relèvement justifié), `check-external-refs` conforme
-(exception NOTICE étendue aux six nouvelles sources amont, justifiée).
+publiques — relèvement justifié). `check-external-refs` : l'affirmation
+initiale « conforme » était INEXACTE — le contrôle relevait en réalité
+17 occurrences après exceptions : 16 URLs d'attribution dans les
+en-têtes d'origine des huit grammaires ajoutées, et la plage numérique
+du CHANGELOG (« corpus de grammaires porté de 10 à 23 », faux positif
+du motif numérique du garde-fou) ; le CI ne couvrant que main et les
+PR, l'écart était passé inaperçu. Corrigé après coup : exception des
+grammaires étendue aux sources du plan 11 + exception générique des
+plages numériques à deux nombres (voir le commit de rectification du
+garde-fou).
 
 ## 10. Point d'arrêt : GO recommandé
 
