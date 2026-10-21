@@ -6,6 +6,40 @@ Distribué sous licence **Apache License 2.0** — texte complet dans
 
 # Notices tierces
 
+## Moteur d'expressions rationnelles du dialecte TextMate (module `cel-textmate`)
+
+Le module `:cel-textmate` (refonte 4.0, plan 10 — voir
+`docs/plans/10-refonte-moteur-regex-cel-textmate.md`) embarque en
+dépendance directe unique le moteur d'expressions rationnelles du
+dialecte des grammaires TextMate :
+
+- `org.jruby.joni:joni:2.2.7` — licence **MIT** — somme SHA-256 de
+  l'artefact : `6054ab5bbf2dcc633fe62a359f1b39518e591fa76c90f9d50c7abb987d1f6774`
+- `org.jruby.jcodings:jcodings:1.0.64` — licence **MIT** — somme
+  SHA-256 de l'artefact :
+  `0b4d0b0c1e2f1bdf17f4c30ecf5261bf62763af6f18b0fd1e743226c994ccf96`
+
+Ces artefacts sont consommés par la couture interne
+`jo.codeeditor.textmate.regex` (uniquement) ; leur embarquement suit
+la même discipline que LSP4J/Gson : coordonnées d'artefacts, jamais
+d'URL de dépôt tiers. Conformément au MIT, cette notice tient lieu
+d'attribution ; le texte complet est disponible à
+https://opensource.org/licenses/MIT
+
+### Écart connu du port Java du dialecte (consigné — plan 10, D2)
+
+La forme BRUTE « lookbehind avec référence arrière » du dialecte
+(ex. la fermante `docstring-statement` de la grammaire python tierce
+embarquée : `((?<=\1)|^)(?!\s*[rR]?(\'\'\'|\"\"\"|\'|\"))`)
+n'est PAS compilable par le port Java du dialecte, alors que le moteur
+de référence du dialecte l'accepte. Dans la grammaire embarquée, la
+fermante est résolue au runtime avec substitution de la backref — la
+forme substituée (lookbehind de longueur fixe) compile : la docstring
+python fonctionne à l'identique (test de non-régression). Une grammaire
+hôte qui utiliserait cette forme sans backref substituable dégrade en
+règle muette avec avertissement publié (jamais d'échec en coloration).
+Contribution amont au port proposée hors dépôt.
+
 Ce fichier ne documente que les dépendances **réellement embarquées** par
 les artefacts publiés (obligations de licence) — les dépendances
 `compileOnly`, de test et l'outillage de build n'y figurent pas.
@@ -86,6 +120,43 @@ https://opensource.org/licenses/MIT
 
 Chaque fichier JSON porte son en-tête `information_for_contributors`
 d'origine pointant vers le dépôt amont.
+
+### Grammaires tierces élargies (plan 11) — MIT/Apache-2.0, inactives par défaut
+
+Les treize fichiers supplémentaires du plan 11 sont des copies VERBATIM
+de grammaires de l'écosystème VS Code (copies publiées dans le dépôt
+officiel VS Code, sources amont identifiées par le cgmanifest de ce
+dépôt), sous licence **MIT** sauf mention contraire. La sélection a
+ÉCARTÉ les bundles dont la licence « TextMate Bundle License » n'est
+ni MIT ni Apache-2.0 (`diff`, `makefile` : couverts par le tokéniseur
+intégré seul). Mêmes règles d'activation : opt-in explicite par
+`loadEmbeddedGrammar(<lang>)`. Conformément aux licences, cette notice
+tient lieu d'attribution ; textes complets : MIT
+https://opensource.org/licenses/MIT — Apache-2.0
+https://www.apache.org/licenses/LICENSE-2.0
+
+| Fichier | Langage | Source amont | Titulaire du copyright |
+|---|---|---|---|
+| `c.tmLanguage.json` | `c` | https://github.com/jeff-hykin/better-c-syntax (better-c-syntax, copie VS Code) | Jeff Hykin |
+| `cpp.tmLanguage.json` | `cpp` | https://github.com/jeff-hykin/better-cpp-syntax (better-cpp-syntax, copie VS Code) | Jeff Hykin |
+| `dockerfile.tmLanguage.json` | `dockerfile` | composant `language-docker` du cgmanifest VS Code (historique moby) — **Apache-2.0** | contributeurs language-docker |
+| `go.tmLanguage.json` | `go` | https://github.com/worlpaker/go-syntax (go-syntax, copie VS Code) | worlpaker / contributeurs go-syntax |
+| `json.tmLanguage.json` | `json` | https://github.com/microsoft/vscode-JSON.tmLanguage (copie VS Code) | Microsoft Corporation |
+| `php.tmLanguage.json` | `php` | https://github.com/atom/language-php (copie VS Code identifiée au cgmanifest) | contributeurs language-php |
+| `ruby.tmLanguage.json` | `ruby` | https://github.com/Shopify/ruby-lsp (grammaire Ruby du ruby-lsp, copie VS Code) | Shopify Inc. |
+| `rust.tmLanguage.json` | `rust` | https://github.com/dustypomerleau/rust-syntax (rust-syntax, copie VS Code) | dustypomerleau / contributeurs rust-syntax |
+| `shell.tmLanguage.json` | `shell` | https://github.com/jeff-hykin/better-shell-syntax (better-shell-syntax, copie VS Code) | Jeff Hykin |
+| `sql.tmLanguage.json` | `sql` | https://github.com/microsoft/vscode-mssql (grammaire SQL, copie VS Code) | Microsoft Corporation |
+| `toml.tmLanguage.json` | `toml` | https://github.com/tamasfe/taplo (grammaire TOML de l'extension taplo, MIT vérifié) | tamasfe / contributeurs taplo |
+| `typescript.tmLanguage.json` | `typescript` | https://github.com/microsoft/TypeScript-TmLanguage (TypeScript.tmLanguage.json, copie VS Code) | Microsoft Corporation |
+| `yaml.tmLanguage.json` | `yaml` | https://github.com/redhat-developer/vscode-yaml (syntaxes/yaml.tmLanguage.json, MIT — copyright 2017 Red Hat Inc., dérivée à l'origine du bundle TextMate yaml) | Red Hat Inc. |
+
+Chaque fichier porte son en-tête `information_for_contributors`
+d'origine pointant vers le dépôt amont. Une règle du port du dialecte
+est documentée pour `ruby` : une construction lookbehind à longueurs
+variables (paramètre de bloc `do \| x \|`) est intraduisible — la
+règle est ignorée au chargement avec avertissement, dégradation
+cosmétique mineure (le `\|` des blocs n'est pas ponctué).
 
 ### Grammaire tierce Apache-2.0 (plist XML) — inactive par défaut
 

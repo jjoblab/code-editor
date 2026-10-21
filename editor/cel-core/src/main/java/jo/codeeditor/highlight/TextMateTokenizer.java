@@ -75,4 +75,23 @@ public interface TextMateTokenizer {
      * @return un {@link StyledLine} avec les portions et un état de sortie stable
      */
     StyledLine tokenize(String line, int entryState, String language);
+
+    /**
+     * Tokénise une ligne unique avec un budget d'essai explicite
+     * (plan 11, D2) — la demande interactive au fil UI passe un budget
+     * réduit ({@link SyntaxHighlighter#INTERACTIVE_TM_TIMEOUT_NS}) pour
+     * borner la pire frozen frame, la passe d'arrière-plan garde le
+     * budget plein de l'implémentation.
+     *
+     * <p>L'implémentation par défaut ignore le budget et délègue à
+     * {@link #tokenize(String, int, String)} — compatible avec tout
+     * tokéniseur hôte existant.</p>
+     *
+     * @param timeoutNs budget maximal d'un essai de correspondance, en
+     *                  nanosecondes (le repli reste la non-correspondance)
+     */
+    default StyledLine tokenize(String line, int entryState, String language,
+            long timeoutNs) {
+        return tokenize(line, entryState, language);
+    }
 }

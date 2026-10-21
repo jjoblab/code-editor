@@ -116,3 +116,17 @@ afterEvaluate {
         }
     }
 }
+
+// Plan 11 : les tests de charge (ProgressiveLoadTest) ouvrent des
+// documents de 480 000 lignes (~14 Mo de texte, ~26 Mo d'états et
+// caches) — le tas par défaut des tests unitaires (512 Mo) fait vivre
+// ces tests en pleine pression GC et rend les mesures de fluidité non
+// représentatives. 1 Go : les mesures de la médiane typeChar restent
+// stables d'une exécution à l'autre.
+android {
+    testOptions {
+        unitTests.all {
+            it.maxHeapSize = "1g"
+        }
+    }
+}

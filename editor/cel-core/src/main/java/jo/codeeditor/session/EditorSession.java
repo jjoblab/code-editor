@@ -287,44 +287,64 @@ public class EditorSession {
 
     public void setLanguage(String language) {
         this.language = language;
-        // Restyle asynchrone pour le parser MAISON.
-        //
-        // La protection grands documents est locale à chaque boucle de
-        // restyle : chaque site d'appel à styleLine passe allowTextMate =
-        // (lineCount <= TEXTMATE_LINE_LIMIT), calculé sur SA propre taille
-        // de document — un grand document ne coupe donc pas la délégation
-        // TextMate des autres onglets ouverts.
-        //
-        // La mécanique d'async est robuste :
+        // Restyle asynchrone : EAGER (petit document, passe complète
+        // sur le worker) ou PROGRESSIF (grand document, plan 11 —
+        // pistes d'états, spans à la demande, jamais de passe
+        // complète). La mécanique d'async est robuste :
         //   - Snapshot du doc (immutable EditorDocument) → pas de race
         //     avec replaceRange pendant le travail
         //   - Cancellation via pendingRestyle (AtomicReference<Future>)
         //   - Stale-result detection via restyleGeneration (volatile)
         //   - Doc-changed detection via doc != docAtStart (ref identity)
-        //   - Atomic swap du volatile styledLines
+        //   - Permutation atomique du volatile styledLines (eager) ou
+        //     remplissage par morceaux (progressif)
         //   - Thread interruption check dans la boucle worker
         //   - Listener cross-thread (EditorView posts onLinesReset sur l'UI)
         restyleAllAsync();
-        // Détection automatique des régions de pliage quand le langage est défini.
-        detectFolds();
-        // Nouveau document/langage → les défauts de pliage serveur
-        // (imports repliés) peuvent s'appliquer une première fois.
-        folds.resetDefaults();
+        // Détection des régions de pliage + défauts serveur : SYNCHRONE
+        // en régime eager (≤ 800 lignes, ~1-2 ms), DIFFÉRÉE au worker
+        // en régime progressif (plan 11 — la passe de découpage d'un
+        // document géant ne gèle jamais le fil UI ; l'ordre
+        // detect → resetDefaults est préservé dans la tâche différée).
+        final String langFinal = language;
+        final EditorDocument docFinal = doc;
+        restyle.scheduleFoldDetection(() -> {
+            folds.detect(docFinal, langFinal);
+            folds.resetDefaults();
+        });
     }
 
     /**
-     * Coupe-circuit TextMate pour les grands documents, décidé à chaque passe
-     * de restyle.
+     * Seuil de bascule du régime de coloration (plan 11, D1).
      *
-     * <p>Les documents dépassant cette limite en nombre de lignes sautent la
-     * délégation TextMate et utilisent le tokenizer intégré, dont le coût par
-     * ligne est 10–50× inférieur. La porte est passée en paramètre à
-     * {@code styleLine(line, state, language, allowTextMate)} à chaque site
-     * d'appel, donc calculée depuis LE document de CETTE session — un onglet
-     * de 5000 lignes ne désactive pas TextMate pour un petit onglet d'un
-     * autre EditorView.</p>
+     * <p>Les documents dépassant cette limite en nombre de lignes
+     * passent en régime PROGRESSIF : plus AUCUNE passe complète (ni à
+     * l'ouverture, ni à l'annulation) — les états des deux pistes
+     * (tokéniseur intégré, voie grammaires) sont remplis en
+     * arrière-plan par morceaux, les spans sont calculés À LA DEMANDE
+     * pour les lignes lues (le rendu ne lit que les lignes visibles),
+     * et la mémoire des spans est bornée par un cache LRU. La
+     * coloration riche n'est donc PLUS JAMAIS coupée par la taille du
+     * document (c'était le rôle de l'ancienne porte TEXTMATE_LINE_LIMIT
+     * à 3.73.0) — elle s'installe progressivement, l'intégré assurant
+     * l'affichage immédiat partout.</p>
      */
-    static final int TEXTMATE_LINE_LIMIT = 800;
+    static final int TEXTMATE_EAGER_LIMIT = 800;
+
+    /**
+     * Indique à la coloration la plage de lignes actuellement VISIBLE
+     * (plan 11) : la passe d'arrière-plan priorise son franchissement
+     * et notifie la vue quand la plage gagne une couche (intégré →
+     * grammaires) pour un rafraîchissement immédiat. Appelé par la vue
+     * à l'attachement et au défilement — sans effet hors régime
+     * progressif.
+     *
+     * @param firstVisible première ligne visible (incluse)
+     * @param lastVisible  dernière ligne visible (incluse)
+     */
+    public void hintViewport(int firstVisible, int lastVisible) {
+        restyle.hintViewport(firstVisible, lastVisible);
+    }
 
     /**
      * Détecte les régions de pliage pour le document + langage courants.
@@ -755,14 +775,18 @@ public class EditorSession {
     }
 
     /**
-     * Attend (bloquant) la complétion de tout restyle asynchrone en attente.
+     * Attend (bloquant) la complétion de tout restyle asynchrone ou
+     * progressif en attente (pistes d'états remplies, détection de
+     * plis différée incluse).
      *
-     * <p>Pour les tests : garantit que les assertions sur styledLines voient
-     * l'état post-restyle, pas l'intervalle en vol.
+     * <p>Pour les tests et l'intégration hôte : garantit que les
+     * assertions sur {@link #getStyledLines()} voient l'état post-restyle,
+     * pas l'intervalle en vol. Ne pas appeler sur le fil UI en
+     * production (bloquant).
      *
      * @throws InterruptedException si le thread appelant est interrompu
      */
-    void awaitPendingRestyle() throws InterruptedException {
+    public void awaitPendingRestyle() throws InterruptedException {
         restyle.awaitPendingRestyle();
     }
 
@@ -770,7 +794,7 @@ public class EditorSession {
      * Indique si un restyle asynchrone est actuellement en vol.
      * Pour les tests + le diagnostic.
      */
-    boolean isAsyncRestylePending() {
+    public boolean isAsyncRestylePending() {
         return restyle.isAsyncRestylePending();
     }
 
@@ -1164,7 +1188,8 @@ public class EditorSession {
 
         // 3. Mot → syntagme : span syntaxique englobant (chaîne/commentaire),
         //    sinon paire de crochets englobante la plus interne.
-        int[] span = enclosingSyntaxSpanRange(selection.start, selection.end);
+        int[] span = SyntaxSpanQuery.enclosing(doc, getStyledLines(),
+                selection.start, selection.end);
         if (span != null && !(span[0] == selection.start && span[1] == selection.end)) {
             setSelection(Selection.range(span[0], span[1]));
             return true;
@@ -1184,42 +1209,6 @@ public class EditorSession {
         int lastLineEnd = doc.lineEnd(lastLine);
         setSelection(Selection.range(start, lastLineEnd));
         return true;
-    }
-
-    /**
-     * Recherche le span syntaxique (chaîne, caractère, chaîne brute,
-     * commentaire, doc-comment, emphase, regexp) qui couvre ENTIÈREMENT
-     * la sélection [start, end) — bornes converties en offsets document.
-     * Renvoie {@code null} si la sélection s'étend sur plusieurs lignes
-     * ou si aucun span englobant n'existe. Les bornes du span INCLUENT
-     * les délimiteurs (guillemets, {@code /*} et {@code *&#47;}).
-     */
-    private int[] enclosingSyntaxSpanRange(int start, int end) {
-        if (end <= start) return null;
-        int firstLine = doc.lineForOffset(start);
-        int lastLine = doc.lineForOffset(Math.max(start, end - 1));
-        if (firstLine != lastLine) return null; // multi-lignes : pas de span simple
-
-        List<StyledLine> styled = getStyledLines();
-        if (firstLine >= styled.size()) return null;
-        StyledLine sl = styled.get(firstLine);
-        if (sl == null || sl.spans == null) return null;
-        int lineStart = doc.lineStart(firstLine);
-        for (LineSpan s : sl.spans) {
-            TokenType t = s.type;
-            if (t != TokenType.STRING && t != TokenType.CHAR
-                    && t != TokenType.RAW_STRING && t != TokenType.COMMENT
-                    && t != TokenType.DOC_COMMENT && t != TokenType.REGEXP
-                    && t != TokenType.EMPHASIS) {
-                continue;
-            }
-            int s0 = lineStart + s.startCol;
-            int s1 = lineStart + s.endCol;
-            if (s0 <= start && end <= s1) {
-                return new int[]{s0, s1};
-            }
-        }
-        return null;
     }
 
     /**

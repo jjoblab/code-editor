@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Les sections antérieures à la période courante sont archivées dans
 [`docs/archive/CHANGELOG-archive.md`](docs/archive/CHANGELOG-archive.md) (A-08, audit 3.69.0).
 
+## [4.0.0] — 2026-10-20 — Refonte du moteur de regex de `cel-textmate` (plan 10 : moteur natif du dialecte, budget par essai, Unicode conforme à la référence)
+
+### Changed (refonte du moteur — plan 10, docs/plans/10)
+
+- **`cel-textmate` exécute les grammaires TextMate sur un moteur natif du dialecte** (refonte 4.0, plan 10) : la couche de traduction `RegexCompat` est remplacée par une couture interne `jo.codeeditor.textmate.regex` (seul importateur du moteur — confinement vérifié par test en P2) ; les motifs s'exécutent nativement, sans transformation de dialecte.
+- **Constat C8 résolu** : les 7 règles markdown à récursion `\g<square>` (gras, italique, 2 images, 3 liens) sont natives — `**gras**`, `*italique*`, les liens à crochets et le lien imbriqué dans du gras colorent ; la règle CSS `selector` et ses idiomes lookbehind compilent nativement (8 règles ressuscitées au total par la table de normalisation).
+- **Constat C9 résolu** : `\w`/`\W`/`\d`/`\D`/`\s`/`\b` suivent la référence du dialecte (Unicode) — `var année = 3;` colore le mot entier, `def énorme(x)` colore le nom, `\bété\b` correspond ; `\h` vaut chiffre hexadécimal (plus jamais espace horizontal).
+- **Constat C2 résolu** : chaque essai de correspondance est budgété (100 ms, proposition D4) — un motif catastrophique se replie en non-correspondance au lieu de bloquer le thread de restyle ; le journal est throttlé par motif.
+- **C1/C7** : le module journalise via `EditorLog` (plus de stderr) ; les avertissements de règles muettes sont désormais peuplés (la liste était copiée avant le parse et restait vide à jamais) et publiés une fois par grammaire.
+
+### Added
+
+- Suite de conformité permanente `RegexConformityTest` (28 cas, valeurs établies sur la référence C du dialecte) + corpus de l'audit `AuditCorpusTest` et ressource `unicode-audit.tmg.json`.
+
+### Added (plan 11 — grands documents progressifs et corpus élargi)
+
+- **Régime PROGRESSIF des grands documents** (`cel-core`, plan 11 §2.2) : au-delà de `TEXTMATE_EAGER_LIMIT` (800 lignes, ancien `TEXTMATE_LINE_LIMIT` — la porte coupe-circuit devient un seuil de bascule), plus AUCUNE passe complète — ni à l'ouverture, ni à l'annulation, ni au changement de langue. Deux pistes d'états (tokéniseur intégré ~1,5 µs/ligne, voie grammaires) sont remplies en arrière-plan par morceaux interruptibles ; les spans sont calculés À LA DEMANDE pour les lignes lues (budget interactif 10 ms/essai, frozen frame bornée ~30 ms) ; la mémoire est bornée par un cache LRU de 4 096 lignes quelle que soit la taille du document. Mesures (JVM desktop, 480 001 lignes) : ouverture 619 ms → ~200-330 ms avec coloration riche immédiate du premier viewport (contre JAMAIS au-delà de 800 lignes auparavant), delta tas 147 Mo → ~26 Mo, sauts de viewport ≤ 28 ms, `hintViewport(first, last)` publique pour la vue.
+- **Correctif P1-a (pollution d'états croisée)** : une ligne monstre (> 5 000 caractères) bascule sur le tokéniseur intégré sans corrompre la pile grammaires — les deux espaces d'identifiants d'états ne se mélangent plus jamais (pistes séparées, test dédié).
+- **Correctif P1-b** : le registre des grammaires externes est un instantané immuable rebâti seulement à l'enregistrement (avant : une `HashMap` + deux sections critiques reconstruites À CHAQUE ligne tokénisée).
+- **Détection de plis asynchrone** en régime progressif : la passe de découpage (600 ms à 480k lignes) s'exécute sur le worker AVANT le remplissage — plus de gel du fil UI au `setLanguage`.
+- **Épissure optimisée** : les pistes d'états sont décalées SUR PLACE (tableaux à capacité — avant : trois allocations de la taille du document par frappe, 5,7 Mo à 480k lignes).
+- **Corpus de grammaires porté de 10 à 23** (exigence propriétaire « comme pour [l'IDE de référence] ») : 13 nouvelles tierces VERBATIM MIT/Apache-2.0 — `c`, `cpp`, `dockerfile`, `go`, `json`, `php`, `ruby`, `rust`, `shell`, `sql`, `toml`, `typescript`, `yaml` (bundles « TextMate Bundle License » écartés : `diff`, `makefile` restent au tokéniseur intégré). Une règle ruby (lookbehind à longueurs variables) est ignorée avec avertissement — dégradation cosmétique documentée. Banc étendu : 23 grammaires, pire 8,5 ms/ligne (plafond D4 10 ms maintenu).
+- **Démo** : échantillon `Dockerfile` + deux échantillons de CHARGE générés (« Charge 100k lignes (Java) », « Charge 480k lignes (Java) ») pour tester sur appareil l'ouverture, le scroll, les sauts et l'édition en régime progressif ; tiroir réorganisé (33 échantillons, 32 langages).
+- **Suite d'exactitude du régime progressif** : `ProgressiveStyledLinesTest` (équivalence piste intégrée + piste grammaires vs chaîne complète, pistes séparées ligne monstre, épissures ≡ session fraîche, hint viewport) + `ProgressiveLoadTest` (ouverture/édition/sauts à 480k lignes, mémoire bornée) + `ProgressiveEquivalenceE2ETest` (démo : le VRAI moteur + la VRAIE grammaire java sur 1 200 lignes — spans progressifs IDENTIQUES à la chaîne séquentielle complète, y compris après édition).
+
 ## [3.74.0] — 2026-10-20 — Cycle de vie du langage LSP : la déconnexion referme TOUT (ADR-003) + formatage complet : options, sélection, disponibilité, robustesse
 
 > Cycle de vie : corrige C1/C1b/C1c (langage du fichier précédent resté branché sur l'onglet sans serveur, course connect/disconnect, écouteur jamais retiré). Formatage : C2 (options), C3 (plage), C5 (disponibilité), C4 (journal/robustesse). Aucune rupture d'API — tout est additif (méthodes `default` ou nouvelles méthodes).

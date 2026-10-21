@@ -1582,6 +1582,20 @@ public class EditorView extends View {
             float max = maxV();
             l.onScrollPosition(scroll.vOffset, max);
         }
+        // Plan 11 : hint de viewport au régime progressif — la passe
+        // d'arrière-plan priorise le franchissement de la plage visible
+        // et notifie la montée en couche (intégré → grammaires) pour un
+        // rafraîchissement immédiat. Sans effet sur les petits
+        // documents (régime eager).
+        float lineHeight = metrics.getLineHeight();
+        if (lineHeight > 0 && session != null
+                && session.getDocument().lineCount() > 0) {
+            int first = Math.max(0,
+                    (int) Math.floor(scroll.vOffset / lineHeight) - 1);
+            int last = Math.min(session.getDocument().lineCount() - 1,
+                    (int) Math.ceil((scroll.vOffset + getHeight()) / lineHeight) + 1);
+            session.hintViewport(first, last);
+        }
         // Préfetch du viewport au repos — ré-armé à chaque scroll pour que
         // la tâche ne se déclenche qu'après 150 ms de scroll CALME (jamais
         // pendant un fling — préfetcher en plein fling ne fait que le

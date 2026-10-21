@@ -56,6 +56,13 @@ dependencies {
     // et ne connaît ni cel-ui ni cel-lsp.
     api(project(":cel-core"))
 
+    // Plan 10 (D3, refonte 4.0) : moteur d'expressions rationnelles du
+    // dialecte des grammaires TextMate — dépendance unique du module,
+    // consommée exclusivement par la couture jo.codeeditor.textmate.regex
+    // (règle d'or 1 du plan 10 : confinement vérifié par test).
+    implementation(libs.joni)
+    implementation(libs.jcodings)
+
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.platform.launcher)
 }

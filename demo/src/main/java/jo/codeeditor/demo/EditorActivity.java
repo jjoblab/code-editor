@@ -324,7 +324,10 @@ public class EditorActivity extends AppCompatActivity {
             closeFile(oldestNonCurrentIndex());
         }
         String sample = DemoSamples.sampleFor(id);
-        String editorLanguageId = "minified-js".equals(id) ? "javascript" : id;
+        // Les échantillons de charge (plan 11) sont du JAVA généré : le
+        // langage éditeur est java (bascule grammaires et pliage actives).
+        String editorLanguageId = "minified-js".equals(id) ? "javascript"
+                : id.startsWith("load-") ? "java" : id;
         EditorSession newSession = new EditorSession(EditorDocument.of(sample));
         // Rafraîchissement différé des panneaux après édition (les deux
         // moteurs débouncent leur recalcul — 700 ms couvre l'analyzer

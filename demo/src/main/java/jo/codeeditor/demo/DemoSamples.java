@@ -56,6 +56,14 @@ public final class DemoSamples {
         LANGUAGES.put("SQL", "sql");
         LANGUAGES.put("Smali", "smali");
         LANGUAGES.put("Log", "log");
+        // Plan 11 : grammaire dockerfile embarquée (Apache-2.0).
+        LANGUAGES.put("Dockerfile", "dockerfile");
+        // Plan 11 : échantillons de CHARGE générés (exigence (3) du
+        // propriétaire — tester sur appareil l'ouverture, le scroll,
+        // les sauts et l'édition de documents de centaines de milliers
+        // de lignes en régime progressif).
+        LANGUAGES.put("Charge 100k lignes (Java)", "load-100k");
+        LANGUAGES.put("Charge 480k lignes (Java)", "load-480k");
     }
 
     /** Bundle minifié de ~14 Ko sur UNE SEULE ligne (48 modules IIFE
@@ -924,6 +932,13 @@ public final class DemoSamples {
             | cel-ui    | vue Canvas   | active   |
             | cel-lsp   | pont lsp4j   | expérimental |
 
+            ## Crochets imbriqués (coloration native du dialecte)
+
+            Du **gras**, de *l'italique*, une ![image](https://example.org/banniere.png),
+            et le cas d'école : **[lien imbriqué dans du gras](https://example.org)** —
+            la récursion du dialecte est native depuis la refonte du moteur 4.0 :
+            ce que l'ancienne traduction laissait en texte brut colorent désormais.
+
             Voir la [documentation](https://github.com/jjoblab/code-editor) —
             les ~~promesses~~ fonctionnalités ci-dessus sont ~~presque~~ toutes livrées.
             """;
@@ -990,6 +1005,48 @@ public final class DemoSamples {
     private DemoSamples() {
     }
 
+    private static final String DOCKERFILE = """
+            # syntax=docker/dockerfile:1
+            FROM eclipse-temurin:17-jre AS base
+            WORKDIR /app
+            COPY build/libs/*.jar app.jar
+            ENV JAVA_OPTS="-Xmx512m -XX:+UseSerialGC"
+            RUN apt-get update \
+                && apt-get install -y --no-install-recommends curl \
+                && rm -rf /var/lib/apt/lists/*
+            HEALTHCHECK --interval=30s --timeout=3s \
+              CMD curl -fsS http://localhost:8080/health || exit 1
+            EXPOSE 8080
+            ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]
+            """;
+
+    /**
+     * Génère un document Java réaliste de ~12 lignes par bloc (plan 11,
+     * échantillons de charge) : commentaires doc multi-lignes, chaînes,
+     * génériques, contrôles — de quoi exercer les deux pistes du régime
+     * progressif et le pliage.
+     */
+    private static String chargeJava(int blocs) {
+        StringBuilder sb = new StringBuilder(blocs * 500);
+        for (int i = 0; i < blocs; i++) {
+            sb.append("/** Bloc ").append(i).append(" — doc multi-lignes\n");
+            sb.append(" * du document de charge (plan 11). */\n");
+            sb.append("public final class Charge").append(i)
+                    .append("<T extends CharSequence> {\n");
+            sb.append("    private static final String NOM = \"bloc \" + ").append(i).append(";\n");
+            sb.append("    private T gabarit;\n");
+            sb.append("    public int calculer(String arg) {\n");
+            sb.append("        // TODO: validate arg\n");
+            sb.append("        if (arg != null && !arg.isEmpty()) {\n");
+            sb.append("            return arg.length() * NOM.length();\n");
+            sb.append("        }\n");
+            sb.append("        return 0;\n");
+            sb.append("    }\n");
+            sb.append("}\n");
+        }
+        return sb.toString();
+    }
+
     /** Retourne l'échantillon du langage donné (ou le contenu Java par défaut). */
     public static String sampleFor(String language) {
         switch (language == null ? "" : language) {
@@ -1022,6 +1079,9 @@ public final class DemoSamples {
             case "sql": return SQL;
             case "smali": return SMALI;
             case "log": return LOG;
+            case "dockerfile": return DOCKERFILE;
+            case "load-100k": return chargeJava(8_334);
+            case "load-480k": return chargeJava(40_000);
             default: return JAVA;
         }
     }

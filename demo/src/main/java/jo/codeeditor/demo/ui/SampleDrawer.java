@@ -51,10 +51,11 @@ public final class SampleDrawer {
 
     /** Familles du tiroir — nom, teinte, libellés membres (l\u2019appartenance se juge sur le libellé). */
     static final Object[][] FAMILIES = {
-            {"JVM", 0xFF34D399, new String[]{"Java", "Kotlin", "C#", "Scala", "Groovy"}},
+            {"JVM", 0xFF34D399, new String[]{"Java", "Kotlin", "C#", "Scala", "Groovy",
+                    "Charge 100k lignes (Java)", "Charge 480k lignes (Java)"}},
             {"Web", 0xFF38BDF8, new String[]{"JavaScript", "Minifié (JS)", "TypeScript", "PHP", "HTML", "CSS", "XML"}},
             {"Scripts", 0xFFFBBF24, new String[]{"Python", "Ruby", "Lua", "Shell", "SQL", "Markdown"}},
-            {"Systèmes", 0xFFF87171, new String[]{"C", "C++", "Go", "Rust", "Swift", "Dart", "Smali"}},
+            {"Systèmes", 0xFFF87171, new String[]{"C", "C++", "Go", "Rust", "Swift", "Dart", "Dockerfile", "Smali"}},
             {"Données", 0xFFA78BFA, new String[]{"JSON", "YAML", "TOML", "Properties", "Log"}},
     };
 
