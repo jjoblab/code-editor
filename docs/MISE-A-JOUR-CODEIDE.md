@@ -14,8 +14,8 @@
 | Tag | `v3.74.0` (annoté, posé sur `main` après CI vert) |
 | SHA de la version | `4082364` (`main`, 2026-10-20) |
 | `ci.yml` (main) | SUCCESS (build + 2 610 tests + lint + contrôles) — échec initial 4082364 = 2 tests d'hygiène de threads flakys sous charge runner, relancé (précédent interne : flake dependabot relancé de la même façon) ; vert au 2ᵉ essai |
-| `publish.yml` (tag) | [ÉTAT-PUBLISH] |
-| JitPack `com.github.jjoblab/code-editor/v3.74.0` | [ÉTAT-JITPACK] — modules consommés par l'application : `cel-ui`, `cel-lsp`, `cel-lsp-api` |
+| `publish.yml` (tag) | SUCCESS (run 00:28:36Z, terminé ~00:31) — les 5 AAR publiés sur GitHub Packages (`jo.codeeditor:cel-{core,lsp-api,lsp,ui,textmate}:3.74.0`, .pom vérifiés HTTP 200) |
+| JitPack `com.github.jjoblab/code-editor/v3.74.0` | **ok** (commit d55cb03, build 45 s, `publishToMavenLocal` 5 modules) — AAR vérifiés téléchargeables (HTTP 206) : `cel-ui`, `cel-lsp`, `cel-lsp-api`, `cel-core`, `cel-textmate` (chemin : `com.github.jjoblab.code-editor:<module>:v3.74.0`) |
 
 ### 2. Plage de compatibilité (l'application vient de 3.72.0)
 
