@@ -174,3 +174,72 @@ griser/masquer les actions.
   toujours absents (hors périmètre).
 - Le journal du formateur ne contient JAMAIS le contenu du document
   (délais, classes d'exception, compteurs uniquement).
+
+## 4.0.0
+
+### 1. État de publication
+
+| Élément | État |
+|---|---|
+| Tag | `v4.0.0` (annoté, posé sur `main` APRÈS le correctif de bancs `849bf3c` — la 4.0.0 tagée EST la 4.0.0 testée) |
+| SHA de la version | `849bf3c` (`main`, 2026-10-21) |
+| `ci.yml` (main) | SUCCESS — l'échec initial de `39a1b64` était ENVIRONNEMENTAL (3 assertions de timing : runners CI partagés mesurés 1,2 à 2,1× plus lents ; 2 634/2 636 et 2 635/2 636 tests verts selon les runs) ; les plafonds CI relevés (30 ms/ligne corpus, 250 µs buildColumnMaps, 20 ms médiane, 400 ms pire typeChar) sont posés dans `849bf3c` — les bornes machine de référence restent INTÉGRALEMENT appliquées hors CI |
+| `publish.yml` (tag) | SUCCESS — artefacts publiés sur GitHub Packages (`jo.codeeditor:cel-{core,lsp-api,lsp,ui,textmate}:4.0.0`) |
+| JitPack `com.github.jjoblab/code-editor` | `v4.0.0` **ok** (vérifié via l'API builds le 2026-10-24 — consommé par CodeIDE v0.175.0, `libs.versions.toml` `code-editor = "4.0.0"`) |
+
+### 2. Compatibilité (l'application vient de 3.74.0)
+
+**AUCUNE rupture d'API — tout est interne ou additif.** Le hôte compile
+et se comporte mieux sans AUCUN changement obligatoire.
+
+- `cel-textmate` : refonte INTERNE du moteur de regex (moteur natif du
+  dialecte, plan 10) — la couture `jo.codeeditor.textmate.regex` est le
+  seul importateur du moteur, AUCUNE API publique touchée. Les 7 règles
+  markdown à récursion (`\G<square>`), la règle CSS `selector` et les
+  idiomes lookbehind compilent nativement ; `\w`/`\d`/`\s`/`\b` suivent
+  la référence Unicode ; chaque essai est BUDGÉTÉ (100 ms) — un motif
+  catastrophique se replie en non-correspondance au lieu de bloquer le
+  fil de restyle.
+- `cel-core` : régime PROGRESSIF des grands documents (plan 11) —
+  `TEXTMATE_LINE_LIMIT` devient `TEXTMATE_EAGER_LIMIT` (renommage
+  INTERNE, 800 lignes = seuil de bascule, plus porte coupe-circuit) ;
+  au-delà, plus AUCUNE passe complète à l'ouverture, à l'annulation ni
+  au changement de langue : états remplis en arrière-plan par morceaux
+  INTERRUPTIBLES, spans calculés À LA DEMANDE (budget interactif
+  10 ms/essai), mémoire bornée par cache LRU 4 096 lignes.
+- **API ajoutée (seule nouveauté publique)** :
+  ```java
+  // jo.codeeditor.view.EditorView — thread UI attendu (plan 11 §2.2)
+  // Indice de viewport au remplissage progressif (facultatif : sans
+  // appel, les spans se calculent quand même à la demande).
+  public void hintViewport(int firstVisibleLine, int lastVisibleLine)
+  ```
+- Corpus de grammaires 10 → 23 (13 tierces MIT/Apache-2.0 VERBATIM :
+  c, cpp, dockerfile, go, json, php, ruby, rust, shell, sql, toml,
+  typescript, yaml ; une règle ruby lookbehind à longueurs variables
+  ignorée avec avertissement — dégradation cosmétique documentée).
+
+### 3. Ce que l'application hôte doit faire
+
+Rien d'obligatoire. Facultatif : consommer `hintViewport(first, last)`
+au scroll pour resserrer les spans du viewport (CodeIDE ne le consomme
+pas encore à v0.175.0 — consommation optionnelle documentée).
+
+### 4. Ce que l'application hôte ne doit PAS faire
+
+- Ne PAS référencer `TEXTMATE_LINE_LIMIT` (renommé
+  `TEXTMATE_EAGER_LIMIT`, interne) — aucun usage côté CodeIDE
+  (vérifié par grep).
+- Ne PAS compter sur la coloration COMPLÈTE au-delà de 800 lignes : le
+  régime progressif remplit en arrière-plan, les premières frames
+  montrent le viewport coloré (c'est le comportement voulu).
+
+### 5. Scénarios de vérification sur appareil
+
+- Ouvrir un fichier de CHAQUE nouveau langage (ex. `.go`, `.rs`,
+  `Dockerfile`) : coloration lexicale immédiate.
+- Coller 100k+ lignes : ouverture fluide, scroll sans jank, la
+  coloration suit le viewport (remplissage arrière-plan visible).
+- `**gras**`, `*italique*`, liens imbriqués dans du gras (markdown) :
+  ils COLORENT désormais (règles à récursion natives).
+- `var année = 3;` : le mot ENTIER colore (Unicode conforme).
