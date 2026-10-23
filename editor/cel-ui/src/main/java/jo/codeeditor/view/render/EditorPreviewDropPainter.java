@@ -293,7 +293,6 @@ public class EditorPreviewDropPainter {
         float phoneY = headerH + margin;
         float phoneW = cardW - 2f * margin;
         float phoneH = cardH - headerH - footerH - 2f * margin;
-        float bezel = Math.max(1f, 2f * density);
         float radius = 16f * density;
 
         // Bezel : bord épais neutre autour de l'écran.
@@ -308,8 +307,10 @@ public class EditorPreviewDropPainter {
 
         // Écran : CLAIR (l'app prévisualisée vit sur fond clair —
         // contraste voulu avec la carte sombre, miroir maquette).
-        phoneScreen.set(phoneX + bezel, phoneY + bezel,
-                phoneX + phoneW - bezel, phoneY + phoneH - bezel);
+        // B27-C3 : le rectangle vient du DROP (source unique — le
+        // hit-test tactile du corps mappe au pixel près ce dessin).
+        phoneScreen.set(drop.screenRect());
+        float bezel = Math.max(1f, 2f * density);
         float inner = radius - bezel * 0.5f;
         if (inner < 0f) inner = 0f;
         fillPaint.setColor(0xFFF4F5F7);

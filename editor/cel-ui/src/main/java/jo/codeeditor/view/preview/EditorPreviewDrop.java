@@ -124,6 +124,8 @@ public final class EditorPreviewDrop {
 
     /** Rects de hit réutilisés (aucune allocation par tap). */
     private final RectF hitCard = new RectF();
+    /** Rect écran réutilisé par {@link #screenRect()} (B27-C3 — aucune allocation par touche). */
+    private final RectF scratchScreen = new RectF();
 
     // ── Voile d'eau (retour terrain B27) ───────────────────────────
 
@@ -876,6 +878,64 @@ public final class EditorPreviewDrop {
         }
         // Corps de la carte : englouti (le caret ne bouge pas — la
         // surface d'aperçu n'est pas une zone d'édition).
+        return true;
+    }
+
+    /**
+     * B27-C3 — rectangle LOCAL de l'ÉCRAN du mini-téléphone (px carte,
+     * repère maquette) : LE même rectangle que celui passé au hôte via
+     * {@link EditorPreviewHost#drawDropPreview(Canvas, float, float,
+     * float, float, int)} — source unique partagée avec le painter
+     * (bezel inclus dans la géométrie, les coordonnées tactiles du hôte
+     * tombent donc EXACTEMENT sur les coordonnées de dessin).
+     *
+     * <p>Le painter consomme ce rectangle ; le hit-test C3
+     * ({@link #bodyTouchAt(float, float)}) s'appuie dessus : un point
+     * transféré au hôte se mappe au pixel près sur le contenu dessiné.</p>
+     */
+    public RectF screenRect() {
+        float density = view.getResources().getDisplayMetrics().density;
+        float margin = PHONE_MARGIN_DP * density;
+        float headerH = HEADER_H_DP * density;
+        float footerH = FOOTER_H_DP * density;
+        float cardW = CARD_W_DP * density;
+        float cardH = CARD_H_DP * density;
+        float bezel = Math.max(1f, 2f * density);
+        float phoneX = margin;
+        float phoneY = headerH + margin;
+        float phoneW = cardW - 2f * margin;
+        float phoneH = cardH - headerH - footerH - 2f * margin;
+        scratchScreen.set(phoneX + bezel, phoneY + bezel,
+                phoneX + phoneW - bezel, phoneY + phoneH - bezel);
+        return scratchScreen;
+    }
+
+    /**
+     * B27-C3 — hit-test TACTILE du corps : traduit un point de l'ÉDITEUR
+     * en coordonnées LOCALES ÉCRAN ({@code out[0]} = sx, {@code out[1]}
+     * = sy, relatifs au coin haut-gauche de l'écran — le repère EXACT
+     * de {@code drawDropPreview}), ou {@code null} si la carte est
+     * fermée ou le point hors de l'écran (onglets, ✕, pied, bordure).
+     *
+     * <p>Appelé au DOWN par le routeur d'entrées : un retour non nul
+     * ouvre le GESTE DE CORPS interactif (le hôte
+     * {@link EditorPreviewHost#wantsInteractiveDropPreview()} reçoit
+     * ensuite chaque MOVE/UP/CANCEL de CE geste dans le même repère).</p>
+     *
+     * @param x  abscisse dans le repère de l'éditeur (px)
+     * @param y  ordonnée dans le repère de l'éditeur (px)
+     * @param out réceptacle 2 floats réutilisable (aucune allocation)
+     * @return {@code true} si le point est dans l'écran du mini-téléphone
+     */
+    public boolean bodyTouchAt(float x, float y, float[] out) {
+        EditorPreviewDropGeometry.Placement p = placement();
+        if (p == null || !p.contains(x, y)) return false;
+        float lx = p.toLocalX(x);
+        float ly = p.toLocalY(y);
+        RectF screen = screenRect();
+        if (!screen.contains(lx, ly)) return false;
+        out[0] = lx - screen.left;
+        out[1] = ly - screen.top;
         return true;
     }
 
