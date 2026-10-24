@@ -13,11 +13,12 @@ Ce que c'est — et ce que ce n'est pas :
   réellement embarquées (LSP4J, Gson) et les grammaires tierces du
   module optionnel sont attribuées dans [`NOTICE`](NOTICE).
 - **Publication** : coordonnées Maven `jo.codeeditor:<module>` —
-  version courante : `4.1.0` (le corps de la carte « goutte d'eau »
-  devient tactile : contrat interactif opt-in du mini-téléphone pour
-  les hôtes, sur la refonte 4.0.0 du moteur de regex de
+  version courante : `4.2.0` (les yeux d'aperçu de gouttière vivent
+  AUX LIGNES des `@Preview` — un marqueur par annotation, façon
+  Android Studio, contrat B28 strictement additif ; sur la 4.1.0 du
+  corps de carte tactile et la refonte 4.0.0 du moteur de regex de
   `cel-textmate` — voir
-  [`CHANGELOG.md`](CHANGELOG.md) et les plans 10-11).
+  [`CHANGELOG.md`](CHANGELOG.md)).
 
 ## Modules
 
@@ -60,7 +61,7 @@ optionnels et s'ajoutent selon les besoins.
 
 Les artefacts sont publiés sur `maven.pkg.github.com` avec les
 coordonnées `jo.codeeditor:<module>:<version>` (version courante :
-`4.1.0`).
+`4.2.0`).
 
 1. Créez un jeton d'accès personnel GitHub avec le droit `read:packages`.
 2. Renseignez vos identifiants dans `~/.gradle/gradle.properties` :
@@ -94,18 +95,18 @@ dependencyResolutionManagement {
 // app/build.gradle.kts
 dependencies {
     // Le module UI embarque transitivement cel-core et cel-lsp-api.
-    implementation("jo.codeeditor:cel-ui:4.1.0")
+    implementation("jo.codeeditor:cel-ui:4.2.0")
 
     // Optionnel — intégration Language Server Protocol (LSP4J).
     // Ses dépendances vers cel-core/cel-lsp-api sont compileOnly :
     // gardez la ligne cel-ui ci-dessus (l'adaptateur LspEditorViewHost
     // du pont LSP y vit — plan 03 : le client LSP ne dépend plus de la vue).
-    implementation("jo.codeeditor:cel-lsp:4.1.0")
+    implementation("jo.codeeditor:cel-lsp:4.2.0")
 
     // Optionnel — voie grammaires (ADR-002 C3) : coloration par
     // grammaires TextMate, grammaires embarquées + registration
     // hôte (supporter un langage de plus = un FICHIER, pas du Java).
-    implementation("jo.codeeditor:cel-textmate:4.1.0")
+    implementation("jo.codeeditor:cel-textmate:4.2.0")
     // … puis UNE fois au démarrage, avant toute vue éditeur :
     // SyntaxHighlighter.setTextMateTokenizer(TextMateTokenizerImpl.create());
 }
@@ -123,9 +124,9 @@ maven { url = uri("https://jitpack.io") }
 
 ```kotlin
 dependencies {
-    implementation("com.github.jjoblab.code-editor:cel-ui:v4.1.0")
-    implementation("com.github.jjoblab.code-editor:cel-lsp:v4.1.0") // optionnel
-    implementation("com.github.jjoblab.code-editor:cel-textmate:v4.1.0") // optionnel (voie grammaires)
+    implementation("com.github.jjoblab.code-editor:cel-ui:v4.2.0")
+    implementation("com.github.jjoblab.code-editor:cel-lsp:v4.2.0") // optionnel
+    implementation("com.github.jjoblab.code-editor:cel-textmate:v4.2.0") // optionnel (voie grammaires)
 }
 ```
 
