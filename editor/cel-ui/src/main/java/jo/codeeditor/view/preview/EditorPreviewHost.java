@@ -190,6 +190,21 @@ public interface EditorPreviewHost {
     }
 
     /**
+     * B28 — un œil d'aperçu ANCRÉ vient d'être TAPÉ : la carte s'ouvre
+     * ancrée à la rangée {@code line} (une seule par {@code @Preview},
+     * façon Android Studio — voir {@code EditorView.setPreviewAnchors}).
+     * Le hôte réagit typiquement en sélectionnant l'onglet de LA
+     * preview qui vit à cette ligne
+     * ({@code EditorView.selectPreviewDropTab}) ; le re-tap sur l'œil de
+     * l'ancre gelée REFERME la carte et ne passe PAS ici (bascule B27).
+     * No-op par défaut — les hôtes sans ancres ne changent rien.
+     *
+     * @param line la rangée (0-based) de l'œil tapé
+     */
+    default void onPreviewAnchorTapped(int line) {
+    }
+
+    /**
      * B27 — rend l'aperçu dans l'écran du mini-téléphone de la carte.
      * Le canvas est déjà translaté/échelonné au niveau de la carte et
      * clippé à l'écran : le hôte dessine dans le rectangle donné

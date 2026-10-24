@@ -848,6 +848,26 @@ public final class EditorPreviewDrop {
     }
 
     /**
+     * ★ B28 — sélectionne l'onglet PAR PROGRAMME : miroir EXACT d'un tap
+     * d'onglet (même garde « index inchangé = rien », même notification
+     * du hôte). Le hôte l'appelle depuis
+     * {@link EditorPreviewHost#onPreviewAnchorTapped(int)} — l'œil tapé
+     * ouvre la carte sur LA preview de SA ligne. Hors bornes : clampé ;
+     * carte fermée (aucun onglet mesuré) : no-op honnête.
+     *
+     * @param index l'onglet visé
+     */
+    public void selectTab(int index) {
+        if (tabLabels.isEmpty() || !open) return;
+        int cible = Math.max(0, Math.min(index, tabLabels.size() - 1));
+        if (cible == selectedTab) return;
+        selectedTab = cible;
+        EditorPreviewHost host = preview.getHost();
+        if (host != null) host.onPreviewDropTabSelected(cible);
+        view.invalidate();
+    }
+
+    /**
      * Hit-test du tap : retourne vrai si la carte L'ENGLOUTIT (le tap
      * ne descend pas dans la cascade texte). Onglets et ✕ agissent ;
      * le corps consomme sans agir. Les coordonnées sont traduites en

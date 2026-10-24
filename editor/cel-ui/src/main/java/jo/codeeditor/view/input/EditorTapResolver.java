@@ -146,6 +146,31 @@ public class EditorTapResolver {
             return;
         }
 
+        // ★ B28 : œil ANCRÉ (UN PAR `@Preview`, façon Android Studio —
+        // l'icône vit à la ligne de l'annotation, jamais sur le caret).
+        // Le tap ouvre la carte SUR CETTE rangée et le HÔTE apprend la
+        // ligne (il sélectionne l'onglet de LA preview qui y vit) ;
+        // re-tap sur l'œil de l'ancre GELÉE : la carte se referme
+        // (bascule exacte, parité B27). Contrôlé AVANT le chemin
+        // historique (les ancres prennent le pas sur l'œil du caret) et
+        // AVANT les branches gouttière (fold/diagnostics) : le geste
+        // appartient à l'icône, le caret ne bouge pas, jamais de
+        // cascade multi-tap derrière.
+        int ancreTap = view.hitTestGutterPreviewAnchor(x, y);
+        if (ancreTap >= 0) {
+            if (view.previewMode == EditorView.PreviewMode.DROP
+                    && view.preview.drop().isOpen()
+                    && view.preview.drop().getAnchorLine() == ancreTap) {
+                view.closePreviewDrop();
+            } else {
+                view.openPreviewDropAt(ancreTap);
+                jo.codeeditor.view.preview.EditorPreviewHost hoteB28 =
+                        view.getPreviewHost();
+                if (hoteB28 != null) hoteB28.onPreviewAnchorTapped(ancreTap);
+            }
+            return;
+        }
+
         // ── B9c (retour terrain n°6) : tap sur l'icône d'aperçu de la
         // GOUTTIÈRE (œil sur la rangée du caret, façon Android Studio) —
         // BASCULE : feuille scindée si fermée, fermeture si ouverte

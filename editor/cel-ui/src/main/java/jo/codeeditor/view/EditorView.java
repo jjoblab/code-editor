@@ -2264,6 +2264,13 @@ public class EditorView extends View {
     // EditorPreviewController ; la vue ne conserve que des relais
     // publics. (Public restreint : les painters du pipeline de rendu —
     // paquet render — consultent la carte et le hôte à chaque frame.)
+    /** ★ B28 : rangées d'ANCRE des yeux d'aperçu — null = MODE
+     *  HISTORIQUE (B27 au bit près) ; VIDE = aucun œil ; sinon un œil
+     *  par `@Preview` (posé par setPreviewAnchors, poussé à la gouttière
+     *  à chaque frame par le renderer). */
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public int[] previewAnchors = null;
+
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
     public final EditorPreviewController preview = new EditorPreviewController(this);
 
@@ -2346,6 +2353,10 @@ public class EditorView extends View {
      */
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
     public boolean hitTestGutterPreviewAction(float x, float y) {
+        // ★ B28 : MODE ANCRÉ — le hit-test historique ne répond PLUS
+        // (l'œil du caret n'existe pas tant que des ancres sont posées) ;
+        // le resolver passe par hitTestGutterPreviewAnchor.
+        if (previewAnchors != null) return false;
         if (!previewable || session == null || session.getDocument() == null) {
             return false;
         }
@@ -2371,6 +2382,86 @@ public class EditorView extends View {
         return jo.codeeditor.view.chrome.GutterView.previewActionContains(
                 metrics, getResources().getDisplayMetrics().density,
                 rowTop, lineHeight, x, y);
+    }
+
+    /**
+     * ★ B28 — rangées d'ANCRE des yeux d'aperçu (une par `@Preview`,
+     * façon Android Studio : l'icône vit à la ligne de l'annotation,
+     * JAMAIS sur le caret). {@code null} (défaut) : MODE HISTORIQUE au
+     * bit près (œil unique du caret/gelé B27 — les hôtes existants ne
+     * changent RIEN) ; liste VIDE : AUCUN œil (fichier sans `@Preview` —
+     * parité exacte avec la référence) ; sinon UN œil par rangée, triée
+     * et dédupliquée. Le hôte apprend la ligne tapée par
+     * {@link jo.codeeditor.view.preview.EditorPreviewHost#onPreviewAnchorTapped(int)}
+     * (il sélectionne l'onglet de LA preview).
+     *
+     * <p>Les ancres sont CLAMPÉES au document au moment du tap (une
+     * ancre périmée après suppression de lignes ne crée pas de zone
+     * tactile fantôme).</p>
+     *
+     * @param lines rangées 0-based des `@Preview`, ou null pour le mode
+     *        historique
+     */
+    public void setPreviewAnchors(java.util.List<Integer> lines) {
+        if (lines == null) {
+            previewAnchors = null;
+        } else {
+            java.util.TreeSet<Integer> trie = new java.util.TreeSet<>();
+            for (Integer l : lines) {
+                if (l != null && l >= 0) trie.add(l);
+            }
+            int[] nus = new int[trie.size()];
+            int i = 0;
+            for (Integer l : trie) nus[i++] = l;
+            previewAnchors = nus;
+        }
+        invalidate();
+    }
+
+    /** ★ B28 — les rangées d'ancre courantes (null = mode historique). */
+    public int[] getPreviewAnchors() {
+        return previewAnchors;
+    }
+
+    /**
+     * ★ B28 — hit-test des yeux ANCRÉS : la rangée d'ancre dont la pill
+     * contient le point (géométrie DÉTERMINISTE partagée avec le
+     * dessin — {@code GutterView.previewActionRect}), ou -1. Les rangées
+     * hors document ou hors écran ne touchent rien (pas de zone
+     * tactile fantôme).
+     */
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public int hitTestGutterPreviewAnchor(float x, float y) {
+        if (previewAnchors == null || previewAnchors.length == 0
+                || session == null || session.getDocument() == null) {
+            return -1;
+        }
+        EditorDocument doc = session.getDocument();
+        if (doc.lineCount() <= 0) return -1;
+        float lineHeight = metrics.getLineHeight();
+        float density = getResources().getDisplayMetrics().density;
+        for (int anchor : previewAnchors) {
+            if (anchor < 0 || anchor >= doc.lineCount()) continue;
+            float rowTop = docLineToY(anchor) - scroll.vOffset;
+            if (rowTop + lineHeight < 0 || rowTop > getHeight()) continue;
+            if (jo.codeeditor.view.chrome.GutterView.previewActionContains(
+                    metrics, density, rowTop, lineHeight, x, y)) {
+                return anchor;
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * ★ B28 — sélectionne l'ONGLET de la carte « goutte d'eau » par
+     * programme (miroir exact d'un tap d'onglet). Le hôte l'appelle
+     * depuis {@code onPreviewAnchorTapped} pour ouvrir la carte sur LA
+     * preview de l'œil tapé. Sans carte ouverte : no-op honnête.
+     *
+     * @param index l'onglet visé (clampé aux bornes)
+     */
+    public void selectPreviewDropTab(int index) {
+        preview.drop().selectTab(index);
     }
 
     /**

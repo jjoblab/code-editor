@@ -243,3 +243,84 @@ pas encore à v0.175.0 — consommation optionnelle documentée).
 - `**gras**`, `*italique*`, liens imbriqués dans du gras (markdown) :
   ils COLORENT désormais (règles à récursion natives).
 - `var année = 3;` : le mot ENTIER colore (Unicode conforme).
+
+## 4.1.0
+
+### 1. État de publication
+
+| Élément | État |
+|---|---|
+| Tag | `v4.1.0` (annoté, posé sur `main`) |
+| SHA de la version | `2ce6f1d` (`main`, 2026-10-24) |
+| `ci.yml` (main) | SUCCESS |
+| `publish.yml` (tag) | SUCCESS — artefacts publiés sur GitHub Packages (`jo.codeeditor:cel-*:4.1.0`) |
+| JitPack `com.github.jjoblab/code-editor` | `v4.1.0` **ok** (consommé par CodeIDE v0.176.0, `libs.versions.toml` `code-editor = "v4.1.0"` — l'API B27-C3 a compilé et testé côté hôte) |
+
+### 2. Compatibilité (l'application vient de 4.0.0)
+
+**AUCUNE rupture d'API — STRICTEMENT additif.** Le corps de la carte
+« goutte d'eau » devient TACTILE (B27-C3) : TROIS méthodes À DÉFAUT sur
+`EditorPreviewHost` — `wantsInteractiveDropPreview()` (faux = corps
+englouti sans agir, comportement B27 au bit près),
+`onPreviewDropTouch(action, sx, sy)` (DOWN/MOVE/UP/CANCEL du premier
+doigt au repère EXACT de `drawDropPreview`, doigt sorti CLAMPÉ) et
+`onPreviewDropLongPress(sx, sy)` (l'« inspection » mobile). Un DOWN
+DÉCLINÉ retombe sur le corps inerte POUR CE GESTE ; les onglets, le ✕
+et la barre de taille gardent leurs gestes propres. +8 tests cel-ui.
+Consommé par CodeIDE v0.176.0 (mission « Previews » C3, ADR 0142).
+
+## 4.2.0
+
+### 1. État de publication
+
+| Élément | État |
+|---|---|
+| Tag | `v4.2.0` (annoté, posé sur `main`) |
+| SHA de la version | le commit de cette livraison (`main`, 2026-10-24) |
+| `ci.yml` (main) | SUCCESS |
+| JitPack `com.github.jjoblab/code-editor` | `v4.2.0` — consommé par CodeIDE v0.177.0 (la chaîne locale de l'hôte a résolu et compilé l'API B28) |
+
+### 2. Compatibilité (l'application vient de 4.1.0)
+
+**AUCUNE rupture d'API — STRICTEMENT additif, opt-in par
+`setPreviewAnchors`.** Les yeux d'aperçu de gouttière vivent désormais
+AUX LIGNES des `@Preview` (B28, façon Android Studio — écho
+`PreviewPickerLineMarkerProvider` : UN marqueur PAR annotation, AUCUN
+sans) :
+
+- `EditorView.setPreviewAnchors(List<Integer>)` — `null` (défaut) :
+  MODE HISTORIQUE au bit près (œil unique du caret, B27) ; liste VIDE :
+  AUCUN œil ; sinon UN œil par rangée (triée, dédupliquée). Le mode
+  ancré PREND LE PAS sur l'œil du caret (les DEUX hit-tests se
+  partagent : `hitTestGutterPreviewAction` se taut, le nouveau
+  `hitTestGutterPreviewAnchor(x, y)` répond par la LIGNE).
+- Tap sur un œil ancre → la carte s'ouvre SUR CETTE rangée et le hôte
+  apprend la ligne (`onPreviewAnchorTapped(int)`, méthode à défaut) —
+  il sélectionne l'onglet de LA preview via le nouveau relais
+  `EditorView.selectPreviewDropTab(int)` (clampé, même notification
+  qu'un tap d'onglet). Re-tap sur l'œil gelé = fermeture ; tap sur un
+  autre œil = ré-ancre et l'onglet suit.
+- Les hôtes qui ne posent JAMAIS d'ancres (Markdown/HTML, démo,
+  CodeIDE ≤ v0.176.0) ne constatent AUCUN changement.
+
+### 3. Ce que l'application hôte ne doit PAS faire
+
+- Ne PAS poser d'ancres sur des lignes SANS `@Preview` vivante : la
+  parité AS veut ZÉRO icône sans sujet — vider la liste plutôt que
+  mentir (`setPreviewAnchors(emptyList())` quand la découverte ne
+  trouve rien).
+- Ne PAS appeler `selectPreviewDropTab` HORS du callback
+  `onPreviewAnchorTapped` et du tap d'onglet : la sélection
+  programmatique notifie le hôte (miroir exact d'un tap — boucle
+  possible si le hôte réagit à sa propre notification).
+
+### 4. Scénarios de vérification sur appareil
+
+- Ouvrir un fichier `.kt` AVEC `@Preview` : un œil à CHAQUE ligne
+  d'annotation, AUCUN ailleurs (l'œil du caret a disparu).
+- Ouvrir un `.kt` SANS `@Preview` : AUCUNE icône de gouttière.
+- Taper un œil : la carte s'ouvre ancrée à SA ligne et montre LA
+  preview correspondante ; taper un autre œil : la carte ré-ancre et
+  change d'onglet ; re-taper l'œil de l'ancre : la carte se referme.
+- Ajouter/supprimer une `@Preview` à chaud : les yeux suivent le
+  document (rafraîchissement côté hôte, débouncé).
