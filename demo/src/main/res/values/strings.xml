@@ -281,7 +281,7 @@
     <string name="about_message">Atelier de la bibliothèque code-editor (Java, Canvas, Apache-2.0) — coquille IDE multi-fichiers.
 
 \u2022 Cinq modules publiables exercés en situation réelle : :cel-core (moteur), :cel-ui (vues), :cel-lsp-api (SPI langage), :cel-lsp (client LSP), :cel-textmate (grammaires).
-\u2022 33 échantillons dans le tiroir, 23 grammaires TextMate embarquées (csharp original + 22 tierces, attribution NOTICE).
+\u2022 35 échantillons dans le tiroir (dont les bancs « Postfix (Java) » et « XML lié »), 23 grammaires TextMate embarquées (csharp original + 22 tierces, attribution NOTICE).
 \u2022 Mini serveur LSP Java (diagnostics) : basculez « Moteur LSP » sur l\u2019onglet Java — les erreurs de syntaxe réelles (accolades non fermées, points-virgules manquants, else orphelins) sont soulignées et listées dans le panneau Diagnostics ; le journal montre l\u2019activité JSON-RPC.
 \u2022 Analyseur factice (moteur maison) : complétion, signatures, quick doc, code actions et diagnostics synthétiques — la vitrine du moteur sans serveur.
 \u2022 Onglets multi-fichiers, tiroir par familles de langages, panneaux Diagnostics / Symboles / Journal, barre d\u2019état Ln/Col.
@@ -293,6 +293,7 @@
 \u2022 Basculez « Grammaires TextMate » sur Java, Kotlin ou C# et comparez les voies de coloration.
 \u2022 Lignes TODO / FIXME \u2192 squiggles ; ampoule de gouttière \u2192 code actions ; menu ou \u2026 de la sélection \u2192 point d\u2019arrêt (pill armable).
 \u2022 Pincez pour zoomer, double-tap pour un mot, glissez les poignées (loupe).
+\u2022 Carte « Banc postfix » : tapez resultat.sout puis Entrée ; carte « XML lié » : renommez la balise ouvrante, la fermante suit ; menu « Banc viewport » : défilez puis insérez 30 lignes en tête — l\u2019écran reste ancré.
 
 Clavier physique : Ctrl+Z/Y annuler/rétablir, Ctrl+F recherche, Ctrl+Shift+O aller au symbole.</string>
 </resources>

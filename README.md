@@ -13,8 +13,10 @@ Ce que c'est — et ce que ce n'est pas :
   réellement embarquées (LSP4J, Gson) et les grammaires tierces du
   module optionnel sont attribuées dans [`NOTICE`](NOTICE).
 - **Publication** : coordonnées Maven `jo.codeeditor:<module>` —
-  version courante : `4.5.0` (les paliers P2 et P3 du plan de rattrapage :
-  gabarits riches — choix et macros —, apprentissage du classement,
+  version courante : `4.5.1` (les bancs démo des chantiers P2/P3 :
+  postfix, XML lié, compensation viewport ; sur la 4.5.0 des paliers
+  P2 et P3 du plan de rattrapage : gabarits riches — choix et macros
+  —, apprentissage du classement,
   barre de touches de code, mode gros fichiers, renommage XML lié,
   postfix par profil, compensation du viewport ; sur la
   4.3.0 du popup qui honore les listes tronquées, la 4.2.0 des yeux
@@ -98,18 +100,18 @@ dependencyResolutionManagement {
 // app/build.gradle.kts
 dependencies {
     // Le module UI embarque transitivement cel-core et cel-lsp-api.
-    implementation("jo.codeeditor:cel-ui:4.5.0")
+    implementation("jo.codeeditor:cel-ui:4.5.1")
 
     // Optionnel — intégration Language Server Protocol (LSP4J).
     // Ses dépendances vers cel-core/cel-lsp-api sont compileOnly :
     // gardez la ligne cel-ui ci-dessus (l'adaptateur LspEditorViewHost
     // du pont LSP y vit — plan 03 : le client LSP ne dépend plus de la vue).
-    implementation("jo.codeeditor:cel-lsp:4.5.0")
+    implementation("jo.codeeditor:cel-lsp:4.5.1")
 
     // Optionnel — voie grammaires (ADR-002 C3) : coloration par
     // grammaires TextMate, grammaires embarquées + registration
     // hôte (supporter un langage de plus = un FICHIER, pas du Java).
-    implementation("jo.codeeditor:cel-textmate:4.5.0")
+    implementation("jo.codeeditor:cel-textmate:4.5.1")
     // … puis UNE fois au démarrage, avant toute vue éditeur :
     // SyntaxHighlighter.setTextMateTokenizer(TextMateTokenizerImpl.create());
 }
@@ -127,9 +129,9 @@ maven { url = uri("https://jitpack.io") }
 
 ```kotlin
 dependencies {
-    implementation("com.github.jjoblab.code-editor:cel-ui:v4.5.0")
-    implementation("com.github.jjoblab.code-editor:cel-lsp:v4.5.0") // optionnel
-    implementation("com.github.jjoblab.code-editor:cel-textmate:v4.5.0") // optionnel (voie grammaires)
+    implementation("com.github.jjoblab.code-editor:cel-ui:v4.5.1")
+    implementation("com.github.jjoblab.code-editor:cel-lsp:v4.5.1") // optionnel
+    implementation("com.github.jjoblab.code-editor:cel-textmate:v4.5.1") // optionnel (voie grammaires)
 }
 ```
 
@@ -153,7 +155,7 @@ dependencies {
 ### Essayer avant d'intégrer
 
 L'application de démonstration installe un terrain de jeu complet
-(30 échantillons, bascules, menu) :
+(35 échantillons, bancs des chantiers récents, bascules, menu) :
 
 ```bash
 ./gradlew :demo:assembleDebug
@@ -321,8 +323,8 @@ interface `EditorPreviewHost`) figure dans
 
 ```bash
 ./gradlew test
-# 2 860 tests, 0 failure :
-#   cel-core 1 470 · cel-lsp-api 32 · cel-lsp 226 · cel-ui 950 · cel-textmate 96 · demo 86
+# 2 869 tests, 0 failure :
+#   cel-core 1 470 · cel-lsp-api 32 · cel-lsp 226 · cel-ui 950 · cel-textmate 96 · demo 95
 # (contrôle d'écart : scripts/check-doc-figures.sh, exécuté en CI)
 ```
 

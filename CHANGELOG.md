@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Les sections antérieures à la période courante sont archivées dans
 [`docs/archive/CHANGELOG-archive.md`](docs/archive/CHANGELOG-archive.md) (A-08, audit 3.69.0).
 
+## [4.5.1] — 2026-10-27 — La démo met les chantiers P2/P3 à l'essai : bancs postfix, XML lié, viewport
+
+### Ajouté
+
+- **Banc postfix dans la démo** — échantillon « Postfix (Java) »
+  (famille JVM du tiroir + carte d'accueil « fx ») : expressions prêtes
+  à postfixer (`resultat`, `liste`, `valeur`, `calcul`) et mode
+  d'emploi embarqué — le postfix est une donnée du PROFIL de langage
+  (table additive + défauts C_LIKE), le langage éditeur de
+  l'échantillon est donc `java`. Le menu « Banc postfix » ouvre un
+  dialogue listant la table additive du profil COURANT (entrées
+  `nom=gabarit`, donc `.sout → System.out.println(${expr});` sur
+  Java), les défauts de la famille et le mode d'emploi
+  (`postfixBenchText(String)`, statique et testable).
+- **Banc XML lié dans la démo** — échantillon « XML lié » (famille
+  Web + carte d'accueil « </> ») : layout minimal à paires propres,
+  le nom de la balise fermante suit la frappe dans le nom ouvrant
+  (frappe ET backspace, une seule étape d'annulation) ; nom de
+  fichier `banc_lie.xml` pour la goutte d'aperçu (layout gonflable).
+  Le test démo prouve le chemin de bout en bout : caret après
+  « LinearL », `typeChar('Z')` → ouvrante ET fermante renommées, UN
+  `undo()` retire les deux.
+- **Banc viewport dans la démo** — menu « Banc viewport » :
+  « Insérer 30 lignes en tête » pose un bloc marqué
+  (`// BANC VIEWPORT n`) en tête de document dans UN SEUL lot
+  d'annulation (`beginBatch`/`endBatch`), le chemin exact des
+  éditions additionnelles d'une acceptation de complétion — avec le
+  viewport défilé, la compensation 4.5.0 maintient le texte lu ancré
+  (le cas auto-import rendu observable au doigt). Sélection
+  restaurée content-stable (offsets décalés de la longueur du bloc,
+  même caractère sous le caret). « Retirer le bloc du banc » fait le
+  miroir (scroll compensé vers le haut, blocs superposés emportés
+  d'un coup, no-op franc sans bloc, garde lecture seule). Chaque
+  geste trace une ligne au panneau Journal.
+- **Deux cartes d'accueil** (« Banc postfix », « XML lié ») ouvrent
+  l'atelier préconfiguré sur les échantillons de banc ; le tiroir
+  passe à 35 échantillons (compteur du test tiroir resynchronisé).
+
+### Sans changement pour l'hôte
+
+- **Aucune API de bibliothèque touchée** — les trois bancs
+  n'utilisent que des API publiques existantes (4.5.0 et antérieures)
+  ; la montée de version est un simple changement de coordonnées
+  Maven pour un hôte qui suit la branche 4.5.x.
+
 ## [4.5.0] — 2026-10-27 — Paliers P2 et P3 du plan de rattrapage : gabarits riches, apprentissage, barre de touches, finitions
 
 ### Ajouté

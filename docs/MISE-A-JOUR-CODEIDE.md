@@ -788,3 +788,39 @@ l'ADR recommandée tranche : (a) adopter avec les cinq touches par
 défaut, (b) adopter avec une sélection maison via `setActions`, ou
 (c) ne pas adopter (aucun coût : la vue n'est jamais posée d'office).
 Voir le document d'ADR fourni avec la livraison de ce guide.
+
+## 4.5.1
+
+### 1. État de publication
+
+| Élément | État |
+|---|---|
+| Tag | `v4.5.1` (annoté, posé sur `main`) |
+| SHA de la version | à consigner à la poussée (`main`) |
+| `ci.yml` (main) | build local complet vert (clean assembleDebug test lint, 2 869 tests, 0 échec) + garde-fous verts (figures écart 0, refs externes) |
+| `publish.yml` (tag) | déclenché par la poussée du tag — les 5 AAR `jo.codeeditor:cel-*:4.5.1` |
+| JitPack `com.github.jjoblab.code-editor` | se construit À LA PREMIÈRE DEMANDE |
+
+### 2. Compatibilité (l'application vient de 4.5.0)
+
+**AUCUN changement d'API — version corrective côté démo uniquement.**
+Les trois bancs ajoutés à l'application de démonstration (postfix,
+XML lié, viewport) n'utilisent que des API publiques existantes en
+4.5.0 (`LanguageProfile.postfixTemplates`, `LanguageRegistry`,
+`EditorSession.beginBatch`/`endBatch`/`replaceRange`, renommage lié
+déjà actif). La montée se résume au changement de coordonnées Maven :
+
+```kotlin
+implementation("jo.codeeditor:cel-ui:4.5.1")
+```
+
+### 3. Ce que la version apporte
+
+- **Bancs de démonstration** des chantiers P2/P3 qui n'en avaient
+  pas : échantillon « Postfix (Java) » + dialogue de la table postfix
+  du profil courant, échantillon « XML lié » (paires propres, goutte
+  d'aperçu), menu « Banc viewport » (insertion/retrait d'un bloc de
+  30 lignes en tête en un lot d'annulation — la compensation du
+  viewport observable au doigt, sans serveur).
+- **Vérification recommandée après montée** : rien de spécifique —
+  les scénarios de régression restent ceux de la 4.5.0.

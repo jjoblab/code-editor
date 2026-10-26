@@ -1,6 +1,6 @@
 # demo — atelier de la bibliothèque
 
-> 82 tests · Robolectric (fumée : lancement réel des activités,
+> 95 tests · Robolectric (fumée : lancement réel des activités,
 > chaîne LSP complète) + JUnit pur (parseur, serveur) · application
 > `com.android.application`, **non publiée sur Maven** — c'est une
 > vitrine et un banc d'essai, pas un artefact.
@@ -45,7 +45,8 @@ contrat d'une démo.
 Cartes de capacité — chaque carte ouvre l'atelier préconfiguré pour
 la fonctionnalité : **Diagnostics LSP Java** (moteur LSP connecté),
 Atelier multi-langages, Grammaires TextMate (C#), Aperçu XML/HTML,
-Stress bundle minifié, Cascade de thèmes. Les chiffres de tête
+Stress bundle minifié, Cascade de thèmes, **Banc postfix** (4.5.1,
+badge fx) et **XML lié** (4.5.1, badge </>). Les chiffres de tête
 (29 langages · 23 grammaires · 5 modules) et l'entrée Réglages.
 
 ### Coquille IDE (`EditorActivity`)
@@ -59,10 +60,12 @@ Stress bundle minifié, Cascade de thèmes. Les chiffres de tête
   Java, Kotlin, **C#** (langage « grammaire-only »), Scala, Groovy,
   Python, JavaScript, **Minifié (JS)** (bundle de ~14 Ko sur une
   ligne), TypeScript, PHP, Ruby, Lua, Shell, C, C++, Go, Rust, Swift,
-  Dart, XML, HTML (page autonome), JSON, YAML, TOML, Properties, CSS,
-  Markdown, SQL, Smali, Log, Dockerfile — **30 langages (dont
+  Dart, XML, **XML lié** (banc du renommage lié, 4.5.1), HTML (page
+  autonome), JSON, YAML, TOML, Properties, CSS,
+  Markdown, SQL, Smali, Log, Dockerfile, **Postfix (Java)** (banc de
+  la complétion postfix, 4.5.1) — **30 langages (dont
   Minifié, échantillon de stress) + 2 échantillons de charge Java**
-  (100k et 480k lignes).
+  (100k et 480k lignes) + 2 échantillons de banc.
 - **Onglets multi-fichiers** (jusqu'à 10) : session + analyseur par
   fichier, fermeture par « × », réutilisation à la réouverture.
 - **Panneaux outils en bottom sheet Material** : la feuille s'ancre
@@ -203,6 +206,29 @@ Les paliers P2 et P3 se vérifient dans l'atelier, sans serveur :
    auto-import), accepter un candidat importé en tête de fichier — le
    texte sous les yeux ne saute plus d'autant de lignes.
 
+## Bancs d'essai 4.5.1 — postfix, XML lié, viewport au doigt
+
+Les trois chantiers P2/P3 sans banc dédié deviennent observables
+sans serveur ni gymnastique :
+
+1. **Banc postfix** : ouvrir l'échantillon « Postfix (Java) » (famille
+   JVM du tiroir ou carte « fx » de l'accueil) — les expressions
+   `resultat`, `liste`, `valeur`, `calcul` attendent leur suffixe ;
+   le menu « Banc postfix » liste la table additive du profil courant
+   (`.sout` et son gabarit exact sur Java) avec les défauts de la
+   famille et le mode d'emploi.
+2. **Banc XML lié** : ouvrir l'échantillon « XML lié » (famille Web ou
+   carte « </> ») — caret juste après « LinearL », une frappe renomme
+   l'ouvrante ET la fermante, un backspace les fait reculer ensemble,
+   une seule annulation retire le tout. La goutte d'aperçu s'y ouvre
+   aussi (`banc_lie.xml`, layout gonflable).
+3. **Banc viewport** : défiller (ligne ~60 d'un échantillon de charge
+   par exemple), puis menu « Banc viewport → Insérer 30 lignes en
+   tête » — le bloc marqué `// BANC VIEWPORT n` entre AU-DESSUS de
+   l'écran et le texte lu reste ancré (scroll compensé, sélection
+   content-stable) ; « Retirer le bloc » fait le miroir. Le panneau
+   Journal trace chaque geste.
+
 ## Build et installation
 
 ```bash
@@ -217,7 +243,7 @@ Le mini serveur LSP est **embarqué et in-process** : la démo reste
 ## Tests
 
 ```bash
-./gradlew :demo:testDebugUnitTest     # 82 tests
+./gradlew :demo:testDebugUnitTest     # 95 tests
 ```
 
 - `MiniJavaParserTest` (20) — chaque règle, ses déclencheurs ET ses
@@ -254,6 +280,16 @@ Le mini serveur LSP est **embarqué et in-process** : la démo reste
   branche le moteur sans extra ; l'extinction manuelle garde la main.
 - `ThemeIdentityDemoTest` (2) — la base émeraude survit aux
   changements d'onglet (cas clair et sombre).
+- `PostfixBenchDemoTest` (4) — banc postfix : échantillon + mode
+  d'emploi, table du profil java (`.sout` + gabarit), langage inconnu
+  sans plantage, ouverture → profil `java`.
+- `XmlLinkedBenchDemoTest` (2) — banc XML lié : paires propres du
+  tiroir + E2E complet (caret après « LinearL », `typeChar('Z')` →
+  ouvrante ET fermante renommées, UN `undo()` retire les deux).
+- `ViewportBenchDemoTest` (3) — banc viewport : insertion en UN lot
+  d'annulation (undo → texte d'origine), sélection content-stable
+  (delta mesuré, contenu sous le caret identique), retrait des blocs
+  superposés + no-op franc.
 
 ## Voir aussi
 
