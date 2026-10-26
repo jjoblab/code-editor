@@ -319,8 +319,8 @@ interface `EditorPreviewHost`) figure dans
 
 ```bash
 ./gradlew test
-# 2 714 tests, 0 failure :
-#   cel-core 1 406 · cel-lsp-api 32 · cel-lsp 220 · cel-ui 882 · cel-textmate 96 · demo 78
+# 2 765 tests, 0 failure :
+#   cel-core 1 421 · cel-lsp-api 32 · cel-lsp 224 · cel-ui 910 · cel-textmate 96 · demo 82
 # (contrôle d'écart : scripts/check-doc-figures.sh, exécuté en CI)
 ```
 

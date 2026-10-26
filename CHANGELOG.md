@@ -7,6 +7,78 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Les sections antérieures à la période courante sont archivées dans
 [`docs/archive/CHANGELOG-archive.md`](docs/archive/CHANGELOG-archive.md) (A-08, audit 3.69.0).
 
+## [4.4.0] — 2026-10-27 — Palier P1 du plan de rattrapage : occurrences du mot courant, modificateurs sémantiques, panneau de documentation
+
+### Ajouté
+
+- **Surbrillance des occurrences du mot sous le caret** — au repos de
+  la frappe (~300 ms), toutes les occurrences ENTIÈRES du mot touché
+  par le caret s'allument dans la voie de rendu des surlignages de
+  recherche (teintes `findMatch` / `findCurrent` pour l'occurrence du
+  caret, géométrie wrap/plis réutilisée) dès qu'il y en a au moins
+  deux ; les littéraux numériques et la ponctuation ne s'allument
+  jamais, les frontières suivent la convention identifiant
+  (`mon_mot` est UN mot). Calcul pur dans `WordOccurrences`
+  (`cel-core`, find/) ; collaborateur `EditorWordOccurrences`
+  (débounce 300 ms, miroir du contrôleur de recherche). La voie find
+  reste une ressource partagée : le producteur pousse SANS la
+  revendiquer et s'efface devant la session de recherche ouverte comme
+  devant un hôte ayant posé ses propres surlignages (`FindState`
+  gagne `searchOwned`/`manualOwned`) — au retour, le prochain
+  déplacement du caret ou la prochaine édition ré-allume. Coupures :
+  très gros documents (`isLarge`), sélections en plage. Bascule
+  publique `setWordOccurrencesEnabled(boolean)` (défaut : vrai).
+- **Modificateurs sémantiques (barré / gras / italique)** — le 5ᵉ
+  élément du quintuplet LSP (bitmask de modificateurs), lu puis jeté
+  par le décodeur, voyage désormais jusqu'au rendu : déprécié barré,
+  statique gras, abstrait italique (combinés cumulés), surcouche de
+  teinte optionnelle par le registre (`semantic.modifier.deprecated` /
+  `.static` / `.abstract` — attributs virtuels, groupe « sémantique »
+  dédié, la palette `syntax.*` reste à 23 et le registre passe de 39 à
+  42 attributs). `SemanticToken` gagne un masque canonique
+  (constructeur étendu, l'historique délègue à masque 0 — API
+  additive) ; le puller résout les bits PAR NOM via la légende
+  `tokenModifiers` du serveur (ordre propre à chacun — sans légende,
+  aucun modificateur n'est deviné) ; `SemSpan` transporte des drapeaux
+  de style thème-indépendants (cuisables en cache) ; la capacité
+  cliente `textDocument.semanticTokens` est annoncée à
+  l'initialisation.
+- **Panneau de documentation du popup de complétion** — le champ
+  `documentation` transporté depuis 4.3.0 est enfin affiché : panneau
+  sous la liste (miroir de la bande doc de l'aide de signature :
+  QuickDoc, wrap plafonné à 6 lignes, séparateur + fond teinté), la
+  hauteur comptée dans l'ancre (6ᵉ élément) et DÉDUITE de la place des
+  rangées — le popup complet ne recouvre jamais la bande du caret, le
+  panneau cède quand la place manque. Sur vue étroite (< 340 dp :
+  écran partagé), la documentation se réduit au glyphe ⓘ de rangée.
+  Un tap dans le panneau est consommé sans action (ni sélection, ni
+  fermeture) ; la scrollbar reste bornée à la zone de liste.
+- **Bancs d'essai dans la démo** — sous-menu « Occurrences du mot
+  courant » (bascule publique) et « Banc sémantique (modificateurs) » :
+  les trois identifiants les plus fréquents de chaque onglet sont
+  marqués déprécié/statique/abstrait par injection directe de jetons —
+  sans serveur, la même voie de rendu que le client LSP (les marques
+  suivent les éditions). Les candidats du moteur maison (println,
+  format, substring) portent une documentation que le panneau affiche.
+
+### Corrigé
+
+- **Fuite de typeface du chemin sans ligatures** : `drawStyledLine`
+  posait un typeface italique (COMMENT) ou gras (KEYWORD) par span sans
+  restaurer en sortie — un dernier span stylé fuiait son typeface vers
+  les couches qui suivent avec le paint partagé (l'overlay sémantique
+  de la ligne rendait en italique fantôme). Restauration
+  inconditionnelle, rouge démontré sur l'arbre pré-correctif.
+
+### Documentation
+
+- Compteurs resynchronisés : **2 765 tests** (cel-core 1 421, cel-ui
+  910, cel-lsp 224, démo 82 ; +51 : occurrences 22, modificateurs 14,
+  panneau de documentation 9, fuite typeface 2, bancs démo 4) ;
+  registre de couleurs 39 → 42 attributs partout ; guide de montée de
+  l'hôte (docs/MISE-A-JOUR-CODEIDE.md) : section 4.4.0 (aucune action
+  obligatoire, réglages optionnels, teintes sémantiques par scheme).
+
 ## [4.3.1] — 2026-10-27 — La démo met le chantier complétion à l'essai
 
 ### Ajouté

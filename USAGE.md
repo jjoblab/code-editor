@@ -285,7 +285,11 @@ editorView.invalidate();
 
 ```java
 List<DiagnosticShift.SemanticToken> tokens = Arrays.asList(
-    new DiagnosticShift.SemanticToken(5, 10, 9) // start, longueur, type (9 = method)
+    // start, longueur, type (9 = method), modificateurs (4.4.0, optionnel)
+    new DiagnosticShift.SemanticToken(5, 10, 9),
+    // déprécié (barré), statique (gras), abstrait (italique) — cumulables :
+    new DiagnosticShift.SemanticToken(20, 4, 7,
+            DiagnosticShift.SemanticToken.MOD_DEPRECATED)
 );
 session.setSemanticTokens(tokens);
 editorView.invalidate();
@@ -294,6 +298,31 @@ editorView.invalidate();
 Types de jetons : 0=namespace, 1=type, 2=class, 3=enum, 4=interface,
 5=struct, 6=parameter, 7=variable, 8=property, 9=method, 10=function,
 11=keyword, 12=number, 13=string, 14=comment.
+
+Modificateurs (4.4.0) : `MOD_DEPRECATED` (barré), `MOD_STATIC` (gras),
+`MOD_ABSTRACT` (italique) — cumulables par OU binaire. La teinte de
+chaque surcouche est réglable dans le scheme de couleurs
+(`semantic.modifier.deprecated` / `.static` / `.abstract` — sans
+opinion, la couleur du jeton est conservée). Côté client LSP, les
+modificateurs arrivent du 5ᵉ élément du quintuplet, résolus PAR NOM
+via la légende `tokenModifiers` annoncée par le serveur.
+
+### Occurrences du mot sous le caret (4.4.0)
+
+```java
+// Défaut : activé — toutes les occurrences ENTIÈRES du mot touché par
+// le caret s'allument au repos de frappe (~300 ms) dès qu'il y en a
+// deux, l'occurrence du caret en teinte forte.
+editorView.setWordOccurrencesEnabled(false); // couper
+boolean on = editorView.isWordOccurrencesEnabled();
+```
+
+La session de recherche OUVERTE garde toujours la priorité sur cette
+surbrillance (elle se ré-allume à sa fermeture au prochain déplacement
+du caret ou à la prochaine édition), de même que les surlignages posés
+manuellement par l'hôte via `setFindHighlights`. Les très gros
+documents (`isLarge`) et les sélections en plage coupent le calcul ;
+les littéraux numériques et la poncturbation ne s'allument jamais.
 
 ### Surlignages de recherche
 

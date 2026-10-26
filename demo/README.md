@@ -1,6 +1,6 @@
 # demo — atelier de la bibliothèque
 
-> 78 tests · Robolectric (fumée : lancement réel des activités,
+> 82 tests · Robolectric (fumée : lancement réel des activités,
 > chaîne LSP complète) + JUnit pur (parseur, serveur) · application
 > `com.android.application`, **non publiée sur Maven** — c'est une
 > vitrine et un banc d'essai, pas un artefact.
@@ -147,6 +147,29 @@ La bascule porte sur tous les onglets ouverts et les suivants ; sur
 l'onglet Java avec moteur LSP actif, le fournisseur est celui du
 serveur (le banc s'applique au moteur maison).
 
+## Bancs d'essai 4.4.0 — occurrences, modificateurs, documentation
+
+Trois chantiers du palier P1 se vérifient dans l'atelier, sans serveur :
+
+1. **Occurrences du mot courant** (menu du même nom) : parker le caret
+   sur un identifiant répété — les occurrences entières s'allument au
+   repos de frappe (~300 ms), celle du caret en teinte forte ; ouvrir la
+   recherche pour voir la surbrillance lui CÉDER la place, la refermer
+   et déplacer le caret pour la voir revenir. La bascule du sous-menu
+   pilote `setWordOccurrencesEnabled`.
+2. **Banc sémantique (modificateurs)** : « Marquer les identifiants
+   fréquents » injecte sur chaque onglet des jetons sémantiques — les
+   trois identifiants les plus fréquents du fichier sont marqués
+   déprécié (barré), statique (gras), abstrait (italique). Les marques
+   suivent les éditions ; « Retirer les marques » nettoie tout. La
+   même voie de rendu que le client LSP (les teintes sont réglables
+   dans le scheme : `semantic.modifier.*`).
+3. **Documentation de complétion** : taper `pri` puis sélectionner
+   `println` dans le popup — sa documentation s'affiche dans le panneau
+   sous la liste (les candidats `println`, `format`, `substring` du
+   moteur maison en portent). Sur vue étroite, le panneau cède la
+   place au glyphe ⓘ de rangée.
+
 ## Build et installation
 
 ```bash
@@ -161,7 +184,7 @@ Le mini serveur LSP est **embarqué et in-process** : la démo reste
 ## Tests
 
 ```bash
-./gradlew :demo:testDebugUnitTest     # 78 tests
+./gradlew :demo:testDebugUnitTest     # 82 tests
 ```
 
 - `MiniJavaParserTest` (20) — chaque règle, ses déclencheurs ET ses

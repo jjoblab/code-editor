@@ -102,7 +102,7 @@ par responsabilité.
 |----------------|------|---------|-------------|
 | CompletionSession (cache + filtre) | ✅ | `completion/CompletionSession.java` | Cache + filtre local ; 4.3.0 : délègue l'appariement au matcher, méthodes mortes `@Deprecated` avec renvoi |
 | CompletionMatcher (appariement unifié) | ✅ | `completion/CompletionMatcher.java` | 4.3.0 : identifiant de tête (`Text(text: String)` → `Text`, noms XML entiers), échelle 6 paliers (exact > exact casse > préfixe > préfixe casse > camel humps canoniques — `gS` ET `get` sur `getString` — > sous-séquence quelconque), positions de surbrillance = caractères qui ont fait matcher, groupes (résolu > mot-clé > snippet > mot du buffer) — partagé par le popup, la surbrillance et la navigation |
-| Candidats riches (container + documentation) | ✅ | `completion/CompletionSession.java` | 4.3.0 : champs optionnels `container` (origine) et `documentation` transportés jusqu'au popup |
+| Candidats riches (container + documentation) | ✅ | `completion/CompletionSession.java` | 4.3.0 : champs optionnels `container` (origine) et `documentation` transportés jusqu'au popup ; 4.4.0 : la documentation est AFFICHÉE — panneau sous la liste (QuickDoc, wrap plafonné 6 lignes), hauteur comptée dans l'ancre et déduite des rangées, glyphe ⓘ sur vue étroite (< 340 dp), tap dans le panneau consommé sans action |
 | Badges de type de complétion | ✅ | `completion/CompletionKindBadge.java` | Pastilles keyword/function/variable… |
 | SignatureHelpController | ✅ | `completion/SignatureHelpController.java` | Param info, Ctrl+P |
 | QuickDoc (Javadoc/KDoc) | ✅ | `doc/QuickDoc.java` | Parsing markup, sections |
@@ -116,8 +116,9 @@ par responsabilité.
 |----------------|------|---------|-------------|
 | FindReplace (matching) | ✅ | `find/FindReplace.java` | Case, whole-word, regex |
 | FindOptions / Match | ✅ | `find/FindOptions.java`, `find/Match.java` | Classes de données |
+| WordOccurrences (mot courant) | ✅ | `find/WordOccurrences.java` | 4.4.0 : mot sous le caret (deux sens, rattachement en fin de mot), éligibilité (identifiants : ni littéral numérique ni ponctuation), occurrences ENTIÈRES (frontières identifiant — `_`/`$` ne coupent pas), casse exacte, plafond 10 000 |
 | matchIndexFrom (wrap) | ✅ | `find/FindReplace.java` | Premier match au caret |
-| Surlignage des occurrences | ✅ | `view/EditorView.java` (`setFindHighlights`), `view/render/EditorHighlightPainter.java` | Bandes wrap-aware, teintes `findMatch`/`findCurrent` ; B10 : purgées au changement de session (offsets périmés) |
+| Surlignage des occurrences | ✅ | `view/EditorView.java` (`setFindHighlights`), `view/render/EditorHighlightPainter.java` | Bandes wrap-aware, teintes `findMatch`/`findCurrent` ; B10 : purgées au changement de session (offsets périmés) ; 4.4.0 : voie PARTAGÉE — le producteur interne « occurrences du mot sous le caret » (`EditorWordOccurrences`, débounce 300 ms, bascule `setWordOccurrencesEnabled`, coupé sur `isLarge` et sélections en plage) pousse sans revendiquer la propriété (`FindState.searchOwned`/`manualOwned`) et s'efface devant la recherche ouverte et l'hôte |
 | Barre de recherche/remplacement | ✅ | `view/chrome/EditorSearchBar.java` + `EditorSearchController.java` | B10 : requête vivante (frappe + édition + session ré-accrochée), compte « 3/17 », navigation bouclante caret-suivante, remplacement courant (groupes `$1` en regex, repli littéral) et TOUT en une passe (une entrée d'annulation) ; ouverture menu/`Ctrl+F`, amorçage depuis la sélection, requête survivante à la fermeture |
 
 ---
@@ -180,7 +181,7 @@ par responsabilité.
 | Fonctionnalité | État | Fichier | Description |
 |----------------|------|---------|-------------|
 | InlayPiece (texte fantôme) | ✅ | `cache/LineRenderCache.java` | Inlays intercalés dans la ligne |
-| SemSpan (sémantique) | ✅ | `cache/LineRenderCache.java` | Surbrillance sémantique |
+| SemSpan (sémantique) | ✅ | `cache/LineRenderCache.java` | Surbrillance sémantique ; 4.4.0 : drapeaux de style thème-indépendants (STYLE_BOLD/ITALIC/STRIKE) — surcouche des modificateurs (statique gras, abstrait italique, déprécié barré) posée par span sur le paint partagé avec restauration, chemin rapide inchangé sans modificateur |
 | Entrée de cache (triple-stamp) | ✅ | `cache/LineRenderCache.java` | Invalidation par révision texte/inlay/sem, LRU 512 |
 | shiftKeys | ✅ | `cache/LineRenderCache.java` | Miroir du splice de lignes |
 | Prefetch idle hors viewport | ✅ | `cache/LineRenderCache.java` | ±1 viewport après 150 ms de calme, chunks de 8 |
@@ -219,7 +220,7 @@ par responsabilité.
 
 | Fonctionnalité | État | Fichier | Description |
 |----------------|------|---------|-------------|
-| Registre d'attributs de couleur | ✅ | `theme/ColorAttribute.java`, `theme/ColorAttributes.java` | 39 attributs (clé stable, libellé, groupe, parent d'héritage), parents avant enfants, accesseurs sans réflexion |
+| Registre d'attributs de couleur | ✅ | `theme/ColorAttribute.java`, `theme/ColorAttributes.java` | 42 attributs (clé stable, libellé, groupe, parent d'héritage), parents avant enfants, accesseurs sans réflexion ; 4.4.0 : 3 attributs virtuels `semantic.modifier.*` (groupe « sémantique » dédié — la palette `syntax.*` reste à 23) |
 | Scheme épars sombre/clair | ✅ | `theme/EditorColorScheme.java` | Clé absente = « pas d'opinion » ; résolution cascade override → parent si héritage visuel → base → plancher texte |
 | Persistance + partage | ✅ | `theme/EditorColorScheme.java` | JSON plat des seuls overrides `{schema,id,name,basedOn,dark,light}` ; tolérant aux clés inconnues |
 | Presets en code | ✅ | `theme/EditorColorScheme.java` | `emeraldAccents()`… |
@@ -303,7 +304,7 @@ et les barres d'habillage dans `view/chrome/`.
 |----------------|------|---------|-------------|
 | LspLanguage (adaptateur Language) | ✅ | `lsp/LspLanguage.java` | Orchestration des providers |
 | Fournisseurs LSP (14) | ✅ | `lsp/Lsp*Provider.java` | Completion (4.3.0 : drapeau « liste tronquée » `isIncomplete` transporté, champs riches `labelDetails`/`documentation` → container et documentation), Diagnostics, Hover, Definition, TypeDefinition, Implementations, SuperDefinition, References, Rename, CodeActions, Symbol, SignatureHelp, InlayHint, DocumentHighlight |
-| LspEditor | ✅ | `lsp/LspEditor.java` + `LspDocumentSynchronizer`, `LspDiagnosticsManager`, `LspSemanticTokensPuller`, `LspFoldPuller`, `LspWorkspaceEditApplier` | Cycle de vie document ↔ serveur ; 3.74.0 (ADR-003) : `disconnect()` restaure `EmptyLanguage` (toutes capacités fermées), jeton de génération anti-course, garde commune des providers, annulation des tâches différées |
+| LspEditor | ✅ | `lsp/LspEditor.java` + `LspDocumentSynchronizer`, `LspDiagnosticsManager`, `LspSemanticTokensPuller`, `LspFoldPuller`, `LspWorkspaceEditApplier` | Cycle de vie document ↔ serveur ; 3.74.0 (ADR-003) : `disconnect()` restaure `EmptyLanguage` (toutes capacités fermées), jeton de génération anti-course, garde commune des providers, annulation des tâches différées ; 4.4.0 : le puller lit le 5ᵉ élément du quintuplet et résout les modificateurs PAR NOM via la légende `tokenModifiers` (masque canonique `MOD_DEPRECATED`/`MOD_STATIC`/`MOD_ABSTRACT` — sans légende, rien n'est deviné) ; capacité cliente `textDocument.semanticTokens` annoncée |
 | LspProject | ✅ | `lsp/LspProject.java`, `lsp/LanguageServerWrapper.java`, `lsp/LanguageServerDefinition.java` | Gestion multi-serveurs, shutdown borné 2 s |
 | Formateur / analyzer no-op | ✅ | `lsp/LspFormatter.java`, `lsp/LspNoopAnalyzer.java` | textDocument/formatting ; 3.74.0 : options (tabSize, insertSpaces — hôte → détection → 4 espaces), rangeFormatting quand le serveur l'annonce, refus propre sinon ; éditions validées (bornes, chevauchements) et échecs journalisés sans fuite du document |
 | Providers de connexion (5) | ✅ | `lsp/connection/` | Stream, InProcess, LocalSocket, ProcessBuilder, Socket |
@@ -379,10 +380,10 @@ parallèle.
 
 | Indicateur | Valeur |
 |------------|--------|
-| Fichiers source | 290 (`:cel-core` 84 · `:cel-lsp-api` 39 · `:cel-lsp` 45 · `:cel-ui` 99 · `:cel-textmate` 7 · `demo` 16) |
-| Fichiers de test | 310 |
-| Lignes de code (main) | ≈ 70 900 (bibliothèques ≈ 64 200 · démo ≈ 6 800) |
-| Tests unitaires | 2 714 (`:cel-core` 1 406 · `:cel-lsp-api` 32 · `:cel-lsp` 220 · `:cel-ui` 882 · `:cel-textmate` 96 · `demo` 78) |
+| Fichiers source | 292 (`:cel-core` 85 · `:cel-lsp-api` 39 · `:cel-lsp` 45 · `:cel-ui` 100 · `:cel-textmate` 7 · `demo` 16) |
+| Fichiers de test | 318 |
+| Lignes de code (main) | ≈ 71 200 (bibliothèques ≈ 64 500 · démo ≈ 6 900) |
+| Tests unitaires | 2 765 (`:cel-core` 1 421 · `:cel-lsp-api` 32 · `:cel-lsp` 224 · `:cel-ui` 910 · `:cel-textmate` 96 · `demo` 82) |
 | Langages colorés intégrés | 29 |
 | Tokéniseurs intégrés | 14 (+ utilitaires SpanUtils, KeywordTables) |
 | Grammaires embarquées | 23 (`:cel-textmate` : c, cpp, csharp, css, dockerfile, go, html, java, javascript, json, kotlin, lua, markdown, php, python, ruby, rust, shell, sql, toml, typescript, xml, yaml) |
