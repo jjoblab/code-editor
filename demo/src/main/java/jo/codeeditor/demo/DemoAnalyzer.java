@@ -38,12 +38,22 @@ import jo.codeeditor.view.EditorView;
  *   <li>ligne de plus de 100 caractères → avertissement en bout de ligne ;</li>
  *   <li>{@code print(} en Python → info de débogage.</li>
  * </ul>
+ *
+ * <p>Simulation de listes tronquées (4.3.0) : armée par
+ * {@link #setIncompleteSimulation(boolean)}, la base de complétion est
+ * plafonnée à {@link #TRUNCATED_CAP} candidats et marquée
+ * « liste incomplète » — sans serveur, la vitrine du drapeau que le
+ * popup honore en re-requêtant à chaque édition du préfixe.</p>
  */
 final class DemoAnalyzer {
 
     private static final long DEBOUNCE_MS = 500L;
     private static final int LONG_LINE = 100;
     private static final int MAX_INLAYS = 12;
+
+    /** Plafond de la base de complétion quand la troncature simulée
+     *  est armée — assez bas pour écarter des candidats visibles. */
+    static final int TRUNCATED_CAP = 8;
 
     private static final Pattern DECL_TYPE =
             Pattern.compile("\\b(class|interface|object|record|struct|enum)\\s+([A-Za-z_]\\w*)");
@@ -75,6 +85,13 @@ final class DemoAnalyzer {
     private EditorSession.OnTextEditListener editListener;
     private boolean attached;
 
+    /** Troncature simulée armée ? (plafonne la base de complétion) */
+    private boolean incompleteSimulation;
+    /** Compteur de requêtes fournisseur — l'observable des re-requêtes. */
+    private int requestCount;
+    /** Journal hôte (chaque requête y laisse une ligne, panneau Journal). */
+    private java.util.function.Consumer<String> logger;
+
     DemoAnalyzer(EditorView view, EditorSession session, String language) {
         this.view = view;
         this.session = session;
@@ -85,7 +102,26 @@ final class DemoAnalyzer {
     void attach() {
         if (attached) return;
         attached = true;
-        view.setCompletionProvider(this::completions);
+        // Le fournisseur transporte le drapeau « liste tronquée » :
+        // la variante résultat plafonne la base et la marque incomplète
+        // quand la simulation est armée — le popup 4.3.0 honore le
+        // drapeau (re-requête à chaque édition du préfixe), le moteur
+        // historique n'y voit qu'une liste comme une autre.
+        view.setCompletionProvider(new EditorView.CompletionProvider() {
+            @Override
+            public List<CompletionSession.Item> provide(String text, int caret,
+                    int tokenStart, String prefix) {
+                return completions(text, caret, tokenStart, prefix);
+            }
+
+            @Override
+            public jo.codeeditor.view.CompletionResult provideResult(
+                    String text, int caret, int tokenStart, String prefix,
+                    Character triggerCharacter) {
+                return completionResultFor(text, caret, tokenStart, prefix,
+                        triggerCharacter);
+            }
+        });
         view.setSignatureHelpResolver(this::signatureHelp);
         view.setQuickDocResolver(this::quickDoc);
         view.setCodeActionsResolver(this::codeActions);
@@ -116,6 +152,54 @@ final class DemoAnalyzer {
      */
     List<NavigationMenu.Symbol> outline(String text) {
         return symbols(text);
+    }
+
+    // ── Simulation de listes tronquées (4.3.0) ────────────────────
+
+    /** Arme (ou désarme) le plafonnement de la base de complétion. */
+    void setIncompleteSimulation(boolean on) {
+        this.incompleteSimulation = on;
+    }
+
+    /** La troncature simulée est-elle armée ? */
+    boolean isIncompleteSimulation() {
+        return incompleteSimulation;
+    }
+
+    /** Nombre de requêtes fournisseur traitées à ce jour. */
+    int requestCount() {
+        return requestCount;
+    }
+
+    /** Pose le journal hôte (une ligne par requête de complétion). */
+    void setLogger(java.util.function.Consumer<String> logger) {
+        this.logger = logger;
+    }
+
+    /**
+     * Résultat d'une requête de complétion : la base du moteur maison,
+     * plafonnée à {@link #TRUNCATED_CAP} candidats et marquée tronquée
+     * quand la simulation est armée. Chaque appel est compté et
+     * journalisé — l'observable du chantier : base complète = une
+     * requête par mot tapé (filtrage local ensuite), base tronquée =
+     * une requête à CHAQUE édition du préfixe, coalescée par le
+     * debounce du popup.
+     */
+    jo.codeeditor.view.CompletionResult completionResultFor(String text, int caret,
+            int tokenStart, String prefix, Character trigger) {
+        requestCount++;
+        List<CompletionSession.Item> base = completions(text, caret, tokenStart, prefix);
+        boolean truncated = incompleteSimulation && base.size() > TRUNCATED_CAP;
+        List<CompletionSession.Item> out = truncated
+                ? new ArrayList<>(base.subList(0, TRUNCATED_CAP)) : base;
+        if (logger != null) {
+            logger.accept(String.format(Locale.FRANCE,
+                    "complétion : requête n°%d (préfixe « %s »%s) — %d candidats%s",
+                    requestCount, prefix,
+                    trigger != null ? ", déclencheur « " + trigger + " »" : "",
+                    out.size(), truncated ? " — LISTE TRONQUÉE" : ""));
+        }
+        return new jo.codeeditor.view.CompletionResult(out, truncated);
     }
 
     // ── Diagnostics + inlay hints (débouncés) ─────────────────────

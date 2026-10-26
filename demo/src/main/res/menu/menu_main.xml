@@ -71,6 +71,29 @@
         android:checkable="true"
         app:showAsAction="never" />
 
+    <!-- 4.3.0 : complétion — simulation de listes tronquées et réglages hôtes -->
+    <item
+        android:id="@+id/action_completion"
+        android:title="@string/menu_completion"
+        app:showAsAction="never">
+        <menu>
+            <item android:id="@+id/completion_truncated_on"
+                android:title="@string/completion_truncated_on" />
+            <item android:id="@+id/completion_truncated_off"
+                android:title="@string/completion_truncated_off" />
+            <item android:id="@+id/completion_honor_on"
+                android:title="@string/completion_honor_on" />
+            <item android:id="@+id/completion_honor_off"
+                android:title="@string/completion_honor_off" />
+            <item android:id="@+id/completion_debounce_80"
+                android:title="@string/completion_debounce_80" />
+            <item android:id="@+id/completion_debounce_200"
+                android:title="@string/completion_debounce_200" />
+            <item android:id="@+id/completion_debounce_500"
+                android:title="@string/completion_debounce_500" />
+        </menu>
+    </item>
+
     <!-- Options « vue » : sous-menus -->
     <item
         android:id="@+id/action_line_numbers"

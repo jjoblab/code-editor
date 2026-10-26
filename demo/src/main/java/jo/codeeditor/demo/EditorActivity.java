@@ -115,6 +115,8 @@ public class EditorActivity extends AppCompatActivity {
     private boolean editorLight;
     private boolean schemeOn;
     private boolean lspIntent;
+    /** Simulation de listes tronquées armée ? (moteur maison, tous onglets) */
+    private boolean truncatedSimulation;
     private final Set<Integer> armedBreakpoints = new HashSet<>();
     private EditorPrefs prefs;
     private final Runnable panelRefresher = this::refreshPanels;
@@ -335,6 +337,12 @@ public class EditorActivity extends AppCompatActivity {
         newSession.addOnTextEditListener((start, end, inserted) ->
                 schedulePanelRefresh());
         DemoAnalyzer analyzer = new DemoAnalyzer(editor, newSession, editorLanguageId);
+        // 4.3.0 : le journal du moteur maison trace chaque requête de
+        // complétion (préfixe, plafond, drapeau tronqué) — l'observable
+        // du chantier « listes tronquées honorées » dans le panneau
+        // Journal ; l'état de simulation courant s'applique aussitôt.
+        analyzer.setLogger(line -> panels.appendLog(line));
+        analyzer.setIncompleteSimulation(truncatedSimulation);
         files.add(new OpenFile(label, id, editorLanguageId, newSession, analyzer));
         selectFile(files.size() - 1);
     }
@@ -900,7 +908,67 @@ public class EditorActivity extends AppCompatActivity {
             editor.setVariableColorsEnabled(false);
             return true;
         }
+        // 4.3.0 — complétion : simulation de troncature, réglages hôtes
+        // (honneur au drapeau, anti-rebond).
+        if (id == R.id.completion_truncated_on) {
+            applyTruncatedSimulation(true);
+            return true;
+        }
+        if (id == R.id.completion_truncated_off) {
+            applyTruncatedSimulation(false);
+            return true;
+        }
+        if (id == R.id.completion_honor_on) {
+            editor.setHonorIncompleteCompletion(true);
+            return true;
+        }
+        if (id == R.id.completion_honor_off) {
+            editor.setHonorIncompleteCompletion(false);
+            return true;
+        }
+        if (id == R.id.completion_debounce_80) {
+            applyCompletionDebounce(80);
+            return true;
+        }
+        if (id == R.id.completion_debounce_200) {
+            applyCompletionDebounce(200);
+            return true;
+        }
+        if (id == R.id.completion_debounce_500) {
+            applyCompletionDebounce(500);
+            return true;
+        }
         return false;
+    }
+
+    /**
+     * 4.3.0 — arme (ou désarme) la simulation d'un moteur qui PLAFONNE
+     * sa base de complétion : tous les analyseurs ouverts (et les
+     * suivants) plafonnent à {@link DemoAnalyzer#TRUNCATED_CAP}
+     * candidats et marquent la liste tronquée. Avec le réglage « re-
+     * requêter » actif (défaut), le popup re-demande à CHAQUE édition
+     * du préfixe — visible en direct dans le panneau Journal.
+     */
+    void applyTruncatedSimulation(boolean on) {
+        truncatedSimulation = on;
+        for (OpenFile file : files) {
+            file.analyzer.setIncompleteSimulation(on);
+        }
+        panels.appendLog(getString(on
+                ? R.string.completion_truncated_armed
+                : R.string.completion_truncated_disarmed));
+    }
+
+    /** L'état courant de la simulation de troncature. */
+    boolean isTruncatedSimulation() {
+        return truncatedSimulation;
+    }
+
+    /** 4.3.0 — règle l'anti-rebond des requêtes de complétion (ms). */
+    void applyCompletionDebounce(int ms) {
+        editor.setCompletionDebounceMs(ms);
+        Toast.makeText(this, getString(R.string.completion_debounce_set, ms),
+                Toast.LENGTH_SHORT).show();
     }
 
     /** Point d'arrêt de démo sur la ligne du caret (API GutterAction). */

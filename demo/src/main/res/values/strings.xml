@@ -163,6 +163,19 @@
     <string name="var_colors_on">Activées</string>
     <string name="var_colors_off">Désactivées</string>
 
+    <!-- 4.3.0 : complétion — listes tronquées à l'essai -->
+    <string name="menu_completion">Complétion (listes tronquées)</string>
+    <string name="completion_truncated_on">Simuler un moteur qui plafonne</string>
+    <string name="completion_truncated_off">Liste complète du moteur maison (défaut)</string>
+    <string name="completion_honor_on">Re-requêter les listes tronquées (défaut)</string>
+    <string name="completion_honor_off">Filtrage local seul (historique)</string>
+    <string name="completion_debounce_80">Anti-rebond : 80 ms (défaut)</string>
+    <string name="completion_debounce_200">Anti-rebond : 200 ms</string>
+    <string name="completion_debounce_500">Anti-rebond : 500 ms (lent, visible)</string>
+    <string name="completion_truncated_armed">Troncature simulée : la base est plafonnée à 8 candidats et marquée incomplète — chaque frappe re-requête le moteur (panneau Journal)</string>
+    <string name="completion_truncated_disarmed">Base complète restaurée : une seule requête par mot tapé, filtrage local ensuite</string>
+    <string name="completion_debounce_set">Anti-rebond de complétion : %1$d ms</string>
+
     <!-- Grammaires TextMate -->
     <string name="grammars_html_css">Grammaires html + css actives — les blocs &lt;style&gt; sont colorés par la grammaire CSS incluse</string>
     <string name="grammars_none">Aucune grammaire embarquée pour %1$s — coloration intégrée conservée</string>
