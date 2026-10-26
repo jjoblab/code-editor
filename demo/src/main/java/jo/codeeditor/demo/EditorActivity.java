@@ -117,6 +117,13 @@ public class EditorActivity extends AppCompatActivity {
     private boolean lspIntent;
     /** Simulation de listes tronquées armée ? (moteur maison, tous onglets) */
     private boolean truncatedSimulation;
+    /** Extinction LSP MANUELLE de la session : la préférence « LSP
+     *  automatique » n'insiste plus jusqu'au prochain changement de la
+     *  préférence (dernier mot de l'utilisateur). */
+    private boolean lspAutoSuppressed;
+    /** Dernière valeur lue de la préférence « LSP automatique » — un
+     *  changement détecté (écran Réglages) purge la suppression. */
+    private boolean lastLspAuto;
     private final Set<Integer> armedBreakpoints = new HashSet<>();
     private EditorPrefs prefs;
     private final Runnable panelRefresher = this::refreshPanels;
@@ -394,9 +401,16 @@ public class EditorActivity extends AppCompatActivity {
         updateUndoRedoMenu();
         refreshPanels();
         // Reconnexion collante : l'utilisateur avait demandé le moteur
-        // LSP (bascule ou carte d'accueil) — retour sur un fichier Java
-        // après un détour : on rebranche sans lui redemander.
-        if (lspIntent && "java".equals(file.editorLanguageId)
+        // LSP — bascule explicite, carte d'accueil OU préférence « LSP
+        // automatique » (posée dans Réglages, lue ici : elle n'était
+        // jamais consommée). Retour sur un fichier Java après un détour
+        // : on rebranche sans lui redemander. Une EXTINCTION manuelle
+        // garde la main — la suppression posée à la bascule off coupe
+        // la reconnexion automatique jusqu'au prochain changement de
+        // la préférence.
+        boolean wantsLsp = lspIntent
+                || (prefs.lspAuto() && !lspAutoSuppressed);
+        if (wantsLsp && "java".equals(file.editorLanguageId)
                 && !lsp.isLspActive()) {
             toggleLsp(true);
         }
@@ -479,6 +493,11 @@ public class EditorActivity extends AppCompatActivity {
             return;
         }
         lspIntent = on;
+        // Extinction manuelle : la préférence « LSP automatique » ne
+        // rebranche pas toute seule derrière le dos de l'utilisateur
+        // (la suppression vit jusqu'au prochain changement de la
+        // préférence). Une demande explicite l'efface.
+        lspAutoSuppressed = !on;
         if (on) {
             if (lsp.isLspActive()) return;
             file.analyzer.detach();
@@ -486,6 +505,10 @@ public class EditorActivity extends AppCompatActivity {
             boolean launched = lsp.connect(editor, file.session);
             if (!launched) {
                 lspIntent = false;
+                // Échec de lancement : pas de nouvelle tentative auto à
+                // chaque changement d'onglet (même discipline que la
+                // suppression manuelle).
+                lspAutoSuppressed = true;
                 Toast.makeText(this, R.string.lsp_unavailable,
                         Toast.LENGTH_SHORT).show();
                 file.analyzer.attach();
@@ -593,6 +616,14 @@ public class EditorActivity extends AppCompatActivity {
         editor.setSchemeBaseTheme(editorLight ? DemoTheme.emeraldDay()
                 : DemoTheme.emeraldNight());
         applyColorScheme(prefs.scheme());
+        // Préférence « LSP automatique » : un CHANGEMENT détecté (écran
+        // Réglages) purge la suppression posée par une extinction
+        // manuelle — le dernier mot revient à la préférence fraîche.
+        boolean lspAuto = prefs.lspAuto();
+        if (lspAuto != lastLspAuto) {
+            lastLspAuto = lspAuto;
+            lspAutoSuppressed = false;
+        }
         // Grammaires : activation automatique au chargement si la
         // préférence est posée et qu'une grammaire existe pour le
         // langage courant.
