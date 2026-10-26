@@ -1,6 +1,6 @@
 # cel-lsp — intégration Language Server Protocol
 
-> 220 tests · JUnit 5 (+ moteur vintage) · LSP4J 0.22.0 et Gson 2.14.0
+> 226 tests · JUnit 5 (+ moteur vintage) · LSP4J 0.22.0 et Gson 2.14.0
 > embarquées (voir [`NOTICE`](../../NOTICE)) · `compileOnly` sur
 > `:cel-core` et `:cel-lsp-api`.
 
@@ -126,7 +126,7 @@ LSP. Un hôte **sans vue** fournit sa propre implémentation de
 ## Tests
 
 ```bash
-./gradlew :cel-lsp:test     # 220 tests
+./gradlew :cel-lsp:test     # 226 tests
 ```
 
 Les tests branchent de **vrais serveurs faux in-process**

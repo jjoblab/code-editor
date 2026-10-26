@@ -187,12 +187,39 @@ budget() {
 # 4322 l. / 177 champs / 301 méthodes (marges 8 / 3 / 0). Champs SOUS
 # le plafond (177/180). Le relèvement ne dispense pas de la
 # décomposition du plan 01.
-budget editor/cel-ui/src/main/java/jo/codeeditor/view/EditorView.java 4330 180 301
+# Écart au ratchet (4.5.0, paliers P2+P3 du plan de corrections) : les
+# plafonds LIGNES 4330 → 4480 et MÉTHODES 301 → 307 sont relevés par
+# décision explicite : les SIX relais publics nouveaux sont des
+# réglages hôtes exigés — apprentissage du classement
+# (setCompletionRankingLearningEnabled/isCompletionRankingLearningEnabled/
+# clearCompletionRankingHistory) et mode gros fichiers explicite
+# (setLargeFileMode/getLargeFileMode/isLargeFileModeActive, l'énuméré
+# imbriqué LargeFileMode ne compte pas). L'ÉTAT et la LOGIQUE vivent
+# dans les collaborateurs : l'historique d'acceptation dans
+# CompletionAcceptanceHistory (cel-core, capacité bornée + éviction),
+# le régime gros fichiers dans l'énuméré + la consultation ponctuelle
+# des coupures (EditorWordOccurrences, EditorCompletionPopup,
+# EditorLanguageBridge, LspSemanticTokensPuller via EditorHost).
+# La compensation du viewport vit dans compenserDecalageViewport
+# (privée) branchée au listener existant. Mesuré : 4473 l. / 179
+# champs / 307 méthodes (marges 7 / 1 / 0). Champs SOUS le plafond
+# (179/180). Le relèvement ne dispense pas de la décomposition du
+# plan 01.
+budget editor/cel-ui/src/main/java/jo/codeeditor/view/EditorView.java 4480 180 307
 # Écart au ratchet : plafonds LIGNES 1600 → 1610 et MÉTHODES 100 → 102
 # (R2 du plan 09, IME) : +1 méthode publique (imeSelectedText — la voie
 # IME bornée au plafond Binder, distincte de selectedText interne) et
 # +7 lignes de javadoc/impl ; le reste de la session est inchangé.
-budget editor/cel-core/src/main/java/jo/codeeditor/session/EditorSession.java 1610 15 104
+# Écart au ratchet (4.5.0, renommage lié XML) : plafond LIGNES 1610 →
+# 1660 relevé par décision explicite : les crochets de renommage lié
+# dans typeChar/backspace (deux éditions en un lot d'annulation,
+# offsets décroissants) et la garde de famille isXmlLinkedEditLanguage
+# (privée) ; le SCANNER pur vit dans cel-core XmlLinkedTagEdits,
+# exposé par la façade EditOps — la session ne garde que le lot et le
+# caret. AUCUNE nouvelle méthode publique (104/104 inchangé), champs
+# 10/15. Mesuré : 1651 l. Le relèvement ne dispense pas de la
+# décomposition du plan 01.
+budget editor/cel-core/src/main/java/jo/codeeditor/session/EditorSession.java 1660 15 104
 
 # ── Règle de paquet (plan 03, §5) : le client LSP ne référence jamais
 # la vue. cel-lsp programme contre EditorHost (cel-lsp-api) ;

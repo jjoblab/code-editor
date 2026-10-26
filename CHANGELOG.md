@@ -7,6 +7,99 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Les sections antérieures à la période courante sont archivées dans
 [`docs/archive/CHANGELOG-archive.md`](docs/archive/CHANGELOG-archive.md) (A-08, audit 3.69.0).
 
+## [4.5.0] — 2026-10-27 — Paliers P2 et P3 du plan de rattrapage : gabarits riches, apprentissage, barre de touches, finitions
+
+### Ajouté
+
+- **Apprentissage du classement de complétion** — chaque acceptation
+  du popup nourrit un historique par (langage, identifiant de tête) :
+  `CompletionAcceptanceHistory` (`cel-core`, capacité 200 identifiants
+  par langage avec éviction du score le plus faible, compartiments
+  étanches, thread-safe). Le tri stable du popup gagne un 3ᵉ départage
+  APRÈS (palier, groupe) : un candidat déjà accepté remonte à palier et
+  groupe égaux — fréquence d'abord, fraîcheur ensuite — sans jamais
+  franchir ces barrières, et les candidats hors historique conservent
+  l'ordre du fournisseur. Bascule
+  `setCompletionRankingLearningEnabled(boolean)` (défaut : vrai) et
+  purge `clearCompletionRankingHistory()`.
+- **Variables de choix dans les gabarits** — le parseur de
+  `SnippetSession` reconnaît « `${1|alpha,beta,gamma|}` » : le champ
+  est initialisé à la première option, les suivantes vivent sur le
+  tab-stop. La carte glass `SnippetChoicePopup` s'ouvre à
+  l'application du gabarit et à chaque entrée de navigation (Tab) sur
+  un champ à choix ; toucher une option remplace le champ entier (les
+  miroirs suivent par le pipeline de session), avance au champ suivant
+  et rouvre sa carte le cas échéant. Référence croisée : refermée par
+  Échap, le tap extérieur et la fin de session.
+- **Macros de gabarits** — `$FILE$`, `$DATE$` et `$USER$` résolues À
+  L'EXPANSION via `SnippetMacroContext` (nom de fichier, auteur,
+  fournisseur de date) posé par l'hôte sur
+  `session.snippets.setMacroContext(…)` ; sans contexte ou champ non
+  renseigné, la macro reste LITTÉRALE — jamais effacée silencieusement.
+- **Gabarits du profil et gabarits utilisateur** — nouvelle liste
+  additive `LanguageProfile.snippetTemplates` (entrées
+  « libellé|corps », le premier « | » coupe, le corps peut en contenir
+  d'autres ; la liste historique `snippets` reste en insertion
+  littérale) et SPI `SnippetProvider` (`cel-lsp-api`, modèle
+  `SnippetTemplate`) : le stockage appartient à l'hôte, le provider
+  est lu sur le fil UI et fusionné AUX DEUX chemins de complétion
+  (fournisseur externe comme complétion intégrée). À l'acceptation,
+  `isSnippet` → expansion complète.
+- **Table postfix par profil** — la table des postfixes quitte le code
+  en dur pour `LanguageProfile.postfixTemplates` (entrées
+  « nom=gabarit », jeton `${expr}`) : les entrées complètent et
+  surchargent les défauts de la famille (C_LIKE et PYTHON), un
+  gabarit vide RETIRE le nom, et un langage hors famille qui déclare
+  une table active les postfixes. Les profils `java` et `kotlin`
+  gagnent `.sout` (`System.out.println(expr);` / `println(expr)`).
+- **Mode gros fichiers explicite** — tri-état public
+  `EditorView.LargeFileMode` (AUTO par défaut = seuils du document,
+  ON = forçage, OFF = coupures fermées). En mode actif : complétion
+  auto-déclenchée coupée (la voie explicite hôte reste ouverte),
+  occurrences purgées, inlays et tir sémantique arrêtés — via la
+  méthode par défaut `EditorHost.isDocumentLarge()` réalisée par
+  `LspEditorViewHost`. Coloration (régime progressif), frappe et
+  undo/redo continuent toujours.
+- **Renommage lié des balises XML** — la frappe et le backspace DANS
+  le nom d'une balise ouvrante (famille XML du profil : XML, HTML, SVG
+  via alias) se reflètent sur la fermante appariée, en miroir aligné,
+  les deux éditions en UNE SEULE étape d'annulation. L'appariement
+  (`XmlLinkedTagEdits`, exposé par la façade `EditOps`) empile par
+  nom — homonymes imbriqués respectés, auto-fermantes ignorées,
+  commentaires/CDATA/PI sautés, guillemets d'attributs respectés.
+  Liaison ouvrante → fermante uniquement.
+- **Barre de touches de code** — `EditorTouchBar` (`cel-ui`, chrome) :
+  rangée de touches configurables au-dessus du clavier, consommant des
+  `SelectionAction` (le modèle de la pill de sélection). `bind(view)`
+  pose les cinq touches usuelles (Tab/commentaire/déplacements/
+  duplication), `setActions(list)` est le point d'extension hôte.
+  Couleurs du thème de l'éditeur, cible 44 dp, défilement horizontal,
+  interaction sans prise de focus (l'IME reste ouvert). La barre
+  n'est JAMAIS posée par la bibliothèque — strictement additif.
+
+### Corrigé
+
+- **Compensation du viewport des éditions au-dessus de l'écran** — une
+  édition groupée insérant ou retirant des lignes STRICTEMENT
+  au-dessus de la première ligne visible (le cas typique : l'import
+  ajouté en tête de fichier par les éditions additionnelles d'une
+  acceptation de complétion) faisait sauter le viewport d'autant de
+  lignes. Le scroll est compensé de la hauteur RÉELLE de la plage
+  (différence `docLineToY`, consciente des plis), et le recentrage du
+  caret est supprimé PENDANT les lots d'éditions (garde `isInBatch`,
+  même schéma que la garde drag B9) : le caret intermédiaire d'une
+  édition composite ne dirige pas l'écran.
+
+### Documentation
+
+- Compteurs resynchronisés : **2 860 tests** (cel-core 1 470, cel-ui
+  950, cel-lsp 226, démo 86 ; +95 : apprentissage 14, gabarits/choix/
+  macros 34, viewport 6, postfix 8, gros fichiers 10, XML lié 15,
+  barre de touches 8) ; guide de montée de l'hôte
+  (docs/MISE-A-JOUR-CODEIDE.md) : section 4.5.0 (aucune action
+  obligatoire, réglages optionnels, alignement serveur, ADR barre de
+  touches pour CodeIDE).
+
 ## [4.4.0] — 2026-10-27 — Palier P1 du plan de rattrapage : occurrences du mot courant, modificateurs sémantiques, panneau de documentation
 
 ### Ajouté

@@ -34,14 +34,14 @@ dependencyResolutionManagement {
 // app/build.gradle.kts
 dependencies {
     // Le module UI embarque transitivement cel-core et cel-lsp-api.
-    implementation("jo.codeeditor:cel-ui:4.4.0")
+    implementation("jo.codeeditor:cel-ui:4.5.0")
 
     // Optionnel — intégration Language Server Protocol (LSP4J).
-    implementation("jo.codeeditor:cel-lsp:4.4.0")
+    implementation("jo.codeeditor:cel-lsp:4.5.0")
 
     // Optionnel — voie grammaires (ADR-002 C3) : coloration par
     // grammaires TextMate-like + grammaires embarquées (C#).
-    implementation("jo.codeeditor:cel-textmate:4.4.0")
+    implementation("jo.codeeditor:cel-textmate:4.5.0")
 }
 ```
 
@@ -53,7 +53,7 @@ maven { url = uri("https://jitpack.io") }
 
 // app/build.gradle.kts
 dependencies {
-    implementation("com.github.jjoblab.code-editor:cel-ui:v4.4.0")
+    implementation("com.github.jjoblab.code-editor:cel-ui:v4.5.0")
 }
 ```
 
@@ -323,6 +323,130 @@ du caret ou à la prochaine édition), de même que les surlignages posés
 manuellement par l'hôte via `setFindHighlights`. Les très gros
 documents (`isLarge`) et les sélections en plage coupent le calcul ;
 les littéraux numériques et la poncturbation ne s'allument jamais.
+
+### Apprentissage du classement de complétion (4.5.0)
+
+```java
+// Défaut : activé — chaque candidat accepté est mémorisé par
+// (langage, identifiant de tête) et remonte à PALIER ET GROUPE ÉGAUX
+// aux prochains classements (fréquence puis fraîcheur) — jamais
+// au-delà des barrières, l'ordre du fournisseur est sinon conservé.
+editorView.setCompletionRankingLearningEnabled(false); // couper
+boolean on = editorView.isCompletionRankingLearningEnabled();
+editorView.clearCompletionRankingHistory(); // purge (réglage hôte)
+```
+
+L'historique vit en mémoire (200 identifiants par langage, éviction du
+score le plus faible, compartiments par langage étanches). La purge
+ramène immédiatement le classement à celui du fournisseur.
+
+### Gabarits : variables de choix et macros (4.5.0)
+
+Le format snippet reconnaît deux familles nouvelles — les candidats
+`isSnippet` au moment de l'acceptation les expansent :
+
+- « `${1|alpha,beta,gamma|}` » : champ initialisé à la première
+  option, carte glass des options au-dessus de la ligne de frappe
+  (toucher une option remplace le champ, avance au suivant) ;
+- « `$FILE$` », « `$DATE$` », « `$USER$` » : résolues à l'expansion
+  depuis le contexte posé par l'hôte — sans contexte, la macro reste
+  LITTÉRALE (jamais effacée silencieusement) :
+
+```java
+import jo.codeeditor.snippet.SnippetMacroContext;
+
+// L'hôte connaît le fichier et l'auteur ; la date est résolue à
+// CHAQUE expansion (fournisseur injectable pour les tests).
+editorView.getSession().snippets.setMacroContext(
+        SnippetMacroContext.of("Main.kt", "Jeanne"));
+```
+
+Les gabarits arrivent par trois voies : les candidats LSP
+(`insertTextFormat=Snippet`), la liste additive du profil
+(`LanguageProfile.Builder.snippetTemplates("libellé|corps")` — le
+premier « | » coupe, la liste historique `snippets` reste littérale)
+et le SPI des gabarits utilisateur :
+
+```java
+import jo.codeeditor.lang.model.SnippetTemplate;
+import jo.codeeditor.lang.provider.SnippetProvider;
+
+public class MesGabarits implements SnippetProvider {
+    @Override
+    public List<SnippetTemplate> snippets(String language) {
+        // Lu sur le fil UI à chaque complétion : lire un CACHE,
+        // pas un stockage lent (préférences/DB → cache mémoire).
+        return List.of(new SnippetTemplate("log",
+                "System.out.println(${1|msg,err|});", "gabarit utilisateur"));
+    }
+}
+// branché par Language#getSnippetProvider() (défaut null) ; fusionné
+// aux candidats du serveur COMME à la complétion intégrée.
+```
+
+### Table postfix par profil (4.5.0)
+
+```java
+LanguageProfile.builder("java")
+        .family(SyntaxFamily.C_LIKE)
+        // Complète et surcharge les défauts de la famille ; un
+        // gabarit VIDE retire le nom ; un langage hors famille qui
+        // déclare une table active les postfixes.
+        .postfixTemplates(
+                "sout=System.out.println(${expr});",   // .sout intégré à java
+                "syserr=System.err.println(${expr});") // extension hôte
+        .build();
+```
+
+Le jeton `${expr}` reçoit l'expression extraite avant le point ; les
+lignes de continuation sont ré-indentées de l'indentation courante ;
+le caret se pose juste après la première ligne. Détection au PLUS LONG
+postfixe.
+
+### Renommage lié des balises XML (4.5.0)
+
+Aucune API : la frappe et le backspace DANS le nom d'une balise
+ouvrante (famille XML du profil — XML, HTML, SVG via alias) se
+reflètent automatiquement sur la fermante appariée, en miroir aligné,
+les deux éditions en UNE étape d'annulation. L'appariement empile par
+nom (homonymes imbriqués respectés), ignore les auto-fermantes et
+saute les commentaires/CDATA/PI. Éditer la fermante ne touche pas
+l'ouvrante.
+
+### Mode gros fichiers explicite (4.5.0)
+
+```java
+// Tri-état : AUTO (défaut — seuils 2,5 M caractères / 50 000 lignes),
+// ON (force les coupures), OFF (les ferme même au-delà des seuils).
+editorView.setLargeFileMode(EditorView.LargeFileMode.ON);
+EditorView.LargeFileMode mode = editorView.getLargeFileMode();
+boolean actif = editorView.isLargeFileModeActive();
+```
+
+En mode actif : complétion auto-déclenchée coupée (la voie explicite
+`setCompletionItems` / `refreshCompletionFromHost` reste ouverte),
+occurrences purgées, inlays et tir sémantique arrêtés. Coloration
+(régime progressif), frappe et undo/redo continuent toujours.
+
+### Barre de touches de code (4.5.0)
+
+```java
+import jo.codeeditor.view.chrome.EditorTouchBar;
+
+EditorTouchBar touchBar = new EditorTouchBar(context);
+touchBar.bind(editorView); // Tab, commentaire, ↑, ↓, duplication
+// Vos actions (le modèle de la pill de sélection) :
+touchBar.setActions(List.of(
+        new SelectionAction("mon.action", "⚡", () -> faireQuelqueChose()),
+        BuiltinSelectionActions.duplicate(editorView)));
+// Ajoutez la barre à votre layout, juste au-dessus du clavier
+// (l'adjustResize de l'activité la remonte avec l'IME).
+```
+
+La barre ne prend jamais le focus (l'IME reste ouvert), suit le thème
+de l'éditeur et cohabite avec la barre de symboles. Les états activés
+(Commenter selon le langage, ↑/↓ selon la position) se rafraîchissent
+au déplacement du caret et par `refreshEnabled()`.
 
 ### Surlignages de recherche
 

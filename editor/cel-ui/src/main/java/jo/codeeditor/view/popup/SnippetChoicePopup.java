@@ -76,7 +76,7 @@ public class SnippetChoicePopup {
 
         for (int i = 0; i < stop.choices.size(); i++) {
             final String choice = stop.choices.get(i);
-            TextView row = new TextView(ctx);
+            TouchChoiceRow row = new TouchChoiceRow(ctx, choice);
             row.setText(choice);
             row.setTextColor(view.theme.textColor);
             row.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 14f);
@@ -90,17 +90,6 @@ public class SnippetChoicePopup {
             lp.topMargin = view.dp(2);
             lp.bottomMargin = view.dp(2);
             row.setLayoutParams(lp);
-            // Interaction tactile brute (modèle SymbolBarView) : la
-            // carte ne prend PAS le focus — le caret reste dans le
-            // champ, l'IME reste ouvert, la saisie clavier continue.
-            row.setOnTouchListener((v, e) -> {
-                if (e.getAction() == android.view.MotionEvent.ACTION_UP) {
-                    v.performClick();
-                    return true;
-                }
-                return e.getAction() == android.view.MotionEvent.ACTION_DOWN;
-            });
-            row.setOnClickListener(v -> choose(choice));
             container.addView(row);
         }
 
@@ -122,6 +111,37 @@ public class SnippetChoicePopup {
                 view.getHeight() - h - view.dp(8)));
         popup.showAtLocation(view, Gravity.TOP | Gravity.CENTER_HORIZONTAL, 0, y);
         EditorPopupMotion.cardIn(container, -view.dp(8));
+    }
+
+    /**
+     * Une rangée d'option : TextView qui exécute le choix DANS
+     * performClick (A-05 — chemin tactile et TalkBack unifiés), avec
+     * l'interaction tactile brute du modèle barre de symboles : la
+     * carte ne prend PAS le focus — le caret reste dans le champ,
+     * l'IME reste ouvert, la saisie clavier continue.
+     */
+    private final class TouchChoiceRow extends android.widget.TextView {
+
+        private final String choice;
+
+        TouchChoiceRow(android.content.Context context, String choice) {
+            super(context);
+            this.choice = choice;
+            setOnTouchListener((v, e) -> {
+                if (e.getAction() == android.view.MotionEvent.ACTION_UP) {
+                    v.performClick();
+                    return true;
+                }
+                return e.getAction() == android.view.MotionEvent.ACTION_DOWN;
+            });
+        }
+
+        @Override
+        public boolean performClick() {
+            super.performClick();
+            choose(choice);
+            return true;
+        }
     }
 
     /**

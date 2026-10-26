@@ -617,3 +617,174 @@ La démo (`demo`) expose les trois bancs au menu (« Occurrences du mot
 courant », « Banc sémantique (modificateurs) ») et ses candidats
 `println`/`format`/`substring` portent une documentation — tout se
 vérifie sans serveur.
+
+## 4.5.0
+
+### 1. État de publication
+
+| Élément | État |
+|---|---|
+| Tag | `v4.5.0` (annoté, posé sur `main`) |
+| SHA de la version | à consigner à la poussée (`main`) |
+| `ci.yml` (main) | build local complet vert (clean assembleDebug test lint, 2 860 tests, 0 échec) + garde-fous verts (figures écart 0, budgets relevés et justifiés, refs externes) |
+| `publish.yml` (tag) | déclenché par la poussée du tag — les 5 AAR `jo.codeeditor:cel-*:4.5.0` |
+| JitPack `com.github.jjoblab.code-editor` | se construit À LA PREMIÈRE DEMANDE |
+
+### 2. Compatibilité (l'application vient de 4.4.0)
+
+**AUCUNE rupture d'API — STRICTEMENT additif.** Les paliers P2 et P3
+du plan de rattrapage ajoutent : l'apprentissage du classement de
+complétion (défaut ACTIVÉ — voir le point d'attention), les variables
+de choix et macros de gabarits, la table postfix par profil (`.sout`
+sur java/kotlin), le mode gros fichiers explicite (défaut AUTO —
+comportement inchangé tant qu'on n'y touche pas), le renommage lié
+des balises XML (actif dès la frappe dans un nom de balise ouvrante)
+et la barre de touches de code (JAMAIS posée par la bibliothèque).
+La compensation du viewport corrige le saut d'écran des auto-imports.
+
+**Point d'attention 1 — apprentissage ACTIVÉ par défaut** : les
+candidats acceptés remontent à palier et groupe égaux dans les listes
+suivantes. Un hôte qui veut le classement exact du serveur pose
+`setCompletionRankingLearningEnabled(false)` à l'initialisation, et
+branche `clearCompletionRankingHistory()` sur son réglage « effacer ».
+
+**Point d'attention 2 — renommage XML lié actif par défaut** : la
+frappe dans le nom d'une balise ouvrante (famille XML du profil :
+XML/HTML/SVG) met à jour la fermante appariée, une étape d'annulation
+pour les deux éditions. Un hôte qui gérait lui-même ce miroir verra
+une double application — il n'existe pas de bascule publique v1 (le
+comportement n'opère que caret posé dans le nom, hors attributs et
+texte) ; signalez le besoin d'une bascule pour un prochain palier.
+
+**Point d'attention 3 — recentrage du caret coupé PENDANT les lots
+d'éditions** : une application qui appliquait des groupes d'éditions
+(`beginBatch`/`endBatch`) en comptant sur le recentrage INTERMÉDIAIRE
+du caret verra le viewport rester en place pendant le lot — c'est le
+comportement voulu (le caret intermédiaire d'une édition composite
+n'a pas de sens visuel) ; le recentrage reprend à la restauration de
+la sélection, après `endBatch`.
+
+### 3. API ajoutée (signatures exactes, `@since 4.5.0`)
+
+```java
+// jo.codeeditor.view.EditorView — apprentissage du classement
+public void setCompletionRankingLearningEnabled(boolean enabled) // défaut vrai
+public boolean isCompletionRankingLearningEnabled()
+public void clearCompletionRankingHistory()
+
+// jo.codeeditor.view.EditorView — mode gros fichiers explicite
+public enum EditorView.LargeFileMode { AUTO, ON, OFF }
+public void setLargeFileMode(LargeFileMode mode)   // défaut AUTO
+public LargeFileMode getLargeFileMode()
+public boolean isLargeFileModeActive()             // lecture effective
+
+// jo.codeeditor.view.chrome.EditorTouchBar — barre de touches (vue
+// publique, à ajouter au layout de l'activité, au-dessus du clavier)
+public void bind(EditorView view)                  // 5 touches usuelles
+public void setActions(List<SelectionAction> actions) // extension hôte
+public List<SelectionAction> getActions()
+public void refreshEnabled()
+
+// jo.codeeditor.completion.CompletionAcceptanceHistory (cel-core) —
+// l'hôte qui veut son propre stockage peut le piloter directement.
+public void setEnabled(boolean enabled)
+public boolean isEnabled()
+public void record(String language, String identifier)
+public long boost(String language, String identifier)
+public void clear()
+public void clear(String language)
+public int size()
+
+// jo.codeeditor.snippet.* (cel-core)
+public class SnippetMacroContext {                  // macros de gabarits
+    public SnippetMacroContext(String fileName, String userName,
+                               java.util.function.Supplier<String> dateText)
+    public static SnippetMacroContext of(String fileName, String userName)
+    public String fileName()
+    public String userName()
+}
+// posé par l'hôte : session.snippets.setMacroContext(ctx) — lu à
+// CHAQUE expansion ; sans contexte les macros restent littérales.
+
+// jo.codeeditor.languages.LanguageProfile.Builder — tables par profil
+public Builder snippetTemplates(String... entries) // "libellé|corps"
+public Builder postfixTemplates(String... entries) // "nom=gabarit", ${expr}
+
+// jo.codeeditor.lang.model.SnippetTemplate + provider (cel-lsp-api)
+public final class SnippetTemplate {
+    public final String label;   // libellé proposé
+    public final String body;    // corps à expansion
+    public final String detail;  // détail optionnel (null = aucun)
+    public SnippetTemplate(String label, String body, String detail)
+    public SnippetTemplate(String label, String body)
+}
+public interface SnippetProvider {
+    List<SnippetTemplate> snippets(String language); // fil UI : un CACHE
+}
+// branché par Language#getSnippetProvider() (défaut null) — fusionné
+// aux candidats du serveur COMME à la complétion intégrée.
+
+// jo.codeeditor.lang.host.EditorHost — réalisé par LspEditorViewHost
+default boolean isDocumentLarge() { return false; } // coupes côté LSP
+
+// jo.codeeditor.snippet.SnippetSession.TabStop — options de choix
+public final List<String> choices  // vide = champ libre
+// + constructeur étendu (l'historique délègue avec champ libre) ;
+// SnippetSession.parse(text, baseOffset, SnippetMacroContext) en plus
+// de la variante historique.
+```
+
+### 4. Changements de comportement notables
+
+- **Tri du popup de complétion** : 3ᵉ départage (palier, groupe,
+  apprentissage) — les candidats hors historique conservent l'ordre du
+  fournisseur (garde des tests 4.3.0 vérifiée).
+- **Compensation du viewport** : une édition groupée insérant des
+  lignes STRICTEMENT au-dessus de la première ligne visible compense
+  le scroll de la hauteur réelle de la plage (auto-import en tête de
+  fichier : le texte lu ne saute plus).
+- **Postfix `.sout`** : `msg.sout` + Entrée sur un onglet Java insère
+  `System.out.println(msg);` (Kotlin : `println(msg)`) ; la table est
+  extensible par profil, un gabarit vide retire un défaut.
+- **Mode gros fichiers** : en ON (ou AUTO au-delà des seuils), la
+  complétion AUTO ne déclenche plus — la voie explicite hôte
+  (`setCompletionItems`, `refreshCompletionFromHost`) reste ouverte.
+- **Barre de touches** : la vue `EditorTouchBar` n'est posée NULLE
+  PART par la bibliothèque — aucun changement tant que l'hôte ne
+  l'ajoute pas à son layout.
+
+### 5. Scénarios de vérification sur appareil
+
+1. **Apprentissage** : accepter 2-3 fois le même candidat pour un
+   préfixe donné — il passe devant ; couper la bascule, purger :
+   l'ordre du serveur revient.
+2. **Gabarits à choix** : serveur (ou SPI) qui émet
+   `System.out.println(${1|msg,err|});` en format snippet — la carte
+   d'options s'ouvre à l'acceptation, une option toucheuse remplace
+   le champ et avance au suivant.
+3. **Macros** : poser `session.snippets.setMacroContext(of("Main.kt",
+   auteur))` puis expanser un gabarit `$FILE$` — le nom du fichier
+   apparaît ; sans contexte, le marqueur reste littéral.
+4. **Postfix** : `msg.sout` + Entrée en Java/Kotlin ; une table
+   personnalisée par profil se déclenche au point.
+5. **Renommage XML** : éditer le nom d'une balise ouvrante — la
+   fermante suit ; une annulation retire les deux éditions.
+6. **Gros fichiers** : forcer ON, ouvrir un gros fichier — frappe et
+   undo vivants, pas de complétion auto ; AUTO retrouve les seuils.
+7. **Barre de touches** : ajouter `EditorTouchBar` au layout, binder,
+   montrer — les touches agissent sans fermer le clavier.
+
+La démo (`demo`) expose tous ces bancs au menu (apprentissage, gabarits,
+mode gros fichiers, barre de touches) — l'APK
+`./gradlew :demo:assembleDebug` les vérifie sans serveur.
+
+### 6. Décision à instruire côté application (ADR) — barre de touches
+
+L'adoption de la barre de touches est une décision d'INTERFACE qui
+appartient à l'application (emplacement, touches exposées, cohabitation
+avec la barre de symboles). La bibliothèque fournit la vue, cinq
+touches usuelles et le modèle d'extension (`SelectionAction`) —
+l'ADR recommandée tranche : (a) adopter avec les cinq touches par
+défaut, (b) adopter avec une sélection maison via `setActions`, ou
+(c) ne pas adopter (aucun coût : la vue n'est jamais posée d'office).
+Voir le document d'ADR fourni avec la livraison de ce guide.

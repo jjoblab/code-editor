@@ -1,8 +1,9 @@
 package jo.codeeditor.snippet;
 
 import java.util.Objects;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
 
 /**
  * Le contexte de résolution des macros de gabarits — les valeurs que
@@ -51,7 +52,8 @@ public final class SnippetMacroContext {
 
     /**
      * Un contexte minimal nom de fichier + auteur ; la date du jour est
-     * résolue au format ISO-8601 étendu (« {@code 2026-10-27} »).
+     * résolue au format ISO-8601 étendu (« {@code 2026-10-27} ») —
+     * voie API 24 (SimpleDateFormat, java.time exige l'API 26).
      *
      * @param fileName le nom du fichier
      * @param userName le nom de l'auteur
@@ -59,8 +61,8 @@ public final class SnippetMacroContext {
      */
     public static SnippetMacroContext of(String fileName, String userName) {
         return new SnippetMacroContext(fileName, userName,
-                () -> LocalDateTime.now()
-                        .format(DateTimeFormatter.ISO_LOCAL_DATE));
+                () -> new SimpleDateFormat("yyyy-MM-dd", Locale.ROOT)
+                        .format(new Date()));
     }
 
     /** Le nom du fichier — null si non renseigné (macro littérale). */

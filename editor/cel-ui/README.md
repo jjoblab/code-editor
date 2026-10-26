@@ -1,6 +1,6 @@
 # cel-ui — la couche Android : rendu, gestes, habillage
 
-> 882 tests · JUnit 4 + Robolectric (cycle de vie réel des vues sur
+> 950 tests · JUnit 4 + Robolectric (cycle de vie réel des vues sur
 > JVM) · `api(:cel-core)` + `api(:cel-lsp-api)`.
 
 `cel-ui` met le moteur à l'écran : une vue **Canvas** unique
@@ -134,7 +134,7 @@ XML, ProGuard/R8) vit dans [`USAGE.md`](../../USAGE.md).
 ## Tests
 
 ```bash
-./gradlew :cel-ui:testDebugUnitTest     # 882 tests Robolectric
+./gradlew :cel-ui:testDebugUnitTest     # 950 tests Robolectric
 ```
 
 Couverture sensible : cycle de vie (detach/leaks), gestes (drag,

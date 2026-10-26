@@ -93,6 +93,8 @@ par responsabilité.
 | Contexte de langage | ✅ | `edit/CodeContext.java`, `edit/LanguageIds.java` | Chaînes/commentaires par les délimiteurs du profil (ADR-002 C1) |
 | Utilitaires texte | ✅ | `edit/EditTextUtils.java` | Analyse de contexte d'appel, extra word chars |
 | Syntaxe de commentaires | ✅ | `edit/CommentSyntax.java` | Ligne/bloc par langage |
+| Complétion postfix (table par profil) | ✅ | `edit/PostfixCompletion.java` (façade `edit/EditOps.java`) | 4.5.0 : table « nom=gabarit » du profil (`LanguageProfile.postfixTemplates`, jeton `${expr}`) — complète et surcharge les défauts C_LIKE/PYTHON, gabarit vide = retrait, langage hors famille activé par déclaration ; `.sout` sur java/kotlin ; détection au PLUS LONG postfixe, continuation ré-indentée |
+| Renommage lié des balises XML | ✅ | `edit/XmlLinkedTagEdits.java` (façade `edit/EditOps.java`) + `session/EditorSession.java` | 4.5.0 : frappe/backspace dans le nom d'une balise ouvrante (famille XML : XML/HTML/SVG) reflétés sur la fermante appariée, UNE étape d'annulation ; empilement par nom (homonymes imbriqués), auto-fermantes ignorées, commentaires/CDATA/PI sautés |
 
 ---
 
@@ -103,6 +105,7 @@ par responsabilité.
 | CompletionSession (cache + filtre) | ✅ | `completion/CompletionSession.java` | Cache + filtre local ; 4.3.0 : délègue l'appariement au matcher, méthodes mortes `@Deprecated` avec renvoi |
 | CompletionMatcher (appariement unifié) | ✅ | `completion/CompletionMatcher.java` | 4.3.0 : identifiant de tête (`Text(text: String)` → `Text`, noms XML entiers), échelle 6 paliers (exact > exact casse > préfixe > préfixe casse > camel humps canoniques — `gS` ET `get` sur `getString` — > sous-séquence quelconque), positions de surbrillance = caractères qui ont fait matcher, groupes (résolu > mot-clé > snippet > mot du buffer) — partagé par le popup, la surbrillance et la navigation |
 | Candidats riches (container + documentation) | ✅ | `completion/CompletionSession.java` | 4.3.0 : champs optionnels `container` (origine) et `documentation` transportés jusqu'au popup ; 4.4.0 : la documentation est AFFICHÉE — panneau sous la liste (QuickDoc, wrap plafonné 6 lignes), hauteur comptée dans l'ancre et déduite des rangées, glyphe ⓘ sur vue étroite (< 340 dp), tap dans le panneau consommé sans action |
+| Apprentissage du classement | ✅ | `completion/CompletionAcceptanceHistory.java` + `view/popup/EditorCompletionPopup.java` | 4.5.0 : historique d'acceptations par (langage, identifiant de tête) — capacité 200/langage avec éviction du plus faible, compartiments étanches ; 3ᵉ départage du tri stable APRÈS (palier, groupe) : fréquence puis fraîcheur, jamais au-delà des barrières ; bascule + purge publiques sur la vue |
 | Badges de type de complétion | ✅ | `completion/CompletionKindBadge.java` | Pastilles keyword/function/variable… |
 | SignatureHelpController | ✅ | `completion/SignatureHelpController.java` | Param info, Ctrl+P |
 | QuickDoc (Javadoc/KDoc) | ✅ | `doc/QuickDoc.java` | Parsing markup, sections |
@@ -140,6 +143,10 @@ par responsabilité.
 |----------------|------|---------|-------------|
 | Tab stops (`$1`, `$2`, `$0`) | ✅ | `snippet/SnippetSession.java` | Navigation next/prev en ordre LSP ($1 → $2 → … → $0 final) |
 | Placeholders (`${1:défaut}`) | ✅ | `snippet/SnippetSession.java` | Texte par défaut sélectionné à l'expansion |
+| Variables de choix (`${1\|a,b,c\|}`) | ✅ | `snippet/SnippetSession.java` + `view/popup/SnippetChoicePopup.java` | 4.5.0 : champ initialisé à la première option, carte glass des options au-dessus de la ligne de frappe (à l'application et à chaque entrée de navigation) ; toucher une option remplace le champ, les miroirs suivent, le champ suivant rouvre sa carte le cas échéant |
+| Macros (`$FILE$`/`$DATE$`/`$USER$`) | ✅ | `snippet/SnippetMacroContext.java` + `session/SnippetController.java` | 4.5.0 : résolues à l'expansion depuis le contexte posé par l'hôte (fichier, auteur, fournisseur de date) ; sans contexte, la macro reste littérale — jamais effacée silencieusement |
+| Gabarits du profil (`libellé\|corps`) | ✅ | `languages/LanguageProfile.java` | 4.5.0 : liste additive `snippetTemplates` — proposés par libellé, insérés par le corps EXPANSÉ (la liste historique `snippets` reste littérale) |
+| Gabarits utilisateur (SPI) | ✅ | `cel-lsp-api` `provider/SnippetProvider.java` + `model/SnippetTemplate.java` | 4.5.0 : stockage hôte, provider lu sur le fil UI, fusionné aux DEUX chemins de complétion |
 | Stops liés (mirroring) | ✅ | `snippet/SnippetSession.java` + `session/SnippetController.java` | Édition du champ primaire propagée aux miroirs |
 | Ré-ancrage sur édition | ✅ | `snippet/SnippetSession.java` | Survie aux modifications |
 | parse() | ✅ | `snippet/SnippetSession.java` | Parse `$1`, `${1:placeholder}` |
@@ -277,6 +284,9 @@ et les barres d'habillage dans `view/chrome/`.
 | Feuille d'aperçu carte flottante (B6/B7/B8) | ✅ | `view/preview/EditorPreviewSheet.java` | Élévation 12 dp, coins arrondis 16 dp côté flottant, en-tête œil+nom, segmented control scindé/plein ; B7 : corps clippé aux coins de la carte, entrée/sortie animées ; B8 : un tap hors du cadre referme la feuille (le tap traverse vers l'éditeur) |
 | Fondus de popups (B7) + rejet extérieur (B8) | ✅ | `view/popup/EditorPopupFade.java`, `view/popup/EditorPopupMotion.java` | Popups Canvas : apparition 120 ms (front montant dans le pipeline), disparition 110 ms par photographie au dismiss (complétion, quick doc, menu, pill) ; popups en fenêtre : cartes posées 140 ms / effacées 110 ms ; B8 : `outsideTapDismisses` — la recette Android complète (outside touchable + fond non nul) qui traduit un tap hors cadre en dismiss automatique |
 | Barre de symboles | ✅ | `view/chrome/SymbolBarView.java` | Symboles du document |
+| Barre de touches de code | ✅ | `view/chrome/EditorTouchBar.java` | 4.5.0 : rangée de touches configurables au-dessus du clavier (Tab, commentaire, déplacements, duplication par défaut), consomme des `SelectionAction`, thème de l'éditeur, jamais posée par la bibliothèque (hôte) — cohabite avec la barre de symboles |
+| Compensation du viewport | ✅ | `view/EditorView.java` `compenserDecalageViewport` + `view/EditorImeBridge.java` | 4.5.0 : les éditions groupées insérant/retirant des lignes STRICTEMENT au-dessus du viewport compensent le scroll de la hauteur réelle (consciente des plis) ; le recentrage du caret est coupé pendant les lots (garde `isInBatch`) — le caret intermédiaire d'une édition composite (auto-import) ne dirige plus l'écran |
+| Mode gros fichiers explicite | ✅ | `view/EditorView.java` `LargeFileMode` + `lang/host/EditorHost.java` | 4.5.0 : tri-état AUTO/ON/OFF (AUTO = seuils 2,5 M caractères / 50 k lignes) ; coupent complétion auto, occurrences, inlays et tir sémantique ; coloration, frappe et undo toujours préservés ; la voie explicite hôte reste ouverte |
 | Retour à la ligne / ligatures / non-imprimables | ✅ | `view/EditorView.java` | Bascules publiques |
 | Thèmes | ✅ | `view/chrome/EditorTheme.java` | dark()/light() + 30+ couleurs custom |
 | Métriques et géométrie | ✅ | `view/EditorMetrics.java`, `view/render/EditorPaintContext.java`, `view/EditorWrapGeometry.java`, `view/EditorHitMapper.java`… | lineHeight, charWidth, mapping coords |
@@ -380,12 +390,12 @@ parallèle.
 
 | Indicateur | Valeur |
 |------------|--------|
-| Fichiers source | 292 (`:cel-core` 85 · `:cel-lsp-api` 39 · `:cel-lsp` 45 · `:cel-ui` 100 · `:cel-textmate` 7 · `demo` 16) |
-| Fichiers de test | 318 |
-| Lignes de code (main) | ≈ 71 200 (bibliothèques ≈ 64 500 · démo ≈ 6 900) |
-| Tests unitaires | 2 765 (`:cel-core` 1 421 · `:cel-lsp-api` 32 · `:cel-lsp` 224 · `:cel-ui` 910 · `:cel-textmate` 96 · `demo` 82) |
+| Fichiers source | 304 (`:cel-core` 88 · `:cel-lsp-api` 41 · `:cel-lsp` 45 · `:cel-ui` 102 · `:cel-textmate` 12 · `demo` 16) |
+| Fichiers de test | 335 |
+| Lignes de code (main) | ≈ 78 100 (bibliothèques ≈ 71 000 · démo ≈ 7 100) |
+| Tests unitaires | 2 860 (`:cel-core` 1 470 · `:cel-lsp-api` 32 · `:cel-lsp` 226 · `:cel-ui` 950 · `:cel-textmate` 96 · `demo` 86) |
 | Langages colorés intégrés | 29 |
 | Tokéniseurs intégrés | 14 (+ utilitaires SpanUtils, KeywordTables) |
 | Grammaires embarquées | 23 (`:cel-textmate` : c, cpp, csharp, css, dockerfile, go, html, java, javascript, json, kotlin, lua, markdown, php, python, ruby, rust, shell, sql, toml, typescript, xml, yaml) |
-| Interfaces de providers LSP | 17 |
+| Interfaces de providers LSP | 18 |
 | Providers de connexion LSP | 5 |

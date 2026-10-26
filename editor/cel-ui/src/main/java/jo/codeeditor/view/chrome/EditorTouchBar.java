@@ -153,7 +153,10 @@ public class EditorTouchBar extends LinearLayout {
 
     /** Construit une touche : texte, thème de l'éditeur, tap sans focus. */
     private TextView buildKey(final SelectionAction action) {
-        TextView key = new TextView(getContext());
+        TouchKey key = new TouchKey(getContext(), () -> {
+            if (action.enabled != null && !action.enabled.getAsBoolean()) return;
+            if (action.perform != null) action.perform.run();
+        });
         key.setText(action.label);
         key.setGravity(Gravity.CENTER);
         key.setPadding(dp(14), 0, dp(14), 0);
@@ -174,27 +177,43 @@ public class EditorTouchBar extends LinearLayout {
         if (action.icon != null) {
             key.setContentDescription(action.label);
         }
-        // Interaction tactile brute (modèle barre de symboles) : la
-        // touche ne prend PAS le focus — le caret reste dans l'éditeur
-        // et l'IME reste ouvert. performClick() facteur commun du
-        // chemin tactile et TalkBack (A-05).
-        key.setOnTouchListener((v, e) -> {
-            if (e.getAction() == MotionEvent.ACTION_UP) {
-                v.performClick();
-                return true;
-            }
-            return e.getAction() == MotionEvent.ACTION_DOWN;
-        });
-        key.setOnClickListener(v -> {
-            if (action.enabled != null && !action.enabled.getAsBoolean()) return;
-            if (action.perform != null) action.perform.run();
-        });
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.MATCH_PARENT);
         lp.rightMargin = dp(6);
         key.setLayoutParams(lp);
         keys.add(key);
         return key;
+    }
+
+    /**
+     * Une touche : TextView qui exécute son action DANS performClick
+     * (A-05 — chemin tactile et TalkBack unifiés), avec l'interaction
+     * tactile brute du modèle barre de symboles : la touche ne prend
+     * PAS le focus — le caret reste dans l'éditeur et l'IME reste
+     * ouvert.
+     */
+    private static final class TouchKey extends TextView {
+
+        private final Runnable click;
+
+        TouchKey(Context context, Runnable click) {
+            super(context);
+            this.click = click;
+            setOnTouchListener((v, e) -> {
+                if (e.getAction() == MotionEvent.ACTION_UP) {
+                    v.performClick();
+                    return true;
+                }
+                return e.getAction() == MotionEvent.ACTION_DOWN;
+            });
+        }
+
+        @Override
+        public boolean performClick() {
+            super.performClick();
+            if (click != null) click.run();
+            return true;
+        }
     }
 
     @Override

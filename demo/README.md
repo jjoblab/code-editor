@@ -170,6 +170,39 @@ Trois chantiers du palier P1 se vérifient dans l'atelier, sans serveur :
    moteur maison en portent). Sur vue étroite, le panneau cède la
    place au glyphe ⓘ de rangée.
 
+## Bancs d'essai 4.5.0 — apprentissage, gabarits, postfix, gros fichiers, touches
+
+Les paliers P2 et P3 se vérifient dans l'atelier, sans serveur :
+
+1. **Apprentissage du classement** (menu du même nom) : accepter
+   plusieurs fois le même candidat (ex. `print` pour le préfixe `pri`)
+   — il remonte À PALIER ÉGAL dans les listes suivantes, devant les
+   candidats jamais acceptés ; « Effacer l'historique » ramène le
+   classement du moteur, la bascule coupe l'apprentissage.
+2. **Banc gabarits (choix + macros)** : armer le banc puis taper `log`
+   et accepter — le champ de choix ouvre sa carte d'options
+   (msg/err/debug), toucher une option remplace le champ et avance ;
+   `entete` insère une ligne d'en-tête où `$FILE$` prend le nom de
+   l'onglet ; `ifnull` pose des champs navigables (Tab/Shift+Tab).
+3. **Postfix par profil** : sur un onglet Java, taper `msg.sout` puis
+   Entrée — `System.out.println(msg);` se matérialise (`.if`, `.for`,
+   `.notnull`… restent de la partie ; `.sout` sur un onglet Kotlin
+   donne la forme `println(msg)`).
+4. **Mode gros fichiers** (menu du même nom) : forcer les coupures et
+   ouvrir un échantillon « Charge 100k lignes » — la frappe reste
+   nerveuse, la complétion auto ne déclenche plus ; le mode AUTO
+   retrouve la politique aux seuils, OFF assument le coût.
+5. **Barre de touches de code** : « Afficher au-dessus du clavier »
+   pose la rangée Tab / Commenter / ↑ / ↓ / Dupliquer au bas de
+   l'écran (l'adjustResize la remonte avec l'IME) — les touches agissent
+   sur l'onglet courant sans fermer le clavier.
+6. **Renommage XML lié** : sur l'échantillon XML, éditer le nom d'une
+   balise ouvrante — la fermante suit caractère par caractère, une
+   seule annulation retire les deux éditions.
+7. **Compensation du viewport** : avec le mini serveur LSP (banc
+   auto-import), accepter un candidat importé en tête de fichier — le
+   texte sous les yeux ne saute plus d'autant de lignes.
+
 ## Build et installation
 
 ```bash
