@@ -87,15 +87,31 @@ class LspCompletionProvider implements CompletionProvider {
         // a tapé) fera refuser les additionalTextEdits plutôt que de
         // corrompre le texte.
         final int versionAtRequest = editor.getDocumentVersion();
+        // Drapeau « liste tronquée » du protocole (CompletionList.
+        // isIncomplete) : vrai = le serveur a PLAFONNÉ sa réponse et
+        // pourrait produire d'autres candidats pour le même token.
+        // Transporté jusqu'au publisher : le client saura que son
+        // filtrage local travaille sur une base partielle (un
+        // candidat écarté par le plafond ne peut pas réapparaître en
+        // filtrant davantage) et re-requêtera à chaque édition du
+        // préfixe. Une liste nue (Either.left) est réputée complète.
+        boolean listIncomplete = false;
         try {
             CompletableFuture<org.eclipse.lsp4j.jsonrpc.messages.Either<List<org.eclipse.lsp4j.CompletionItem>, CompletionList>> future =
                 server.getTextDocumentService().completion(params);
             org.eclipse.lsp4j.jsonrpc.messages.Either<List<org.eclipse.lsp4j.CompletionItem>, CompletionList> result =
                 LspRequestTimeouts.await(future, wrapper.requestTimeouts().completionMs());
-            List<org.eclipse.lsp4j.CompletionItem> items = result.isLeft()
-                ? result.getLeft() : result.getRight().getItems();
+            List<org.eclipse.lsp4j.CompletionItem> items;
+            if (result.isLeft()) {
+                items = result.getLeft();
+            } else {
+                CompletionList list = result.getRight();
+                items = list != null ? list.getItems() : null;
+                listIncomplete = list != null && list.isIncomplete();
+            }
             int count = items != null ? items.size() : 0;
-            log("completion: got " + count + " items", null);
+            log("completion: got " + count + " items"
+                    + (listIncomplete ? " (liste incomplète)" : ""), null);
             if (items != null) {
                 // Préserve l'ordre classement du serveur.
                 // Le client regroupe par qualité de match (exact /
@@ -148,6 +164,10 @@ class LspCompletionProvider implements CompletionProvider {
             }
             log(msg, e);
         }
+        // Le drapeau voyage avec le lot : posé AVANT le flush pour que
+        // le consommateur lise un état cohérent (items + troncature).
+        // Idempotent, sans effet pour les publishers qui l'ignorent.
+        publisher.setIncomplete(listIncomplete);
         publisher.flush();
     }
 
