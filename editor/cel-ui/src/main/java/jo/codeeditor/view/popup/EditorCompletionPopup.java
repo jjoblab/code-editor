@@ -226,6 +226,14 @@ public class EditorCompletionPopup {
         }
         view.onTextChanged();
         dismissCompletion();
+        // Apprentissage du classement (4.5.0) : l'acceptation nourrit
+        // l'historique par (langage, identifiant de tête) — les
+        // prochaines listes placeront ce candidat devant à palier et
+        // groupe égaux (fréquence puis fraîcheur). Sans effet quand la
+        // bascule est fermée ; l'identifiant de tête, pas le libellé
+        // entier, pour ré-apparier les signatures « foo() ».
+        view.completionHistory.record(view.session.getLanguage(),
+                jo.codeeditor.completion.CompletionMatcher.leadingIdentifier(item.label));
         // Action post-insertion transportée par le backend —
         // ex: application des additionalTextEdits LSP (AUTO-IMPORT d'un
         // type non importé). Exécutée APRÈS l'insertion de l'identifiant :
@@ -759,12 +767,25 @@ public class EditorCompletionPopup {
                 out.add(item);
             }
         }
-        out.sort(java.util.Comparator
-                .comparingInt((jo.codeeditor.completion.CompletionSession.Item i) ->
-                        jo.codeeditor.completion.CompletionMatcher.tier(
-                                i.label, i.filterText, prefix))
-                .thenComparingInt(i -> jo.codeeditor.completion.CompletionMatcher.group(
-                        i.isKeyword, i.isSnippet, i.kind)));
+        // Classement : palier, puis groupe, puis apprentissage (4.5.0).
+        // Le 3ᵉ départage arrive APRÈS (palier, groupe) — un candidat
+        // déjà accepté remonte à l'intérieur de son couple (palier,
+        // groupe) sans jamais franchir les barrières. Les inconnus ont
+        // un boost nul : à clés égales le tri stable conserve l'ordre
+        // du serveur (garde des tests 4.3.0).
+        java.util.Comparator<jo.codeeditor.completion.CompletionSession.Item> ranking =
+                java.util.Comparator
+                        .comparingInt((jo.codeeditor.completion.CompletionSession.Item i) ->
+                                jo.codeeditor.completion.CompletionMatcher.tier(
+                                        i.label, i.filterText, prefix))
+                        .thenComparingInt(i -> jo.codeeditor.completion.CompletionMatcher.group(
+                                i.isKeyword, i.isSnippet, i.kind));
+        if (view.completionHistory.isEnabled()) {
+            final String histLang = view.session.getLanguage();
+            ranking = ranking.thenComparingLong(i -> -view.completionHistory.boost(histLang,
+                    jo.codeeditor.completion.CompletionMatcher.leadingIdentifier(i.label)));
+        }
+        out.sort(ranking);
         return out;
     }
 

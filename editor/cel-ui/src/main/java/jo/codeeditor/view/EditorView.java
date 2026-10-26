@@ -189,6 +189,16 @@ public class EditorView extends View {
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
     public CompletionProvider completionProvider;
 
+    // ── Apprentissage du classement (4.5.0) ────────────────────────
+    // Historique d'acceptations par (langage, identifiant de tête),
+    // possédé par CompletionAcceptanceHistory (cel-core) : à palier et
+    // groupe égaux, un candidat déjà accepté remonte (fréquence puis
+    // fraîcheur). La vue n'expose que les relais de bascule et de
+    // purge — l'état et l'éviction capacitaire vivent dans l'objet.
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public final jo.codeeditor.completion.CompletionAcceptanceHistory completionHistory =
+            new jo.codeeditor.completion.CompletionAcceptanceHistory();
+
     // ── Retour à la ligne (word wrap) ──────────────────────────────
     // Les lignes longues se replient en rangées visuelles ; le modèle
     // cache les rangées par ligne et donne la correspondance O(log L)
@@ -3600,6 +3610,40 @@ public class EditorView extends View {
     /** Le débounce courant (ms) avant requête de complétion. */
     public int getCompletionDebounceMs() {
         return popupManager.getCompletionDebounceMs();
+    }
+
+    /**
+     * Active ou désactive l'apprentissage du classement de complétion
+     * (défaut : vrai). Chaque candidat accepté est mémorisé par
+     * (langage, identifiant de tête) ; aux prochains classements, les
+     * candidats déjà acceptés remontent À PALIER ET GROUPE ÉGAUX —
+     * l'apprentissage ne franchit jamais la barrière d'un palier ni
+     * d'un groupe, et les candidats hors historique conservent l'ordre
+     * du fournisseur. La désactivation coupe la collecte et le boost
+     * sans effacer l'historique.
+     *
+     * @param enabled vrai pour apprendre des acceptations
+     * @since 4.5.0
+     */
+    public void setCompletionRankingLearningEnabled(boolean enabled) {
+        completionHistory.setEnabled(enabled);
+    }
+
+    /** L'état courant de la bascule « apprentissage du classement ». */
+    public boolean isCompletionRankingLearningEnabled() {
+        return completionHistory.isEnabled();
+    }
+
+    /**
+     * Purge tout l'historique d'acceptation de complétion (tous
+     * langages) — à brancher sur le réglage « effacer
+     * l'apprentissage » de l'hôte. Le classement redevient
+     * immédiatement celui du fournisseur.
+     *
+     * @since 4.5.0
+     */
+    public void clearCompletionRankingHistory() {
+        completionHistory.clear();
     }
 
     /**
