@@ -119,6 +119,60 @@
         </menu>
     </item>
 
+    <!-- 4.5.0 : apprentissage du classement, gabarits, mode gros
+         fichiers, barre de touches -->
+    <item
+        android:id="@+id/action_ranking_learning"
+        android:title="@string/menu_ranking_learning"
+        app:showAsAction="never">
+        <menu>
+            <item android:id="@+id/ranking_learning_on"
+                android:title="@string/ranking_learning_on" />
+            <item android:id="@+id/ranking_learning_off"
+                android:title="@string/ranking_learning_off" />
+            <item android:id="@+id/ranking_learning_clear"
+                android:title="@string/ranking_learning_clear" />
+        </menu>
+    </item>
+
+    <item
+        android:id="@+id/action_templates_bench"
+        android:title="@string/menu_templates_bench"
+        app:showAsAction="never">
+        <menu>
+            <item android:id="@+id/templates_bench_on"
+                android:title="@string/templates_bench_on" />
+            <item android:id="@+id/templates_bench_off"
+                android:title="@string/templates_bench_off" />
+        </menu>
+    </item>
+
+    <item
+        android:id="@+id/action_large_file_mode"
+        android:title="@string/menu_large_file_mode"
+        app:showAsAction="never">
+        <menu>
+            <item android:id="@+id/large_file_auto"
+                android:title="@string/large_file_auto" />
+            <item android:id="@+id/large_file_on"
+                android:title="@string/large_file_on" />
+            <item android:id="@+id/large_file_off"
+                android:title="@string/large_file_off" />
+        </menu>
+    </item>
+
+    <item
+        android:id="@+id/action_touch_bar"
+        android:title="@string/menu_touch_bar"
+        app:showAsAction="never">
+        <menu>
+            <item android:id="@+id/touch_bar_show"
+                android:title="@string/touch_bar_show" />
+            <item android:id="@+id/touch_bar_hide"
+                android:title="@string/touch_bar_hide" />
+        </menu>
+    </item>
+
     <!-- Options « vue » : sous-menus -->
     <item
         android:id="@+id/action_line_numbers"

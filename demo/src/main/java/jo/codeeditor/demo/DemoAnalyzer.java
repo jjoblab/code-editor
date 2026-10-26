@@ -108,6 +108,9 @@ final class DemoAnalyzer {
 
     /** Troncature simulée armée ? (plafonne la base de complétion) */
     private boolean incompleteSimulation;
+
+    /** Banc gabarits riches (4.5.0). */
+    private boolean templatesBench;
     /** Compteur de requêtes fournisseur — l'observable des re-requêtes. */
     private int requestCount;
     /** Journal hôte (chaque requête y laisse une ligne, panneau Journal). */
@@ -180,6 +183,24 @@ final class DemoAnalyzer {
     /** Arme (ou désarme) le plafonnement de la base de complétion. */
     void setIncompleteSimulation(boolean on) {
         this.incompleteSimulation = on;
+    }
+
+    // ── Banc gabarits riches (4.5.0) ─────────────────────
+
+    /**
+     * Arme (ou désarme) les gabarits RICHES dans la complétion : des
+     * candidats au format snippet portant des variables de choix
+     * (« ${1|msg,err,debug|} » — le champ ouvre sa carte d'options) et
+     * des macros ($FILE$/$DATE$/$USER$ — résolues par le contexte posé
+     * sur la session par l'activité, au nom de l'onglet).
+     */
+    void applyTemplatesBench(boolean on) {
+        this.templatesBench = on;
+    }
+
+    /** Le banc gabarits est-il armé ? */
+    boolean isTemplatesBench() {
+        return templatesBench;
     }
 
     /** La troncature simulée est-elle armée ? */
@@ -388,6 +409,18 @@ final class DemoAnalyzer {
         if (lineComment != null) {
             out.add(new CompletionSession.Item("todo", "snippet — tâche restante",
                     lineComment + " TODO: ", null, 15, 66, false, true));
+        }
+        // 1bis. Banc gabarits riches (4.5.0) : variables de choix et
+        // macros — le champ « ${1|…|} » ouvre sa carte d'options à
+        // l'acceptation, les macros reprennent le contexte de la
+        // session (nom de l'onglet posé par l'activité).
+        if (templatesBench) {
+            out.add(new CompletionSession.Item("log", "gabarit — variable de choix",
+                    "System.out.println(${1|msg,err,debug|});", null, 15, 64, false, true));
+            out.add(new CompletionSession.Item("entete", "gabarit — macros de gabarit",
+                    "// $FILE$ — $USER$, $DATE$\n$0", null, 15, 62, false, true));
+            out.add(new CompletionSession.Item("ifnull", "gabarit — champs liés",
+                    "if (${1:o} == null) {\n    $0\n}", null, 15, 60, false, true));
         }
 
         // 2. Fonctions et types génériques de démo.

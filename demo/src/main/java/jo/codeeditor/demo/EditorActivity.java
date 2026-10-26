@@ -42,6 +42,7 @@ import jo.codeeditor.view.EditorView;
 import jo.codeeditor.view.GutterAction;
 import jo.codeeditor.view.chrome.BreadcrumbBar;
 import jo.codeeditor.view.chrome.EditorSearchBar;
+import jo.codeeditor.view.chrome.EditorTouchBar;
 import jo.codeeditor.view.chrome.LineNumberStyle;
 import jo.codeeditor.view.icons.EditorIcons;
 
@@ -104,6 +105,10 @@ public class EditorActivity extends AppCompatActivity {
     private EditorSearchBar searchBar;
     private FileTabs tabs;
     private StatusBar statusBar;
+
+    /** Barre de touches de code (4.5.0 — cachée par défaut). Visibilité
+     * paquet : le test de bascule la lit. */
+    EditorTouchBar touchBar;
     private DrawerLayout drawer;
     private SampleDrawer sampleDrawer;
     private TextMateTokenizerImpl textMate;
@@ -119,6 +124,12 @@ public class EditorActivity extends AppCompatActivity {
     private boolean truncatedSimulation;
     /** 4.4.0 — banc de modificateurs sémantiques armé sur les onglets. */
     private boolean semanticBench;
+
+    /** Banc gabarits riches armé ? (4.5.0 — miroir des onglets suivants) */
+    private boolean templatesBench;
+
+    /** Barre de touches de code visible ? (4.5.0) */
+    private boolean touchBarVisible;
     /** Extinction LSP MANUELLE de la session : la préférence « LSP
      *  automatique » n'insiste plus jusqu'au prochain changement de la
      *  préférence (dernier mot de l'utilisateur). */
@@ -269,6 +280,16 @@ public class EditorActivity extends AppCompatActivity {
         root.addView(stage, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
 
+        // 4.5.0 — barre de touches de code : cachée par défaut, le
+        // menu la révèle ; posée en bas du contenu, l'adjustResize la
+        // remonte avec le clavier.
+        touchBar = new EditorTouchBar(this);
+        touchBar.bind(editor);
+        touchBar.setVisibility(View.GONE);
+        root.addView(touchBar, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT));
+
         statusBar = new StatusBar(this);
         root.addView(statusBar.view(), new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -356,6 +377,14 @@ public class EditorActivity extends AppCompatActivity {
         // sa bascule (miroir de la simulation de troncature).
         if (semanticBench) {
             analyzer.applySemanticBench(true);
+        }
+        // 4.5.0 : le banc gabarits arme AUSSI les onglets OUVERTS APRÈS
+        // sa bascule — candidats riches + contexte de macros au nom
+        // de l'onglet (miroir du banc sémantique).
+        if (templatesBench) {
+            analyzer.applyTemplatesBench(true);
+            newSession.snippets.setMacroContext(
+                    jo.codeeditor.snippet.SnippetMacroContext.of(label, "Démo"));
         }
         files.add(new OpenFile(label, id, editorLanguageId, newSession, analyzer));
         selectFile(files.size() - 1);
@@ -1019,6 +1048,50 @@ public class EditorActivity extends AppCompatActivity {
             applySemanticBench(false);
             return true;
         }
+        // 4.5.0 — apprentissage du classement.
+        if (id == R.id.ranking_learning_on) {
+            applyRankingLearning(true);
+            return true;
+        }
+        if (id == R.id.ranking_learning_off) {
+            applyRankingLearning(false);
+            return true;
+        }
+        if (id == R.id.ranking_learning_clear) {
+            clearRankingLearning();
+            return true;
+        }
+        // 4.5.0 — banc gabarits riches (choix + macros).
+        if (id == R.id.templates_bench_on) {
+            applyTemplatesBench(true);
+            return true;
+        }
+        if (id == R.id.templates_bench_off) {
+            applyTemplatesBench(false);
+            return true;
+        }
+        // 4.5.0 — mode gros fichiers explicite.
+        if (id == R.id.large_file_auto) {
+            applyLargeFileMode(EditorView.LargeFileMode.AUTO);
+            return true;
+        }
+        if (id == R.id.large_file_on) {
+            applyLargeFileMode(EditorView.LargeFileMode.ON);
+            return true;
+        }
+        if (id == R.id.large_file_off) {
+            applyLargeFileMode(EditorView.LargeFileMode.OFF);
+            return true;
+        }
+        // 4.5.0 — barre de touches de code.
+        if (id == R.id.touch_bar_show) {
+            applyTouchBar(true);
+            return true;
+        }
+        if (id == R.id.touch_bar_hide) {
+            applyTouchBar(false);
+            return true;
+        }
         return false;
     }
 
@@ -1077,6 +1150,79 @@ public class EditorActivity extends AppCompatActivity {
     /** L'état courant du banc sémantique. */
     boolean isSemanticBench() {
         return semanticBench;
+    }
+
+    // ── Bascules 4.5.0 ────────────────────────────────────
+
+    /** 4.5.0 — bascule l'apprentissage du classement de complétion. */
+    void applyRankingLearning(boolean enabled) {
+        editor.setCompletionRankingLearningEnabled(enabled);
+    }
+
+    /** 4.5.0 — purge l'historique d'apprentissage. */
+    void clearRankingLearning() {
+        editor.clearCompletionRankingHistory();
+        Toast.makeText(this, getString(R.string.ranking_learning_cleared),
+                Toast.LENGTH_SHORT).show();
+    }
+
+    /** L'état courant de l'apprentissage. */
+    boolean isRankingLearning() {
+        return editor.isCompletionRankingLearningEnabled();
+    }
+
+    /**
+     * 4.5.0 — arme (ou désarme) le banc de gabarits riches sur TOUS
+     * les onglets ouverts (et les suivants) : candidats à variables
+     * de choix et macros — la carte d'options à l'acceptation, le
+     * contexte de macros au nom de l'onglet.
+     */
+    void applyTemplatesBench(boolean on) {
+        templatesBench = on;
+        for (OpenFile file : files) {
+            file.analyzer.applyTemplatesBench(on);
+            // Le contexte de macros vit sur la session de snippet :
+            // le nom de l'onglet matérialise $FILE$, l'auteur fixe $USER$.
+            file.session.snippets.setMacroContext(on
+                    ? jo.codeeditor.snippet.SnippetMacroContext.of(file.label, "Démo")
+                    : null);
+        }
+        panels.appendLog(getString(on
+                ? R.string.templates_bench_armed
+                : R.string.templates_bench_disarmed));
+    }
+
+    /** L'état courant du banc gabarits. */
+    boolean isTemplatesBench() {
+        return templatesBench;
+    }
+
+    /** 4.5.0 — pose le régime des fonctions lourdes (AUTO/ON/OFF). */
+    void applyLargeFileMode(EditorView.LargeFileMode mode) {
+        editor.setLargeFileMode(mode);
+        int msg = mode == EditorView.LargeFileMode.ON ? R.string.large_file_set_on
+                : mode == EditorView.LargeFileMode.OFF ? R.string.large_file_set_off
+                : R.string.large_file_set_auto;
+        Toast.makeText(this, getString(msg), Toast.LENGTH_SHORT).show();
+    }
+
+    /** Le régime courant des fonctions lourdes. */
+    EditorView.LargeFileMode getLargeFileMode() {
+        return editor.getLargeFileMode();
+    }
+
+    /** 4.5.0 — montre (ou masque) la barre de touches de code. */
+    void applyTouchBar(boolean visible) {
+        touchBarVisible = visible;
+        touchBar.setVisibility(visible ? View.VISIBLE : View.GONE);
+        Toast.makeText(this, getString(visible
+                ? R.string.touch_bar_shown : R.string.touch_bar_hidden),
+                Toast.LENGTH_SHORT).show();
+    }
+
+    /** La barre de touches est-elle visible ? */
+    boolean isTouchBarVisible() {
+        return touchBarVisible;
     }
 
     /** B11 — montre (ou cache) la bande d'erreurs du bord droit. */
