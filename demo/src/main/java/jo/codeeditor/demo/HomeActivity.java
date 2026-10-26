@@ -152,9 +152,13 @@ public class HomeActivity extends AppCompatActivity {
         cards.add(new Card("◐", 0xFFA78BFA, R.string.home_card_themes_title,
                 R.string.home_card_themes_description, "Java", "java", false, true));
         // 4.5.1 : bancs des chantiers récents — postfix (table du
-        // profil, réécriture de l'expression à la validation).
+        // profil, réécriture de l'expression à la validation) et
+        // renommage XML lié (fermante suit l'ouvrante).
         cards.add(new Card("fx", 0xFF34D399, R.string.home_card_postfix_title,
                 R.string.home_card_postfix_description, "Postfix (Java)", "postfix-java",
+                false, false));
+        cards.add(new Card("</>", 0xFF38BDF8, R.string.home_card_xmllinked_title,
+                R.string.home_card_xmllinked_description, "XML lié", "xml-linked",
                 false, false));
 
         for (Card card : cards) {

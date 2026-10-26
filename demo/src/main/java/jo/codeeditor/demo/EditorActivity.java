@@ -363,6 +363,7 @@ public class EditorActivity extends AppCompatActivity {
         String editorLanguageId = "minified-js".equals(id) ? "javascript"
                 : id.startsWith("load-") ? "java"
                 : "postfix-java".equals(id) ? "java"
+                : "xml-linked".equals(id) ? "xml"
                 : id;
         EditorSession newSession = new EditorSession(EditorDocument.of(sample));
         // Rafraîchissement différé des panneaux après édition (les deux
@@ -415,10 +416,12 @@ public class EditorActivity extends AppCompatActivity {
         analyzerAttach(file);
         // B27 : l'échantillon XML porte un nom de layout — la carte
         // d'aperçu « goutte d'eau » (œil de gouttière) s'y ouvre avec
-        // ses onglets XML/Compose et son badge « gonflé ».
+        // ses onglets XML/Compose et son badge « gonflé ». 4.5.1 : le
+        // banc XML lié aussi (layout minimal gonflable).
         editor.setFileName("markdown".equals(file.sampleId) ? "exemple.md"
                 : "html".equals(file.sampleId) ? "page.html"
-                : "xml".equals(file.sampleId) ? "activity_main.xml" : null);
+                : "xml".equals(file.sampleId) ? "activity_main.xml"
+                : "xml-linked".equals(file.sampleId) ? "banc_lie.xml" : null);
         editor.setZoomMemoryKey(file.editorLanguageId);
         editor.gutterActions.clear();
         armedBreakpoints.clear();

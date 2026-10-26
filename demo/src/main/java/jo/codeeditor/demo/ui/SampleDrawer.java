@@ -54,7 +54,7 @@ public final class SampleDrawer {
             {"JVM", 0xFF34D399, new String[]{"Java", "Kotlin", "C#", "Scala", "Groovy",
                     "Postfix (Java)",
                     "Charge 100k lignes (Java)", "Charge 480k lignes (Java)"}},
-            {"Web", 0xFF38BDF8, new String[]{"JavaScript", "Minifié (JS)", "TypeScript", "PHP", "HTML", "CSS", "XML"}},
+            {"Web", 0xFF38BDF8, new String[]{"JavaScript", "Minifié (JS)", "TypeScript", "PHP", "HTML", "CSS", "XML", "XML lié"}},
             {"Scripts", 0xFFFBBF24, new String[]{"Python", "Ruby", "Lua", "Shell", "SQL", "Markdown"}},
             {"Systèmes", 0xFFF87171, new String[]{"C", "C++", "Go", "Rust", "Swift", "Dart", "Dockerfile", "Smali"}},
             {"Données", 0xFFA78BFA, new String[]{"JSON", "YAML", "TOML", "Properties", "Log"}},

@@ -68,6 +68,10 @@ public final class DemoSamples {
         // postfix (table du profil de langage, 4.5.0) s'essaie sur du
         // Java prêt à l'emploi (expressions + mode d'emploi).
         LANGUAGES.put("Postfix (Java)", "postfix-java");
+        // 4.5.1 : banc du renommage XML LIÉ (4.5.0) — paires de
+        // balises propres, le nom fermant suit la frappe dans le nom
+        // ouvrant (frappe ET backspace, une étape d'annulation).
+        LANGUAGES.put("XML lié", "xml-linked");
     }
 
     /** Bundle minifié de ~14 Ko sur UNE SEULE ligne (48 modules IIFE
@@ -675,6 +679,39 @@ public final class DemoSamples {
             }
             """;
 
+    /** Banc XML lié (4.5.1) : layout minimal à paires propres — le
+     * renommage lié (4.5.0) s'y voit : la fermante suit la frappe
+     * dans le nom ouvrant, en une seule étape d'annulation. */
+    private static final String XML_LINKED = """
+            <?xml version="1.0" encoding="utf-8"?>
+            <!-- BANC XML LIÉ — le nom de la balise FERMANTE suit la
+                 frappe dans le nom OUVRANT, caractère par caractère
+                 (frappe ET backspace), en une seule étape d'annulation.
+
+                 Essai : caret juste après « LinearL » ci-dessous,
+                 tapez « a » — la fermante devient </LinearLa…> en
+                 même temps. Backspace : les deux reculent. -->
+            <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <!-- TODO: renommez aussi ces balises — la fermante suit -->
+                <TextView
+                    android:id="@+id/titre"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Banc XML lié" />
+
+                <Button
+                    android:id="@+id/action"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Renommez-moi" />
+
+            </LinearLayout>
+            """;
+
     private static final String XML = """
             <?xml version="1.0" encoding="utf-8"?>
             <!-- Écran principal de la démo — XML. -->
@@ -1124,6 +1161,7 @@ public final class DemoSamples {
             case "load-100k": return chargeJava(8_334);
             case "load-480k": return chargeJava(40_000);
             case "postfix-java": return POSTFIX_JAVA;
+            case "xml-linked": return XML_LINKED;
             default: return JAVA;
         }
     }

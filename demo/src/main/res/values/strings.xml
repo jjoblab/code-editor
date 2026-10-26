@@ -82,6 +82,8 @@
     <string name="home_card_themes_description">Thème → scheme : palette « Crépuscule ambré » par-dessus le thème émeraude, jour/nuit</string>
     <string name="home_card_postfix_title">Banc postfix</string>
     <string name="home_card_postfix_description">Tapez « resultat.sout » puis Entrée : la complétion postfix réécrit l\u2019expression (.if, .for, .notnull…)</string>
+    <string name="home_card_xmllinked_title">XML lié</string>
+    <string name="home_card_xmllinked_description">Renommez la balise ouvrante : la fermante suit caractère par caractère, une seule étape d\u2019annulation</string>
 
     <!-- Réglages -->
     <string name="settings_title">Réglages</string>
