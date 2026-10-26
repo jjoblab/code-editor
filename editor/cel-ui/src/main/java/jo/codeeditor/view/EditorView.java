@@ -169,6 +169,13 @@ public class EditorView extends View {
     public final jo.codeeditor.view.state.FindState find =
             new jo.codeeditor.view.state.FindState();
 
+    // ── Occurrences du mot sous le caret (4.4.0) ──────────────────
+    // Calcul débouncé possédé par EditorWordOccurrences (miroir du
+    // contrôleur de recherche) ; la vue ne conserve que l'ordonnancement
+    // et les relais publics de bascule. Pousse dans la voie find SANS
+    // la revendiquer — la recherche et l'hôte gardent la priorité.
+    final EditorWordOccurrences wordOccurrences = new EditorWordOccurrences(this);
+
     // ── Popup de complétion ────────────────────────────────────────
     // Complétion intégrée par mots-clés ; l'hôte peut piloter un
     // CompletionController externe via setCompletionItems(items,
@@ -843,6 +850,13 @@ public class EditorView extends View {
         languageBridge.scheduleDocumentHighlights();
     }
 
+    // Occurrences du mot sous le caret (débouncées, 4.4.0) — possédées
+    // par EditorWordOccurrences ; relais package-private appelé par
+    // EditorImeBridge et onTextChanged.
+    void scheduleWordOccurrences() {
+        wordOccurrences.schedule();
+    }
+
     // État du popup references (réutilise l'UI go-to-symbol) — possédé par
     // EditorReferencesController (visibilité, filtre, listes, sélection,
     // scroll, génération d'annulation).
@@ -1363,6 +1377,12 @@ public class EditorView extends View {
         // sa méthode refresh ; sans purge, des bandes pouvaient rester
         // dessinées aux offsets hasardeux du fichier précédent).
         find.clear();
+        // ★ 4.4.0 : le calcul d'occurrences du mot décrit l'ANCIEN
+        // document — la tâche en vol est annulée, puis le recalcul
+        // repart au repos du caret de la NOUVELLE session (le mot sous
+        // le caret restauré s'allume comme après un déplacement).
+        wordOccurrences.cancel();
+        wordOccurrences.schedule();
         // ★ B11 : les marqueurs de la bande d'erreurs décrivent
         // l'ANCIEN document (le pusher les repoussera aux diagnostics
         // de la nouvelle session) et le pouce du fast-scroller n'a plus
@@ -1684,6 +1704,11 @@ public class EditorView extends View {
         // hover tap-hold, fermeture multi-tap) : une vue détachée avec des
         // runnables encore postés resterait accessible depuis son Handler
         // et chaque callback pourrait toucher un état déjà démonté.
+        // 4.4.0 : le producteur d'occurrences du mot vit sur SON handler
+        // main-looper (miroir du contrôleur de recherche) — l'annulation
+        // ne dépend PAS du handler de la vue, nulle au détachement sous
+        // Robolectric (sinon la tâche en attente retiendrait la vue).
+        wordOccurrences.cancel();
         if (getHandler() != null) {
             viewportPrefetcher.cancel();
             languageBridge.cancelPending();
@@ -1787,6 +1812,30 @@ public class EditorView extends View {
     public void setFindHighlights(List<Match> matches, int currentIndex) {
         find.set(matches, currentIndex);
         invalidate();
+    }
+
+    /**
+     * Active ou désactive la surbrillance des occurrences du mot sous
+     * le caret (défaut : vrai). Au repos de la frappe (~300 ms), toutes
+     * les occurrences ENTIÈRES du mot touché par le caret s'allument
+     * dans la voie des surlignages de recherche dès qu'il y en a au
+     * moins deux — l'occurrence du caret en teinte forte. La session de
+     * recherche OUVERTE garde toujours la priorité (les occurrences se
+     * ré-allument à sa fermeture au prochain déplacement du caret ou à
+     * la prochaine édition), les très gros documents sont coupés, et
+     * les littéraux numériques comme la ponctuation ne s'allument
+     * jamais.
+     *
+     * @param enabled {@code true} pour allumer les occurrences du mot courant
+     * @since 4.4.0
+     */
+    public void setWordOccurrencesEnabled(boolean enabled) {
+        wordOccurrences.setEnabled(enabled);
+    }
+
+    /** L'état courant de la bascule « occurrences du mot sous le caret ». */
+    public boolean isWordOccurrencesEnabled() {
+        return wordOccurrences.isEnabled();
     }
 
     /**
@@ -3012,6 +3061,9 @@ public class EditorView extends View {
         // Rafraîchit les document highlights (débouncés) — les occurrences
         // du symbole sous le caret ont pu changer.
         scheduleDocumentHighlights();
+        // Occurrences du mot sous le caret (débouncées) — l'édition a pu
+        // changer le mot ou le compte de ses occurrences.
+        scheduleWordOccurrences();
         // Surlignage d'appariement de parenthèses — l'édition a pu
         // ajouter ou retirer la parenthèse au caret, recalcul synchrone.
         updateBracketPair();

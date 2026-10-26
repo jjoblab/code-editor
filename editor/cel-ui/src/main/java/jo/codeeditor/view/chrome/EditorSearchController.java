@@ -194,6 +194,10 @@ public class EditorSearchController {
         detachSessionHook();
         matches.clear();
         current = -1;
+        // 4.4.0 : la voie find est rendue — le producteur interne
+        // « occurrences du mot » pourra reprendre la main au prochain
+        // déplacement du caret ou à la prochaine édition.
+        view.find.searchOwned = false;
         view.setFindHighlights(null, -1);
         notifyMatches();
     }
@@ -207,6 +211,10 @@ public class EditorSearchController {
      */
     public void refresh() {
         handler.removeCallbacks(refreshRunnable);
+        // 4.4.0 : la session de recherche possède la voie find tant
+        // qu'elle n'est pas refermée — le producteur interne
+        // « occurrences du mot » s'efface devant elle.
+        view.find.searchOwned = true;
         ensureSessionHooked();
         EditorSession session = view.getSession();
         matches.clear();

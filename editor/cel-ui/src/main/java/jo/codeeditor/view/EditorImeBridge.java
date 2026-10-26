@@ -455,6 +455,9 @@ public class EditorImeBridge {
             // le symbole sous le caret a changé, donc le serveur LSP doit
             // être réinterrogé pour les nouvelles occurrences.
             view.scheduleDocumentHighlights();
+            // Occurrences du mot sous le caret (4.4.0) — recalcul différé
+            // au repos : le mot touché par le caret a changé.
+            view.scheduleWordOccurrences();
             // Surbrillance des crochets appariés — recalcul synchrone
             // (scan borné, recalculé à chaque frame).
             view.updateBracketPair();

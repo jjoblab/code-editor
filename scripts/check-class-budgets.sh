@@ -173,7 +173,21 @@ budget() {
 # défaut). Mesuré : 4270 l. / 177 champs / 299 méthodes (marges 0 / 3 /
 # 0). Champs SOUS le plafond (177/180). Le relèvement ne dispense pas
 # de la décomposition du plan 01.
-budget editor/cel-ui/src/main/java/jo/codeeditor/view/EditorView.java 4270 180 299
+# Écart au ratchet (4.4.0, occurrences du mot sous le caret) : les
+# plafonds LIGNES 4270 → 4330 et MÉTHODES 299 → 301 sont relevés par
+# décision explicite : la bascule publique EXIGE ses DEUX relais sur la
+# vue (setWordOccurrencesEnabled/isWordOccurrencesEnabled — réglage
+# hôte de cel-ui 4.4.0) ; l'ÉTAT (drapeau) et la LOGIQUE (débounce,
+# cédage de la voie, coupure isLarge, règle « au moins deux ») vivent
+# dans EditorWordOccurrences — collaborateur dédié miroir du contrôleur
+# de recherche ; le calcul pur (mot, frontières, collecte) vit dans
+# cel-core WordOccurrences. EditorView ne conserve que le champ
+# package-private, le relais scheduleWordOccurrences(), les purgeurs
+# setSession/onDetachedFromWindow et les DEUX relais publics. Mesuré :
+# 4322 l. / 177 champs / 301 méthodes (marges 8 / 3 / 0). Champs SOUS
+# le plafond (177/180). Le relèvement ne dispense pas de la
+# décomposition du plan 01.
+budget editor/cel-ui/src/main/java/jo/codeeditor/view/EditorView.java 4330 180 301
 # Écart au ratchet : plafonds LIGNES 1600 → 1610 et MÉTHODES 100 → 102
 # (R2 du plan 09, IME) : +1 méthode publique (imeSelectedText — la voie
 # IME bornée au plafond Binder, distincte de selectedText interne) et
