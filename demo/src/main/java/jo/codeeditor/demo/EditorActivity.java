@@ -388,7 +388,14 @@ public class EditorActivity extends AppCompatActivity {
 
         editor.setOnSelectionChangedListener(new FindableSelectionListener());
 
-        if (editorLight) editor.setTheme(jo.codeeditor.view.chrome.EditorTheme.light());
+        // Identité de thème après bascule d'onglet : la base émeraude est
+        // REPOSÉE par la voie du scheme (cascade + dusk éventuel) —
+        // l'ancien setTheme(light()) écrasait la base par le thème clair
+        // standard, en contournant la cascade : le scheme « Crépuscule
+        // ambré » tombait avec.
+        editor.setSchemeBaseTheme(editorLight ? DemoTheme.emeraldDay()
+                : DemoTheme.emeraldNight());
+        applyColorScheme(schemeOn);
 
         toolbar.setSubtitle(file.label);
         tabs.setTabs(labels(), index);
