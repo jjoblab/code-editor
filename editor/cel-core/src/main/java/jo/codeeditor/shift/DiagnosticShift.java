@@ -126,23 +126,52 @@ public final class DiagnosticShift {
 
     /**
      * Jeton sémantique avec offsets.
+     *
+     * <p><b>Modificateurs (4.4.0)</b> : le 5ᵉ élément du quintuplet LSP
+     * (bitmask de modificateurs du serveur) est résolu PAR NOM via la
+     * légende du serveur vers ce masque CANONIQUE — indépendant de
+     * l'ordre de la légende d'un serveur particulier. Les bits non
+     * interprétés aujourd'hui sont ignorés (le masque brut n'est PAS
+     * conservé : seuls les modificateurs que le rendu sait appliquer
+     * voyagent). Les jetons construits par l'hôte (injection directe)
+     * posent ces constantes directement.</p>
      */
     public static final class SemanticToken {
+        /** Modificateur « déprécié » — rendu barré (surcouche thème
+         *  {@code semantic.modifier.deprecated}). */
+        public static final int MOD_DEPRECATED = 1 << 0;
+        /** Modificateur « statique » — rendu gras (surcouche thème
+         *  {@code semantic.modifier.static}). */
+        public static final int MOD_STATIC = 1 << 1;
+        /** Modificateur « abstrait » — rendu italique (surcouche thème
+         *  {@code semantic.modifier.abstract}). */
+        public static final int MOD_ABSTRACT = 1 << 2;
+
         public int start;
         public int length;
         public final int type;
+        /** Masque canonique de modificateurs (0 = aucun). @since 4.4.0 */
+        public final int modifiers;
 
         public SemanticToken(int start, int length, int type) {
+            this(start, length, type, 0);
+        }
+
+        /** Variante complète (4.4.0) — transporte les modificateurs. */
+        public SemanticToken(int start, int length, int type, int modifiers) {
             this.start = start;
             this.length = length;
             this.type = type;
+            this.modifiers = modifiers;
         }
 
         public int end() { return start + length; }
     }
 
     /**
-     * Décale les jetons sémantiques à travers une édition.
+     * Décale les jetons sémantiques à travers une édition — les
+     * modificateurs voyagent tels quels (ils décrivent le symbole, pas
+     * la position).
      */
     public static List<SemanticToken> shiftSemanticTokens(List<SemanticToken> tokens, EditSpan span) {
         List<SemanticToken> result = new ArrayList<>();
@@ -151,7 +180,7 @@ public final class DiagnosticShift {
             int newEnd = mapEnd(t.start + t.length, span);
             int newLen = newEnd - newStart;
             if (newLen > 0) {
-                result.add(new SemanticToken(newStart, newLen, t.type));
+                result.add(new SemanticToken(newStart, newLen, t.type, t.modifiers));
             }
         }
         return result;

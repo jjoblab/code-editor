@@ -184,6 +184,11 @@ public class LanguageServerWrapper {
         // Plis, indications en ligne : tirés côté client.
         tdCaps.setFoldingRange(new org.eclipse.lsp4j.FoldingRangeCapabilities());
         tdCaps.setInlayHint(new org.eclipse.lsp4j.InlayHintCapabilities());
+        // Surlignage sémantique (4.4.0) : tiré côté client
+        // (semanticTokens/full) — l'annonce ouvre la négociation aux
+        // serveurs qui conditionnent leur provider à la capacité cliente ;
+        // les modificateurs de la légende sont interprétés par le puller.
+        tdCaps.setSemanticTokens(new org.eclipse.lsp4j.SemanticTokensCapabilities());
         // Diagnostics publiés — infos liées + tags (grisé des éléments
         // inutiles / déconseillés) + description de code + données
         // d'identité, tous capturés par le cache brut.

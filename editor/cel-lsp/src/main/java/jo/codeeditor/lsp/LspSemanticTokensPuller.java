@@ -110,6 +110,14 @@ class LspSemanticTokensPuller {
      * le document VIVANT et alimente {@code EditorSession.setSemanticTokens}
      * — fait le pont avec le rendu drawCachedSemSpans existant.
      * Appelé EXCLUSIVEMENT sur le thread UI.
+     *
+     * <p><b>Modificateurs (4.4.0)</b> : le 5ᵉ entier du quintuplet
+     * (bitmask serveur) est résolu PAR NOM via la légende annoncée à
+     * l'initialisation ({@code tokenModifiers}) vers le masque canonique
+     * de {@code DiagnosticShift.SemanticToken} — l'ordre de la légende
+     * étant propre à chaque serveur, un bit ne signifie RIEN sans elle.
+     * Sans légende (provider muet, serveur silencieux) : masque 0,
+     * aucun modificateur interprété.</p>
      */
     private void applySemanticTokens(int gen, List<Integer> flat) {
         if (!editor.isConnected()) return;
@@ -118,6 +126,7 @@ class LspSemanticTokensPuller {
         if (gen != semanticGeneration.get()) return;
         List<jo.codeeditor.shift.DiagnosticShift.SemanticToken> tokens =
                 new ArrayList<>(Math.max(8, flat.size() / 5));
+        int[] canonicalByBit = semanticModifierLegend(editor.currentWrapper());
         try {
             int line = 0, col = 0;
             for (int i = 0; i + 4 < flat.size(); i += 5) {
@@ -125,12 +134,13 @@ class LspSemanticTokensPuller {
                 int deltaChar = flat.get(i + 1);
                 int length = Math.max(1, flat.get(i + 2));
                 int type = flat.get(i + 3);
+                int rawModifiers = flat.get(i + 4);
                 line += deltaLine;
                 col = deltaLine == 0 ? col + deltaChar : deltaChar;
                 if (line < 0 || col < 0) continue;
                 int start = editor.positionToOffset(new Position(line, col));
                 tokens.add(new jo.codeeditor.shift.DiagnosticShift.SemanticToken(
-                        start, length, type));
+                        start, length, type, canonicalMask(canonicalByBit, rawModifiers)));
             }
         } catch (Exception ignored) {
             // Positions hors bornes (buffer divergé) — token partiel gardé.
@@ -143,5 +153,58 @@ class LspSemanticTokensPuller {
         } catch (Exception t) {
             jo.codeeditor.util.EditorLog.warn("LspEditor", "setSemanticTokens failed: " + t);
         }
+    }
+
+    /**
+     * Légende des modificateurs du serveur courant, résolue une fois par
+     * tir : {@code canonicalByBit[b]} = masque canonique du bit b de la
+     * légende (0 si le nom n'est pas interprété). Table vide (longueur 0)
+     * quand aucune légende n'est disponible — tout bitmask devient 0.
+     *
+     * <p>Visible du package pour les tests directs (résolution par nom).</p>
+     */
+    static int[] semanticModifierLegend(LanguageServerWrapper wrapper) {
+        try {
+            if (wrapper == null) return new int[0];
+            org.eclipse.lsp4j.ServerCapabilities caps = wrapper.getCapabilities();
+            if (caps == null || caps.getSemanticTokensProvider() == null) return new int[0];
+            org.eclipse.lsp4j.SemanticTokensWithRegistrationOptions options =
+                    caps.getSemanticTokensProvider();
+            if (options == null || options.getLegend() == null) return new int[0];
+            List<String> names = options.getLegend().getTokenModifiers();
+            if (names == null || names.isEmpty()) return new int[0];
+            int[] out = new int[names.size()];
+            for (int b = 0; b < names.size(); b++) {
+                out[b] = canonicalBitForName(names.get(b));
+            }
+            return out;
+        } catch (Exception t) {
+            return new int[0];
+        }
+    }
+
+    /** Nom de modificateur de légende (insensible à la casse) → bit canonique. */
+    static int canonicalBitForName(String name) {
+        if (name == null) return 0;
+        switch (name.toLowerCase(java.util.Locale.ROOT)) {
+            case "deprecated":
+                return jo.codeeditor.shift.DiagnosticShift.SemanticToken.MOD_DEPRECATED;
+            case "static":
+                return jo.codeeditor.shift.DiagnosticShift.SemanticToken.MOD_STATIC;
+            case "abstract":
+                return jo.codeeditor.shift.DiagnosticShift.SemanticToken.MOD_ABSTRACT;
+            default:
+                return 0;   // modificateur transporté mais non interprété
+        }
+    }
+
+    /** Bitmask serveur → masque canonique via la table de légende. */
+    static int canonicalMask(int[] canonicalByBit, int rawBits) {
+        if (rawBits == 0 || canonicalByBit.length == 0) return 0;
+        int mask = 0;
+        for (int b = 0; b < canonicalByBit.length && (rawBits >> b) != 0; b++) {
+            if ((rawBits & (1 << b)) != 0) mask |= canonicalByBit[b];
+        }
+        return mask;
     }
 }
