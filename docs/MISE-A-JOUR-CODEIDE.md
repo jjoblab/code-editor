@@ -324,3 +324,177 @@ sans) :
   change d'onglet ; re-taper l'œil de l'ancre : la carte se referme.
 - Ajouter/supprimer une `@Preview` à chaud : les yeux suivent le
   document (rafraîchissement côté hôte, débouncé).
+
+## 4.3.0
+
+### 1. État de publication
+
+| Élément | État |
+|---|---|
+| Tag | `v4.3.0` (annoté, posé sur `main`) |
+| SHA de la version | `6ffb490` (`main`, 2026-10-26) |
+| `ci.yml` (main) | SUCCESS (build + 2 704 tests + lint + garde-fous) |
+| `publish.yml` (tag) | SUCCESS — les 5 AAR publiés sur GitHub Packages (`jo.codeeditor:cel-{core,lsp-api,lsp,ui,textmate}:4.3.0`) |
+| JitPack `com.github.jjoblab/code-editor` | se construit À LA PREMIÈRE DEMANDE (`v4.3.1` lancé à la demande le 2026-10-27 ; la 4.3.0 n'est pas encore consommée — demander la résolution déclenche le build) |
+
+### 2. Compatibilité (l'application vient de 4.2.0)
+
+**AUCUNE rupture d'API — STRICTEMENT additif.** Le chantier
+« fiabiliser le popup de complétion » transporte et honore le drapeau
+LSP `isIncomplete`, unifie l'appariement filtre/classement/
+surbrillance et enrichit l'affichage des candidats. Un hôte qui ne
+change rien compile et constate un classement plus prévisible (un
+libellé de fonction `Text()` passe devant `TextField()` pour le
+préfixe `Text` ; les initiales de mots remontent avant les
+sous-séquences quelconques ; un mot-clé ne passe jamais devant un
+symbole résolu de même palier).
+
+**Point d'attention unique — couplage serveur** : tant que le serveur
+de langage envoie TOUJOURS `isIncomplete = true` dans ses listes, ce
+client re-requête à chaque édition du préfixe (comportement voulu,
+coalescé et débouncé) ; `setHonorIncompleteCompletion(false)` coupe
+la re-requête (retour au filtrage local pur). Le chantier serveur
+parallèle (drapeau honnête) supprimera ce couplage.
+
+### 3. API ajoutée (signatures exactes, `@since 4.3.0`)
+
+```java
+// jo.codeeditor.lang.provider.CompletionPublisher (SPI — no-op à défaut)
+public default void setIncomplete(boolean incomplete) {}
+
+// jo.codeeditor.view.EditorView.CompletionProvider (défaut : enveloppe
+// la variante 5 paramètres avec le drapeau à faux)
+public default CompletionResult provideResult(
+    String text, int caret, int tokenStart, String prefix,
+    Character triggerCharacter)
+
+// jo.codeeditor.view.CompletionResult (nouvelle classe)
+public final List<CompletionSession.Item> items;
+public final boolean isIncomplete;
+
+// jo.codeeditor.view.EditorView — thread UI attendu
+public void setHonorIncompleteCompletion(boolean honor)   // défaut vrai
+public boolean isHonorIncompleteCompletion()
+public void setCompletionDebounceMs(int debounceMs)       // défaut 80
+public int getCompletionDebounceMs()
+
+// jo.codeeditor.completion.CompletionSession.Item — constructeurs
+// étendus (champs optionnels container/documentation ; les
+// constructeurs existants délèguent)
+public Item(..., String container, String documentation)
+// + CompletionItem (SPI cel-lsp-api) : mêmes champs optionnels
+
+// jo.codeeditor.completion.CompletionMatcher (nouvelle classe,
+// cel-core — appariement unifié : matches/tier/matchPositions/
+// leadingIdentifier, échelle 6 paliers, groupes)
+```
+
+**Dépréciations (jamais supprimées, délèguent au matcher)** :
+`CompletionSession.filtered(...)`, `matchTier(...)`,
+`matchPositions(...)`, les constantes `TIER_*` — `@Deprecated` avec
+renvoi. `NavigationMenu.isCamelHumpSubsequence` DÉLÈGUE au matcher.
+
+### 4. Changements de comportement
+
+- **Liste complète** (drapeau absent/faux) : filtrage local pur —
+  aucune requête supplémentaire, réactivité inchangée.
+- **Liste tronquée** (`isIncomplete = true`) : filtrage local pour le
+  retour visuel immédiat ET re-requête débouncée (80 ms par défaut) à
+  CHAQUE édition du préfixe — prolongation comme retour arrière ;
+  coalescence (une frappe pendant un vol du même token ne s'empile
+  pas) ; génération anti-course conservée. Un candidat écarté par le
+  plafond serveur finit par réapparaître.
+- **Classement local** : paliers sur l'IDENTIFIANT DE TÊTE du libellé
+  (`Text(text: String)` → `Text` ; les noms XML restent entiers),
+  échelle exact > exact à la casse > préfixe > préfixe à la casse >
+  camel humps > sous-séquence ; tri STABLE (l'ordre serveur est
+  conservé à l'intérieur d'un palier) ; groupes à palier égal :
+  symbole résolu avant mot-clé avant snippet avant mot du buffer.
+- **Surbrillance** : les indices en gras sont EXACTEMENT ceux qui ont
+  fait matcher (même appariement que le filtre — plus de divergence).
+- **`NavigationMenu.isCamelHumpSubsequence` accepte désormais les runs
+  contigus** (« get » matche « getString » en plus de « gS ») — la
+  Javadoc documentait ce comportement depuis l'origine, le code la
+  contredisait ; l'implémentation suit la Javadoc (les préfixes d'une
+  lettre et les débuts de mots matchent comme avant, seuls les runs
+  contigus du premier caractère deviennent valides).
+- **Affichage riche** : `container` (origine du symbole) aligné à
+  l'extrême droite, tronqué à l'ellipse au-delà de 40 % de la largeur
+  (mesures en dp) ; `detail` garde sa place ; `documentation`
+  transportée jusqu'à l'item (le panneau de doc du popup reste à
+  venir — optionnel, non livré). `MAX_ROWS` (8), `WIDTH_DP` (280) et
+  `ROW_HEIGHT_DP` (28) inchangés.
+
+### 5. Ce que l'application hôte doit faire
+
+1. **Monter la version** dans `gradle/libs.versions.toml` :
+   `code-editor = "v4.3.1"` (coordonnées JitPack
+   `com.github.jjoblab.code-editor:cel-*:v4.3.1`).
+2. **Rien d'obligatoire côté API** : tout est additif, les valeurs
+   par défaut sont sûres (honneur au drapeau actif, debounce 80 ms).
+3. Facultatif : exposer les deux réglages dans l'écran d'options de
+   l'éditeur (`setHonorIncompleteCompletion`,
+   `setCompletionDebounceMs`) — utiles pendant la transition du
+   serveur vers le drapeau honnête.
+4. Côté serveur (dépôt frère) : envoyer un `isIncomplete` HONNÊTE
+   (vrai seulement si la liste est réellement partielle) et alimenter
+   `labelDetails.description`/`detail` + `documentation` — le client
+   les affiche déjà.
+
+### 6. Ce que l'application hôte ne doit PAS faire
+
+- Ne PAS réimplémenter de filtrage/classement local devant le popup :
+  l'appariement unifié (paliers, groupes, camel humps) vit dans la
+  bibliothèque — un double classement contredirait la surbrillance.
+- Ne PAS retirer les appels aux méthodes `@Deprecated` du matcher
+  historique : elles fonctionnent (délégation) — la migration vers
+  `CompletionMatcher` est facultative et progressive.
+- Ne PAS se fier au rang serveur seul pour prédire l'ordre final :
+  le client re-classe par (palier, groupe), l'ordre serveur ne
+  départage qu'à l'intérieur d'un palier.
+
+### 7. Scénarios de vérification sur appareil
+
+1. Taper `Text` dans un fichier Kotlin avec `TextField()`, `Text()`,
+   `TextView` dans la base : `Text()` en tête (exact sur l'identifiant
+   de tête, devant `TextField()` préfixe).
+2. Taper `LLM` : `LazyListModifier` (initiales) devant un homologue
+   « sous-séquence quelconque » ; les indices en gras sont les
+   initiales (0, 4, 8).
+3. Serveur qui plafonne ses listes (`isIncomplete = true`) : continuer
+   à taper puis EFFACER — le candidat écarté par le plafond
+   réapparaît (re-requête au retour arrière incluse).
+4. Serveur honnête (liste complète) : aucune requête supplémentaire
+   pendant la frappe (filtrage local pur).
+5. Frappes rapides sur serveur lent : jamais plus d'une requête en
+   vol par token (coalescence).
+6. `setHonorIncompleteCompletion(false)` : retour au comportement
+   historique (une requête par token).
+7. Candidat avec `container` : l'origine s'affiche à droite, tronquée
+   proprement sur écran étroit ; sans `container`, disposition
+   exacte d'avant.
+
+## 4.3.1
+
+### 1. État de publication
+
+| Élément | État |
+|---|---|
+| Tag | `v4.3.1` (annoté, posé sur `main`) |
+| SHA de la version | `4ccd6c4` (`main`, 2026-10-27) |
+| `ci.yml` (main) | SUCCESS (build + 2 714 tests + lint + garde-fous) |
+| `publish.yml` (tag) | SUCCESS — les 5 AAR publiés sur GitHub Packages (`jo.codeeditor:cel-*:4.3.1`) |
+| JitPack `com.github.jjoblab/code-editor` | `v4.3.1` build lancé à la demande le 2026-10-27 (« Building » à la rédaction) |
+
+### 2. Compatibilité (l'application vient de 4.3.0)
+
+**AUCUN changement d'API — la bibliothèque est inchangée.** La
+4.3.1 est concentrée sur l'application de démonstration (banc
+d'essai « listes tronquées » au menu, bascules bande d'erreurs et
+sélecteur de couleur, préférence « LSP automatique » consommée,
+identité de thème conservée aux changements d'onglet) et sur les
+compteurs/figures de la documentation. Pour l'hôte : monter la
+version et rien d'autre. Les scénarios de vérification de la 4.3.0
+restent la référence — le banc de la démo permet de les rejouer sans
+serveur : « Simuler un moteur qui plafonne » + panneau Journal
+montrent les re-requêtes en direct.
