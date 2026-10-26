@@ -426,7 +426,17 @@ public class EditorImeBridge {
                     imm.updateExtractedText(view, view.extractedTextMonitorToken, buildExtractedText());
                 }
             }
-            view.scrollManager.scrollCaretIntoView();
+            // Lot d'éditions (4.5.0) : le caret intermédiaire d'une
+            // édition composite (imports additionnels, miroirs de
+            // gabarit, drag de blocs) n'a AUCUN sens visuel — le
+            // recentrage pendant le lot combattait la compensation du
+            // viewport et tirait l'écran vers des offsets éphémères.
+            // L'appelant restaure la sélection SIGNIFICATIVE après
+            // endBatch : le recentrage reprend là (même garde que le
+            // drag B9).
+            if (view.session == null || !view.session.isInBatch()) {
+                view.scrollManager.scrollCaretIntoView();
+            }
             view.postInvalidate();
         }
 
@@ -447,7 +457,10 @@ public class EditorImeBridge {
             // les lignes « secouaient ». Pendant le drag, le geste et son
             // auto-scroll dirigent seuls le viewport ; le recentrage
             // reprend au geste suivant (frappe, tap, clavier).
-            if (!view.isSelectionDragActive()) {
+            // Lot d'éditions (4.5.0) : même suppression — le caret
+            // intermédiaire d'un lot ne dirige pas l'écran.
+            if (!view.isSelectionDragActive()
+                    && (view.session == null || !view.session.isInBatch())) {
                 view.scrollManager.scrollCaretIntoView();
             }
             view.refreshSignatureHelp();

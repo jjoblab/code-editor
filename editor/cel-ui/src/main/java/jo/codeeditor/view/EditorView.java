@@ -379,6 +379,7 @@ public class EditorView extends View {
             @Override
             public void onLinesShifted(int fromLine, int delta) {
                 renderCache.shiftKeys(fromLine, delta);
+                compenserDecalageViewport(fromLine, delta);
             }
             @Override
             public void onLinesReset() {
@@ -400,6 +401,37 @@ public class EditorView extends View {
                 }
             }
         };
+
+    /**
+     * Compensation du viewport (4.5.0) : une édition qui insère ou
+     * retire des lignes STRICTEMENT AU-DESSUS de la première ligne
+     * visible décale tout le contenu sous les yeux de l'utilisateur
+     * — le cas typique est l'import ajouté en tête de fichier par les
+     * éditions additionnelles d'une acceptation de complétion, qui
+     * pouvait faire sauter le viewport d'autant de lignes (le caret
+     * restait visible, le texte lu partait sous l'écran).
+     *
+     * <p>Le scroll est compensé de la HAUTEUR RÉELLE de la plage
+     * insérée/retirée (conscient des plis par
+     * {@link #docLineToY(int)}, pas d'un simple delta × hauteur de
+     * ligne), puis borné. Une édition À l'ancrage du viewport ou en
+     * dessous ne compense PAS : c'est le comportement standard des
+     * éditeurs (la frappe au premier rang visible pousse le texte vers
+     * le bas sans scroll). Exact sans retour à la ligne ; sous wrap,
+     * la géométrie du moment est utilisée (compensation au plus
+     * proche, toujours meilleure que le saut franc).</p>
+     */
+    private void compenserDecalageViewport(int fromLine, int delta) {
+        if (delta == 0 || session == null) return;
+        int anchor = docLineForScreenY(0);
+        if (fromLine >= anchor) return; // édition dans/au viewport : rien
+        int lineCount = session.getDocument().lineCount();
+        int target = Math.max(0, Math.min(anchor + delta, lineCount - 1));
+        float shift = docLineToY(target) - docLineToY(anchor);
+        if (shift == 0f) return;
+        scroll.vOffset = Math.max(0f, scroll.vOffset + shift);
+        scroll.clampTo(scrollManager.maxV(), scrollManager.maxH());
+    }
 
     // ── Popup d'aide de signature ────────────────────────────────
     // Aide de signature au-dessus du caret dans un appel de fonction
