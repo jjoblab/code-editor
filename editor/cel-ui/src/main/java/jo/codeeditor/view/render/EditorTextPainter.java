@@ -430,10 +430,15 @@ public class EditorTextPainter {
                 if (start >= end) continue;
                 paint.setColor(s.color);
                 if (s.styleFlags != 0) {
-                    int want = ((s.styleFlags & LineRenderCache.SemSpan.STYLE_BOLD) != 0
-                            ? Typeface.BOLD : 0)
-                            | ((s.styleFlags & LineRenderCache.SemSpan.STYLE_ITALIC) != 0
-                            ? Typeface.ITALIC : 0);
+                    // Style nommé (lint vérifie les constantes de
+                    // Typeface.create) — les quatre valeurs canoniques
+                    // seulement, jamais un int calculé.
+                    boolean bold = (s.styleFlags & LineRenderCache.SemSpan.STYLE_BOLD) != 0;
+                    boolean italic = (s.styleFlags & LineRenderCache.SemSpan.STYLE_ITALIC) != 0;
+                    int want = bold && italic ? Typeface.BOLD_ITALIC
+                            : bold ? Typeface.BOLD
+                            : italic ? Typeface.ITALIC
+                            : Typeface.NORMAL;
                     if (want != typefaceStyle) {
                         typefaceStyle = want;
                         paint.setTypeface(Typeface.create(base, want));
