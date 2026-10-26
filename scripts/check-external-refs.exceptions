@@ -41,6 +41,14 @@
 # CHANGELOG du plan 11 (« corpus de grammaires porté de 10 à 23 »).
 ^[^:]*\.md:[0-9]+:.*porté de [0-9]+ à [0-9]+
 
+# Même faux positif, même justification, dans le MESSAGE d'un tag (le
+# garde-fou scanne aussi les messages de tags) : « corpus de grammaires
+# porté de 10 à 23 » du tag v4.0.0 est une plage numérique, pas une
+# comparaison à un projet externe. Constaté rouge à 6fa9bea sans aucune
+# modification de l'arbre — l'exception .md ci-dessus ne couvrait pas
+# la forme « TAG <nom> : … ».
+^TAG [^:]*:.*porté de [0-9]+ à [0-9]+
+
 # Les commentaires internes des grammaires tierces (champ « comment » des
 # fichiers originaux VS Code/TextMate) peuvent employer des formulations
 # anglaises (« same as … ») : texte verbatim des fichiers originaux, pas
