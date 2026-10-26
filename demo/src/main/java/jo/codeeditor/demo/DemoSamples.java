@@ -64,6 +64,10 @@ public final class DemoSamples {
         // de lignes en régime progressif).
         LANGUAGES.put("Charge 100k lignes (Java)", "load-100k");
         LANGUAGES.put("Charge 480k lignes (Java)", "load-480k");
+        // 4.5.1 : échantillons de BANC des chantiers récents — le
+        // postfix (table du profil de langage, 4.5.0) s'essaie sur du
+        // Java prêt à l'emploi (expressions + mode d'emploi).
+        LANGUAGES.put("Postfix (Java)", "postfix-java");
     }
 
     /** Bundle minifié de ~14 Ko sur UNE SEULE ligne (48 modules IIFE
@@ -634,6 +638,43 @@ public final class DemoSamples {
             }
             """;
 
+    /** Banc postfix (4.5.1) : expressions prêtes à postfixer + mode
+     * d'emploi — la complétion postfix est une donnée du PROFIL java
+     * (table additive + défauts C_LIKE), le langage éditeur de
+     * l'échantillon est donc « java ». */
+    private static final String POSTFIX_JAVA = """
+            package atelier;
+
+            import java.util.List;
+
+            /**
+             * Banc postfix — tapez un postfix PUIS validez (Entrée) :
+             * la session détecte « .suffixe » à la fin de l'expression
+             * et la réécrit entière (une seule étape d'annulation).
+             *
+             *   resultat.sout   ->  System.out.println(resultat);
+             *   liste.for       ->  for (var item : liste) { ... }
+             *   valeur.notnull  ->  if (valeur != null) { ... }
+             *   calcul.var      ->  var v = calcul;
+             *
+             * Défauts C_LIKE : .if .for .notnull .return .var .while
+             * .try .else — Java ajoute .sout (profil intégré).
+             */
+            public final class BancPostfix {
+
+                public static void main(String[] args) {
+                    List<String> liste = List.of("alpha", "bêta");
+                    int resultat = liste.size();
+                    String valeur = "prêt";
+                    double calcul = resultat * 2.5;
+
+                    // FIXME: essayer resultat.sout ici (caret après
+                    // « resultat », tapez « .sout » puis Entrée) :
+                    resultat
+                }
+            }
+            """;
+
     private static final String XML = """
             <?xml version="1.0" encoding="utf-8"?>
             <!-- Écran principal de la démo — XML. -->
@@ -1082,6 +1123,7 @@ public final class DemoSamples {
             case "dockerfile": return DOCKERFILE;
             case "load-100k": return chargeJava(8_334);
             case "load-480k": return chargeJava(40_000);
+            case "postfix-java": return POSTFIX_JAVA;
             default: return JAVA;
         }
     }

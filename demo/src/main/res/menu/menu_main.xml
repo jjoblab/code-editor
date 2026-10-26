@@ -173,6 +173,12 @@
         </menu>
     </item>
 
+    <!-- 4.5.1 : banc postfix — table du profil du langage courant -->
+    <item
+        android:id="@+id/action_postfix_bench"
+        android:title="@string/menu_postfix_bench"
+        app:showAsAction="never" />
+
     <!-- Options « vue » : sous-menus -->
     <item
         android:id="@+id/action_line_numbers"

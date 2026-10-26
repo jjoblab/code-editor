@@ -44,7 +44,7 @@ public class SampleDrawerTest {
     // ── Construction + reconstruction ──────────────────────────────
 
     @Test
-    public void leTiroirListeLes32LangagesEtFiltreEnDirect() {
+    public void leTiroirListeLes34ÉchantillonsEtFiltreEnDirect() {
         Application app = RuntimeEnvironment.getApplication();
         AtomicInteger selected = new AtomicInteger(0);
         final String[] picked = {null, null};
@@ -64,9 +64,9 @@ public class SampleDrawerTest {
         }, id -> "java".equals(id) || "csharp".equals(id), id -> false);
 
         LinearLayout sections = drawer.sectionsForTest();
-        // Sans filtre : 5 en-têtes de famille + 33 échantillons
-        // (32 langages + l'échantillon de stress « Minifié (JS) » —
-        // plan 11 : dockerfile et les deux charges Java générées).
+        // Sans filtre : 5 en-têtes de famille + 34 échantillons
+        // (32 langages + stress « Minifié (JS) », plan 11 : dockerfile
+        // et les deux charges Java — 4.5.1 : le banc « Postfix »).
         int familyHeaders = 0;
         int rows = 0;
         for (int i = 0; i < sections.getChildCount(); i++) {
@@ -75,7 +75,7 @@ public class SampleDrawerTest {
             else if ("sample".equals(tag)) rows++;
         }
         assertEquals(5, familyHeaders);
-        assertEquals(33, rows);
+        assertEquals(34, rows);
         assertEquals(0, selected.get());
 
         // Le champ de filtrage reconstruit en direct : « rust » ne
@@ -107,7 +107,7 @@ public class SampleDrawerTest {
         for (int i = 0; i < sections.getChildCount(); i++) {
             if ("sample".equals(sections.getChildAt(i).getTag())) rows++;
         }
-        assertEquals(33, rows);
+        assertEquals(34, rows);
     }
 
     @Test

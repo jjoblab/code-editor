@@ -151,6 +151,11 @@ public class HomeActivity extends AppCompatActivity {
                 R.string.home_card_stress_description, "Minifié (JS)", "minified-js", false, false));
         cards.add(new Card("◐", 0xFFA78BFA, R.string.home_card_themes_title,
                 R.string.home_card_themes_description, "Java", "java", false, true));
+        // 4.5.1 : bancs des chantiers récents — postfix (table du
+        // profil, réécriture de l'expression à la validation).
+        cards.add(new Card("fx", 0xFF34D399, R.string.home_card_postfix_title,
+                R.string.home_card_postfix_description, "Postfix (Java)", "postfix-java",
+                false, false));
 
         for (Card card : cards) {
             grid.addView(cardView(card));

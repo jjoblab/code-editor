@@ -358,8 +358,12 @@ public class EditorActivity extends AppCompatActivity {
         String sample = DemoSamples.sampleFor(id);
         // Les échantillons de charge (plan 11) sont du JAVA généré : le
         // langage éditeur est java (bascule grammaires et pliage actives).
+        // 4.5.1 : l'échantillon de banc postfix vit aussi sur le profil
+        // java (le postfix est une donnée du PROFIL, pas de l'analyseur).
         String editorLanguageId = "minified-js".equals(id) ? "javascript"
-                : id.startsWith("load-") ? "java" : id;
+                : id.startsWith("load-") ? "java"
+                : "postfix-java".equals(id) ? "java"
+                : id;
         EditorSession newSession = new EditorSession(EditorDocument.of(sample));
         // Rafraîchissement différé des panneaux après édition (les deux
         // moteurs débouncent leur recalcul — 700 ms couvre l'analyzer
@@ -1092,6 +1096,11 @@ public class EditorActivity extends AppCompatActivity {
             applyTouchBar(false);
             return true;
         }
+        // 4.5.1 — banc postfix : table du profil du langage courant.
+        if (id == R.id.action_postfix_bench) {
+            showPostfixBenchDialog();
+            return true;
+        }
         return false;
     }
 
@@ -1223,6 +1232,61 @@ public class EditorActivity extends AppCompatActivity {
     /** La barre de touches est-elle visible ? */
     boolean isTouchBarVisible() {
         return touchBarVisible;
+    }
+
+    // ── Banc postfix (4.5.1) ─────────────────────────────
+
+    /**
+     * 4.5.1 — le texte du banc postfix : la table ADDITIVE du profil
+     * du langage donné (entrées « nom=gabarit », jeton ${expr} —
+     * complètes et surchargent les défauts de famille), les défauts
+     * de la famille, puis le mode d'emploi. Statique : testable sans
+     * activité, et le dialogue n'est qu'une coquille.
+     */
+    static String postfixBenchText(String languageId) {
+        jo.codeeditor.languages.LanguageProfile profile =
+                jo.codeeditor.languages.LanguageRegistry.forName(languageId);
+        StringBuilder sb = new StringBuilder();
+        sb.append("Langage : ").append(languageId == null ? "?" : languageId)
+                .append('\n');
+        sb.append("\nTable du profil (complète et surcharge les défauts) :");
+        if (profile == null || profile.postfixTemplates.isEmpty()) {
+            sb.append("\n  (aucune entrée déclarée)");
+        } else {
+            for (String entry : profile.postfixTemplates) {
+                int eq = entry.indexOf('=');
+                if (eq <= 0) continue;
+                sb.append("\n  .").append(entry, 0, eq)
+                        .append(" → ").append(entry.substring(eq + 1));
+            }
+        }
+        sb.append("\n\nDéfauts de famille :\n  ");
+        if (profile != null
+                && profile.family == jo.codeeditor.languages.SyntaxFamily.C_LIKE) {
+            sb.append(".if .for .notnull .return .var .while .try .else (C_LIKE)");
+        } else if (profile != null
+                && profile.family == jo.codeeditor.languages.SyntaxFamily.PYTHON) {
+            sb.append(".if .for .notnull .return .var .while .else "
+                    + "(Python — formes sans accolades)");
+        } else {
+            sb.append("aucun — la famille de ce langage n'en déclare pas");
+        }
+        sb.append("\n\nMode d'emploi : placez le caret après une expression, "
+                + "tapez « .sout » (ou un défaut) puis validez — l'IME "
+                + "commite le mot, la session détecte le postfix et réécrit "
+                + "l'expression en une seule étape d'annulation.");
+        return sb.toString();
+    }
+
+    /** 4.5.1 — dialogue du banc postfix (table du langage courant). */
+    private void showPostfixBenchDialog() {
+        OpenFile file = currentFile();
+        String languageId = file != null ? file.editorLanguageId : "java";
+        new com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.postfix_bench_title)
+                .setMessage(postfixBenchText(languageId))
+                .setPositiveButton(android.R.string.ok, null)
+                .show();
     }
 
     /** B11 — montre (ou cache) la bande d'erreurs du bord droit. */

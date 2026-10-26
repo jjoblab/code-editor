@@ -80,6 +80,8 @@
     <string name="home_card_stress_description">14 Ko sur une seule ligne — rendu fenêtré et frappe fluide, le banc d\u2019essai des extrêmes</string>
     <string name="home_card_themes_title">Cascade de thèmes</string>
     <string name="home_card_themes_description">Thème → scheme : palette « Crépuscule ambré » par-dessus le thème émeraude, jour/nuit</string>
+    <string name="home_card_postfix_title">Banc postfix</string>
+    <string name="home_card_postfix_description">Tapez « resultat.sout » puis Entrée : la complétion postfix réécrit l\u2019expression (.if, .for, .notnull…)</string>
 
     <!-- Réglages -->
     <string name="settings_title">Réglages</string>
@@ -210,6 +212,10 @@
     <string name="touch_bar_hide">Masquer</string>
     <string name="touch_bar_shown">Barre de touches affichée : Tab, commentaire, déplacements, duplication — vos actions via setActions</string>
     <string name="touch_bar_hidden">Barre de touches masquée</string>
+
+    <!-- 4.5.1 : banc postfix (table du profil de langage) -->
+    <string name="menu_postfix_bench">Banc postfix</string>
+    <string name="postfix_bench_title">Postfix du langage courant</string>
 
     <!-- B11/B26 : bande d'erreurs + sélecteur de couleur au code hex -->
     <string name="menu_error_stripe">Bande d\u2019erreurs</string>
