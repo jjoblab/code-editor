@@ -1104,6 +1104,15 @@ public class EditorActivity extends AppCompatActivity {
             showPostfixBenchDialog();
             return true;
         }
+        // 4.5.1 — banc viewport : compensation des éditions au-dessus.
+        if (id == R.id.viewport_bench_insert) {
+            applyViewportBenchInsert();
+            return true;
+        }
+        if (id == R.id.viewport_bench_remove) {
+            applyViewportBenchRemove();
+            return true;
+        }
         return false;
     }
 
@@ -1290,6 +1299,117 @@ public class EditorActivity extends AppCompatActivity {
                 .setMessage(postfixBenchText(languageId))
                 .setPositiveButton(android.R.string.ok, null)
                 .show();
+    }
+
+    // ── Banc viewport (4.5.1) ─────────────────────────────
+
+    /** Marqueur d'une ligne du bloc du banc viewport. */
+    static final String VIEWPORT_BENCH_MARK = "// BANC VIEWPORT ";
+
+    /** Taille du bloc inséré en tête par le banc viewport (lignes). */
+    static final int VIEWPORT_BENCH_LINES = 30;
+
+    /**
+     * 4.5.1 — insère un bloc de {@link #VIEWPORT_BENCH_LINES} lignes
+     * en TÊTE de document, dans UN SEUL lot d'annulation, sélection
+     * restaurée content-stable : si le viewport est défilé, la
+     * compensation (4.5.0) maintient le texte lu à l'écran — c'est le
+     * cas auto-import rendu observable au doigt. Le même chemin que
+     * les éditions additionnelles d'une acceptation de complétion
+     * (SessionEditGroup) : beginBatch/endBatch + restauration
+     * décalée de la longueur insérée.
+     */
+    void applyViewportBenchInsert() {
+        if (session == null || session.getDocument() == null) return;
+        if (session.isReadOnly()) {
+            Toast.makeText(this, R.string.viewport_bench_readonly,
+                    Toast.LENGTH_SHORT).show();
+            return;
+        }
+        String text = session.getText();
+        // Les blocs se superposent en tête : le numéro distingue les
+        // essais successifs (le retrait les emporte tous d'un coup).
+        int index = 1;
+        int from = 0;
+        while (true) {
+            int at = text.indexOf(VIEWPORT_BENCH_MARK, from);
+            if (at < 0) break;
+            index++;
+            from = at + VIEWPORT_BENCH_MARK.length();
+        }
+        StringBuilder bloc = new StringBuilder();
+        for (int i = 1; i <= VIEWPORT_BENCH_LINES; i++) {
+            bloc.append(VIEWPORT_BENCH_MARK).append(index)
+                    .append(" — ligne ").append(i)
+                    .append('/').append(VIEWPORT_BENCH_LINES)
+                    .append(" (compensation du viewport)\n");
+        }
+        int delta = bloc.length();
+        jo.codeeditor.document.Selection avant = session.getSelection();
+        session.beginBatch();
+        try {
+            session.replaceRange(0, 0, bloc.toString());
+        } finally {
+            session.endBatch();
+        }
+        // Sélection CONTENT-STABLE : les offsets d'avant le bloc
+        // désignent le MÊME caractère une fois décalés de delta — le
+        // caret reste sous les yeux, le texte lu ne bouge pas.
+        int max = session.getText().length();
+        session.setSelection(new jo.codeeditor.document.Selection(
+                Math.min(avant.start + delta, max),
+                Math.min(avant.end + delta, max)));
+        panels.appendLog(getResources().getQuantityString(
+                R.plurals.viewport_bench_inserted,
+                VIEWPORT_BENCH_LINES, VIEWPORT_BENCH_LINES));
+        Toast.makeText(this, R.string.viewport_bench_toast_insert,
+                Toast.LENGTH_LONG).show();
+    }
+
+    /**
+     * 4.5.1 — retire le bloc du banc (les lignes marquées consécutives
+     * depuis la tête du document) en un seul lot d'annulation — le
+     * miroir de l'insertion : le scroll compensé suit vers le haut.
+     */
+    void applyViewportBenchRemove() {
+        if (session == null || session.getDocument() == null) return;
+        if (session.isReadOnly()) {
+            Toast.makeText(this, R.string.viewport_bench_readonly,
+                    Toast.LENGTH_SHORT).show();
+            return;
+        }
+        jo.codeeditor.document.EditorDocument doc = session.getDocument();
+        int lines = doc.lineCount();
+        int line = 0;
+        while (line < lines) {
+            int ls = doc.lineStart(line);
+            int le = doc.lineEnd(line);
+            CharSequence content = doc.charSequence().subSequence(ls, le);
+            if (!content.toString().startsWith(VIEWPORT_BENCH_MARK)) break;
+            line++;
+        }
+        if (line == 0) {
+            Toast.makeText(this, R.string.viewport_bench_absent,
+                    Toast.LENGTH_SHORT).show();
+            return;
+        }
+        int end = line < lines ? doc.lineStart(line) : doc.length();
+        int removed = end;
+        jo.codeeditor.document.Selection avant = session.getSelection();
+        session.beginBatch();
+        try {
+            session.replaceRange(0, end, "");
+        } finally {
+            session.endBatch();
+        }
+        int max = session.getText().length();
+        session.setSelection(new jo.codeeditor.document.Selection(
+                Math.max(0, avant.start - removed),
+                Math.max(0, avant.end - removed)));
+        panels.appendLog(getResources().getQuantityString(
+                R.plurals.viewport_bench_removed, line, line));
+        Toast.makeText(this, R.string.viewport_bench_toast_remove,
+                Toast.LENGTH_SHORT).show();
     }
 
     /** B11 — montre (ou cache) la bande d'erreurs du bord droit. */

@@ -219,6 +219,23 @@
     <string name="menu_postfix_bench">Banc postfix</string>
     <string name="postfix_bench_title">Postfix du langage courant</string>
 
+    <!-- 4.5.1 : banc viewport (compensation des éditions au-dessus) -->
+    <string name="menu_viewport_bench">Banc viewport</string>
+    <string name="viewport_bench_insert">Insérer 30 lignes en tête</string>
+    <string name="viewport_bench_remove">Retirer le bloc du banc</string>
+    <string name="viewport_bench_absent">Aucun bloc du banc en tête de document</string>
+    <string name="viewport_bench_readonly">Document en lecture seule — le banc viewport ne touche pas au texte</string>
+    <plurals name="viewport_bench_inserted">
+        <item quantity="one">Banc viewport : %1$d ligne insérée en tête — le texte lu ne doit pas bouger (scroll compensé)</item>
+        <item quantity="other">Banc viewport : %1$d lignes insérées en tête — le texte lu ne doit pas bouger (scroll compensé)</item>
+    </plurals>
+    <plurals name="viewport_bench_removed">
+        <item quantity="one">Banc viewport : %1$d ligne retirée de la tête — le scroll a suivi vers le haut</item>
+        <item quantity="other">Banc viewport : %1$d lignes retirées de la tête — le scroll a suivi vers le haut</item>
+    </plurals>
+    <string name="viewport_bench_toast_insert">30 lignes insérées AU-DESSUS de l\u2019écran : défilez avant d\u2019insérer, le texte sous vos yeux reste ancré</string>
+    <string name="viewport_bench_toast_remove">Bloc retiré — une seule étape d\u2019annulation (annuler le remet)</string>
+
     <!-- B11/B26 : bande d'erreurs + sélecteur de couleur au code hex -->
     <string name="menu_error_stripe">Bande d\u2019erreurs</string>
     <string name="error_stripe_on">Activée (défaut)</string>

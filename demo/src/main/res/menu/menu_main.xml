@@ -179,6 +179,19 @@
         android:title="@string/menu_postfix_bench"
         app:showAsAction="never" />
 
+    <!-- 4.5.1 : banc viewport — compensation des éditions au-dessus -->
+    <item
+        android:id="@+id/action_viewport_bench"
+        android:title="@string/menu_viewport_bench"
+        app:showAsAction="never">
+        <menu>
+            <item android:id="@+id/viewport_bench_insert"
+                android:title="@string/viewport_bench_insert" />
+            <item android:id="@+id/viewport_bench_remove"
+                android:title="@string/viewport_bench_remove" />
+        </menu>
+    </item>
+
     <!-- Options « vue » : sous-menus -->
     <item
         android:id="@+id/action_line_numbers"
