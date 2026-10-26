@@ -63,6 +63,20 @@ public class CompletionSession {
          * Jamais interprété par la lib — l'hôte/le pont décide.
          */
         public final Object attachment;
+        /**
+         * Origine du symbole (paquet d'un type, classe déclarante d'un
+         * membre — alignée à droite dans le popup). Null = inconnue.
+         *
+         * @since 4.3.0
+         */
+        public final String container;
+        /**
+         * Documentation du candidat (texte brut ou Markdown transporté
+         * tel quel ; son rendu est du ressort de l'hôte). Null = absente.
+         *
+         * @since 4.3.0
+         */
+        public final String documentation;
 
         public Item(String label, String detail, String insertText, String icon,
                     int kind, int sortScore, boolean isKeyword, boolean isSnippet) {
@@ -99,6 +113,22 @@ public class CompletionSession {
                     int kind, int sortScore, boolean isKeyword, boolean isSnippet,
                     String kindTag, String filterText, String sortText,
                     int replaceStart, int replaceEnd, Object attachment) {
+            this(label, detail, insertText, icon, kind, sortScore, isKeyword, isSnippet,
+                    kindTag, filterText, sortText, replaceStart, replaceEnd,
+                    attachment, null, null);
+        }
+
+        /**
+         * Variante riche (4.3.0) : ajoute l'origine du symbole
+         * ({@code container}, alignée à droite dans le popup) et la
+         * documentation. Les constructeurs existants délèguent avec
+         * ces champs absents — rétrocompatibles.
+         */
+        public Item(String label, String detail, String insertText, String icon,
+                    int kind, int sortScore, boolean isKeyword, boolean isSnippet,
+                    String kindTag, String filterText, String sortText,
+                    int replaceStart, int replaceEnd, Object attachment,
+                    String container, String documentation) {
             this.label = label != null ? label : "";
             this.detail = detail != null ? detail : "";
             this.insertText = insertText != null ? insertText : label;
@@ -113,6 +143,8 @@ public class CompletionSession {
             this.replaceStart = replaceStart;
             this.replaceEnd = replaceEnd;
             this.attachment = attachment;
+            this.container = container;
+            this.documentation = documentation;
         }
 
         public Item(String label) {

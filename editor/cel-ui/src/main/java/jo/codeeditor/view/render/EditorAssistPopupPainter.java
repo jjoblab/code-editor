@@ -877,25 +877,51 @@ public class EditorAssistPopupPainter {
         view.textPaint.setFakeBoldText(false);
         view.textPaint.setTextSize(view.metrics.getTextSize() * 0.9f);
 
-        // ── Detail aligné à droite (mesuré AVANT la zone label) ──
+        // ── Zone droite : container (origine du symbole, 4.3.0) puis
+        // detail — mesurés AVANT la zone label ──
+        // Le container vit à l'extrême droite, tronqué proprement (40 %
+        // de la largeur du popup au plus) ; le detail garde sa place à
+        // gauche — sans container, la disposition est exactement celle
+        // d'avant. Toutes les mesures sont en dp converties via la
+        // densité, jamais de largeur codée en pixels.
         String detail = (item.detail != null) ? item.detail : "";
         view.textPaint.setTextSize(view.metrics.getTextSize() * 0.75f);
         float detailW = detail.isEmpty() ? 0f : view.textPaint.measureText(detail);
-        float detailRight = anchorX + width - padX;
+        String container = (item.container != null) ? item.container : "";
+        view.textPaint.setTextSize(view.metrics.getTextSize() * 0.7f);
+        if (!container.isEmpty()) {
+            container = ellipsizeTail(container, width * 0.4f);
+        }
+        float containerW = container.isEmpty() ? 0f : view.textPaint.measureText(container);
+        float containerRight = anchorX + width - padX;
+        float containerLeft = container.isEmpty() ? containerRight : containerRight - containerW;
+        float detailRight = container.isEmpty() ? containerRight : containerLeft - 6 * density;
         float detailLeft = detail.isEmpty() ? detailRight : detailRight - detailW;
+        // Taille historique du libellé (celle du detail — la mesure du
+        // container l'avait abaissée).
+        view.textPaint.setTextSize(view.metrics.getTextSize() * 0.75f);
 
         // ── Label : caractères matchés au préfixe en accent + gras ──
         float textX = badgeLeft + badgeSize + 6 * density;
         float labelMaxRight = detail.isEmpty()
-                ? (anchorX + width - padX)
+                ? (container.isEmpty()
+                        ? (anchorX + width - padX)
+                        : (containerLeft - 6 * density))
                 : (detailLeft - 8 * density);
         if (labelMaxRight <= textX) {
-            // Aucune place pour le label (popup trop étroit) — badge seul.
+            // Aucune place pour le label (popup trop étroit) — badge +
+            // zone droite seuls.
             if (!detail.isEmpty()) {
+                view.textPaint.setTextSize(view.metrics.getTextSize() * 0.75f);
                 view.textPaint.setColor(view.theme.gutterText);
                 canvas.drawText(detail, detailLeft, y + rowH * 0.7f, view.textPaint);
-                view.textPaint.setTextSize(view.metrics.getTextSize() * 0.9f);
             }
+            if (!container.isEmpty()) {
+                view.textPaint.setTextSize(view.metrics.getTextSize() * 0.7f);
+                view.textPaint.setColor(view.theme.gutterText);
+                canvas.drawText(container, containerLeft, y + rowH * 0.7f, view.textPaint);
+            }
+            view.textPaint.setTextSize(view.metrics.getTextSize() * 0.9f);
             return;
         }
 
@@ -937,11 +963,34 @@ public class EditorAssistPopupPainter {
         }
         canvas.restore();
 
-        // ── Detail (couleur atténuée, à droite) ──
+        // ── Zone droite (couleur atténuée) : detail puis container ──
         if (!detail.isEmpty()) {
+            view.textPaint.setTextSize(view.metrics.getTextSize() * 0.75f);
             view.textPaint.setColor(view.theme.gutterText);
             canvas.drawText(detail, detailLeft, y + rowH * 0.7f, view.textPaint);
         }
+        if (!container.isEmpty()) {
+            view.textPaint.setTextSize(view.metrics.getTextSize() * 0.7f);
+            view.textPaint.setColor(view.theme.gutterText);
+            canvas.drawText(container, containerLeft, y + rowH * 0.7f, view.textPaint);
+        }
         view.textPaint.setTextSize(view.metrics.getTextSize() * 0.9f);
+    }
+
+    /**
+     * Tronque la FIN du texte avec une ellipse pour qu'il tienne dans
+     * {@code maxW} (mesuré avec le paint courant) — un container trop
+     * long (paquet profond) ne repousse jamais le detail ni le label.
+     */
+    private String ellipsizeTail(String text, float maxW) {
+        if (view.textPaint.measureText(text) <= maxW) return text;
+        final String ellipsis = "…";
+        float ellipsisW = view.textPaint.measureText(ellipsis);
+        int end = text.length();
+        while (end > 0
+                && view.textPaint.measureText(text.substring(0, end)) + ellipsisW > maxW) {
+            end--;
+        }
+        return end <= 0 ? ellipsis : text.substring(0, end) + ellipsis;
     }
 }

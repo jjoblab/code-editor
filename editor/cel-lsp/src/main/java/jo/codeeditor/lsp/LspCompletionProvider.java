@@ -228,6 +228,31 @@ class LspCompletionProvider implements CompletionProvider {
         // « package »…) que le protocole ne distingue pas.
         int kindCode = lspItem.getKind() != null ? lspItem.getKind().getValue() : 0;
         String kindTag = lspKindTag(lspItem.getData());
+        // Champs riches (4.3.0) — origine du symbole et documentation.
+        // labelDetails.description : l'origine directe du protocole
+        // (paquet d'un type, classe déclarante d'un membre).
+        org.eclipse.lsp4j.CompletionItemLabelDetails labelDetails = lspItem.getLabelDetails();
+        String container = null;
+        if (labelDetails != null && labelDetails.getDescription() != null
+                && !labelDetails.getDescription().isEmpty()) {
+            container = labelDetails.getDescription();
+        } else {
+            // Repli : la partie qualifiée du detail quand c'est un nom
+            // pleinement qualifié sans signature — « java.util.ArrayList »
+            // (type) donne « java.util », « pkg.Type.bar » (membre) donne
+            // « pkg.Type » : dans les deux cas on retire le dernier
+            // segment, celui que le libellé affiche déjà.
+            container = containerFromDetail(detail);
+        }
+        // labelDetails.detail (la signature) enrichit un detail vide —
+        // la place du detail dans le popup ne change pas.
+        if ((detail.isEmpty()) && labelDetails != null
+                && labelDetails.getDetail() != null && !labelDetails.getDetail().isEmpty()) {
+            detail = labelDetails.getDetail();
+        }
+        // documentation : texte brut ou MarkupContent — transportée telle
+        // quelle (le rendu est du ressort de l'hôte).
+        String documentation = documentationOf(lspItem);
         // Format : snippet (LSP 3.17 — s'applique à insertText comme au
         // newText d'une édition).
         boolean isSnippet = lspItem.getInsertTextFormat() == InsertTextFormat.Snippet;
@@ -252,7 +277,55 @@ class LspCompletionProvider implements CompletionProvider {
                 // obtient le score maximal.
                 rank, isSnippet,
                 lspItem.getFilterText(), lspItem.getSortText(),
-                replaceStart, replaceEnd);
+                replaceStart, replaceEnd,
+                container, documentation);
+    }
+
+    /**
+     * Origine dérivée du champ LSP {@code detail} quand
+     * {@code labelDetails.description} est absent : si le detail est un
+     * nom pleinement qualifié (au moins deux segments séparés par des
+     * points, sans signature — les arguments génériques sont ignorés),
+     * le conteneur est ce nom moins son dernier segment (celui que le
+     * libellé affiche déjà). Sinon null (origine inconnue).
+     */
+    private static String containerFromDetail(String detail) {
+        if (detail == null || detail.isEmpty()) return null;
+        // Coupe au premier caractère hors identifiant (génériques,
+        // signature, unité de retour…).
+        int end = 0;
+        while (end < detail.length()) {
+            char c = detail.charAt(end);
+            if (Character.isLetterOrDigit(c) || c == '_' || c == '$' || c == '.') {
+                end++;
+            } else {
+                break;
+            }
+        }
+        String qualified = detail.substring(0, end);
+        int lastDot = qualified.lastIndexOf('.');
+        // Au moins deux segments (« pkg.Type » ou « pkg.Type.membre ») ;
+        // le dernier point ne peut pas être final (« foo. »).
+        if (lastDot <= 0 || lastDot == qualified.length() - 1) return null;
+        return qualified.substring(0, lastDot);
+    }
+
+    /**
+     * La documentation LSP d'un item — texte brut ou
+     * {@code MarkupContent} (la valeur est transportée telle quelle).
+     */
+    private static String documentationOf(org.eclipse.lsp4j.CompletionItem lspItem) {
+        org.eclipse.lsp4j.jsonrpc.messages.Either<String,
+                org.eclipse.lsp4j.MarkupContent> doc = lspItem.getDocumentation();
+        if (doc == null) return null;
+        if (doc.isLeft() && doc.getLeft() != null && !doc.getLeft().isEmpty()) {
+            return doc.getLeft();
+        }
+        if (doc.isRight() && doc.getRight() != null
+                && doc.getRight().getValue() != null && !doc.getRight().getValue().isEmpty()) {
+            return doc.getRight().getValue();
+        }
+        return null;
     }
 
     /**

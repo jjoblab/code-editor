@@ -75,6 +75,22 @@ public final class CompletionItem {
     public final int replaceStart;
     /** Fin de la plage de remplacement (exclusive) ; {@code -1} = non spécifiée. */
     public final int replaceEnd;
+    /**
+     * Origine du symbole (paquet d'un type, classe déclarante d'un
+     * membre — champ LSP {@code labelDetails.description}, avec repli
+     * sur la partie qualifiée du {@code detail}). Null = inconnue.
+     *
+     * @since 4.3.0
+     */
+    @Nullable public final String container;
+    /**
+     * Documentation du candidat (champ LSP {@code documentation} — texte
+     * brut ou Markdown transporté tel quel ; son rendu est du ressort de
+     * l'hôte). Null = absente.
+     *
+     * @since 4.3.0
+     */
+    @Nullable public final String documentation;
 
     public CompletionItem(@NonNull String label, @Nullable String detail, @NonNull String insertText, @NonNull String kind,
                           int sortPriority, boolean isSnippet) {
@@ -105,6 +121,25 @@ public final class CompletionItem {
                           int sortPriority, boolean isSnippet,
                           @Nullable String filterText, @Nullable String sortText,
                           int replaceStart, int replaceEnd) {
+        this(label, detail, insertText, kind, kindCode, kindTag, sortPriority, isSnippet,
+                filterText, sortText, replaceStart, replaceEnd, null, null);
+    }
+
+    /**
+     * Constructeur riche (4.3.0) : ajoute l'origine du symbole
+     * ({@code container}) et la documentation ({@code documentation})
+     * transportées depuis les champs LSP {@code labelDetails} et
+     * {@code documentation}. Les constructeurs existants délèguent avec
+     * ces champs absents — rétrocompatibles.
+     *
+     * @since 4.3.0
+     */
+    public CompletionItem(@NonNull String label, @Nullable String detail, @NonNull String insertText, @NonNull String kind,
+                          int kindCode, @Nullable String kindTag,
+                          int sortPriority, boolean isSnippet,
+                          @Nullable String filterText, @Nullable String sortText,
+                          int replaceStart, int replaceEnd,
+                          @Nullable String container, @Nullable String documentation) {
         this.label = label != null ? label : "";
         this.detail = detail != null ? detail : "";
         // Retombe sur le label NEUTRALISÉ (jamais null) : un item à
@@ -121,6 +156,8 @@ public final class CompletionItem {
         this.sortText = sortText;
         this.replaceStart = replaceStart;
         this.replaceEnd = replaceEnd;
+        this.container = container;
+        this.documentation = documentation;
     }
 
     /** Constructeur de commodité pour un simple mot-clé. */

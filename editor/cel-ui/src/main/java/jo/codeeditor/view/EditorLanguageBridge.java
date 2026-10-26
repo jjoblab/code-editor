@@ -741,7 +741,9 @@ final class EditorLanguageBridge {
                 // L1/D-01 : champs étendus transportés jusqu'au client.
                 item.filterText, item.sortText,
                 item.replaceStart, item.replaceEnd,
-                item.postApplyAction));
+                item.postApplyAction,
+                // 4.3.0 : origine du symbole + documentation.
+                item.container, item.documentation));
         }
 
         /** Kind LSP dérivé de l'icône string historique
