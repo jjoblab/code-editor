@@ -649,65 +649,36 @@ public class EditorCompletionPopup {
         return new float[]{pos[0], pos[1], width, popupH, rowH};
     }
 
+    /**
+     * Filtre les candidats par préfixe puis les re-classe : palier
+     * (exact / exact insensible / préfixe / préfixe insensible / camel
+     * humps / sous-séquence — échelle à 6 niveaux de
+     * {@link jo.codeeditor.completion.CompletionMatcher}), puis groupe
+     * à palier égal (symbole résolu avant mot-clé avant snippet avant
+     * mot du buffer — un mot-clé tapé en entier reste en tête de son
+     * palier). L'{@code filterText} posé par le fournisseur sert de
+     * repli quand le libellé n'apparie nulle part. Tri STABLE : à
+     * l'intérieur d'un couple (palier, groupe), l'ordre du serveur est
+     * conservé.
+     */
     private List<jo.codeeditor.completion.CompletionSession.Item> filterCompletionItems(
             List<jo.codeeditor.completion.CompletionSession.Item> items, String prefix) {
         if (prefix.isEmpty()) return items;
-        String lowerPrefix = prefix.toLowerCase(java.util.Locale.ROOT);
-        List<jo.codeeditor.completion.CompletionSession.Item> exact = new ArrayList<>();
-        List<jo.codeeditor.completion.CompletionSession.Item> exactCi = new ArrayList<>();
-        List<jo.codeeditor.completion.CompletionSession.Item> prefixMatch = new ArrayList<>();
-        List<jo.codeeditor.completion.CompletionSession.Item> prefixMatchCi = new ArrayList<>();
-        List<jo.codeeditor.completion.CompletionSession.Item> fuzzy = new ArrayList<>();
-        for (jo.codeeditor.completion.CompletionSession.Item item : items) {
-            // L1/D-01 : le filterText (posé par le pont LSP) sert de
-            // repli quand le label n'apparie nulle part — le candidat
-            // est classé selon la qualité du match sur son texte de
-            // filtrage.
-            String match = classifies(item.label, prefix, lowerPrefix)
-                    ? item.label
-                    : (item.filterText != null && !item.filterText.isEmpty()
-                            && classifies(item.filterText, prefix, lowerPrefix)
-                            ? item.filterText : item.label);
-            if (match.equals(prefix)) {
-                exact.add(item);
-            } else if (match.equalsIgnoreCase(prefix)) {
-                exactCi.add(item);
-            } else if (match.startsWith(prefix)) {
-                prefixMatch.add(item);
-            } else if (match.toLowerCase(java.util.Locale.ROOT).startsWith(lowerPrefix)) {
-                prefixMatchCi.add(item);
-            } else if (fuzzyMatches(match, prefix)) {
-                fuzzy.add(item);
-            }
-        }
         List<jo.codeeditor.completion.CompletionSession.Item> out = new ArrayList<>();
-        out.addAll(exact);
-        out.addAll(exactCi);
-        out.addAll(prefixMatch);
-        out.addAll(prefixMatchCi);
-        out.addAll(fuzzy);
-        return out;
-    }
-
-    /** Le candidat matche-t-il le préfixe sur l'un des 5 paliers ? */
-    private static boolean classifies(String candidate, String prefix, String lowerPrefix) {
-        return candidate.equals(prefix) || candidate.equalsIgnoreCase(prefix)
-                || candidate.startsWith(prefix)
-                || candidate.toLowerCase(java.util.Locale.ROOT).startsWith(lowerPrefix)
-                || fuzzyMatches(candidate, prefix);
-    }
-
-    private static boolean fuzzyMatches(String candidate, String query) {
-        if (query.isEmpty()) return true;
-        int ci = 0, qi = 0;
-        while (qi < query.length() && ci < candidate.length()) {
-            if (Character.toLowerCase(candidate.charAt(ci))
-                == Character.toLowerCase(query.charAt(qi))) {
-                qi++;
+        for (jo.codeeditor.completion.CompletionSession.Item item : items) {
+            if (jo.codeeditor.completion.CompletionMatcher.tier(
+                    item.label, item.filterText, prefix)
+                    != jo.codeeditor.completion.CompletionMatcher.TIER_NONE) {
+                out.add(item);
             }
-            ci++;
         }
-        return qi == query.length();
+        out.sort(java.util.Comparator
+                .comparingInt((jo.codeeditor.completion.CompletionSession.Item i) ->
+                        jo.codeeditor.completion.CompletionMatcher.tier(
+                                i.label, i.filterText, prefix))
+                .thenComparingInt(i -> jo.codeeditor.completion.CompletionMatcher.group(
+                        i.isKeyword, i.isSnippet, i.kind)));
+        return out;
     }
 
     private static List<jo.codeeditor.completion.CompletionSession.Item> builtinKeywordCompletions(

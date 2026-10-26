@@ -900,9 +900,14 @@ public class EditorAssistPopupPainter {
         }
 
         String prefix = view.completion.prefix != null ? view.completion.prefix : "";
+        // La surbrillance s'appuie sur le MÊME texte de référence que
+        // celui qui a fait matcher le candidat (identifiant de tête ou
+        // filterText) — jamais une parenthèse de signature, jamais une
+        // lettre prise au fil d'un parcours glouton détaché du filtre.
         java.util.List<Integer> matched = (prefix.isEmpty())
                 ? java.util.Collections.emptyList()
-                : jo.codeeditor.completion.CompletionSession.matchPositions(label, prefix);
+                : jo.codeeditor.completion.CompletionMatcher.matchPositionsForItem(
+                        label, item.filterText, prefix);
 
         canvas.save();
         canvas.clipRect(textX, y, labelMaxRight, y + rowH);
