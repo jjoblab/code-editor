@@ -54,7 +54,7 @@ sdk.dir=/path/to/android-sdk
 ```
 code-editor/
 ├── settings.gradle.kts        — inclut les 5 modules editor/
-├── build.gradle.kts           — AGP 9.0.0, group/version Maven (jo.codeeditor:4.0.0)
+├── build.gradle.kts           — AGP 9.0.0, group/version Maven (jo.codeeditor:4.1.0)
 ├── gradle/wrapper/            — Gradle 9.5.1
 ├── gradle.properties          — jvmargs, parallélisme, cache
 ├── jitpack.yml                — JDK 17 pour les builds JitPack
@@ -103,17 +103,17 @@ un jar de sources :
 
 | Module | Coordonnées |
 |--------|-------------|
-| `:cel-core` | `jo.codeeditor:cel-core:4.0.0` |
-| `:cel-lsp-api` | `jo.codeeditor:cel-lsp-api:4.0.0` |
-| `:cel-lsp` | `jo.codeeditor:cel-lsp:4.0.0` |
-| `:cel-ui` | `jo.codeeditor:cel-ui:4.0.0` |
-| `:cel-textmate` | `jo.codeeditor:cel-textmate:4.0.0` |
+| `:cel-core` | `jo.codeeditor:cel-core:4.1.0` |
+| `:cel-lsp-api` | `jo.codeeditor:cel-lsp-api:4.1.0` |
+| `:cel-lsp` | `jo.codeeditor:cel-lsp:4.1.0` |
+| `:cel-ui` | `jo.codeeditor:cel-ui:4.1.0` |
+| `:cel-textmate` | `jo.codeeditor:cel-textmate:4.1.0` |
 
 ### Publication locale (validation)
 
 ```bash
 ./gradlew publishToMavenLocal
-# → ~/.m2/repository/jo/codeeditor/<module>/4.0.0/ (AAR + sources + POM)
+# → ~/.m2/repository/jo/codeeditor/<module>/4.1.0/ (AAR + sources + POM)
 ```
 
 ### Publication sur GitHub Packages (méthode principale)

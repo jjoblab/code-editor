@@ -4,6 +4,8 @@ import jo.codeeditor.view.EditorView;
 import jo.codeeditor.view.popup.EditorContextMenuHandler;
 import jo.codeeditor.view.popup.EditorPopupAnchors;
 import jo.codeeditor.view.popup.EditorPopupHitTester;
+import jo.codeeditor.view.preview.EditorPreviewHost;
+import jo.codeeditor.view.preview.EditorPreviewDropGeometry;
 import jo.codeeditor.view.state.CompletionState;
 
 import androidx.annotation.RestrictTo;
@@ -129,6 +131,26 @@ public class EditorInputHandler {
      *  goutte (piste du pied) — press = saut, drag vivant, release →
      *  hôte notifié. */
     private boolean dropSliderGesture = false;
+    // ★ B27-C3 : geste du CORPS INTERACTIF de la goutte — le hôte
+    // interactif (wantsInteractiveDropPreview()) reçoit chaque touche de
+    // l'écran du mini-téléphone dans le repère de drawDropPreview ;
+    // l'appui long annule le geste par CANCEL puis notifie
+    // (inspection). Un hôte non-interactif ne quitte JAMAIS ce chemin :
+    // ses corps restent engloutis sans agir, au bit près.
+    private boolean dropBodyGesture = false;
+    /** Hôte interactif capturé au DOWN (le geste lui appartient jusqu'au bout). */
+    private EditorPreviewHost dropBodyHost;
+    /** Dernier point transféré au hôte (coords écran, repère drawDropPreview). */
+    private float dropBodySx = 0f;
+    private float dropBodySy = 0f;
+    /** Réceptacle réutilisé du hit-test du corps (aucune allocation par touche). */
+    private final float[] dropBodyPoint = new float[2];
+    /** Appui long du corps en attente (armé au DOWN, retiré au slop/UP/CANCEL). */
+    private Runnable dropBodyLongPress;
+    /** Handler de l'appui long du corps — looper principal (même patron
+     *  que tapHandler : testable sous l'horloge fantôme, view.getHandler()
+     *  est null tant que la vue n'est pas attachée). */
+    private android.os.Handler corpsHandler;
 
     // ── Tap gutter vs drag gutter ───────────────────────────
     // Un ACTION_DOWN dans la zone des numéros de ligne arme isScrolling
@@ -361,6 +383,28 @@ public class EditorInputHandler {
                     touchHover.cancel();
                     return true;
                 }
+                // ★ B27-C3 : CORPS INTERACTIF de la goutte — l'écran du
+                // mini-téléphone appartient au HÔTE interactif : le DOWN
+                // (et son geste entier) part au hôte dans le repère de
+                // drawDropPreview, l'appui long arme l'inspection (au
+                // déclenchement : CANCEL transféré PUIS callback). Un
+                // hôte qui DÉCLINE le DOWN (aucun contenu à ce moment)
+                // retombe sur le corps inerte historique POUR CE GESTE.
+                EditorPreviewHost hoteCorps = hoteInteractifGoutte();
+                if (hoteCorps != null
+                        && view.preview.drop().bodyTouchAt(x, y, dropBodyPoint)) {
+                    dropBodyHost = hoteCorps;
+                    dropBodySx = dropBodyPoint[0];
+                    dropBodySy = dropBodyPoint[1];
+                    if (hoteCorps.onPreviewDropTouch(MotionEvent.ACTION_DOWN, dropBodySx, dropBodySy)) {
+                        dropBodyGesture = true;
+                        armerAppuiLongCorps();
+                        scrollerCtl.abortAnimation();
+                        touchHover.cancel();
+                        return true;
+                    }
+                    dropBodyHost = null;
+                }
                 // ★ B27 : carte d'aperçu « goutte d'eau » — un DOWN DANS
                 // la carte l'engloutit (le tap se résout au UP via
                 // handleTap : onglet bascule, ✕ ferme, corps inerte) ;
@@ -439,6 +483,31 @@ public class EditorInputHandler {
                 // même repère : le curseur reste sous le doigt).
                 if (dropSliderGesture) {
                     view.preview.dropSliderDragTo(x, y);
+                    lastTouchX = x;
+                    lastTouchY = y;
+                    return true;
+                }
+                // ★ B27-C3 : MOVE du CORPS interactif — transféré au hôte
+                // capturé au DOWN, dans le repère de drawDropPreview ; le
+                // premier franchissement du slop retire l'appui long (le
+                // geste est un DRAG, plus une inspection). Le doigt sorti de
+                // l'écran reste CLAMPÉ au rectangle ; une carte refermée en
+                // vol de geste reçoit un CANCEL (le hôte n'attend jamais un
+                // UP qui ne viendra jamais).
+                if (dropBodyGesture) {
+                    if (view.preview.drop().bodyTouchAt(x, y, dropBodyPoint)) {
+                        dropBodySx = dropBodyPoint[0];
+                        dropBodySy = dropBodyPoint[1];
+                    } else {
+                        clamperPointCorpsGoutte(x, y);
+                    }
+                    if (dropBodyGesture) {
+                        if ((x - touchStartX) * (x - touchStartX)
+                                + (y - touchStartY) * (y - touchStartY) > TAP_SLOP_SQ) {
+                            retirerAppuiLongCorps();
+                        }
+                        transfererCorpsGoutte(MotionEvent.ACTION_MOVE);
+                    }
                     lastTouchX = x;
                     lastTouchY = y;
                     return true;
@@ -674,6 +743,19 @@ public class EditorInputHandler {
                     view.performClick();
                     return true;
                 }
+                // ★ B27-C3 : fin du geste du CORPS interactif — l'UP part
+                // au hôte (le clic/ripple vit côté contenu), l'appui long
+                // éventuel est retiré, le geste est consommé (aucun tap
+                // résolu par la cascade : le corps n'est plus inerte).
+                if (dropBodyGesture) {
+                    dropBodyGesture = false;
+                    retirerAppuiLongCorps();
+                    transfererCorpsGoutte(MotionEvent.ACTION_UP);
+                    dropBodyHost = null;
+                    scrollerCtl.recycleTracker();
+                    view.performClick();
+                    return true;
+                }
                 // ★ B27 : la carte « goutte d'eau » résout SON tap — la
                 // cascade handleTap dispatche (onglet/✕/corps englouti) ;
                 // un drag au-delà du slop ne fait rien (la carte se
@@ -843,6 +925,15 @@ public class EditorInputHandler {
                 view.performClick();
                 return true;
             case MotionEvent.ACTION_CANCEL:
+                // ★ B27-C3 : le système annule AUSSI le geste du corps
+                // interactif — le hôte reçoit son CANCEL (jamais d'UP
+                // fantôme sur une annulation système).
+                if (dropBodyGesture) {
+                    dropBodyGesture = false;
+                    retirerAppuiLongCorps();
+                    transfererCorpsGoutte(MotionEvent.ACTION_CANCEL);
+                    dropBodyHost = null;
+                }
                 view.handleDragMode = 0;
                 isScrolling = false;
                 isDragging = false;
@@ -1127,6 +1218,88 @@ public class EditorInputHandler {
         @Override
         public void onLongPress(MotionEvent e) {
             selectionGestures.handleLongPress(e.getX(), e.getY());
+        }
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    // B27-C3 : le corps interactif de la goutte d'eau
+    // ════════════════════════════════════════════════════════════════
+
+    /**
+     * Le hôte courant S'IL est interactif ({@code null} sinon) — demandé
+     * au DOWN seulement : le geste capture ensuite SA référence (un
+     * changement d'hôte en vol de geste ne détourne pas les touches).
+     */
+    private EditorPreviewHost hoteInteractifGoutte() {
+        EditorPreviewHost host = view.preview.getHost();
+        if (host != null && host.wantsInteractiveDropPreview()) return host;
+        return null;
+    }
+
+    /**
+     * Transfère UNE action du geste du corps au hôte capturé (coords
+     * écran du dernier point — repère {@code drawDropPreview}). Sans
+     * hôte capturé, le transfert est un no-op honnête (le hôte a été
+     * détaché : le geste meurt au prochain UP/CANCEL).
+     */
+    private void transfererCorpsGoutte(int action) {
+        EditorPreviewHost host = dropBodyHost;
+        if (host != null) host.onPreviewDropTouch(action, dropBodySx, dropBodySy);
+    }
+
+    /**
+     * CLAMPE un point sorti de l'écran au rectangle écran (contact de
+     * bord honnête, jamais un point hors cadre) ; carte refermée en vol
+     * de geste : le hôte reçoit son CANCEL et le geste meurt (aucun UP
+     * n'arrivera jamais — le hôte n'attend rien).
+     */
+    private void clamperPointCorpsGoutte(float x, float y) {
+        EditorPreviewDropGeometry.Placement p = view.preview.drop().placement();
+        if (p == null) {
+            dropBodyGesture = false;
+            retirerAppuiLongCorps();
+            transfererCorpsGoutte(MotionEvent.ACTION_CANCEL);
+            dropBodyHost = null;
+            return;
+        }
+        android.graphics.RectF ecran = view.preview.drop().screenRect();
+        float lx = Math.max(ecran.left, Math.min(ecran.right, p.toLocalX(x)));
+        float ly = Math.max(ecran.top, Math.min(ecran.bottom, p.toLocalY(y)));
+        dropBodySx = lx - ecran.left;
+        dropBodySy = ly - ecran.top;
+    }
+
+    /**
+     * Arme l'appui long du corps (délai système) : au déclenchement, le
+     * geste est ANNULÉ côté hôte (CANCEL transféré) puis l'inspection
+     * part au hôte — le hôte ne reçoit JAMAIS l'UP d'un geste devenu
+     * long (le clic ne se déclenche pas derrière une inspection).
+     */
+    private void armerAppuiLongCorps() {
+        retirerAppuiLongCorps();
+        final float sx = dropBodySx;
+        final float sy = dropBodySy;
+        dropBodyLongPress = () -> {
+            dropBodyLongPress = null;
+            if (!dropBodyGesture) return;
+            dropBodyGesture = false;
+            transfererCorpsGoutte(MotionEvent.ACTION_CANCEL);
+            EditorPreviewHost host = dropBodyHost;
+            dropBodyHost = null;
+            if (host != null) host.onPreviewDropLongPress(sx, sy);
+        };
+        if (corpsHandler == null) {
+            corpsHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+        }
+        corpsHandler.postDelayed(dropBodyLongPress, android.view.ViewConfiguration.getLongPressTimeout());
+    }
+
+    /** Retire l'appui long en attente (idempotent — UP/slop/CANCEL/nettoyage). */
+    private void retirerAppuiLongCorps() {
+        if (dropBodyLongPress != null) {
+            if (corpsHandler == null) return;
+            corpsHandler.removeCallbacks(dropBodyLongPress);
+            dropBodyLongPress = null;
         }
     }
 }

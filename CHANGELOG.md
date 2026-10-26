@@ -7,6 +7,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Les sections antérieures à la période courante sont archivées dans
 [`docs/archive/CHANGELOG-archive.md`](docs/archive/CHANGELOG-archive.md) (A-08, audit 3.69.0).
 
+## [4.1.0] — 2026-10-24 — Le corps de la carte « goutte d'eau » devient TACTILE (B27-C3 : contrat interactif du mini-téléphone)
+
+### Ajouté
+
+- **B27-C3 — le CORPS de la carte d'aperçu devient interactif** (candidat
+  d'accueil de la preview Compose C3 de CodeIDE, PREVIEW.md §4.4 — « le
+  corps de la carte engloutit les taps » était le verrou documenté de
+  l'ADR 0141) : trois méthodes À DÉFAUT RAISONNABLE sur
+  `EditorPreviewHost` — `wantsInteractiveDropPreview()` (faux = le
+  comportement B27 historique au bit près : corps englouti sans agir),
+  `onPreviewDropTouch(action, sx, sy)` (DOWN/MOVE/UP/CANCEL du PREMIER
+  doigt, coords LOCALES ÉCRAN dans le MÊME repère que
+  `drawDropPreview` — indépendantes du facteur de taille : le point
+  transféré tombe sur le pixel dessiné) et
+  `onPreviewDropLongPress(sx, sy)` (l'« inspection » mobile : pas de
+  Ctrl+clic sur téléphone). Le routeur d'entrées possède un GESTE DE
+  CORPS dédié (`EditorInputHandler`) : DOWN dans l'écran du
+  mini-téléphone → transfert + ARMEMENT de l'appui long (délai système,
+  looper principal — même patron que `tapHandler`) ; MOVE → transfert
+  CLAMPÉ au rectangle écran (le doigt sorti garde un contact de bord
+  honnête) et le premier franchissement du slop RETIRE l'appui long (un
+  drag est un drag, pas une inspection) ; UP → transfert (le clic/ripple
+  vit côté contenu) ; CANCEL système, carte refermée en vol de geste et
+  déclenchement de l'appui long → CANCEL transféré PUIS callback
+  d'inspection (le hôte ne reçoit JAMAIS l'UP d'un geste devenu long).
+  Un hôte interactif qui DÉCLINE un DOWN (retour faux — aucun contenu à
+  ce moment) retombe sur le corps inerte historique POUR CE GESTE ; un
+  hôte NON interactif ne quitte JAMAIS le chemin historique. Les
+  onglets, le ✕ et la barre de taille gardent leurs gestes propres quel
+  que soit le drapeau (seul le rectangle écran devient tactile).
+- **Rectangle écran DU DROP, source unique** : `EditorPreviewDrop
+  .screenRect()` (repère carte, bezel inclus) — le painter le CONSOMME
+  (plus de formule dupliquée) et le nouveau `bodyTouchAt(x, y, out[2])`
+  s'appuie dessus : le hit-test tactile et le dessin partagent le même
+  rectangle au pixel près. `bodyTouchAt` traduit un point de l'ÉDITEUR
+  en coords écran locales (réceptacle réutilisé, zéro allocation par
+  touche).
+- Tests : `PreviewDropBodyTouchTest` (+8, Robolectric — transfert au
+  repère écran recalculé depuis le placement réel, clamping au bord,
+  appui long CANCEL-avant-inspection, slop, hôte non interactif au bit
+  près, DOWN décliné, en-tête non transféré, carte refermée en vol de
+  geste).
+
 ## [4.0.0] — 2026-10-20 — Refonte du moteur de regex de `cel-textmate` (plan 10 : moteur natif du dialecte, budget par essai, Unicode conforme à la référence)
 
 ### Changed (refonte du moteur — plan 10, docs/plans/10)

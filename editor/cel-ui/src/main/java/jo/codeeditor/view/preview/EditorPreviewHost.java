@@ -232,4 +232,73 @@ public interface EditorPreviewHost {
      */
     default void onPreviewDropScaleChanged(float scale) {
     }
+
+    // ── B27-C3 : le corps de la carte devient tactile ───────────────
+
+    /**
+     * B27-C3 — vrai si le CORPS de la carte (l'écran du mini-téléphone)
+     * est INTERACTIF : les touches qui y tombent sont TRANSFÉRÉES au
+     * hôte geste par geste (DOWN/MOVE/UP via
+     * {@link #onPreviewDropTouch(int, float, float)}, appui long via
+     * {@link #onPreviewDropLongPress(float, float)}).
+     *
+     * <p>Faux par défaut : le corps reste ENGLOUTI SANS AGIR (le
+     * comportement B27 historique — les hôtes non-interactifs, comme
+     * les aperçus Markdown/HTML, sont inchangés au bit près).</p>
+     *
+     * <p>Les onglets, le ✕ et la barre de taille gardent leurs gestes
+     * propres QUEL QUE SOIT ce drapeau : seul le rectangle de l'écran
+     * devient tactile. Un hôte interactif qui répond {@code false} à un
+     * DOWN donné (par exemple aucun contenu à ce moment-là) retombe sur
+     * le comportement inerte pour CE geste.</p>
+     *
+     * @return faux par défaut (corps inerte — comportement inchangé)
+     */
+    default boolean wantsInteractiveDropPreview() {
+        return false;
+    }
+
+    /**
+     * B27-C3 — UNE touche du CORPS de la carte (écran du mini-téléphone),
+     * coords LOCALES ÉCRAN (le même repère que
+     * {@link #drawDropPreview(Canvas, float, float, float, float, int)} :
+     * {@code sx}/{@code sy} sont relatifs au coin haut-gauche de
+     * l'écran, en pixels carte, indépendants du facteur de taille).
+     *
+     * <p>Notifié UNIQUEMENT quand {@link #wantsInteractiveDropPreview()}
+     * répond vrai et pour les actions
+     * {@link android.view.MotionEvent#ACTION_DOWN},
+     * {@link android.view.MotionEvent#ACTION_MOVE},
+     * {@link android.view.MotionEvent#ACTION_UP} et
+     * {@link android.view.MotionEvent#ACTION_CANCEL} du PREMIER doigt.
+     * L'appui long annule le geste par un CANCEL final PUIS appelle
+     * {@link #onPreviewDropLongPress(float, float)} : le hôte ne reçoit
+     * jamais l'UP d'un geste devenu long.</p>
+     *
+     * @param action l'action {@code MotionEvent.ACTION_*} du geste
+     * @param sx     l'abscisse locale écran (px carte)
+     * @param sy     l'ordonnée locale écran (px carte)
+     * @return vrai si le hôte consomme le geste (faux : ce geste
+     *         retombe sur le comportement inerte)
+     */
+    default boolean onPreviewDropTouch(int action, float sx, float sy) {
+        return false;
+    }
+
+    /**
+     * B27-C3 — APPUI LONG sur le corps de la carte (écran du
+     * mini-téléphone), après le CANCEL du geste tactile : le geste
+     * d'« inspection » mobile (pas de Ctrl+clic sur téléphone) — le
+     * hôte hit-teste ses géométries au point donné et agit (par
+     * exemple saut à la ligne source du nœud touché).
+     *
+     * <p>Notifié UNIQUEMENT quand {@link #wantsInteractiveDropPreview()}
+     * répond vrai. Coordonnées identiques à
+     * {@link #onPreviewDropTouch(int, float, float)}.</p>
+     *
+     * @param sx l'abscisse locale écran (px carte)
+     * @param sy l'ordonnée locale écran (px carte)
+     */
+    default void onPreviewDropLongPress(float sx, float sy) {
+    }
 }
