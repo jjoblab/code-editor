@@ -178,7 +178,28 @@ class EditorLineLayoutResolver {
                         .colorForVariable(varName, view.isDarkTheme());
                 if (varColor != 0) color = varColor;
             }
-            semSpans.add(new LineRenderCache.SemSpan(startCol, endCol, color));
+            // Modificateurs sémantiques (4.4.0) : surcouche de STYLE
+            // (barré/gras/italique) + teinte optionnelle du registre —
+            // sans opinion de scheme, la couleur du jeton est conservée.
+            int styleFlags = 0;
+            if (t.modifiers != 0) {
+                if ((t.modifiers & DiagnosticShift.SemanticToken.MOD_DEPRECATED) != 0) {
+                    styleFlags |= LineRenderCache.SemSpan.STYLE_STRIKE;
+                    color = view.theme.extraColor(
+                            jo.codeeditor.theme.ColorAttributes.KEY_SEMANTIC_DEPRECATED, color);
+                }
+                if ((t.modifiers & DiagnosticShift.SemanticToken.MOD_STATIC) != 0) {
+                    styleFlags |= LineRenderCache.SemSpan.STYLE_BOLD;
+                    color = view.theme.extraColor(
+                            jo.codeeditor.theme.ColorAttributes.KEY_SEMANTIC_STATIC, color);
+                }
+                if ((t.modifiers & DiagnosticShift.SemanticToken.MOD_ABSTRACT) != 0) {
+                    styleFlags |= LineRenderCache.SemSpan.STYLE_ITALIC;
+                    color = view.theme.extraColor(
+                            jo.codeeditor.theme.ColorAttributes.KEY_SEMANTIC_ABSTRACT, color);
+                }
+            }
+            semSpans.add(new LineRenderCache.SemSpan(startCol, endCol, color, styleFlags));
         }
         // Construit les tables colonnes brutes↔visuelles depuis les inlays.
         int[][] maps = LineRenderCache.buildColumnMaps(lineText.length(), inlays);

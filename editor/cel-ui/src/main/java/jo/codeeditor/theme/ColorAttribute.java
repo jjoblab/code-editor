@@ -28,6 +28,7 @@ public final class ColorAttribute {
     public static final String GROUP_CARET = "curseur";
     public static final String GROUP_DIAGNOSTICS = "diagnostics";
     public static final String GROUP_SYNTAX = "syntaxe";
+    public static final String GROUP_SEMANTIC = "sémantique";
     public static final String GROUP_SEARCH = "recherche";
     public static final String GROUP_CHROME = "chrome";
     public static final String GROUP_TEXT = "texte";

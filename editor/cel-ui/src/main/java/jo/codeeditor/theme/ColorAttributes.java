@@ -63,6 +63,11 @@ public final class ColorAttributes {
     public static final String KEY_FIND_CURRENT = "search.current";
     public static final String KEY_OCCURRENCE = "search.occurrence";
 
+    // ── Surlignage sémantique (modificateurs) ─────────────────────
+    public static final String KEY_SEMANTIC_DEPRECATED = "semantic.modifier.deprecated";
+    public static final String KEY_SEMANTIC_STATIC = "semantic.modifier.static";
+    public static final String KEY_SEMANTIC_ABSTRACT = "semantic.modifier.abstract";
+
     // ── Chrome / composition ─────────────────────────────────────
     public static final String KEY_INDENT_GUIDE = "chrome.indentGuide";
     public static final String KEY_COMPOSING = "chrome.composing";
@@ -185,6 +190,18 @@ public final class ColorAttributes {
                 ColorAttribute.GROUP_SYNTAX, KEY_ESCAPE));
         regVirtual(new ColorAttribute("syntax.emphasis", "Emphase Markdown (**gras**, _italique_)",
                 ColorAttribute.GROUP_SYNTAX, KEY_ANNOTATION));
+
+        // ── Modificateurs sémantiques (4.4.0) — attributs VIRTUELS :
+        // surcouche de STYLE avant tout (barré/gras/italique), la teinte
+        // reste celle du jeton tant qu'un scheme n'opine pas (le parent
+        // est le plancher texte). Groupe dédié : la palette syntax.*
+        // reste 23 (critère C4 inchangé).
+        regVirtual(new ColorAttribute(KEY_SEMANTIC_DEPRECATED,
+                "Sémantique : déprécié (barré)", ColorAttribute.GROUP_SEMANTIC, KEY_TEXT));
+        regVirtual(new ColorAttribute(KEY_SEMANTIC_STATIC,
+                "Sémantique : statique (gras)", ColorAttribute.GROUP_SEMANTIC, KEY_TEXT));
+        regVirtual(new ColorAttribute(KEY_SEMANTIC_ABSTRACT,
+                "Sémantique : abstrait (italique)", ColorAttribute.GROUP_SEMANTIC, KEY_TEXT));
     }
 
     private ColorAttributes() {

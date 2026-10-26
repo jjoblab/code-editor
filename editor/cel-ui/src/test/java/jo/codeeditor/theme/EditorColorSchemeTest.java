@@ -36,11 +36,13 @@ public class EditorColorSchemeTest {
 
     @Test
     public void registry_complete_coversAllThemeKeys() {
-        // 31 attributs à champ dédié + 8 attributs VIRTUELS des
-        // distinctions fines (lot 4 #26 : docComment, keywordControl,
-        // keywordModifier, char, stringRaw, namespace, entity, emphasis).
-        assertEquals(39, ColorAttributes.all().size());
-        assertEquals(8, ColorAttributes.all().stream()
+        // 31 attributs à champ dédié + 11 attributs VIRTUELS : les 8
+        // distinctions fines du lot 4 #26 (docComment, keywordControl,
+        // keywordModifier, char, stringRaw, namespace, entity, emphasis)
+        // + les 3 modificateurs sémantiques 4.4.0 (deprecated, static,
+        // abstract — surcouche de style, teinte optionnelle).
+        assertEquals(42, ColorAttributes.all().size());
+        assertEquals(11, ColorAttributes.all().stream()
                 .filter(a -> ColorAttributes.isVirtual(a.key)).count());
         // Clés pivots présentes.
         assertTrue(ColorAttributes.isValidKey(ColorAttributes.KEY_SELECTION));

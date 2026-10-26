@@ -6,6 +6,7 @@ import androidx.annotation.RestrictTo;
 
 import android.graphics.Canvas;
 import android.graphics.Paint;
+import android.graphics.Typeface;
 
 import jo.codeeditor.cache.LineRenderCache;
 import jo.codeeditor.document.EditorDocument;
@@ -398,12 +399,64 @@ public class EditorTextPainter {
     void drawCachedSemSpans(Canvas canvas, List<LineRenderCache.SemSpan> spans,
                              String lineText, float x, float y, Paint paint,
                              List<LineRenderCache.InlayPiece> inlays, int[] rawToVisual) {
+        // Chemin rapide : aucun span stylé — comportement historique,
+        // zéro mutation du paint partagé.
+        boolean anyStyle = false;
         for (LineRenderCache.SemSpan s : spans) {
-            int start = EditorView.clamp(s.start, 0, lineText.length());
-            int end = EditorView.clamp(s.end, 0, lineText.length());
-            if (start >= end) continue;
-            paint.setColor(s.color);
-            drawRawRange(canvas, lineText, inlays, rawToVisual, start, end, x, y, paint);
+            if (s.styleFlags != 0) { anyStyle = true; break; }
+        }
+        if (!anyStyle) {
+            for (LineRenderCache.SemSpan s : spans) {
+                int start = EditorView.clamp(s.start, 0, lineText.length());
+                int end = EditorView.clamp(s.end, 0, lineText.length());
+                if (start >= end) continue;
+                paint.setColor(s.color);
+                drawRawRange(canvas, lineText, inlays, rawToVisual, start, end, x, y, paint);
+            }
+            return;
+        }
+        // Chemin stylé (modificateurs sémantiques, 4.4.0) : typeface
+        // (gras/italique) + barré posés par span sur le paint PARTAGÉ,
+        // avec restauration systématique en sortie (discipline
+        // drawCachedInlays : jamais d'état résiduel pour les couches
+        // qui suivent).
+        Typeface base = paint.getTypeface();
+        int typefaceStyle = 0;
+        boolean strike = false;
+        try {
+            for (LineRenderCache.SemSpan s : spans) {
+                int start = EditorView.clamp(s.start, 0, lineText.length());
+                int end = EditorView.clamp(s.end, 0, lineText.length());
+                if (start >= end) continue;
+                paint.setColor(s.color);
+                if (s.styleFlags != 0) {
+                    int want = ((s.styleFlags & LineRenderCache.SemSpan.STYLE_BOLD) != 0
+                            ? Typeface.BOLD : 0)
+                            | ((s.styleFlags & LineRenderCache.SemSpan.STYLE_ITALIC) != 0
+                            ? Typeface.ITALIC : 0);
+                    if (want != typefaceStyle) {
+                        typefaceStyle = want;
+                        paint.setTypeface(Typeface.create(base, want));
+                    }
+                    boolean wantStrike =
+                            (s.styleFlags & LineRenderCache.SemSpan.STYLE_STRIKE) != 0;
+                    if (wantStrike != strike) {
+                        strike = wantStrike;
+                        paint.setStrikeThruText(strike);
+                    }
+                } else if (typefaceStyle != 0 || strike) {
+                    typefaceStyle = 0;
+                    strike = false;
+                    paint.setTypeface(base);
+                    paint.setStrikeThruText(false);
+                }
+                drawRawRange(canvas, lineText, inlays, rawToVisual, start, end, x, y, paint);
+            }
+        } finally {
+            if (typefaceStyle != 0 || strike) {
+                paint.setTypeface(base);
+                paint.setStrikeThruText(false);
+            }
         }
     }
 

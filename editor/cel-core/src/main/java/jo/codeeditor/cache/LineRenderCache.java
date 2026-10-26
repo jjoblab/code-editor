@@ -56,21 +56,43 @@ public class LineRenderCache {
 
     /**
      * Une plage de coloration sémantique.
+     *
+     * <p><b>Style (4.4.0)</b> : {@link #styleFlags} transporte la surcouche
+     * de style des modificateurs sémantiques (barré/gras/italique) — des
+     * DRAPEAUX thème-indépendants, cuisables dans le cache sans risque
+     * (contrairement aux couleurs) ; 0 = aucun style, le chemin de
+     * dessin historique.</p>
      */
     public static final class SemSpan {
+        /** Drapeau de style : gras (modificateur « statique »). */
+        public static final int STYLE_BOLD = 1;
+        /** Drapeau de style : italique (modificateur « abstrait »). */
+        public static final int STYLE_ITALIC = 2;
+        /** Drapeau de style : barré (modificateur « déprécié »). */
+        public static final int STYLE_STRIKE = 4;
+
         public final int start;
         public final int end;
         public final int color;
+        /** Drapeaux STYLE_* (0 = aucun). @since 4.4.0 */
+        public final int styleFlags;
 
         public SemSpan(int start, int end, int color) {
+            this(start, end, color, 0);
+        }
+
+        /** Variante stylée (4.4.0) — transporte la surcouche de modificateurs. */
+        public SemSpan(int start, int end, int color, int styleFlags) {
             this.start = start;
             this.end = end;
             this.color = color;
+            this.styleFlags = styleFlags;
         }
 
         @Override
         public String toString() {
-            return "SemSpan([" + start + "," + end + ") color=" + Integer.toHexString(color) + ")";
+            return "SemSpan([" + start + "," + end + ") color=" + Integer.toHexString(color)
+                    + " style=" + styleFlags + ")";
         }
     }
 
