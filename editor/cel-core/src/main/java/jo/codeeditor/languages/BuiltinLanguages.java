@@ -403,6 +403,9 @@ final class BuiltinLanguages {
         LanguageRegistry.put(LanguageProfile.builder("java")
                 .family(SyntaxFamily.C_LIKE).extension("java")
                 .keywordSet(JAVA_KEYWORDS)
+                // 4.5.0 : table postfix du profil — .sout s'ajoute aux
+                // défauts de la famille (.if, .for, .notnull…).
+                .postfixTemplates("sout=System.out.println(${expr});")
                 .commentSyntax(CommentSyntax.C_STYLE).build());
         LanguageRegistry.put(LanguageProfile.builder("kotlin")
                 .family(SyntaxFamily.C_LIKE).alias("kt")
@@ -413,6 +416,9 @@ final class BuiltinLanguages {
                 // lieu d'un « kotlin ».equals(language) en dur — les
                 // alias (kt, casse mixte) sont désormais honorés.
                 .newlineStrategy(NewlineStrategy.KOTLIN)
+                // 4.5.0 : table postfix du profil — .sout s'ajoute aux
+                // défauts de la famille, forme Kotlin.
+                .postfixTemplates("sout=println(${expr})")
                 .build());
         LanguageRegistry.put(LanguageProfile.builder("javascript")
                 .family(SyntaxFamily.C_LIKE).alias("js")

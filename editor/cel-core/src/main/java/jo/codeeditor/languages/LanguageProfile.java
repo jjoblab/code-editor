@@ -133,6 +133,21 @@ public final class LanguageProfile {
      */
     public final List<String> snippetTemplates;
     /**
+     * GABARITS POSTFIX de complétion (4.5.0) — la table « nom=gabarit »
+     * des postfixes de CE langage (« x.sout » + Entrée → gabarit
+     * expansé). Liste immuable ordonnée, vide par défaut. Chaque
+     * entrée s'écrit « nom=gabarit » (le PREMIER « = » coupe) : le nom
+     * est le postfixe SANS point, le gabarit porte le jeton
+     * {@code ${expr}} à l'emplacement de l'expression extraite. Les
+     * lignes de continuation sont ré-indentées de l'indentation de la
+     * ligne courante ; le caret se pose en fin de première ligne.
+     * Les entrées COMPLÈTENT et SURCHARGENT les défauts de la famille
+     * (C_LIKE et PYTHON en ont) ; une entrée au gabarit VIDE RETIRE le
+     * nom. Un langage hors de ces familles qui déclare une table
+     * bénéficie des postfixes aussi — l'extension appartient à l'hôte.
+     */
+    public final List<String> postfixTemplates;
+    /**
      * Stratégie de saut de ligne intelligent (ADR-002, C1 — étape 3).
      * Jamais null. Défaut calculé depuis la famille : XML →
      * {@link NewlineStrategy#XML} (indentation structurelle), toutes
@@ -193,7 +208,7 @@ public final class LanguageProfile {
             NewlineStrategy newlineStrategy, List<NewlineTrigger> newlineTriggers,
             Set<Character> stringQuotes, String docCommentStart, String docCommentEnd,
             String blockCommentContinuation,
-            List<String> snippetTemplates) {
+            List<String> snippetTemplates, List<String> postfixTemplates) {
         this.name = name;
         this.family = family;
         this.aliases = aliases;
@@ -207,6 +222,7 @@ public final class LanguageProfile {
         this.completionGate = completionGate;
         this.snippets = snippets;
         this.snippetTemplates = snippetTemplates;
+        this.postfixTemplates = postfixTemplates;
         this.newlineStrategy = newlineStrategy;
         this.newlineTriggers = newlineTriggers;
         this.stringQuotes = stringQuotes;
@@ -311,6 +327,9 @@ public final class LanguageProfile {
         // 4.5.0 : gabarits expansibles « libellé|corps » — la voie
         // riche, distincte de la liste littérale historique.
         private final List<String> snippetTemplates = new ArrayList<>();
+        // 4.5.0 : table postfix « nom=gabarit » — complète et surcharge
+        // les défauts de la famille.
+        private final List<String> postfixTemplates = new ArrayList<>();
         // ADR-002 (C1-é3) : stratégie de saut de ligne + déclencheurs
         // d'indentation — données par langage, défauts calculés dans
         // build() depuis la famille.
@@ -484,6 +503,31 @@ public final class LanguageProfile {
         }
 
         /**
+         * GABARITS POSTFIX de complétion pour CE langage (4.5.0) —
+         * chaque entrée « nom=gabarit » déclare un postfixe (le nom,
+         * SANS point ; le gabarit porte le jeton {@code ${expr}} à
+         * l'emplacement de l'expression extraite — « x.sout » + Entrée
+         * développe « sout=System.out.println(${expr}); »). Les entrées
+         * COMPLÈTENT et SURCHARGENT les défauts de la famille (C_LIKE et
+         * PYTHON) ; une entrée au gabarit VIDE RETIRE le nom —
+         * « notnull= » désactive .notnull pour ce langage. Un langage
+         * hors de ces familles qui déclare une table active les
+         * postfixes. Le PREMIER « = » coupe : le gabarit peut en
+         * contenir d'autres. Les entrées nulles, vides ou sans « = »
+         * sont ignorées.
+         */
+        public Builder postfixTemplates(String... entries) {
+            if (entries != null) {
+                for (String s : entries) {
+                    if (s != null && !s.isEmpty() && s.indexOf('=') > 0) {
+                        postfixTemplates.add(s);
+                    }
+                }
+            }
+            return this;
+        }
+
+        /**
          * ADR-002 (C1-é3) : stratégie de saut de ligne pour CE
          * langage. Si non appelé, la valeur par défaut dépend de la
          * famille : XML → {@link NewlineStrategy#XML} (indentation
@@ -603,7 +647,8 @@ public final class LanguageProfile {
                     finalDocStart,
                     finalDocEnd,
                     finalContinuation,
-                    Collections.unmodifiableList(new ArrayList<>(snippetTemplates)));
+                    Collections.unmodifiableList(new ArrayList<>(snippetTemplates)),
+                    Collections.unmodifiableList(new ArrayList<>(postfixTemplates)));
         }
 
         /** Valeurs par défaut pour autoCloseQuotes selon la famille. */
