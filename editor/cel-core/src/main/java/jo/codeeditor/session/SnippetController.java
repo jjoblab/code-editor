@@ -3,6 +3,7 @@ package jo.codeeditor.session;
 import jo.codeeditor.document.EditorDocument;
 import jo.codeeditor.document.Selection;
 import jo.codeeditor.shift.EditSpan;
+import jo.codeeditor.snippet.SnippetMacroContext;
 import jo.codeeditor.snippet.SnippetSession;
 
 import java.util.ArrayList;
@@ -34,9 +35,33 @@ public final class SnippetController {
     private final EditorSession session;
     private SnippetSession activeSnippet;
     private EditorSession.OnSnippetEditListener onSnippetEditListener;
+    /**
+     * Le contexte de macros ($FILE$/$DATE$/$USER$, 4.5.0) — posé par
+     * l'hôte (il connaît le nom du fichier et l'auteur) ; sans
+     * contexte, les macros restent littérales.
+     */
+    private SnippetMacroContext macroContext;
 
     SnippetController(EditorSession session) {
         this.session = session;
+    }
+
+    /**
+     * Pose le contexte de résolution des macros de gabarits
+     * ($FILE$/$DATE$/$USER$) — l'hôte fournit le nom du fichier, le
+     * nom d'auteur et éventuellement un format de date ; il est lu à
+     * chaque expansion, le changer prend effet au snippet suivant.
+     *
+     * @param context le contexte (null = macros conservées littéralement)
+     * @since 4.5.0
+     */
+    public void setMacroContext(SnippetMacroContext context) {
+        this.macroContext = context;
+    }
+
+    /** Le contexte de macros courant (null si aucun). */
+    public SnippetMacroContext getMacroContext() {
+        return macroContext;
     }
 
     /** Listener de champ — invoqué sur chaque édition pendant la session. */
@@ -68,7 +93,7 @@ public final class SnippetController {
         if (snippetText == null) snippetText = "";
         start = Math.max(0, Math.min(start, doc.length()));
         end = Math.max(start, Math.min(end, doc.length()));
-        SnippetSession parsed = SnippetSession.parse(snippetText, start);
+        SnippetSession parsed = SnippetSession.parse(snippetText, start, macroContext);
         if (parsed == null) {
             // Aucun tab stop : insertion brute, comportement repli.
             session.replaceRange(start, end, snippetText);

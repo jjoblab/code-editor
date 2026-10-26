@@ -226,6 +226,12 @@ public class EditorCompletionPopup {
         }
         view.onTextChanged();
         dismissCompletion();
+        // Variables de choix (4.5.0) : un premier champ « ${1|a,b,c|} »
+        // ouvre immédiatement sa carte d'options au-dessus de la ligne
+        // de frappe (sans effet sur les champs libres).
+        if (view.session.snippets.isActive()) {
+            popups.showSnippetChoicesIfNeeded();
+        }
         // Apprentissage du classement (4.5.0) : l'acceptation nourrit
         // l'historique par (langage, identifiant de tête) — les
         // prochaines listes placeront ce candidat devant à palier et
@@ -488,6 +494,12 @@ public class EditorCompletionPopup {
         final String langName = view.session.getLanguage();
         final String prefix = view.session.getDocument().subText(safeTokenStart, snapCaret);
         final String snapText = (provider != null) ? view.session.getText() : null;
+        // Gabarits (4.5.0) : ceux du profil (« libellé|corps ») et les
+        // gabarits utilisateur du provider — lus sur le fil UI (cache
+        // hôte), fusionnés AUX DEUX chemins (fournisseur externe comme
+        // complétion intégrée) avant le classement commun.
+        final List<jo.codeeditor.completion.CompletionSession.Item> templateItems =
+                templateSnippetItems(langName, prefix);
 
         jo.codeeditor.view.EditorTaskLanes.submitCompletion(() -> {
             java.util.List<jo.codeeditor.completion.CompletionSession.Item> result = null;
@@ -510,8 +522,10 @@ public class EditorCompletionPopup {
                     "récupération des complétions échouée", e);
                 result = null;
             }
-            final java.util.List<jo.codeeditor.completion.CompletionSession.Item> fetched =
+            final java.util.List<jo.codeeditor.completion.CompletionSession.Item> fetched0 =
                     result != null ? result : java.util.Collections.emptyList();
+            final java.util.List<jo.codeeditor.completion.CompletionSession.Item> fetched =
+                    templateItems.isEmpty() ? fetched0 : concat(fetched0, templateItems);
             final boolean baseIncomplete = resultIncomplete;
 
             Runnable deliver = () -> {
@@ -787,6 +801,70 @@ public class EditorCompletionPopup {
         }
         out.sort(ranking);
         return out;
+    }
+
+    /** Concatène deux listes en préservant l'ordre (base puis gabarits). */
+    private static List<jo.codeeditor.completion.CompletionSession.Item> concat(
+            List<jo.codeeditor.completion.CompletionSession.Item> a,
+            List<jo.codeeditor.completion.CompletionSession.Item> b) {
+        List<jo.codeeditor.completion.CompletionSession.Item> out = new ArrayList<>(a);
+        out.addAll(b);
+        return out;
+    }
+
+    /**
+     * Les items de gabarits (4.5.0) — profil et utilisateur — pour le
+     * langage et le préfixe courants. Chaque gabarit remonte par son
+     * LIBELLÉ et s'insère par son CORPS expansé (isSnippet=true) :
+     * champs, miroirs, variables de choix et macros inclus. Les
+     * gabarits sont filtrés par préfixe comme les autres candidats
+     * (préfixe vide = tous, voie déclencheur « . »).
+     */
+    private List<jo.codeeditor.completion.CompletionSession.Item> templateSnippetItems(
+            String language, String prefix) {
+        List<jo.codeeditor.completion.CompletionSession.Item> out = new ArrayList<>();
+        if (language == null) return out;
+        // 1. Gabarits déclarés par le profil de langage.
+        jo.codeeditor.languages.LanguageProfile profile =
+                jo.codeeditor.languages.LanguageRegistry.forName(language);
+        if (profile != null) {
+            for (String entry : profile.snippetTemplates) {
+                int sep = entry.indexOf('|');
+                if (sep <= 0) continue;
+                String label = entry.substring(0, sep);
+                String body = entry.substring(sep + 1);
+                addTemplateItem(out, label, body, "gabarit", prefix);
+            }
+        }
+        // 2. Gabarits utilisateur (stockage hôte, cache lu sur le fil UI).
+        try {
+            if (view.language != null && view.language.getSnippetProvider() != null) {
+                for (jo.codeeditor.lang.model.SnippetTemplate t
+                        : view.language.getSnippetProvider().snippets(language)) {
+                    if (t == null || t.label == null || t.body == null) continue;
+                    addTemplateItem(out, t.label, t.body, t.detail, prefix);
+                }
+            }
+        } catch (Exception e) {
+            jo.codeeditor.util.EditorLog.warn("EditorCompletion",
+                "lecture des gabarits utilisateur échouée", e);
+        }
+        return out;
+    }
+
+    /** Filtre par préfixe puis ajoute l'item de gabarit (expansible). */
+    private static void addTemplateItem(
+            List<jo.codeeditor.completion.CompletionSession.Item> out,
+            String label, String body, String detail, String prefix) {
+        if (label.isEmpty() || body.isEmpty()) return;
+        if (prefix != null && !prefix.isEmpty()
+                && jo.codeeditor.completion.CompletionMatcher.tier(label, null, prefix)
+                        == jo.codeeditor.completion.CompletionMatcher.TIER_NONE) {
+            return;
+        }
+        out.add(new jo.codeeditor.completion.CompletionSession.Item(
+                label, detail != null ? detail : "gabarit", body, "s", 15, 0,
+                false, true, null));
     }
 
     private static List<jo.codeeditor.completion.CompletionSession.Item> builtinKeywordCompletions(

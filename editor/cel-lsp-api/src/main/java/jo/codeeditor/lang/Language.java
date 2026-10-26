@@ -13,6 +13,7 @@ import jo.codeeditor.lang.provider.InlayHintProvider;
 import jo.codeeditor.lang.provider.ReferencesProvider;
 import jo.codeeditor.lang.provider.RenameProvider;
 import jo.codeeditor.lang.provider.SignatureHelpProvider;
+import jo.codeeditor.lang.provider.SnippetProvider;
 import jo.codeeditor.lang.provider.SuperDefinitionProvider;
 import jo.codeeditor.lang.provider.SymbolProvider;
 import jo.codeeditor.lang.provider.TypeDefinitionProvider;
@@ -154,6 +155,16 @@ public interface Language {
      * n'est pas supporté.
      */
     default RenameProvider getRenameProvider() { return null; }
+
+    /**
+     * Retourne le {@link SnippetProvider} des gabarits utilisateur, ou
+     * {@code null} si l'application hôte ne propose pas de gabarits
+     * enregistrés. Interrogé sur le thread UI à chaque complétion —
+     * l'implémentation doit lire un cache, pas un stockage lent.
+     *
+     * @since 4.5.0
+     */
+    default SnippetProvider getSnippetProvider() { return null; }
 
     /**
      * Indique avec quelle agressivité l'éditeur peut annuler les requêtes

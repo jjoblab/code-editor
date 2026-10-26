@@ -67,6 +67,8 @@ public class EditorPopupManager {
     private final EditorSquigglePopups squiggle;
     /** Sélecteur de couleur (B26) — carte ancrée au code hex tapé. */
     private final EditorColorPickerPopup colorPicker;
+    /** Variables de choix d'un snippet (4.5.0) — carte glass au champ courant. */
+    final SnippetChoicePopup snippetChoices;
     /** Actions de sélection injectées par l'hôte (T1) + leur débordement. */
     public final jo.codeeditor.view.EditorSelectionActions selActions =
             new jo.codeeditor.view.EditorSelectionActions();
@@ -83,6 +85,31 @@ public class EditorPopupManager {
         this.diagnostics = new EditorDiagnosticPopups(view, this);
         this.squiggle = new EditorSquigglePopups(view, this);
         this.colorPicker = new EditorColorPickerPopup(view, this);
+        this.snippetChoices = new SnippetChoicePopup(view);
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // Variables de choix d'un snippet (4.5.0)
+    // ══════════════════════════════════════════════════════════
+
+    /**
+     * Ouvre la carte des options si le champ courant de la session de
+     * snippet active porte des choix (« ${1|a,b,c|} ») ; sans effet
+     * sinon. Appelé à l'application d'un gabarit et à chaque entrée
+     * de navigation (Tab/Shift+Tab) sur un champ à choix.
+     */
+    public void showSnippetChoicesIfNeeded() {
+        snippetChoices.showIfNeeded();
+    }
+
+    /** Referme la carte des choix de snippet. */
+    public void dismissSnippetChoices() {
+        snippetChoices.dismiss();
+    }
+
+    /** Referme la carte si la session de snippet n'est plus active. */
+    public void dismissSnippetChoicesIfSessionDead() {
+        snippetChoices.dismissIfSessionDead();
     }
 
 

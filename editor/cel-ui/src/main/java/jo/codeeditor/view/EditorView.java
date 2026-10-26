@@ -3053,6 +3053,10 @@ public class EditorView extends View {
         // clignotement, rend le caret visible et annule tout glissement
         // en vol.
         caretAnim.onEditOrMove();
+        // Carte des choix de snippet (4.5.0) : refermée si la session
+        // n'est plus active (undo/redo la terminent côté noyau, sans
+        // hook UI dédié).
+        popupManager.dismissSnippetChoicesIfSessionDead();
         // Reconstruit le modèle de wrap — le nombre de lignes ou le contenu
         // du document a pu changer, ce qui affecte les comptes de rangées
         // de wrap par ligne.

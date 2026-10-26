@@ -24,13 +24,36 @@ public class SnippetSession {
         public final String placeholder;
         /** Indices des autres tab stops dont le texte reflète celui-ci. */
         public final List<Integer> linked;
+        /**
+         * Les options du champ de choix (« {@code ${1|a,b,c|}} », 4.5.0) —
+         * vide pour un champ libre. La première option est le texte
+         * initial du champ ; les suivantes sont proposées dans le popup
+         * de choix.
+         *
+         * @since 4.5.0
+         */
+        public final List<String> choices;
 
         public TabStop(int start, int end, int index, String placeholder, List<Integer> linked) {
+            this(start, end, index, placeholder, linked, Collections.emptyList());
+        }
+
+        /**
+         * Un tab stop avec options de choix (4.5.0) — le constructeur
+         * historique délègue avec un champ libre.
+         *
+         * @param choices les options proposées, éventuellement vide
+         * @since 4.5.0
+         */
+        public TabStop(int start, int end, int index, String placeholder,
+                List<Integer> linked, List<String> choices) {
             this.start = start;
             this.end = end;
             this.index = index;
             this.placeholder = placeholder != null ? placeholder : "";
             this.linked = linked != null ? Collections.unmodifiableList(linked) : Collections.emptyList();
+            this.choices = choices != null
+                    ? Collections.unmodifiableList(new ArrayList<>(choices)) : Collections.emptyList();
         }
 
         public int length() { return end - start; }
@@ -98,25 +121,83 @@ public class SnippetSession {
      * @return une SnippetSession, ou null si aucun tab stop
      */
     public static SnippetSession parse(String snippet, int baseOffset) {
+        return parse(snippet, baseOffset, null);
+    }
+
+    /** Un arrêt brut collecté à la première passe (avant groupement). */
+    private static final class RawStop {
+        final int index;
+        final int start;
+        final int end;
+        List<String> choices = Collections.emptyList();
+
+        RawStop(int index, int start, int end) {
+            this.index = index;
+            this.start = start;
+            this.end = end;
+        }
+    }
+
+    /**
+     * Analyse un snippet avec variables de choix et macros.
+     *
+     * <p>En plus des marqueurs historiques ({@code $N},
+     * {@code ${N:placeholder}}, miroirs par index répété), deux
+     * familles sont reconnues depuis 4.5.0 :</p>
+     *
+     * <ul>
+     *   <li><b>Choix</b> — « {@code ${1|alpha,beta,gamma|}} » : champ
+     *       initialisé à la première option, les autres proposées dans
+     *       le popup de choix ({@link TabStop#choices}). Les options
+     *       sont séparées par des virgules et ne peuvent pas contenir
+     *       « {@code |}} » ; le marqueur se termine par « {@code |}} » ;</li>
+     *   <li><b>Macros</b> — « {@code $FILE$} », « {@code $DATE$} » et
+     *       « {@code $USER$} » : résolues à l'expansion depuis le
+     *       contexte (nom du fichier, auteur, date) ; sans contexte —
+     *       ou champ non renseigné — la macro est conservée
+     *       LITTÉRALEMENT, jamais effacée silencieusement.</li>
+     * </ul>
+     *
+     * @param snippet le texte du snippet
+     * @param baseOffset l'offset où le snippet est inséré
+     * @param macros le contexte de résolution (null = macros littérales)
+     * @return une SnippetSession, ou null si aucun tab stop
+     * @since 4.5.0
+     */
+    public static SnippetSession parse(String snippet, int baseOffset, SnippetMacroContext macros) {
         List<TabStop> stops = new ArrayList<>();
         StringBuilder plain = new StringBuilder();
         int pos = 0;
-        Map<Integer, List<Integer>> linkedMap = new HashMap<>();
 
         // Première passe : collecte tous les tab stops
-        List<int[]> rawStops = new ArrayList<>(); // [index, startPos, endPos, placeholderStart, placeholderEnd]
+        List<RawStop> rawStops = new ArrayList<>();
         while (pos < snippet.length()) {
             if (snippet.charAt(pos) == '$') {
+                // Macros $FILE$ / $DATE$ / $USER$ : le nom canonique en
+                // majuscules, borné par un $ final. Inconnu ou sans
+                // contexte : le marqueur entier reste littéral.
+                int macroLen = macroMarkerLength(snippet, pos);
+                if (macroLen > 0) {
+                    String resolved = macroValue(snippet, pos, macros);
+                    if (resolved != null) {
+                        plain.append(resolved);
+                    } else {
+                        plain.append(snippet, pos, pos + macroLen);
+                    }
+                    pos += macroLen;
+                    continue;
+                }
                 pos++;
                 if (pos >= snippet.length()) break;
 
                 if (snippet.charAt(pos) == '{') {
-                    // ${N:placeholder}
+                    // ${N:placeholder} ou ${N|a,b,c|}
                     pos++;
                     int numStart = pos;
                     while (pos < snippet.length() && Character.isDigit(snippet.charAt(pos))) pos++;
                     int index = Integer.parseInt(snippet.substring(numStart, pos));
                     String placeholder = "";
+                    List<String> choices = Collections.emptyList();
                     if (pos < snippet.length() && snippet.charAt(pos) == ':') {
                         pos++;
                         int phStart = pos;
@@ -127,13 +208,45 @@ public class SnippetSession {
                             if (depth > 0) pos++;
                         }
                         placeholder = snippet.substring(phStart, pos);
+                    } else if (pos < snippet.length() && snippet.charAt(pos) == '|') {
+                        // Champ de choix : options jusqu'au « |} » final,
+                        // séparées par des virgules. Le champ est
+                        // initialisé à la PREMIÈRE option. Le « } » qui
+                        // ferme le marqueur N'est JAMAIS consommé par le
+                        // scan (même garde que le placeholder « : »).
+                        pos++;
+                        int optStart = pos;
+                        int depth = 1;
+                        while (pos < snippet.length() && depth > 0) {
+                            char c = snippet.charAt(pos);
+                            if (c == '{') {
+                                depth++;
+                            } else if (c == '}') {
+                                depth--;
+                                if (depth == 0) break;
+                            } else if (c == '|' && depth == 1
+                                    && pos + 1 < snippet.length()
+                                    && snippet.charAt(pos + 1) == '}') {
+                                break;
+                            }
+                            pos++;
+                        }
+                        choices = splitChoices(snippet.substring(optStart, pos));
+                        if (!choices.isEmpty()) {
+                            placeholder = choices.get(0);
+                        }
+                        // Consomme le « |} » final, ou le « } » isolé
+                        // d'un marqueur malformé.
+                        if (pos < snippet.length() && snippet.charAt(pos) == '|') pos++;
                     }
                     if (pos < snippet.length() && snippet.charAt(pos) == '}') pos++;
 
                     int start = baseOffset + plain.length();
                     plain.append(placeholder);
                     int end = baseOffset + plain.length();
-                    rawStops.add(new int[]{index, start, end, 0, 0});
+                    RawStop raw = new RawStop(index, start, end);
+                    raw.choices = choices;
+                    rawStops.add(raw);
 
                 } else if (Character.isDigit(snippet.charAt(pos))) {
                     // $N
@@ -143,7 +256,7 @@ public class SnippetSession {
 
                     int start = baseOffset + plain.length();
                     int end = start;
-                    rawStops.add(new int[]{index, start, end, 0, 0});
+                    rawStops.add(new RawStop(index, start, end));
                 } else {
                     plain.append('$');
                 }
@@ -154,9 +267,9 @@ public class SnippetSession {
         }
 
         // Groupe par index pour la liaison
-        Map<Integer, List<int[]>> grouped = new HashMap<>();
-        for (int[] rs : rawStops) {
-            grouped.computeIfAbsent(rs[0], k -> new ArrayList<>()).add(rs);
+        Map<Integer, List<RawStop>> grouped = new HashMap<>();
+        for (RawStop rs : rawStops) {
+            grouped.computeIfAbsent(rs.index, k -> new ArrayList<>()).add(rs);
         }
 
         // Construit les arrêts : la première occurrence (primaire) est
@@ -166,18 +279,68 @@ public class SnippetSession {
         // texte) ; le reste est lié (miroir).
         for (var entry : grouped.entrySet()) {
             int index = entry.getKey();
-            List<int[]> group = entry.getValue();
-            int[] primary = group.get(0);
-            stops.add(new TabStop(primary[1], primary[2], index, "", Collections.emptyList()));
+            List<RawStop> group = entry.getValue();
+            RawStop primary = group.get(0);
+            stops.add(new TabStop(primary.start, primary.end, index, "",
+                    Collections.emptyList(), primary.choices));
             for (int i = 1; i < group.size(); i++) {
                 // Arrêts liés (miroirs de la première occurrence).
-                int[] lnk = group.get(i);
-                stops.add(new TabStop(lnk[1], lnk[2], index, "", Collections.emptyList()));
+                RawStop lnk = group.get(i);
+                stops.add(new TabStop(lnk.start, lnk.end, index, "", Collections.emptyList()));
             }
         }
 
         if (stops.isEmpty()) return null;
         return new SnippetSession(stops, plain.toString());
+    }
+
+    /** Coupe les options d'un champ de choix (virgules, vides ignorées). */
+    private static List<String> splitChoices(String raw) {
+        List<String> out = new ArrayList<>();
+        for (String part : raw.split(",", -1)) {
+            if (!part.isEmpty()) out.add(part);
+        }
+        return out;
+    }
+
+    /** Les noms de macros canoniques, en majuscules. */
+    private static final String[] MACRO_NAMES = {"FILE", "DATE", "USER"};
+
+    /**
+     * La longueur du marqueur macro qui démarre à {@code pos}
+     * (« $NAME$ » tout compris), 0 si ce n'est pas une macro canonique.
+     */
+    private static int macroMarkerLength(String snippet, int pos) {
+        if (pos >= snippet.length() || snippet.charAt(pos) != '$') return 0;
+        for (String name : MACRO_NAMES) {
+            int len = 1 + name.length() + 1; // $NAME$
+            if (pos + len <= snippet.length()
+                    && snippet.regionMatches(pos + 1, name, 0, name.length())
+                    && snippet.charAt(pos + len - 1) == '$') {
+                return len;
+            }
+        }
+        return 0;
+    }
+
+    /**
+     * La valeur résolue de la macro dont le marqueur démarre à
+     * {@code pos} — null si le contexte est absent ou si le champ
+     * correspondant n'est pas renseigné (marqueur conservé littéral).
+     */
+    private static String macroValue(String snippet, int pos, SnippetMacroContext macros) {
+        if (macros == null) return null;
+        String name = snippet.substring(pos + 1, macroMarkerLength(snippet, pos) + pos - 1);
+        switch (name) {
+            case "FILE":
+                return macros.fileName();
+            case "USER":
+                return macros.userName();
+            case "DATE":
+                return macros.resolveDate();
+            default:
+                return null;
+        }
     }
 
     /**

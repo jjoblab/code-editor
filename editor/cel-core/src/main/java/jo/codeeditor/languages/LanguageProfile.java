@@ -120,6 +120,19 @@ public final class LanguageProfile {
      */
     public final List<String> snippets;
     /**
+     * GABARITS de complétion intégrée (4.5.0) — la voie EXPANSIBLE
+     * de {@link #snippets}. Liste immuable ordonnée, vide par défaut.
+     * Chaque entrée s'écrit « libellé|corps » (le PREMIER séparateur
+     * coupe ; le corps peut contenir des « | ») : le libellé est
+     * proposé dans le popup, le corps est inséré et EXPANSÉ — champs
+     * {@code $1}/${1:ph}/$0, variables de choix « {@code ${1|a,b,c|}} »
+     * et macros {@code $FILE$}/{@code $DATE$}/{@code $USER$} à la
+     * sélection. La liste {@link #snippets} historique reste en
+     * insertion LITTÉRALE — les gabarits de Markdown (« —|— ») ne
+     * peuvent pas être coupés par un séparateur.
+     */
+    public final List<String> snippetTemplates;
+    /**
      * Stratégie de saut de ligne intelligent (ADR-002, C1 — étape 3).
      * Jamais null. Défaut calculé depuis la famille : XML →
      * {@link NewlineStrategy#XML} (indentation structurelle), toutes
@@ -179,7 +192,8 @@ public final class LanguageProfile {
             CompletionGate completionGate, List<String> snippets,
             NewlineStrategy newlineStrategy, List<NewlineTrigger> newlineTriggers,
             Set<Character> stringQuotes, String docCommentStart, String docCommentEnd,
-            String blockCommentContinuation) {
+            String blockCommentContinuation,
+            List<String> snippetTemplates) {
         this.name = name;
         this.family = family;
         this.aliases = aliases;
@@ -192,6 +206,7 @@ public final class LanguageProfile {
         this.stickyHeaderTest = stickyHeaderTest;
         this.completionGate = completionGate;
         this.snippets = snippets;
+        this.snippetTemplates = snippetTemplates;
         this.newlineStrategy = newlineStrategy;
         this.newlineTriggers = newlineTriggers;
         this.stringQuotes = stringQuotes;
@@ -293,6 +308,9 @@ public final class LanguageProfile {
         // ADR-002 (C1, D5) : snippets de complétion intégrée — même
         // table que les mots-clés (source unique).
         private final List<String> snippets = new ArrayList<>();
+        // 4.5.0 : gabarits expansibles « libellé|corps » — la voie
+        // riche, distincte de la liste littérale historique.
+        private final List<String> snippetTemplates = new ArrayList<>();
         // ADR-002 (C1-é3) : stratégie de saut de ligne + déclencheurs
         // d'indentation — données par langage, défauts calculés dans
         // build() depuis la famille.
@@ -442,6 +460,30 @@ public final class LanguageProfile {
         }
 
         /**
+         * GABARITS de complétion intégrée pour CE langage (4.5.0) —
+         * la voie EXPANSIBLE : chaque entrée « libellé|corps » est
+         * proposée par son libellé et insérée par son corps EXPANSÉ
+         * (champs {@code $1}/${1:ph}/$0, choix « {@code ${1|a,b,c|}} »,
+         * macros {@code $FILE$}/{@code $DATE$}/{@code $USER$}). Le
+         * PREMIER « | » sépare libellé et corps — le corps peut en
+         * contenir d'autres ; une entrée sans « | » est ignorée (le
+         * libellé seul ne dit rien du corps). Les entrées nulles ou
+         * vides sont ignorées. Vide par défaut — la liste
+         * {@link #snippets(String...)} littérale reste la voie des
+         * petits textes sans marqueurs.
+         */
+        public Builder snippetTemplates(String... entries) {
+            if (entries != null) {
+                for (String s : entries) {
+                    if (s != null && !s.isEmpty() && s.indexOf('|') > 0) {
+                        snippetTemplates.add(s);
+                    }
+                }
+            }
+            return this;
+        }
+
+        /**
          * ADR-002 (C1-é3) : stratégie de saut de ligne pour CE
          * langage. Si non appelé, la valeur par défaut dépend de la
          * famille : XML → {@link NewlineStrategy#XML} (indentation
@@ -560,7 +602,8 @@ public final class LanguageProfile {
                     Collections.unmodifiableSet(new HashSet<>(finalStringQuotes)),
                     finalDocStart,
                     finalDocEnd,
-                    finalContinuation);
+                    finalContinuation,
+                    Collections.unmodifiableList(new ArrayList<>(snippetTemplates)));
         }
 
         /** Valeurs par défaut pour autoCloseQuotes selon la famille. */

@@ -106,11 +106,15 @@ public class EditorKeyHandler {
                         ? view.session.snippets.prev()
                         : view.session.snippets.next();
                 if (consumed) {
+                    // Entrée sur un champ à choix (4.5.0) : sa carte
+                    // d'options s'ouvre au-dessus de la ligne de frappe.
+                    view.popupManager.showSnippetChoicesIfNeeded();
                     view.invalidate();
                     return true;
                 }
             } else if (keyCode == KeyEvent.KEYCODE_ESCAPE) {
                 view.session.snippets.end();
+                view.popupManager.dismissSnippetChoices();
                 view.invalidate();
                 return true;
             }
