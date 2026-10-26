@@ -70,6 +70,15 @@ implémentations (intégrée, LSP, maison).
 Toutes suivent le même esprit : appel asynchrone, annulable, résultat
 rendu au récepteur — jamais de blocage du thread UI.
 
+`CompletionPublisher` sait depuis 4.3.0 transporter le drapeau
+**« liste tronquée »** (`setIncomplete(boolean)`, à défaut no-op) :
+un fournisseur dont le backend plafonne ses réponses le pose avant
+`flush()` ; le client qui l'honore sait que sa base est partielle et
+re-requête à chaque édition du préfixe au lieu de filtrer localement
+sur une liste amputée. Un fournisseur qui ne l'appelle pas publie une
+liste réputée complète — aucun changement pour les fournisseurs
+existants.
+
 ## Pourquoi un module séparé ?
 
 Historiquement, la couche LSP et la vue se référençaient mutuellement ;

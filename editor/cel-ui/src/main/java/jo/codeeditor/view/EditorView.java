@@ -3487,6 +3487,23 @@ public class EditorView extends View {
             Character triggerCharacter) {
             return provide(text, caret, tokenStart, prefix);
         }
+
+        /**
+         * Variante avec résultat riche : candidats ET drapeau « liste
+         * tronquée » du fournisseur (voir
+         * {@link CompletionResult#isIncomplete}). Le popup consomme
+         * cette variante ; l'implémentation par défaut enveloppe la
+         * variante 5 paramètres avec le drapeau à faux — les
+         * fournisseurs existants ne changent pas, seul un fournisseur
+         * dont le backend plafonne ses réponses surcharge cette méthode
+         * pour signaler la troncature.
+         * @since 4.3.0 */
+        default CompletionResult provideResult(
+            String text, int caret, int tokenStart, String prefix,
+            Character triggerCharacter) {
+            return new CompletionResult(
+                provide(text, caret, tokenStart, prefix, triggerCharacter));
+        }
     }
 
     public void setCompletionProvider(CompletionProvider provider) {

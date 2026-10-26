@@ -137,28 +137,42 @@ final class EditorLanguageBridge {
                     language.getCompletionProvider();
                 // Classe anonyme (et non lambda) : l'interface interne garde
                 // sa méthode abstraite 4 paramètres (compatibilité des
-                // fournisseurs existants) ; on surcharge la variante par
+                // fournisseurs existants) ; on surcharge la variante à
                 // défaut 5 paramètres pour transporter le caractère
                 // déclencheur jusqu'au serveur (CompletionContext
-                // triggerKind) — null = invocation explicite (Invoked).
+                // triggerKind) — null = invocation explicite (Invoked) —
+                // et la variante résultat (provideResult) pour faire
+                // remonter le drapeau « liste tronquée » que le
+                // fournisseur SPI signale via le publisher. Les
+                // variantes historiques délèguent toutes à la plus
+                // récente, une seule exécution par requête.
                 view.setCompletionProvider(new EditorView.CompletionProvider() {
                     @Override
                     public java.util.List<jo.codeeditor.completion.CompletionSession.Item> provide(
                             String text, int caret, int tokenStart, String prefix) {
-                        return provide(text, caret, tokenStart, prefix, null);
+                        return provideResult(text, caret, tokenStart, prefix, null).items;
                     }
 
                     @Override
                     public java.util.List<jo.codeeditor.completion.CompletionSession.Item> provide(
                             String text, int caret, int tokenStart, String prefix,
                             Character triggerCharacter) {
+                        return provideResult(text, caret, tokenStart, prefix,
+                                triggerCharacter).items;
+                    }
+
+                    @Override
+                    public jo.codeeditor.view.CompletionResult provideResult(
+                            String text, int caret, int tokenStart, String prefix,
+                            Character triggerCharacter) {
                         java.util.List<jo.codeeditor.completion.CompletionSession.Item> items =
                             new java.util.ArrayList<>();
-                        jo.codeeditor.lang.provider.CompletionPublisher pub =
+                        CompletionPublisherAdapter pub =
                             new CompletionPublisherAdapter(items);
                         spiComp.complete(text, caret,
                             triggerCharacter != null ? triggerCharacter.toString() : null, pub);
-                        return items;
+                        return new jo.codeeditor.view.CompletionResult(
+                                items, pub.isIncomplete());
                     }
                 });
             } else {
@@ -697,6 +711,9 @@ final class EditorLanguageBridge {
     private static class CompletionPublisherAdapter implements jo.codeeditor.lang.provider.CompletionPublisher {
         private final java.util.List<jo.codeeditor.completion.CompletionSession.Item> items;
         private boolean cancelled = false;
+        /** Drapeau « liste tronquée » posé par le fournisseur SPI via
+         *  setIncomplete — transporté jusqu'au résultat de la vue. */
+        private boolean incomplete = false;
 
         CompletionPublisherAdapter(java.util.List<jo.codeeditor.completion.CompletionSession.Item> items) {
             this.items = items;
@@ -756,5 +773,12 @@ final class EditorLanguageBridge {
 
         @Override
         public boolean isCancelled() { return cancelled; }
+
+        /** Le fournisseur signale une liste tronquée — mémorisé pour le
+         *  résultat renvoyé au popup. */
+        @Override
+        public void setIncomplete(boolean incomplete) { this.incomplete = incomplete; }
+
+        boolean isIncomplete() { return incomplete; }
     }
 }

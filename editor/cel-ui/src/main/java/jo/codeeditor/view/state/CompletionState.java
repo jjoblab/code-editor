@@ -66,6 +66,13 @@ public final class CompletionState {
     public List<jo.codeeditor.completion.CompletionSession.Item> baseItems = new ArrayList<>();
     /** Token du cache de base, -1 si invalide. */
     public int baseTokenStart = -1;
+    /**
+     * La base du token courant a été signalée TRONQUÉE par le
+     * fournisseur (backend qui plafonne ses réponses) : le filtrage
+     * local travaille sur une liste partielle. Faux (défaut) = base
+     * réputée complète, filtrage local pur.
+     */
+    public boolean baseIncomplete = false;
 
     /**
      * Remplacement complet du jeu affiché (voie
@@ -118,6 +125,7 @@ public final class CompletionState {
         items.clear();
         baseItems.clear();
         baseTokenStart = -1;
+        baseIncomplete = false;
     }
 
     /**

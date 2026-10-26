@@ -392,10 +392,17 @@ public class EditorCompletionPopup {
 
         jo.codeeditor.view.EditorTaskLanes.submitCompletion(() -> {
             java.util.List<jo.codeeditor.completion.CompletionSession.Item> result = null;
+            // Drapeau « liste tronquée » du fournisseur : la base livrée
+            // est partielle, le filtrage local ne pourra pas faire
+            // réapparaître un candidat écarté par le plafond du backend.
+            boolean resultIncomplete = false;
             try {
                 if (provider != null) {
-                    result = provider.provide(snapText, snapCaret, safeTokenStart, prefix,
-                            triggerCharacter);
+                    jo.codeeditor.view.CompletionResult completionResult =
+                            provider.provideResult(snapText, snapCaret, safeTokenStart,
+                                    prefix, triggerCharacter);
+                    result = completionResult != null ? completionResult.items : null;
+                    resultIncomplete = completionResult != null && completionResult.isIncomplete;
                 } else {
                     result = builtinKeywordCompletions(langName, prefix);
                 }
@@ -406,6 +413,7 @@ public class EditorCompletionPopup {
             }
             final java.util.List<jo.codeeditor.completion.CompletionSession.Item> fetched =
                     result != null ? result : java.util.Collections.emptyList();
+            final boolean baseIncomplete = resultIncomplete;
 
             Runnable deliver = () -> {
                 fetchInFlight = false;
@@ -425,6 +433,7 @@ public class EditorCompletionPopup {
                 if (fetched.isEmpty()) {
                     view.completion.baseItems.clear();
                     view.completion.baseTokenStart = safeTokenStart;
+                    view.completion.baseIncomplete = baseIncomplete;
                     if (view.completion.visible) dismissCompletionSoft();
                     return;
                 }
@@ -432,6 +441,7 @@ public class EditorCompletionPopup {
                 // fraîche devient la référence du token courant.
                 view.completion.baseItems = new ArrayList<>(fetched);
                 view.completion.baseTokenStart = safeTokenStart;
+                view.completion.baseIncomplete = baseIncomplete;
                 applyFilteredItems(filterCompletionItems(fetched, curPrefix),
                         safeTokenStart, curPrefix);
             };
