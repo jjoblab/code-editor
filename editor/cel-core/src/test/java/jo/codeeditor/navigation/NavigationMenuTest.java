@@ -150,21 +150,32 @@ class NavigationMenuTest {
 
     @Test
     void isCamelHumpSubsequence_skipsNonMatching() {
-        // Règle de correspondance : l'algo exige pi==0 OU isWordStart OU
-        // !prevMatched. "AL" correspond à "ArrayList" — A à 0 (pi==0),
-        // S à 5 (début de mot, majuscule). En revanche, un caractère qui
-        // suit directement une majuscule appariée (prevMatched=true) et
-        // qui n'est pas un début de mot ne peut pas être apparié.
+        // Règle de correspondance : le premier caractère du préfixe
+        // correspond à toute position, les suivants à des débuts de mot
+        // (majuscule ou après _ / . / : / / / @ / espace) ou en run
+        // contigu. "AL" correspond à "ArrayList" — A à 0 (premier
+        // caractère), L à 5 (début de mot, majuscule).
         assertTrue(NavigationMenu.isCamelHumpSubsequence("ArrayList", "AL"));
     }
 
     @Test
-    void isCamelHumpSubsequence_strictContiguousDoesNotMatch() {
-        // "get" ne correspond PAS à "getString" via camel-hump — l'algo
-        // exige des débuts de mot ou des correspondances non contiguës après
-        // le premier caractère. La méthode filter rattrape ce cas via
-        // startsWith.
-        assertFalse(NavigationMenu.isCamelHumpSubsequence("getString", "get"));
+    void isCamelHumpSubsequence_runContiguMatche() {
+        // ★ 4.3.0 : la définition canonique (documentée par la Javadoc
+        // depuis l'origine, appliquée enfin par le code unifié) inclut
+        // les runs contigus — "get" correspond à "getString" (g à 0,
+        // e à 1, t à 2 : run contigu depuis le premier caractère), au
+        // même titre que "gS" (camel hump). L'ancien code rejetait ce
+        // cas en contradiction avec sa propre Javadoc.
+        assertTrue(NavigationMenu.isCamelHumpSubsequence("getString", "get"));
+        // Un run contigu peut aussi démarrer en milieu de mot (premier
+        // caractère du préfixe à toute position) : "etS" sur
+        // "getString" — e à 1, t à 2 (contigu), S à 3 (début de mot).
+        assertTrue(NavigationMenu.isCamelHumpSubsequence("getString", "etS"));
+        // Toujours pas de sous-séquence quelconque : "gtr" exigerait le
+        // 'r' en début de mot ou contigu après le 't' de "get" — le 'r'
+        // de "Str" suit un 't' non apparié au rang attendu... et aucun
+        // autre 'r' ne convient mieux.
+        assertFalse(NavigationMenu.isCamelHumpSubsequence("getString", "gtr"));
     }
 
     @Test

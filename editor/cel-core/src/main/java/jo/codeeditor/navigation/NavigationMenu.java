@@ -140,37 +140,20 @@ public final class NavigationMenu {
      * caractère de {@code label}, dans l'ordre, chaque correspondance étant :
      * <ul>
      *   <li>Le premier caractère du préfixe (à toute position du libellé),</li>
-     *   <li>Une position de début de mot (majuscule ou après _ / . / espace),</li>
+     *   <li>Une position de début de mot (majuscule ou après _ / . / :
+     *       / / @ / espace),</li>
      *   <li>Ou immédiatement après le caractère correspondant précédent
      *       (run contigu).</li>
      * </ul>
      * Ainsi "gS" (camel-hump) et "get" (préfixe contigu) correspondent tous
-     * deux à "getString". L'algorithme est identique à
-     * {@link jo.codeeditor.completion.CompletionSession#isCamelHumpSubsequence}.
+     * deux à "getString". ★ 4.3.0 : la vérification est unifiée dans
+     * {@link jo.codeeditor.completion.CompletionMatcher#camelHumpSubsequence(String, String)}
+     * — cette méthode est le relais public historique (le code et la
+     * Javadoc se contredisaient sur les runs contigus : la définition
+     * canonique documentée ici fait foi, le code l'applique enfin).
      */
     public static boolean isCamelHumpSubsequence(String label, String prefix) {
-        if (prefix == null || prefix.isEmpty()) return true;
-        if (label == null || label.isEmpty()) return false;
-        int pi = 0;
-        boolean prevMatched = false;
-        for (int li = 0; li < label.length() && pi < prefix.length(); li++) {
-            char lc = label.charAt(li);
-            char pc = prefix.charAt(pi);
-            if (Character.toLowerCase(lc) == Character.toLowerCase(pc)) {
-                boolean isWordStart = Character.isUpperCase(lc)
-                    || li == 0
-                    || (li > 0 && (label.charAt(li - 1) == '_'
-                        || label.charAt(li - 1) == '.'
-                        || Character.isWhitespace(label.charAt(li - 1))));
-                if (pi == 0 || isWordStart || !prevMatched) {
-                    pi++;
-                    prevMatched = true;
-                    continue;
-                }
-            }
-            prevMatched = false;
-        }
-        return pi == prefix.length();
+        return jo.codeeditor.completion.CompletionMatcher.camelHumpSubsequence(label, prefix);
     }
 
     // ── État ───────────────────────────────────────────────────────

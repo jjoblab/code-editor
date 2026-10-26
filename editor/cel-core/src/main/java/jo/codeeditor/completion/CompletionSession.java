@@ -8,6 +8,13 @@ import java.util.*;
  * restreindre localement quand l'utilisateur continue à taper dans
  * le même token.
  * Session de complétion : filtrage local + ranking par genre.
+ *
+ * <p>★ 4.3.0 : l'appariement (paliers, camel humps, positions de
+ * surbrillance) est unifié dans {@link CompletionMatcher} — les
+ * méthodes de cette classe délègent ; seuls {@link #filtered} et son
+ * classement par score historiques restent propres à la session (ils
+ * ne servent plus en production, le classement du popup vit dans son
+ * filtre local sur les paliers/groupes du matcher).</p>
  */
 public class CompletionSession {
 
@@ -130,11 +137,26 @@ public class CompletionSession {
     /** Indique si la liste de base a été tronquée par le backend. */
     public final boolean isIncomplete;
 
-    /** Paliers de classement pour la qualité de correspondance. */
+    /** Paliers de classement pour la qualité de correspondance.
+     * @deprecated Échelle historique à 5 valeurs remplacée par
+     *             l'échelle à 6 niveaux de {@link CompletionMatcher}
+     *             ({@code TIER_EXACT / TIER_EXACT_CI / TIER_PREFIX /
+     *             TIER_PREFIX_CI / TIER_CAMEL_HUMP / TIER_SUBSEQUENCE /
+     *             TIER_NONE}) — les valeurs numériques DIFFÈRENT.
+     */
+    @Deprecated
     public static final int TIER_EXACT = 0;
+    /** @deprecated Voir {@link #TIER_EXACT}. */
+    @Deprecated
     public static final int TIER_PREFIX = 1;
+    /** @deprecated Voir {@link #TIER_EXACT}. */
+    @Deprecated
     public static final int TIER_CAMEL_HUMP = 2;
+    /** @deprecated Voir {@link #TIER_EXACT}. */
+    @Deprecated
     public static final int TIER_SUBSEQUENCE = 3;
+    /** @deprecated Voir {@link #TIER_EXACT}. */
+    @Deprecated
     public static final int TIER_NONE = 4;
 
     public CompletionSession(int tokenStart, List<Item> base, boolean canFilterLocally, boolean isIncomplete) {
@@ -151,7 +173,12 @@ public class CompletionSession {
      *
      * @param prefix le texte tapé par l'utilisateur jusqu'ici
      * @return liste filtrée et re-classée
+     * @deprecated Le classement de production vit dans le filtre local
+     *             du popup (paliers + groupes de
+     *             {@link CompletionMatcher}) ; cette méthode et son
+     *             classement par score historique ne servent plus.
      */
+    @Deprecated
     public List<Item> filtered(String prefix) {
         if (prefix == null || prefix.isEmpty()) {
             return reRanked(base);
@@ -172,19 +199,12 @@ public class CompletionSession {
      * posé) sert de repli : un candidat dont le label ne matche pas
      * mais dont le texte de filtrage matche reste visible (LSP 3.17 —
      * champ {@code filterText}).
+     *
+     * <p>★ 4.3.0 : délègue à {@link CompletionMatcher#matches} (échelle
+     * à 6 niveaux, identifiant de tête, camel humps canoniques).</p>
      */
     private boolean matchesFilter(String label, String prefix) {
-        if (label == null || label.isEmpty()) return false;
-        String lowerLabel = label.toLowerCase(java.util.Locale.ROOT);
-        String lowerPrefix = prefix.toLowerCase(java.util.Locale.ROOT);
-
-        // Exact
-        if (lowerLabel.equals(lowerPrefix)) return true;
-        // Préfixe
-        if (lowerLabel.startsWith(lowerPrefix)) return true;
-        // Sous-séquence camel-hump
-        if (isCamelHumpSubsequence(label, prefix)) return true;
-        return false;
+        return CompletionMatcher.tier(label, null, prefix) != CompletionMatcher.TIER_NONE;
     }
 
     /**
@@ -252,42 +272,17 @@ public class CompletionSession {
      * Correspondance de sous-séquence camel-hump renvoyant les positions.
      * Pour "getString" avec le préfixe "gS", renvoie les positions [0, 3].
      *
+     * <p>★ 4.3.0 : délègue à {@link CompletionMatcher#matchPositionsForItem}
+     * — le texte de référence est l'identifiant de tête du libellé (la
+     * signature ne participe jamais), les positions sont celles qui ont
+     * fait matcher.</p>
+     *
      * @param label  le libellé de complétion
      * @param prefix le préfixe tapé
      * @return liste des positions de correspondance dans label, ou vide si aucune
      */
     public static List<Integer> matchPositions(String label, String prefix) {
-        if (prefix == null || prefix.isEmpty()) {
-            List<Integer> result = new ArrayList<>();
-            for (int i = 0; i < label.length(); i++) result.add(i);
-            return result;
-        }
-        if (label == null || label.isEmpty()) return Collections.emptyList();
-
-        String lowerLabel = label.toLowerCase(java.util.Locale.ROOT);
-        String lowerPrefix = prefix.toLowerCase(java.util.Locale.ROOT);
-
-        List<Integer> positions = new ArrayList<>();
-        int pi = 0;
-
-        for (int li = 0; li < label.length() && pi < prefix.length(); li++) {
-            char lc = lowerLabel.charAt(li);
-            char pc = lowerPrefix.charAt(pi);
-
-            if (lc == pc) {
-                // Privilégie les correspondances majuscules (camel-hump)
-                if (Character.isUpperCase(label.charAt(li)) || pi == 0 || positions.isEmpty()) {
-                    positions.add(li);
-                    pi++;
-                } else {
-                    // Vérifie si cela peut être une correspondance de sous-séquence valide
-                    positions.add(li);
-                    pi++;
-                }
-            }
-        }
-
-        return pi == prefix.length() ? positions : Collections.emptyList();
+        return CompletionMatcher.matchPositionsForItem(label, null, prefix);
     }
 
     /**
@@ -296,59 +291,26 @@ public class CompletionSession {
      * @param label  le libellé de complétion
      * @param prefix le préfixe tapé
      * @return constante de palier
+     * @deprecated Délègue à {@link CompletionMatcher#tier(String, String)}
+     *             et retourne l'échelle à 6 niveaux (les anciennes
+     *             constantes {@code TIER_*} de cette classe n'ont plus
+     *             les bonnes valeurs).
      */
+    @Deprecated
     public static int matchTier(String label, String prefix) {
-        if (prefix == null || prefix.isEmpty()) return TIER_EXACT;
-        if (label == null || label.isEmpty()) return TIER_NONE;
-
-        String lowerLabel = label.toLowerCase(java.util.Locale.ROOT);
-        String lowerPrefix = prefix.toLowerCase(java.util.Locale.ROOT);
-
-        if (lowerLabel.equals(lowerPrefix)) return TIER_EXACT;
-        if (lowerLabel.startsWith(lowerPrefix)) return TIER_PREFIX;
-
-        // Vérifie camel-hump : chaque caractère du préfixe correspond à une majuscule ou à un début de mot
-        if (isCamelHumpSubsequence(label, prefix)) return TIER_CAMEL_HUMP;
-
-        // Sous-séquence simple
-        int pi = 0;
-        for (int li = 0; li < label.length() && pi < prefix.length(); li++) {
-            if (Character.toLowerCase(label.charAt(li)) == Character.toLowerCase(prefix.charAt(pi))) {
-                pi++;
-            }
-        }
-        if (pi == prefix.length()) return TIER_SUBSEQUENCE;
-
-        return TIER_NONE;
+        return CompletionMatcher.tier(label, prefix);
     }
 
     /**
      * Vérification de sous-séquence camel-hump : chaque caractère du
      * préfixe correspond soit à une majuscule du libellé, soit au début
      * d'un mot.
+     *
+     * <p>★ 4.3.0 : délègue à la définition canonique de
+     * {@link CompletionMatcher#camelHumpSubsequence(String, String)}.</p>
      */
     static boolean isCamelHumpSubsequence(String label, String prefix) {
-        if (prefix.isEmpty()) return true;
-        int pi = 0;
-        boolean prevMatched = false;
-
-        for (int li = 0; li < label.length() && pi < prefix.length(); li++) {
-            char lc = label.charAt(li);
-            char pc = prefix.charAt(pi);
-
-            // Correspondance directe (insensible à la casse)
-            if (Character.toLowerCase(lc) == Character.toLowerCase(pc)) {
-                // Privilégie les correspondances en début de mot (majuscule ou après un underscore)
-                boolean isWordStart = Character.isUpperCase(lc) || (li > 0 && label.charAt(li - 1) == '_');
-                if (pi == 0 || isWordStart || !prevMatched) {
-                    pi++;
-                    prevMatched = true;
-                    continue;
-                }
-            }
-            prevMatched = false;
-        }
-        return pi == prefix.length();
+        return CompletionMatcher.camelHumpSubsequence(label, prefix);
     }
 
     @Override

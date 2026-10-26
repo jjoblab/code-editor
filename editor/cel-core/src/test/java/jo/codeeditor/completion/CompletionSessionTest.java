@@ -103,29 +103,66 @@ class CompletionSessionTest {
 
     @Test
     void matchTier_exact() {
-        assertEquals(CompletionSession.TIER_EXACT, CompletionSession.matchTier("hello", "hello"));
-        assertEquals(CompletionSession.TIER_EXACT, CompletionSession.matchTier("Hello", "hello"));
+        // ★ 4.3.0 : matchTier délègue au matcher unifié et retourne
+        // l'échelle à 6 niveaux — l'exact à la casse près est désormais
+        // DISTINGUÉ de l'exact strict.
+        assertEquals(CompletionMatcher.TIER_EXACT,
+                CompletionSession.matchTier("hello", "hello"));
+        assertEquals(CompletionMatcher.TIER_EXACT_CI,
+                CompletionSession.matchTier("Hello", "hello"));
     }
 
     @Test
     void matchTier_prefix() {
-        assertEquals(CompletionSession.TIER_PREFIX, CompletionSession.matchTier("getString", "get"));
+        assertEquals(CompletionMatcher.TIER_PREFIX,
+                CompletionSession.matchTier("getString", "get"));
+        assertEquals(CompletionMatcher.TIER_PREFIX_CI,
+                CompletionSession.matchTier("GetString", "get"));
+        // L'identifiant de tête fait foi : « Text() » est EXACT pour
+        // « Text » tapé (le libellé entier ne l'était pas).
+        assertEquals(CompletionMatcher.TIER_EXACT,
+                CompletionSession.matchTier("Text()", "Text"));
     }
 
     @Test
     void matchTier_camelHump() {
         int tier = CompletionSession.matchTier("getString", "gS");
-        assertTrue(tier <= CompletionSession.TIER_CAMEL_HUMP);
+        assertEquals(CompletionMatcher.TIER_CAMEL_HUMP, tier);
+        // Les runs contigus comptent comme humps canoniques.
+        assertEquals(CompletionMatcher.TIER_PREFIX,
+                CompletionSession.matchTier("getString", "get"));
+        // Les initiales de mots passent devant les sous-séquences
+        // quelconques : « LLM » est un hump sur « LazyListModifier »…
+        assertEquals(CompletionMatcher.TIER_CAMEL_HUMP,
+                CompletionMatcher.tier("LazyListModifier", "LLM"));
+        // … mais une simple sous-séquence sur « parallelStream ».
+        assertEquals(CompletionMatcher.TIER_SUBSEQUENCE,
+                CompletionMatcher.tier("parallelStream", "LLM"));
     }
 
     @Test
     void matchTier_none() {
-        assertEquals(CompletionSession.TIER_NONE, CompletionSession.matchTier("hello", "xyz"));
+        assertEquals(CompletionMatcher.TIER_NONE,
+                CompletionSession.matchTier("hello", "xyz"));
     }
 
     @Test
     void matchTier_emptyPrefix_returnsExact() {
-        assertEquals(CompletionSession.TIER_EXACT, CompletionSession.matchTier("anything", ""));
+        assertEquals(CompletionMatcher.TIER_EXACT,
+                CompletionSession.matchTier("anything", ""));
+    }
+
+    @Test
+    void matchTier_filterTextRepli() {
+        // Le filterText du fournisseur sert de repli — et peut améliorer
+        // le palier du libellé (exact du texte de filtrage contre
+        // préfixe insensible du libellé).
+        assertEquals(CompletionMatcher.TIER_PREFIX,
+                CompletionMatcher.tier("toString()", "tostring", "tost"));
+        assertEquals(CompletionMatcher.TIER_EXACT,
+                CompletionMatcher.tier("toString()", "tostr", "tostr"));
+        assertEquals(CompletionMatcher.TIER_NONE,
+                CompletionMatcher.tier("toString()", null, "xyz"));
     }
 
     @Test
