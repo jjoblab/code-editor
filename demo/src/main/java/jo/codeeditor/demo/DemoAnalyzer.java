@@ -44,6 +44,12 @@ import jo.codeeditor.view.EditorView;
  * plafonnée à {@link #TRUNCATED_CAP} candidats et marquée
  * « liste incomplète » — sans serveur, la vitrine du drapeau que le
  * popup honore en re-requêtant à chaque édition du préfixe.</p>
+ *
+ * <p>Banc de modificateurs sémantiques (4.4.0) : armé par
+ * {@link #applySemanticBench(boolean)}, les trois identifiants les plus
+ * fréquents du fichier sont marqués déprécié/statique/abstrait par
+ * injection directe de jetons — sans serveur, la vitrine du rendu
+ * barré/gras/italique du client.</p>
  */
 final class DemoAnalyzer {
 
@@ -54,6 +60,21 @@ final class DemoAnalyzer {
     /** Plafond de la base de complétion quand la troncature simulée
      *  est armée — assez bas pour écarter des candidats visibles. */
     static final int TRUNCATED_CAP = 8;
+
+    /** Nombre d'identifiants marqués par le banc sémantique. */
+    static final int SEMANTIC_BENCH_WORDS = 3;
+
+    /** Documentations de démonstration (4.4.0) : le panneau du popup de
+     *  complétion les affiche sous la liste sur vue suffisamment large. */
+    private static final java.util.Map<String, String> DOC_DÉMO = java.util.Map.of(
+            "println", "Affiche la représentation textuelle de l'argument puis saute de ligne. "
+                    + "@param valeur l'élément à afficher @return rien",
+            "format", "Compose une chaîne selon le format et les arguments donnés. "
+                    + "@param format le gabarit, avec %s pour chaque argument "
+                    + "@return la chaîne composée",
+            "substring", "Extrait la sous-chaîne entre les deux bornes données. "
+                    + "@param début borne incluse @param fin borne exclue "
+                    + "@return la sous-chaîne @throws IndexOutOfBounds si hors bornes");
 
     private static final Pattern DECL_TYPE =
             Pattern.compile("\\b(class|interface|object|record|struct|enum)\\s+([A-Za-z_]\\w*)");
@@ -373,8 +394,13 @@ final class DemoAnalyzer {
         String[] fonctions = {"println", "print", "format", "substring", "toUpperCase",
                 "trim", "length", "size", "append", "join"};
         for (String f : fonctions) {
+            // 4.4.0 : les premières fonctions portent une documentation —
+            // le panneau du popup l'affiche sous la liste.
+            String doc = DOC_DÉMO.get(f);
             out.add(new CompletionSession.Item(f, "fonction de démo", f + "()", null,
-                    3, 55, false, false));
+                    3, 55, false, false,
+                    null, null, null, -1, -1, null,
+                    null, doc));
         }
         String[] types = {"String", "Integer", "List", "Map", "Math", "System", "Runnable"};
         for (String t : types) {
@@ -415,6 +441,68 @@ final class DemoAnalyzer {
             insertAt = lineEnd < 0 ? text.length() : lineEnd + 1;
         }
         session.replaceRange(insertAt, insertAt, importLine + "\n");
+    }
+
+    // ── Banc de modificateurs sémantiques (4.4.0) ──────────────────
+
+    /**
+     * Arme (ou désarme) le banc sur la session de CET onglet : les
+     * {@link #SEMANTIC_BENCH_WORDS} identifiants les plus fréquents du
+     * fichier sont marqués par injection directe de jetons sémantiques —
+     * la même voie que le client LSP, sans serveur.
+     */
+    void applySemanticBench(boolean on) {
+        if (on) {
+            session.setSemanticTokens(semanticBenchTokens(session.getText()));
+        } else {
+            session.setSemanticTokens(new ArrayList<>());
+        }
+    }
+
+    /**
+     * Jetons du banc (pure, testable) : les trois identifiants les plus
+     * fréquents du texte — le 1ᵉʳ marqué déprécié (barré), le 2ᵉ
+     * statique (gras), le 3ᵉ abstrait (italique). Chaque occurrence
+     * ENTIÈRE porte le modificateur de son mot (frontières
+     * identifiant, collecte via {@code WordOccurrences}).
+     */
+    static List<DiagnosticShift.SemanticToken> semanticBenchTokens(String text) {
+        // 1. Fréquences des identifiants — l'ordre de première rencontre
+        //    départage les égalités (tri stable ensuite).
+        java.util.LinkedHashMap<String, Integer> fréquences = new java.util.LinkedHashMap<>();
+        int i = 0;
+        while (i < text.length()) {
+            if (!Character.isJavaIdentifierStart(text.charAt(i))) {
+                i++;
+                continue;
+            }
+            int start = i;
+            while (i < text.length() && Character.isJavaIdentifierPart(text.charAt(i))) i++;
+            String mot = text.substring(start, i);
+            if (!Character.isDigit(mot.charAt(0))) {
+                fréquences.merge(mot, 1, Integer::sum);
+            }
+        }
+        // 2. Les trois plus fréquents.
+        List<String> top = new ArrayList<>();
+        fréquences.entrySet().stream()
+                .sorted((a, b) -> Integer.compare(b.getValue(), a.getValue()))
+                .limit(SEMANTIC_BENCH_WORDS)
+                .forEach(e -> top.add(e.getKey()));
+        // 3. Un jeton par occurrence entière, modificateur par rang.
+        int[] modificateurs = {
+                DiagnosticShift.SemanticToken.MOD_DEPRECATED,
+                DiagnosticShift.SemanticToken.MOD_STATIC,
+                DiagnosticShift.SemanticToken.MOD_ABSTRACT};
+        List<DiagnosticShift.SemanticToken> tokens = new ArrayList<>();
+        for (int rang = 0; rang < top.size(); rang++) {
+            String mot = top.get(rang);
+            for (jo.codeeditor.find.Match m : jo.codeeditor.find.WordOccurrences.findAll(text, mot)) {
+                tokens.add(new DiagnosticShift.SemanticToken(
+                        m.start, m.length(), 7, modificateurs[rang]));
+            }
+        }
+        return tokens;
     }
 
     // ── Aide de signature ─────────────────────────────────────────

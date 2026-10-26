@@ -94,6 +94,31 @@
         </menu>
     </item>
 
+    <!-- 4.4.0 : occurrences du mot courant + banc de modificateurs sémantiques -->
+    <item
+        android:id="@+id/action_word_occurrences"
+        android:title="@string/menu_word_occurrences"
+        app:showAsAction="never">
+        <menu>
+            <item android:id="@+id/word_occurrences_on"
+                android:title="@string/word_occurrences_on" />
+            <item android:id="@+id/word_occurrences_off"
+                android:title="@string/word_occurrences_off" />
+        </menu>
+    </item>
+
+    <item
+        android:id="@+id/action_semantic_bench"
+        android:title="@string/menu_semantic_bench"
+        app:showAsAction="never">
+        <menu>
+            <item android:id="@+id/semantic_bench_on"
+                android:title="@string/semantic_bench_on" />
+            <item android:id="@+id/semantic_bench_off"
+                android:title="@string/semantic_bench_off" />
+        </menu>
+    </item>
+
     <!-- Options « vue » : sous-menus -->
     <item
         android:id="@+id/action_line_numbers"

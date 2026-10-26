@@ -176,6 +176,16 @@
     <string name="completion_truncated_disarmed">Base complète restaurée : une seule requête par mot tapé, filtrage local ensuite</string>
     <string name="completion_debounce_set">Anti-rebond de complétion : %1$d ms</string>
 
+    <!-- 4.4.0 : occurrences du mot courant + banc de modificateurs sémantiques -->
+    <string name="menu_word_occurrences">Occurrences du mot courant</string>
+    <string name="word_occurrences_on">Surbrillance activée (défaut)</string>
+    <string name="word_occurrences_off">Surbrillance désactivée</string>
+    <string name="menu_semantic_bench">Banc sémantique (modificateurs)</string>
+    <string name="semantic_bench_on">Marquer les identifiants fréquents (barré / gras / italique)</string>
+    <string name="semantic_bench_off">Retirer les marques</string>
+    <string name="semantic_bench_armed">Banc sémantique armé : les trois identifiants les plus fréquents de chaque onglet sont marqués — déprécié barré, statique gras, abstrait italique (teintes réglables dans le scheme)</string>
+    <string name="semantic_bench_disarmed">Marques sémantiques retirées de tous les onglets</string>
+
     <!-- B11/B26 : bande d'erreurs + sélecteur de couleur au code hex -->
     <string name="menu_error_stripe">Bande d\u2019erreurs</string>
     <string name="error_stripe_on">Activée (défaut)</string>

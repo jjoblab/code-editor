@@ -117,6 +117,8 @@ public class EditorActivity extends AppCompatActivity {
     private boolean lspIntent;
     /** Simulation de listes tronquées armée ? (moteur maison, tous onglets) */
     private boolean truncatedSimulation;
+    /** 4.4.0 — banc de modificateurs sémantiques armé sur les onglets. */
+    private boolean semanticBench;
     /** Extinction LSP MANUELLE de la session : la préférence « LSP
      *  automatique » n'insiste plus jusqu'au prochain changement de la
      *  préférence (dernier mot de l'utilisateur). */
@@ -350,6 +352,11 @@ public class EditorActivity extends AppCompatActivity {
         // Journal ; l'état de simulation courant s'applique aussitôt.
         analyzer.setLogger(line -> panels.appendLog(line));
         analyzer.setIncompleteSimulation(truncatedSimulation);
+        // 4.4.0 : le banc sémantique arme aussi les onglets OUVERTS APRÈS
+        // sa bascule (miroir de la simulation de troncature).
+        if (semanticBench) {
+            analyzer.applySemanticBench(true);
+        }
         files.add(new OpenFile(label, id, editorLanguageId, newSession, analyzer));
         selectFile(files.size() - 1);
     }
@@ -994,6 +1001,24 @@ public class EditorActivity extends AppCompatActivity {
             applyCompletionDebounce(500);
             return true;
         }
+        // 4.4.0 — occurrences du mot sous le caret.
+        if (id == R.id.word_occurrences_on) {
+            applyWordOccurrences(true);
+            return true;
+        }
+        if (id == R.id.word_occurrences_off) {
+            applyWordOccurrences(false);
+            return true;
+        }
+        // 4.4.0 — banc de modificateurs sémantiques (barré/gras/italique).
+        if (id == R.id.semantic_bench_on) {
+            applySemanticBench(true);
+            return true;
+        }
+        if (id == R.id.semantic_bench_off) {
+            applySemanticBench(false);
+            return true;
+        }
         return false;
     }
 
@@ -1025,6 +1050,33 @@ public class EditorActivity extends AppCompatActivity {
         editor.setCompletionDebounceMs(ms);
         Toast.makeText(this, getString(R.string.completion_debounce_set, ms),
                 Toast.LENGTH_SHORT).show();
+    }
+
+    /** 4.4.0 — bascule la surbrillance des occurrences du mot courant. */
+    void applyWordOccurrences(boolean enabled) {
+        editor.setWordOccurrencesEnabled(enabled);
+    }
+
+    /**
+     * 4.4.0 — arme (ou désarme) le banc de modificateurs sémantiques sur
+     * TOUS les onglets ouverts (et les suivants) : les trois
+     * identifiants les plus fréquents de chaque fichier sont marqués —
+     * déprécié barré, statique gras, abstrait italique — la même voie
+     * de rendu que le client LSP, sans serveur.
+     */
+    void applySemanticBench(boolean on) {
+        semanticBench = on;
+        for (OpenFile file : files) {
+            file.analyzer.applySemanticBench(on);
+        }
+        panels.appendLog(getString(on
+                ? R.string.semantic_bench_armed
+                : R.string.semantic_bench_disarmed));
+    }
+
+    /** L'état courant du banc sémantique. */
+    boolean isSemanticBench() {
+        return semanticBench;
     }
 
     /** B11 — montre (ou cache) la bande d'erreurs du bord droit. */
