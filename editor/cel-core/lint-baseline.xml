@@ -71,4 +71,16 @@
             line="29"
             column="9"/>
     </issue>
+    <!-- gson 2.14.0 retenue — la 2.15.0 (publiée le 2026-10-24) n'a PAS
+         été validée par les bancs du dépôt ; épinglage délibéré, miroir
+         des entrées lsp4j/appcompat ci-dessus (le pin suit le rythme des
+         montées ASSUMÉES, jamais celui de Maven Central). -->
+    <issue
+        id="NewerVersionAvailable"
+        message="A newer version of com.google.code.gson:gson than 2.14.0 is available: 2.15.0">
+        <location
+            file="../../gradle/libs.versions.toml"
+            line="15"
+            column="9"/>
+    </issue>
 </issues>
