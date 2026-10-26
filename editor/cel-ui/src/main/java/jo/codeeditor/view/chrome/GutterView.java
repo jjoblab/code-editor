@@ -105,6 +105,15 @@ public class GutterView {
     /** ★ B27 : rangée de l'œil GELÉ (carte « goutte d'eau » ouverte) —
      *  −1 = suit le caret (reposé à chaque frame par le pipeline). */
     private int previewActionLine = -1;
+    /** ★ B28 : rangées d'ANCRE des yeux d'aperçu (UNE PAR `@Preview`,
+     *  façon Android Studio — le picker de la référence ancre son
+     *  marqueur sur la ligne de l'annotation, jamais sur le caret).
+     *  `null` = MODE HISTORIQUE (œil unique du caret/gelé B27 — les
+     *  hôtes qui ne posent pas d'ancres gardent le comportement au bit
+     *  près) ; VIDE = AUCUN œil (fichier sans `@Preview` — parité
+     *  exacte avec la référence : aucune icône sans sujet) ; sinon UN
+     *  œil par rangée ancre (trié, dédupliqué — posé par EditorView). */
+    private int[] previewAnchorLines = null;
     /** Peinture dédiée de l'icône (couleur posée par frame — prêtée à
      * EditorIcons.draw qui gère style/épaisseur). */
     private final Paint previewIconPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -141,6 +150,26 @@ public class GutterView {
      */
     public void setPreviewActionLine(int line) {
         this.previewActionLine = line;
+    }
+
+    /**
+     * ★ B28 — pose les rangées d'ANCRE des yeux d'aperçu (une par
+     * `@Preview`, façon Android Studio). {@code null} : MODE HISTORIQUE
+     * (œil unique du caret/gelé — comportement B27 au bit près) ;
+     * liste VIDE : AUCUN œil (fichier sans `@Preview`) ; sinon UN œil
+     * par rangée. Le mode ancré PREND LE PAS sur l'œil du caret : tant
+     * que des ancres sont posées, l'œil historique ne se dessine PAS
+     * (l'icône vit aux lignes qui ONT une preview, jamais ailleurs).
+     *
+     * @param lines rangées 0-based triées/dédupliquées, ou null
+     */
+    public void setPreviewAnchors(int[] lines) {
+        this.previewAnchorLines = lines;
+    }
+
+    /** ★ B28 — les rangées d'ancre courantes (null = mode historique). */
+    public int[] getPreviewAnchors() {
+        return previewAnchorLines;
     }
 
     /**
@@ -479,7 +508,17 @@ public class GutterView {
         // ★ B27 : œil GELÉ — quand la carte « goutte d'eau » vit, l'œil
         // reste posé sur la rangée d'ANCRE (il ne suit plus le caret).
         int eyeLine = previewActionLine >= 0 ? previewActionLine : currentLine;
-        if (previewActionVisible && lineIdx == eyeLine
+        // ★ B28 : MODE ANCRÉ — un œil par rangée @Preview (l'œil du caret
+        // ne se dessine plus : l'icône vit là où une preview EXISTE).
+        // Même pill, même priorité face aux actions de l'hôte (une
+        // action hôte posée sur une rangée ancre garde SA pill).
+        if (previewAnchorLines != null) {
+            if (previewActionVisible && anchoreDans(lineIdx)
+                    && (hostActions == null || hostActions.actionForLine(lineIdx) == null)) {
+                drawActionPill(canvas, y, lineHeight, EditorIcons.Icon.EYE,
+                        previewActionActive);
+            }
+        } else if (previewActionVisible && lineIdx == eyeLine
                 && (hostActions == null || hostActions.actionForLine(lineIdx) == null)) {
             drawActionPill(canvas, y, lineHeight, EditorIcons.Icon.EYE,
                     previewActionActive);
@@ -497,6 +536,18 @@ public class GutterView {
                         hostAction.isActive());
             }
         }
+    }
+
+    /**
+     * ★ B28 — vrai si la rangée [line] porte une ancre d'œil d'aperçu
+     * (balayage linéaire — les listes d'ancres sont courtes : une par
+     * `@Preview` du document).
+     */
+    private boolean anchoreDans(int line) {
+        for (int anchor : previewAnchorLines) {
+            if (anchor == line) return true;
+        }
+        return false;
     }
 
     /**

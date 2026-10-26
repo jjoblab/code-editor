@@ -7,6 +7,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Les sections antérieures à la période courante sont archivées dans
 [`docs/archive/CHANGELOG-archive.md`](docs/archive/CHANGELOG-archive.md) (A-08, audit 3.69.0).
 
+## [4.2.0] — 2026-10-24 — Les yeux d'aperçu vivent AUX LIGNES des `@Preview` (B28 : marqueurs ancrés « comme Android Studio »)
+
+### Ajouté
+
+- **B28 — UN œil par `@Preview`, À SA LIGNE** (retour propriétaire de
+  CodeIDE : les marqueurs de gouttière d'Android Studio vivent à la
+  ligne de l'annotation — jamais sur le caret ; écho
+  `PreviewPickerLineMarkerProvider` de la référence : ancre = l'entrée
+  d'annotation, UN marqueur PAR `@Preview`, AUCUN marqueur sans) :
+  - **`EditorView.setPreviewAnchors(List<Integer>)`** (STRICTEMENT
+    additif) : pose les rangées 0-based des yeux — `null` (défaut) =
+    MODE HISTORIQUE au bit près (œil unique du caret/gelé B27, les hôtes
+    existants ne changent RIEN) ; liste VIDE = AUCUN œil (fichier sans
+    `@Preview` — parité exacte avec la référence : aucune icône sans
+    sujet) ; sinon UN œil par rangée (triée, dédupliquée, clampée au
+    document au tap — jamais de zone tactile fantôme sur une ancre
+    périmée). Le renderer pousse les ancres à la gouttière à chaque
+    frame (miroir du push B9c) ; le mode ancré PREND LE PAS sur l'œil
+    du caret (`hitTestGutterPreviewAction` se tait tant que des ancres
+    sont posées).
+  - **`EditorView.hitTestGutterPreviewAnchor(x, y)`** : la rangée d'ancre
+    dont la pill contient le point, ou −1 (géométrie DÉTERMINISTE
+    partagée avec le dessin — `GutterView.previewActionRect`, hors
+    document/hors écran = rien).
+  - **Tap sur un œil ancre** (`EditorTapResolver`, AVANT le chemin
+    historique) : la carte « goutte d'eau » s'ouvre SUR CETTE rangée
+    (`openPreviewDropAt`) et le HÔTE apprend la ligne par la méthode à
+    défaut **`EditorPreviewHost.onPreviewAnchorTapped(int line)`** — il
+    sélectionne l'onglet de LA preview qui y vit via le nouveau relais
+    **`EditorView.selectPreviewDropTab(int)`** (→
+    `EditorPreviewDrop.selectTab` : miroir EXACT d'un tap d'onglet —
+    clampé aux bornes, même notification `onPreviewDropTabSelected`,
+    no-op carte fermée). Re-tap sur l'œil de l'ancre GELÉE : la carte se
+    REFERME (bascule B27 préservée) ; tap sur un AUTRE œil : la carte
+    RÉ-ANCRE et l'onglet suit. Le caret ne bouge JAMAIS sur un tap
+    d'œil, et le geste ne tombe jamais dans la cascade multi-tap.
+  - **`GutterView.setPreviewAnchors(int[])`/`getPreviewAnchors()`** :
+    l'état de gouttière du mode ancré (même pill B9c, même glyphe œil,
+    même priorité face aux actions de l'hôte — une action hôte posée
+    sur une rangée ancre garde SA pill).
+- **Public API additive uniquement** : zéro changement pour les hôtes
+  Markdown/HTML, la démo et CodeIDE v0.176.0 (les trois méthodes à
+  défaut + les trois relais ne s'activent QUE si le hôte pose des
+  ancres).
+
+### Tests
+
+- **+11 tests** (`GutterPreviewAnchorsTest`) : hit-test par ancre (lignes
+  1/3 seulement), tri/dédoublonnage, ancres VIDES = aucune zone tactile
+  + chemin historique muet, `null` = comportement B27 intact, tap →
+  carte ancrée + onglet sélectionné + hôte notifié, re-tap sur l'œil
+  gelé = fermeture, tap autre œil = ré-ancre + onglet suivi, tap hors
+  œil = rien, `null` après ancres = retour B27, `selectTab` clampé sans
+  exception. Suite cel-ui complète verte.
+
 ## [4.1.0] — 2026-10-24 — Le corps de la carte « goutte d'eau » devient TACTILE (B27-C3 : contrat interactif du mini-téléphone)
 
 ### Ajouté
