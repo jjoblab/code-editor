@@ -563,6 +563,10 @@ final class EditorLanguageBridge {
     /** Planifie un rafraîchissement débouncé des inlay hints. */
     void scheduleInlayHints() {
         if (inlayHintProviderSpi == null || inlayHintTask == null) return;
+        // Mode gros fichiers actif (4.5.0) : plus de re-requête — les
+        // inlays en place restent affichés jusqu'à la prochaine
+        // édition, aucun retrait coûteux forcé.
+        if (view.isLargeFileModeActive()) return;
         android.os.Handler h = handler();
         h.removeCallbacks(inlayHintTask);
         h.postDelayed(inlayHintTask, INLAY_HINT_DEBOUNCE_MS);

@@ -1880,6 +1880,77 @@ public class EditorView extends View {
         return wordOccurrences.isEnabled();
     }
 
+    // ── Mode gros fichiers explicite (4.5.0) ──────────────────────
+
+    /**
+     * Le régime des fonctions lourdes de l'éditeur. En {@link #AUTO}
+     * (défaut), les coupures suivent les seuils du document (2,5 M
+     * caractères / 50 000 lignes). En {@link #ON}, l'hôte FORCE les
+     * coupures quel que soit le document (appareil modeste). En
+     * {@link #OFF}, il les FERME même au-delà des seuils (appareil
+     * puissant qui assume le coût).
+     *
+     * <p>Sont coupées en mode actif : la complétion auto-déclenchée,
+     * la surbrillance des occurrences du mot courant, les inlay hints
+     * et le tir des jetons sémantiques. Restent TOUJOURS : la
+     * coloration (régime progressif), la frappe, l'undo/redo — le
+     * balayage diagnostics des onglets ouverts suit les seuils du
+     * document (déjà coupé par ceux-ci).</p>
+     *
+     * @since 4.5.0
+     */
+    public enum LargeFileMode {
+        /** Coupures pilotées par les seuils du document (défaut). */
+        AUTO,
+        /** Force les coupures, quel que soit le document. */
+        ON,
+        /** Force les coupures fermées, même au-delà des seuils. */
+        OFF
+    }
+
+    private LargeFileMode largeFileMode = LargeFileMode.AUTO;
+
+    /**
+     * Pose le régime des fonctions lourdes (complétion, occurrences,
+     * inlays, jetons sémantiques) — défaut {@link LargeFileMode#AUTO}.
+     * Le changement prend effet immédiatement : une bascule vers ON
+     * purge la surbrillance d'occurrences en cours et arrête les
+     * requêtes ; une bascule vers OFF les laisse reprendre au
+     * prochain déclencheur (frappe, déplacement du caret, scroll).
+     *
+     * @param mode le régime souhaité
+     * @since 4.5.0
+     */
+    public void setLargeFileMode(LargeFileMode mode) {
+        largeFileMode = mode != null ? mode : LargeFileMode.AUTO;
+        if (isLargeFileModeActive()) {
+            // Purge immédiate de la voie d'occurrences (les inlays et
+            // jetons sémantiques en place restent affichés jusqu'à la
+            // prochaine édition — aucun retrait coûteux forcé).
+            if (!find.highlights.isEmpty()) {
+                setFindHighlights(null, -1);
+            }
+        }
+    }
+
+    /** Le régime courant des fonctions lourdes. */
+    public LargeFileMode getLargeFileMode() {
+        return largeFileMode;
+    }
+
+    /**
+     * L'état EFFECTIF du mode gros fichiers : forcé ON, ou AUTO avec
+     * un document au-delà des seuils. Consommé par la complétion
+     * auto-déclenchée, les occurrences du mot courant, les inlay
+     * hints et le tir des jetons sémantiques.
+     */
+    public boolean isLargeFileModeActive() {
+        if (largeFileMode == LargeFileMode.ON) return true;
+        if (largeFileMode == LargeFileMode.OFF) return false;
+        return session != null && session.getDocument() != null
+                && session.getDocument().isLarge();
+    }
+
     /**
      * Scrolle l'éditeur pour que l'offset de document donné soit visible.
      * Utilisé par la navigation Rechercher/Remplacer, go-to-def, etc.

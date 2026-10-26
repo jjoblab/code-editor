@@ -64,6 +64,16 @@ public class LspEditorViewHost implements EditorHost {
         return view.isAttachedToWindow();
     }
 
+    /**
+     * Régime « gros fichiers » effectif de la vue (4.5.0) : seuils du
+     * document OU forçage posé par l'application hôte — coupe le tir
+     * des jetons sémantiques côté client LSP.
+     */
+    @Override
+    public boolean isDocumentLarge() {
+        return view.isLargeFileModeActive();
+    }
+
     @Override
     public void post(Runnable task) {
         view.post(task);

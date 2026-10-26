@@ -279,6 +279,14 @@ public class EditorCompletionPopup {
      */
     void refreshCompletion() {
         if (view.session == null) return;
+        // Mode gros fichiers actif (4.5.0) : la complétion
+        // AUTO-DÉCLENCHÉE est coupée — coloration, frappe et undo
+        // continuent ; l'hôte garde la voie explicite
+        // (setCompletionItems / refreshCompletionFromHost).
+        if (view.isLargeFileModeActive()) {
+            dismissCompletionSoft();
+            return;
+        }
         int caret = view.session.getSelection().start;
         // ★ B19/21 : début de token lu SUR LA ROPE (charAt en O(log n),
         // aucune matérialisation) — getText() recopiait le document ENTIER

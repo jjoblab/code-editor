@@ -147,4 +147,18 @@ public interface EditorHost {
     default Boolean formattingInsertSpaces() {
         return null;
     }
+
+    /**
+     * L'éditeur est-il en régime « gros fichiers » effectif (document
+     * au-delà des seuils, ou forçage posé par l'application hôte) ?
+     * Les requêtes lourdes — le tir des jetons sémantiques notamment —
+     * s'y coupent. Défaut : {@code false} (un adaptateur minimal qui
+     * ne connaît pas la taille du document garde le comportement
+     * historique).
+     *
+     * @since 4.5.0
+     */
+    default boolean isDocumentLarge() {
+        return false;
+    }
 }

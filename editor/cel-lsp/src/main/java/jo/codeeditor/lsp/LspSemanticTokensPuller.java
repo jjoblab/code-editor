@@ -43,6 +43,10 @@ class LspSemanticTokensPuller {
         if (wrapper == null || wrapper.getServer() == null) return;
         EditorHost host = editor.getHost();
         if (host == null || host.session() == null) return;
+        // Régime « gros fichiers » effectif (4.5.0) : le tir complet
+        // est coupé — la coloration lexicale (régime progressif) et
+        // la frappe continuent seules.
+        if (host.isDocumentLarge()) return;
         try {
             org.eclipse.lsp4j.ServerCapabilities caps = wrapper.getCapabilities();
             if (caps == null || caps.getSemanticTokensProvider() == null) return;

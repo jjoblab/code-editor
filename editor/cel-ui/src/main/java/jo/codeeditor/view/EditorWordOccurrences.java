@@ -92,10 +92,11 @@ final class EditorWordOccurrences {
         if (!enabled || !ownsLane()) return;
         EditorSession session = view.session;
         if (session == null || session.getDocument() == null) return;
-        // Très gros document : le balayage complet est coupé et la voie
+        // Mode gros fichiers EFFECTIF (4.5.0) : seuils du document OU
+        // forçage hôte — le balayage complet est coupé et la voie
         // purgée (les offsets d'un précédent calcul restent valides mais
         // le coût par repos de frappe n'est plus defendable).
-        if (session.getDocument().isLarge()) {
+        if (view.isLargeFileModeActive()) {
             view.setFindHighlights(null, -1);
             return;
         }
