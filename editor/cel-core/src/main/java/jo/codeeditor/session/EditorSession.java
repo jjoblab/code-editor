@@ -844,6 +844,16 @@ public class EditorSession {
     }
 
     /**
+     * Le renommage lié des balises s'applique aux langages de la
+     * famille XML du profil courant (XML, HTML, SVG via alias).
+     */
+    private boolean isXmlLinkedEditLanguage() {
+        jo.codeeditor.languages.LanguageProfile profile = getLanguageProfile();
+        return profile != null
+                && profile.family == jo.codeeditor.languages.SyntaxFamily.XML;
+    }
+
+    /**
      * Frappe un seul caractère avec édition intelligente.
      * <p>
      * Si le résultat de l'édition intelligente diverge de « remplacer la
@@ -856,6 +866,31 @@ public class EditorSession {
     public void typeChar(char ch) {
         int selMin = Math.min(selection.start, selection.end);
         int selMax = Math.max(selection.start, selection.end);
+        // Renommage lié des balises XML (4.5.0) : une frappe DANS le
+        // nom de balise ouvrante se reflète sur la fermante appariée
+        // — les deux insertions en UN SEUL lot d'annulation. La
+        // composition IME et les sélections en plage retombent sur le
+        // chemin standard (le miroir n'a de sens que caret posé).
+        if (selMin == selMax && !ime.isComposing() && isXmlLinkedEditLanguage()) {
+            int[] lié = EditOps.tryXmlLinkedTypeChar(doc.charSequence(), selMin, ch);
+            if (lié != null) {
+                beginBatch();
+                try {
+                    // Fermante d'abord (offset HAUT) : l'insertion
+                    // ouvrante ensuite ne décale rien et pose le caret.
+                    replaceRange(lié[1], lié[1], String.valueOf(ch));
+                    replaceRangeWithCaret(lié[0], lié[0], String.valueOf(ch), lié[0] + 1);
+                } finally {
+                    endBatch();
+                }
+                // Deux insertions pour une frappe : le modèle de l'IME
+                // a prit un caractère de plus — resynchronisation.
+                if (ime.listener() != null && !ime.listener().isSyncingExtractedText()) {
+                    ime.listener().onRestartInput();
+                }
+                return;
+            }
+        }
         RangeEdit re = EditOps.smartInsert(doc.charSequence(), selMin, selMax, ch, language); // ★ B19
         replaceRangeWithCaret(re.start, re.end, re.text, re.caret);
         // Détecter la divergence avec la sémantique littérale « frapper ce caractère » attendue par l'IME.
@@ -889,6 +924,26 @@ public class EditorSession {
         }
         int selMin = Math.min(selection.start, selection.end);
         int selMax = Math.max(selection.start, selection.end);
+        // Renommage lié des balises XML (4.5.0) : un backspace DANS le
+        // nom de balise ouvrante supprime aussi le caractère aligné de
+        // la fermante appariée — les deux suppressions en UN SEUL lot
+        // d'annulation.
+        if (!word && selMin == selMax && !ime.isComposing() && isXmlLinkedEditLanguage()) {
+            int[] lié = EditOps.tryXmlLinkedBackspace(doc.charSequence(), selMin);
+            if (lié != null) {
+                beginBatch();
+                try {
+                    replaceRange(lié[1], lié[1] + 1, "");
+                    replaceRangeWithCaret(lié[0], lié[0] + 1, "", lié[0]);
+                } finally {
+                    endBatch();
+                }
+                if (ime.listener() != null && !ime.listener().isSyncingExtractedText()) {
+                    ime.listener().onRestartInput();
+                }
+                return;
+            }
+        }
         RangeEdit re = EditOps.smartBackspace(doc.charSequence(), selMin, selMax, language); // ★ B19
         replaceRangeWithCaret(re.start, re.end, re.text, re.caret);
         // Détecter la divergence avec la sémantique littérale « supprimer un

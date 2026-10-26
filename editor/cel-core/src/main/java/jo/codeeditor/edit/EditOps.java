@@ -217,6 +217,41 @@ public final class EditOps {
         return new PostfixResult(r.start, r.end, r.caret, r.insertText);
     }
 
+    // ── Renommage lié des balises XML (4.5.0) ───────────────────
+
+    /**
+     * Les deux offsets d'insertion d'une frappe LIÉE dans le nom d'une
+     * balise ouvrante XML — le caret (nom ouvrant) et la position
+     * alignée du nom fermant apparié — ou null si le caret n'y est
+     * pas. La session applique les deux insertions en un seul lot
+     * d'annulation.
+     *
+     * @param text  le texte complet du document
+     * @param caret le caret (fin de frappe, dans le nom ouvrant)
+     * @param ch    le caractère frappé
+     * @return {insertionOuvrante, insertionFermante}, ou null
+     * @since 4.5.0
+     */
+    public static int[] tryXmlLinkedTypeChar(CharSequence text, int caret, char ch) {
+        return XmlLinkedTagEdits.typeCharEdit(text, caret, ch);
+    }
+
+    /**
+     * Les deux débuts de suppression d'un backspace LIÉ dans le nom
+     * d'une balise ouvrante XML — le caractère avant le caret (nom
+     * ouvrant) et le caractère aligné du nom fermant apparié — ou
+     * null. La session applique les deux suppressions en un seul lot
+     * d'annulation.
+     *
+     * @param text  le texte complet du document
+     * @param caret le caret (le caractère à supprimer est avant)
+     * @return {débutSuppressionOuvrante, débutSuppressionFermante}, ou null
+     * @since 4.5.0
+     */
+    public static int[] tryXmlLinkedBackspace(CharSequence text, int caret) {
+        return XmlLinkedTagEdits.backspaceEdit(text, caret);
+    }
+
     /**
      * Tente de déclencher une complétion postfix. Si un postfix est
      * détecté (.if, .for, .notnull, .return, .var, .while, .try,
