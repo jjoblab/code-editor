@@ -100,11 +100,13 @@ par responsabilité.
 
 | Fonctionnalité | État | Fichier | Description |
 |----------------|------|---------|-------------|
-| CompletionSession (cache + filtre) | ✅ | `completion/CompletionSession.java` | Camel-hump, ranking, filtre local |
+| CompletionSession (cache + filtre) | ✅ | `completion/CompletionSession.java` | Cache + filtre local ; 4.3.0 : délègue l'appariement au matcher, méthodes mortes `@Deprecated` avec renvoi |
+| CompletionMatcher (appariement unifié) | ✅ | `completion/CompletionMatcher.java` | 4.3.0 : identifiant de tête (`Text(text: String)` → `Text`, noms XML entiers), échelle 6 paliers (exact > exact casse > préfixe > préfixe casse > camel humps canoniques — `gS` ET `get` sur `getString` — > sous-séquence quelconque), positions de surbrillance = caractères qui ont fait matcher, groupes (résolu > mot-clé > snippet > mot du buffer) — partagé par le popup, la surbrillance et la navigation |
+| Candidats riches (container + documentation) | ✅ | `completion/CompletionSession.java` | 4.3.0 : champs optionnels `container` (origine) et `documentation` transportés jusqu'au popup |
 | Badges de type de complétion | ✅ | `completion/CompletionKindBadge.java` | Pastilles keyword/function/variable… |
 | SignatureHelpController | ✅ | `completion/SignatureHelpController.java` | Param info, Ctrl+P |
 | QuickDoc (Javadoc/KDoc) | ✅ | `doc/QuickDoc.java` | Parsing markup, sections |
-| NavigationMenu (go-to) | ✅ | `navigation/NavigationMenu.java` | Declaration, impl, type, super |
+| NavigationMenu (go-to) | ✅ | `navigation/NavigationMenu.java` | Declaration, impl, type, super ; 4.3.0 : camel humps délégués au matcher (runs contigus acceptés, conformes à la Javadoc) |
 
 ---
 
@@ -293,14 +295,14 @@ et les barres d'habillage dans `view/chrome/`.
 | Language vide / matching de brackets | ✅ | `lang/EmptyLanguage.java`, `lang/BracketMatch.java` | Valeurs par défaut |
 | Coordination des popups / réception des styles | ✅ | `lang/PopupCoordinator.java`, `lang/StyleReceiver.java` | Contrats UI-agnostiques |
 | Modèles de données (15) | ✅ | `lang/model/` | Diagnostic, CompletionItem, HoverContent, SignatureHelp, CodeAction, Symbol, InlayHint, TextEdit, RenameResult, DefinitionLocation, DocumentHighlight, ViewZone, CodeBlock, Parameter, Signature |
-| Providers (17 interfaces) | ✅ | `lang/provider/` | Completion, Diagnostics, Hover, Definition, TypeDefinition, Implementations, SuperDefinition, References, Rename, Formatter, CodeActions, Symbol, SignatureHelp, InlayHint, DocumentHighlight, ViewZone, CompletionPublisher |
+| Providers (17 interfaces) | ✅ | `lang/provider/` | Completion, Diagnostics, Hover, Definition, TypeDefinition, Implementations, SuperDefinition, References, Rename, Formatter, CodeActions, Symbol, SignatureHelp, InlayHint, DocumentHighlight, ViewZone, CompletionPublisher (4.3.0 : `setIncomplete` à défaut — signaler une liste tronquée) |
 
 ### Intégration LSP4J (`:cel-lsp`, `lsp/`)
 
 | Fonctionnalité | État | Fichier | Description |
 |----------------|------|---------|-------------|
 | LspLanguage (adaptateur Language) | ✅ | `lsp/LspLanguage.java` | Orchestration des providers |
-| Fournisseurs LSP (14) | ✅ | `lsp/Lsp*Provider.java` | Completion, Diagnostics, Hover, Definition, TypeDefinition, Implementations, SuperDefinition, References, Rename, CodeActions, Symbol, SignatureHelp, InlayHint, DocumentHighlight |
+| Fournisseurs LSP (14) | ✅ | `lsp/Lsp*Provider.java` | Completion (4.3.0 : drapeau « liste tronquée » `isIncomplete` transporté, champs riches `labelDetails`/`documentation` → container et documentation), Diagnostics, Hover, Definition, TypeDefinition, Implementations, SuperDefinition, References, Rename, CodeActions, Symbol, SignatureHelp, InlayHint, DocumentHighlight |
 | LspEditor | ✅ | `lsp/LspEditor.java` + `LspDocumentSynchronizer`, `LspDiagnosticsManager`, `LspSemanticTokensPuller`, `LspFoldPuller`, `LspWorkspaceEditApplier` | Cycle de vie document ↔ serveur ; 3.74.0 (ADR-003) : `disconnect()` restaure `EmptyLanguage` (toutes capacités fermées), jeton de génération anti-course, garde commune des providers, annulation des tâches différées |
 | LspProject | ✅ | `lsp/LspProject.java`, `lsp/LanguageServerWrapper.java`, `lsp/LanguageServerDefinition.java` | Gestion multi-serveurs, shutdown borné 2 s |
 | Formateur / analyzer no-op | ✅ | `lsp/LspFormatter.java`, `lsp/LspNoopAnalyzer.java` | textDocument/formatting ; 3.74.0 : options (tabSize, insertSpaces — hôte → détection → 4 espaces), rangeFormatting quand le serveur l'annonce, refus propre sinon ; éditions validées (bornes, chevauchements) et échecs journalisés sans fuite du document |
@@ -377,10 +379,10 @@ parallèle.
 
 | Indicateur | Valeur |
 |------------|--------|
-| Fichiers source | 288 (`:cel-core` 83 · `:cel-lsp-api` 39 · `:cel-lsp` 45 · `:cel-ui` 98 · `:cel-textmate` 7 · `demo` 16) |
-| Fichiers de test | 300 |
+| Fichiers source | 290 (`:cel-core` 84 · `:cel-lsp-api` 39 · `:cel-lsp` 45 · `:cel-ui` 99 · `:cel-textmate` 7 · `demo` 16) |
+| Fichiers de test | 306 |
 | Lignes de code (main) | ≈ 70 600 (bibliothèques ≈ 64 200 · démo ≈ 6 500) |
-| Tests unitaires | 2 636 (`:cel-core` 1 385 · `:cel-lsp-api` 32 · `:cel-lsp` 209 · `:cel-ui` 846 · `:cel-textmate` 96 · `demo` 68) |
+| Tests unitaires | 2 704 (`:cel-core` 1 406 · `:cel-lsp-api` 32 · `:cel-lsp` 220 · `:cel-ui` 882 · `:cel-textmate` 96 · `demo` 68) |
 | Langages colorés intégrés | 29 |
 | Tokéniseurs intégrés | 14 (+ utilitaires SpanUtils, KeywordTables) |
 | Grammaires embarquées | 10 (`:cel-textmate` : csharp, css, html, java, javascript, kotlin, lua, markdown, python, xml) |

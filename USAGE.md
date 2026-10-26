@@ -34,14 +34,14 @@ dependencyResolutionManagement {
 // app/build.gradle.kts
 dependencies {
     // Le module UI embarque transitivement cel-core et cel-lsp-api.
-    implementation("jo.codeeditor:cel-ui:4.2.0")
+    implementation("jo.codeeditor:cel-ui:4.3.0")
 
     // Optionnel — intégration Language Server Protocol (LSP4J).
-    implementation("jo.codeeditor:cel-lsp:4.2.0")
+    implementation("jo.codeeditor:cel-lsp:4.3.0")
 
     // Optionnel — voie grammaires (ADR-002 C3) : coloration par
     // grammaires TextMate-like + grammaires embarquées (C#).
-    implementation("jo.codeeditor:cel-textmate:4.2.0")
+    implementation("jo.codeeditor:cel-textmate:4.3.0")
 }
 ```
 
@@ -53,7 +53,7 @@ maven { url = uri("https://jitpack.io") }
 
 // app/build.gradle.kts
 dependencies {
-    implementation("com.github.jjoblab.code-editor:cel-ui:v4.2.0")
+    implementation("com.github.jjoblab.code-editor:cel-ui:v4.3.0")
 }
 ```
 
@@ -323,6 +323,38 @@ editorView.setCompletionProvider((text, caret, tokenStart, prefix) -> {
     return items;
 });
 ```
+
+Un fournisseur dont le backend **plafonne** ses réponses peut signaler
+la troncature (4.3.0) — le popup re-requêtera à chaque édition du
+préfixe (prolongement comme retour arrière, requêtes coalescées et
+débouncées) au lieu de filtrer localement une liste amputée :
+
+```java
+editorView.setCompletionProvider(new EditorView.CompletionProvider() {
+    @Override
+    public List<CompletionSession.Item> provide(
+            String text, int caret, int tokenStart, String prefix) {
+        return myLanguageServer.getCompletions(text, caret);
+    }
+
+    @Override
+    public CompletionResult provideResult(
+            String text, int caret, int tokenStart, String prefix,
+            Character triggerCharacter) {
+        List<CompletionSession.Item> items =
+                myLanguageServer.getCompletions(text, caret);
+        return new CompletionResult(items, myLanguageServer.isLastListTruncated());
+    }
+});
+```
+
+Réglages associés : `setHonorIncompleteCompletion(boolean)` (défaut
+`true` ; `false` restaure le filtrage local pur — une seule requête
+par token) et `setCompletionDebounceMs(int)` (défaut 80 ms ; les
+caractères déclencheurs comme `.` et Ctrl+Espace le court-circuitent
+toujours). Les candidats peuvent aussi porter une origine
+(`container`, affichée à droite) et une `documentation` — champs
+optionnels du constructeur étendu de `CompletionSession.Item`.
 
 ### Aide de signature (Ctrl+P)
 

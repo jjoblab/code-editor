@@ -1,6 +1,6 @@
 # cel-ui — la couche Android : rendu, gestes, habillage
 
-> 777 tests · JUnit 4 + Robolectric (cycle de vie réel des vues sur
+> 882 tests · JUnit 4 + Robolectric (cycle de vie réel des vues sur
 > JVM) · `api(:cel-core)` + `api(:cel-lsp-api)`.
 
 `cel-ui` met le moteur à l'écran : une vue **Canvas** unique
@@ -62,7 +62,12 @@ Application hôte
 ### Popups (`view/popup/`)
 
 `EditorPopupManager` + famille : complétion (badges de type, fenêtre
-de scroll solidaire), aide de signature, quick doc, actions de code,
+de scroll solidaire ; 4.3.0 : les listes signalées tronquées par le
+fournisseur re-requêtent à chaque édition du préfixe — coalescées,
+débouncées —, le classement local suit les 6 paliers et les groupes
+du matcher unifié de `cel-core`, l'origine du symbole s'affiche à
+droite ; réglages `setHonorIncompleteCompletion` /
+`setCompletionDebounceMs`), aide de signature, quick doc, actions de code,
 aller-au-symbole, aller-à-la-ligne, renommage, références, fiche et
 popups de diagnostics (tap sur squiggle). Ancres, hit-test, fades et
 motions dédiés ; glass cards.
@@ -129,7 +134,7 @@ XML, ProGuard/R8) vit dans [`USAGE.md`](../../USAGE.md).
 ## Tests
 
 ```bash
-./gradlew :cel-ui:testDebugUnitTest     # 777 tests Robolectric
+./gradlew :cel-ui:testDebugUnitTest     # 882 tests Robolectric
 ```
 
 Couverture sensible : cycle de vie (detach/leaks), gestes (drag,

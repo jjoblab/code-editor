@@ -1,6 +1,6 @@
 # cel-core — moteur d'édition pur Java
 
-> 1 358 tests · JUnit 5 (JVM hôte) · aucune dépendance Android en sortie.
+> 1 406 tests · JUnit 5 (JVM hôte) · aucune dépendance Android en sortie.
 
 `cel-core` est le socle de la bibliothèque : modèle de texte, moteur
 d'édition, coloration syntaxique intégrée, plis, retour à la ligne,
@@ -172,7 +172,7 @@ session.setLanguage("mylang");
 ## Tests
 
 ```bash
-./gradlew :cel-core:test     # 1 358 tests JUnit 5, JVM hôte
+./gradlew :cel-core:test     # 1 406 tests JUnit 5, JVM hôte
 ```
 
 Suites notables : `EditorSessionFuzzTest`, `RopeFuzzTest` (robustesse),

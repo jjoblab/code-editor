@@ -1,6 +1,6 @@
 # cel-lsp — intégration Language Server Protocol
 
-> 209 tests · JUnit 5 (+ moteur vintage) · LSP4J 0.22.0 et Gson 2.14.0
+> 220 tests · JUnit 5 (+ moteur vintage) · LSP4J 0.22.0 et Gson 2.14.0
 > embarquées (voir [`NOTICE`](../../NOTICE)) · `compileOnly` sur
 > `:cel-core` et `:cel-lsp-api`.
 
@@ -66,7 +66,10 @@ process — les tests tournent ainsi), `ProcessBuilderConnectionProvider`
 
 ### Capacités (14 `Lsp*Provider`)
 
-Complétion (avec contexte de déclenchement et `TextEdit`),
+Complétion (avec contexte de déclenchement et `TextEdit` ; 4.3.0 :
+drapeau « liste tronquée » `isIncomplete` transporté jusqu'au client,
+champs riches `labelDetails`/`documentation` → origine du symbole et
+documentation),
 diagnostics (publication serveur → `Diagnostic` du SPI, sévérités et
 tags), hover, définition / définition de type / implémentations /
 super-définition / références, renommage (préparation + application),
@@ -123,7 +126,7 @@ LSP. Un hôte **sans vue** fournit sa propre implémentation de
 ## Tests
 
 ```bash
-./gradlew :cel-lsp:test     # 209 tests
+./gradlew :cel-lsp:test     # 220 tests
 ```
 
 Les tests branchent de **vrais serveurs faux in-process**

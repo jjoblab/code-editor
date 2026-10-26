@@ -7,6 +7,136 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Les sections antérieures à la période courante sont archivées dans
 [`docs/archive/CHANGELOG-archive.md`](docs/archive/CHANGELOG-archive.md) (A-08, audit 3.69.0).
 
+## [4.3.0] — 2026-10-26 — Fiabiliser le popup de complétion : listes tronquées honorées, classement local précis, appariement unifié
+
+### Ajouté
+
+- **Transport du drapeau « liste tronquée » (B)** — API strictement
+  additive : `CompletionPublisher.setIncomplete(boolean)` (méthode à
+  défaut, no-op — un fournisseur qui ne l'appelle pas publie une liste
+  réputée complète) ; `EditorView.CompletionProvider.provideResult(...)`
+  (méthode à défaut) renvoie le nouveau `CompletionResult` (items +
+  drapeau), la variante historique enveloppe avec le drapeau à faux ;
+  le pont LSP lit `CompletionList.isIncomplete` et le transmet ; le
+  pont de la vue (`EditorLanguageBridge`) le fait remonter jusqu'au
+  popup.
+- **Politique du popup sur base tronquée (B)** : filtrage local pour
+  le retour visuel immédiat ET re-requête débouncée à CHAQUE édition
+  du préfixe — prolongation comme raccourcissement ; coalescence (une
+  frappe pendant un vol courant du même token ne s'empile pas ; la
+  livraison refiltre contre le préfixe courant et relance au plus une
+  re-requête si le préfixe a évolué pendant le vol) ; les demandes
+  immédiates (caractère déclencheur, Ctrl+Espace) et les changements
+  de token repartent toujours d'une requête neuve ; la génération
+  continue de jeter les réponses périmées. Une base COMPLETE garde le
+  filtrage local pur historique (aucune requête supplémentaire).
+- **Réglages hôtes (B)** : `EditorView.setHonorIncompleteCompletion(boolean)`
+  (défaut vrai ; à faux, filtrage local pur restauré) et
+  `EditorView.setCompletionDebounceMs(int)` (réutilise la constante
+  80 ms et son mécanisme ; les demandes immédiates le court-circuitent
+  toujours).
+- **Appariement unifié `CompletionMatcher` (C, cel-core)** :
+  `leadingIdentifier(label)` (l'identifiant de tête —
+  « Text(text: String) » donne « Text », « android:layout_width » et
+  « @string/foo » restent entiers), échelle à 6 niveaux (exact >
+  exact à la casse près > préfixe > préfixe à la casse près > camel
+  humps > sous-séquence quelconque ; le libellé entier reste accepté
+  pour exact/préfixe, la signature ne participe jamais au flou),
+  camel humps canoniques (« gS » ET « get » matchent « getString » ;
+  premier caractère à toute position avec retour arrière, débuts de
+  mots, runs contigus), `matchPositions` (les indices en gras sont
+  exactement ceux qui ont fait matcher), groupes (symbole résolu avant
+  mot-clé avant snippet avant mot du buffer — un mot-clé tapé en
+  entier reste en tête de son palier).
+- **Candidats plus riches (D)** : champs optionnels `container`
+  (origine du symbole : paquet d'un type, classe déclarante d'un
+  membre) et `documentation` (texte brut ou Markdown transporté tel
+  quel) sur `CompletionItem` (SPI) et `CompletionSession.Item`
+  (moteur), lus par le pont LSP depuis `labelDetails.description` /
+  `labelDetails.detail` / `detail` (repli qualifié) /
+  `documentation` ; le popup affiche le container à l'extrême droite,
+  tronqué à l'ellipse au-delà de 40 % de la largeur (mesures en dp),
+  le detail garde sa place — sans container, disposition exacte
+  d'avant. Sans exiger le serveur : les champs absents restent absents.
+
+### Modifié
+
+- **`NavigationMenu.isCamelHumpSubsequence` applique enfin sa
+  Javadoc** : les runs contigus (« get » sur « getString ») sont
+  acceptés conformément à la définition documentée depuis l'origine —
+  l'ancien code les rejetait en contradiction avec sa propre
+  documentation (test d'hier corrigé en conséquence, cas « etS »
+  ajouté). La vérification délègue au matcher unifié.
+- **`CompletionSession.matchTier` retourne l'échelle à 6 niveaux** du
+  matcher (les anciennes constantes `TIER_*`, échelle 5 valeurs, sont
+  `@Deprecated` avec renvoi — jamais supprimées) ; `matchPositions`
+  délègue à `matchPositionsForItem` (identifiant de tête comme texte
+  de référence) ; `filtered` et les méthodes mortes en production sont
+  `@Deprecated` avec renvoi. Les QUATRE copies parallèles de
+  l'appariement (filtre privé du popup, session, positions du peintre,
+  menu de navigation) convergent vers le matcher — le filtre, le
+  classement, la surbrillance et la navigation partagent enfin la
+  même définition.
+- **Le classement local du popup** trie désormais par (palier,
+  groupe), stable — à l'intérieur d'un couple (palier, groupe),
+  l'ordre du serveur est conservé ; le `filterText` du
+  fournisseur sert de repli.
+- Plafonds du garde-fou de classes relevés pour `EditorView` :
+  4 225 → 4 270 lignes, 295 → 299 méthodes publiques (quatre relais
+  de réglages complétion — justification dans
+  `scripts/check-class-budgets.sh`, précédent plan 11/B28).
+
+### Corrigé
+
+- **Une liste serveur tronquée ne prive plus l'utilisateur de
+  candidats** : continuer à taper ou raccourcir le préfixe (retour
+  arrière) re-interroge le serveur — le filtrage local d'une base
+  amputée ne pouvait pas faire réapparaître un candidat écarté par le
+  plafond du backend (monotonie des correspondances).
+- **« Text » tapé met « Text() » en tête** devant « TextField() » et
+  « TextView » : les paliers comparent l'identifiant de tête, pas le
+  libellé entier avec sa signature.
+- **Un mot-clé ne passe jamais devant un symbole résolu de même
+  palier** (et un symbole résolu devant un snippet, un snippet devant
+  un mot du buffer) ; un mot-clé tapé en entier (« if ») reste en
+  tête de son palier.
+- **Les initiales de mots remontent devant les sous-séquences
+  quelconques** : « LLM » élève « LazyListModifier » (camel humps)
+  au-dessus de « parallelStream » (sous-séquence quelconque).
+- **La surbrillance désigne exactement les caractères qui ont fait
+  matcher** : plus jamais une parenthèse de signature ni un « t »
+  pris dans « get » pour « gtv » sur « getTextView » (g(0), T(3),
+  V(7)).
+- **Garde-fou anti-références** : le message du tag v4.0.0 contenait
+  une plage numérique de compteurs que l'exception ne couvrait que
+  pour les fichiers `.md`, pas pour la forme « TAG » — rouge
+  préexistant à 6fa9bea, corrigé sans changement de l'arbre.
+
+### Couplage serveur (à lire avant de juger le trafic)
+
+Le serveur de langage actuel envoie **toujours** `isIncomplete = true` :
+ce client le croit et re-requête à chaque édition de préfixe tant que
+le drapeau est posé — comportement **attendu et temporaire**. Le
+chantier serveur parallèle (dépôt distinct) livrera un drapeau honnête
+(vrai uniquement quand la liste est réellement partielle) ; d'ici là,
+la coalescence (au plus une requête en vol par token) et le débounce
+(80 ms, réglable) bornent le trafic, et
+`setHonorIncompleteCompletion(false)` restaure le filtrage local pur.
+
+### Tests
+
+- **+49 tests (2 704 au total)** : transport du drapeau (4, banc du
+  transport des champs étendus), champs riches `labelDetails` /
+  `documentation` (7), re-requête sur liste tronquée — troncature,
+  raccourcissement, coalescence sur serveur lent, liste complète sans
+  requête (4), classement local du popup — paliers, groupes, camel
+  humps (7), surbrillance canonique (7), tables du matcher — 45+
+  couples signatures/génériques/`$`/`_`/XML/casse mixte/préfixe plus
+  long (11), pont des champs riches (2), rendu du container (4),
+  NavigationMenu runs contigus (1), mise à l'échelle 6 paliers de la
+  session (2).
+
+
 ## [4.2.0] — 2026-10-24 — Les yeux d'aperçu vivent AUX LIGNES des `@Preview` (B28 : marqueurs ancrés « comme Android Studio »)
 
 ### Ajouté
