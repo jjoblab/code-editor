@@ -636,6 +636,14 @@ public class EditorTextPainter {
             // recouvert.
             drawRawRange(canvas, lineText, inlays, rawToVisual, start, end, x, y, paint);
         }
+        // ★ 4.4.0 : restauration INCONDITIONNELLE du typeface — le paint
+        // est PARTAGÉ par tout le pipeline : un dernier span COMMENT
+        // (italique) ou KEYWORD (gras) fuiait son typeface vers les
+        // couches qui suivent (overlay sémantique, sticky lines), rendant
+        // la fin de ligne suivante en italique fantôme.
+        if (paint.getTypeface() != savedTypeface) {
+            paint.setTypeface(savedTypeface);
+        }
     }
 
     /**
