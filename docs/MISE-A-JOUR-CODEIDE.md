@@ -498,3 +498,122 @@ version et rien d'autre. Les scénarios de vérification de la 4.3.0
 restent la référence — le banc de la démo permet de les rejouer sans
 serveur : « Simuler un moteur qui plafonne » + panneau Journal
 montrent les re-requêtes en direct.
+
+## 4.4.0
+
+### 1. État de publication
+
+| Élément | État |
+|---|---|
+| Tag | `v4.4.0` (annoté, posé sur `main`) |
+| SHA de la version | `bf752d3` (`main`, 2026-10-27) |
+| `ci.yml` (main) | à l'écriture : build local complet vert (clean assembleDebug test lint, 2 765 tests, 0 échec) + garde-fous verts (figures écart 0, budgets, refs externes) |
+| `publish.yml` (tag) | déclenché par la poussée du tag — les 5 AAR `jo.codeeditor:cel-*:4.4.0` |
+| JitPack `com.github.jjoblab.code-editor` | se construit À LA PREMIÈRE DEMANDE (`v4.4.0` → demander la résolution déclenche le build) |
+
+### 2. Compatibilité (l'application vient de 4.3.1)
+
+**AUCUNE rupture d'API — STRICTEMENT additif.** Le palier P1 du plan
+de rattrapage ajoute trois fonctionnalités visibles : la surbrillance
+des occurrences du mot sous le caret (défaut ACTIVÉ — voir le point
+d'attention), les modificateurs sémantiques (barré/gras/italique,
+résolus par nom via la légende du serveur) et le panneau de
+documentation du popup de complétion (affiche le champ `documentation`
+déjà transporté). Un hôte qui ne change rien compile et constate les
+trois comportements.
+
+**Point d'attention unique — occurrences ACTIVÉES par défaut** : la
+surbrillance du mot courant s'allume sans action de l'hôte. Elle CÈDE
+toujours la place à la session de recherche ouverte et aux surlignages
+posés via `setFindHighlights` (un appel non vide prend la voie, un
+appel vide la rend) ; `setWordOccurrencesEnabled(false)` la coupe
+globalement. Si l'hôte construit sa propre surbrillance de mot, armer
+la bascule à faux à l'initialisation.
+
+**Côté serveur (codeide-lsp)** : les modificateurs sémantiques
+s'activent dès que le serveur (a) annonce
+`semanticTokensProvider` avec sa légende (`tokenTypes` +
+`tokenModifiers` — les noms standard `deprecated`/`static`/`abstract`
+sont résolus par nom, l'ordre de la légende est libre), (b) sert les
+quintuplets complets — le 5ᵉ entier (bitmask) est désormais lu.
+Annoncer la légende reste RECOMMANDÉ même sans modificateurs : sans
+elle, aucun bit n'est interprété (jamais deviné). La capacité cliente
+`textDocument.semanticTokens` est désormais annoncée à
+l'initialisation — un serveur qui conditionnait son provider à cette
+capacité l'activera.
+
+### 3. API ajoutée (signatures exactes, `@since 4.4.0`)
+
+```java
+// jo.codeeditor.view.EditorView — bascule de la surbrillance du mot
+// courant (défaut : vrai). Ne s'applique que si la voie find est
+// libre (recherche fermée, hôte sans surlignages posés).
+public void setWordOccurrencesEnabled(boolean enabled)
+public boolean isWordOccurrencesEnabled()
+
+// jo.codeeditor.shift.DiagnosticShift.SemanticToken — masque canonique
+// de modificateurs (cumulables par OU) + constructeur étendu ;
+// le constructeur historique à 3 arguments délègue avec masque 0.
+public static final int MOD_DEPRECATED  // rendu barré
+public static final int MOD_STATIC      // rendu gras
+public static final int MOD_ABSTRACT    // rendu italique
+public SemanticToken(int start, int length, int type, int modifiers)
+
+// jo.codeeditor.find.WordOccurrences (cel-core, calcul pur) —
+// réutilisable par un hôte qui gère lui-même la surbrillance.
+public static int[] wordAt(CharSequence text, int caret)
+public static boolean isEligibleWord(String word)
+public static List<Match> findAll(CharSequence text, String word)
+public static int indexOfContaining(List<Match> matches, int offset)
+```
+
+### 4. Attributs de thème ajoutés (virtuels, `@since 4.4.0`)
+
+Registre de couleurs : 39 → **42 attributs**. Les trois nouveaux sont
+VIRTUELS (groupe « sémantique », parent `text.foreground`) — sans
+opinion de scheme, la couleur du jeton est conservée et seule la
+surcouche de STYLE s'applique :
+
+```java
+scheme.setColor("semantic.modifier.deprecated", 0xFF9A3B3B, darkMode);
+scheme.setColor("semantic.modifier.static",     0xFF..., darkMode);
+scheme.setColor("semantic.modifier.abstract",   0xFF..., darkMode);
+```
+
+### 5. Changements de comportement notables
+
+- **Popup de complétion plus haut quand l'item sélectionné a une
+  documentation** : le panneau s'ajoute sous la liste (hauteur déduite
+  des rangées). La contrainte « ne jamais recouvrir la ligne du caret »
+  reste garantie par construction ; sur vue plus étroite que 340 dp,
+  le panneau cède la place à un glyphe ⓘ de rangée. Un tap dans le
+  panneau ne sélectionne rien et ne referme pas le popup.
+- **Ancres du popup** : `completionPopupAnchor()` retourne désormais
+  SIX éléments (le 6ᵉ = hauteur du panneau de documentation, 0 si
+  absent) — les consommateurs internes ont été mis à jour ; un hôte
+  qui lisait les cinq premiers n'est pas affecté.
+- **Défaut du rendu sémantique** : un jeton déprécié/statique/abstrait
+  est dessiné barré/gras/italique dès lors que le masque est posé —
+  les hôtes qui injectaient déjà des jetons sans modificateurs ne
+  voient AUCUN changement (constructeur historique = masque 0).
+
+### 6. Scénarios de vérification sur appareil
+
+1. **Occurrences** : ouvrir un fichier, parker le caret sur un
+   identifiant répété — les occurrences s'allument en ~300 ms ;
+   ouvrir la recherche (les bandes de recherche remplacent), refermer,
+   déplacer le caret — les occurrences reviennent.
+2. **Modificateurs** : avec un serveur qui annonce une légende
+   contenant `deprecated`, poser le caret sur un symbole déprécié —
+   rendu barré ; teinte personnalisable via le scheme
+   (`semantic.modifier.deprecated`).
+3. **Documentation** : taper un préfixe dont le candidat résolu porte
+   une documentation — panneau sous la liste, suit la sélection au
+   clavier (haut/bas), disparaît sur un item sans documentation.
+4. **Vue étroite** (écran partagé) : le panneau cède la place au
+   glyphe ⓘ à droite des rangées documentées.
+
+La démo (`demo`) expose les trois bancs au menu (« Occurrences du mot
+courant », « Banc sémantique (modificateurs) ») et ses candidats
+`println`/`format`/`substring` portent une documentation — tout se
+vérifie sans serveur.
