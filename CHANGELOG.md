@@ -7,6 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Les sections antérieures à la période courante sont archivées dans
 [`docs/archive/CHANGELOG-archive.md`](docs/archive/CHANGELOG-archive.md) (A-08, audit 3.69.0).
 
+## [4.3.1] — 2026-10-27 — La démo met le chantier complétion à l'essai
+
+### Ajouté
+
+- **Banc d'essai « listes tronquées » dans la démo** — le moteur
+  maison peut jouer un serveur qui plafonne sa réponse : armée depuis
+  le menu « Complétion (listes tronquées) », la base livrée au popup
+  est plafonnée à 8 candidats et marquée incomplète (via
+  `provideResult`/`CompletionResult`). Chaque requête laisse une ligne
+  au panneau Journal (préfixe, déclencheur, plafond) : base complète =
+  une requête par mot tapé, base tronquée = une re-requête à CHAQUE
+  édition du préfixe — le comportement du chantier 4.3.0 visible en
+  direct, sans serveur. Le sous-menu expose aussi les réglages hôtes
+  (`setHonorIncompleteCompletion`, `setCompletionDebounceMs` —
+  80/200/500 ms).
+- **Bascules « Bande d'erreurs » et « Sélecteur de couleur »** au
+  menu de l'atelier — deux réglages publics de la vue (B11, B26)
+  désormais démontrés (activés par défaut).
+
+### Corrigé
+
+- **La préférence « LSP automatique » est enfin lue** : l'écran
+  Réglages l'écrit depuis toujours, l'atelier ne la consommait jamais
+  (seuls l'extra d'intention et la bascule manuelle branchaient le
+  moteur). La reconnexion collante la consulte sur les fichiers Java ;
+  une extinction MANUELLE garde la main (suppression jusqu'au
+  prochain changement de la préférence, posée aussi sur échec de
+  lancement — pas de retries en boucle).
+- **L'identité de thème émeraude survit aux changements d'onglet** :
+  un `setTheme(light())` remplaçait la base émeraude par le thème
+  clair standard à chaque sélection d'onglet, en contournant la
+  cascade du scheme (le scheme « Crépuscule ambré » tombait avec). La
+  base est reposée par la voie du scheme.
+
+### Documentation
+
+- Compteurs resynchronisés : **2 714 tests** (démo 78, +10 :
+  simulation tronquée, bascules vue, préférence LSP auto, identité de
+  thème), figure « grammaires embarquées » corrigée (23, la valeur
+  réelle du module `:cel-textmate`, dans FEATURES.md, le README de la
+  démo et les libellés de l'application) ; la répartition par module
+  du README racine datait de la baseline 2 644.
+- README de la démo : guide d'essai du banc « listes tronquées » et
+  recensement exact des échantillons (33 tiroir : 30 langages dont
+  Minifié, Dockerfile, 2 échantillons de charge).
+
 ## [4.3.0] — 2026-10-26 — Fiabiliser le popup de complétion : listes tronquées honorées, classement local précis, appariement unifié
 
 ### Ajouté

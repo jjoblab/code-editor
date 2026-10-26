@@ -4,7 +4,7 @@
 
     <!-- Tiroir -->
     <string name="drawer_open">Ouvrir le tiroir des fichiers</string>
-    <string name="drawer_header_subtitle">29 langages · 10 grammaires TextMate · 5 modules</string>
+    <string name="drawer_header_subtitle">29 langages · 23 grammaires TextMate · 5 modules</string>
     <string name="drawer_settings">Réglages</string>
     <string name="drawer_about">À propos</string>
     <string name="drawer_title">Fichiers</string>
@@ -65,7 +65,7 @@
     <string name="home_title">Atelier code-editor</string>
     <string name="home_subtitle">Bibliothèque d\u2019éditeur de code pour Android — terrain de jeu des cinq modules</string>
     <string name="home_stat_languages">29 langages</string>
-    <string name="home_stat_grammars">10 grammaires</string>
+    <string name="home_stat_grammars">23 grammaires</string>
     <string name="home_stat_modules">5 modules</string>
     <string name="home_settings">Réglages de l\u2019atelier</string>
     <string name="home_card_lsp_title">Diagnostics LSP Java</string>
@@ -73,7 +73,7 @@
     <string name="home_card_editor_title">Atelier multi-langages</string>
     <string name="home_card_editor_description">Onglets, replis, multi-sélections, recherche/remplacement — le socle :cel-core et :cel-ui sur 29 langages</string>
     <string name="home_card_textmate_title">Grammaires TextMate</string>
-    <string name="home_card_textmate_description">10 grammaires embarquées : la coloration de C#, Python, Kotlin… par le module :cel-textmate</string>
+    <string name="home_card_textmate_description">23 grammaires embarquées : la coloration de C#, Python, Kotlin… par le module :cel-textmate</string>
     <string name="home_card_preview_title">Aperçu XML / HTML</string>
     <string name="home_card_preview_description">Rendu en direct côte à côte : layouts XML et pages HTML autonomes (blocs &lt;style&gt; inclus)</string>
     <string name="home_card_stress_title">Stress : bundle minifié</string>
@@ -221,7 +221,7 @@
     <string name="about_message">Atelier de la bibliothèque code-editor (Java, Canvas, Apache-2.0) — coquille IDE multi-fichiers.
 
 \u2022 Cinq modules publiables exercés en situation réelle : :cel-core (moteur), :cel-ui (vues), :cel-lsp-api (SPI langage), :cel-lsp (client LSP), :cel-textmate (grammaires).
-\u2022 29 langages dans le tiroir, 10 grammaires TextMate embarquées (csharp original + 9 tierces, attribution NOTICE).
+\u2022 33 échantillons dans le tiroir, 23 grammaires TextMate embarquées (csharp original + 22 tierces, attribution NOTICE).
 \u2022 Mini serveur LSP Java (diagnostics) : basculez « Moteur LSP » sur l\u2019onglet Java — les erreurs de syntaxe réelles (accolades non fermées, points-virgules manquants, else orphelins) sont soulignées et listées dans le panneau Diagnostics ; le journal montre l\u2019activité JSON-RPC.
 \u2022 Analyseur factice (moteur maison) : complétion, signatures, quick doc, code actions et diagnostics synthétiques — la vitrine du moteur sans serveur.
 \u2022 Onglets multi-fichiers, tiroir par familles de langages, panneaux Diagnostics / Symboles / Journal, barre d\u2019état Ln/Col.

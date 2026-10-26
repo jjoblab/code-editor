@@ -380,11 +380,11 @@ parallèle.
 | Indicateur | Valeur |
 |------------|--------|
 | Fichiers source | 290 (`:cel-core` 84 · `:cel-lsp-api` 39 · `:cel-lsp` 45 · `:cel-ui` 99 · `:cel-textmate` 7 · `demo` 16) |
-| Fichiers de test | 306 |
-| Lignes de code (main) | ≈ 70 600 (bibliothèques ≈ 64 200 · démo ≈ 6 500) |
-| Tests unitaires | 2 704 (`:cel-core` 1 406 · `:cel-lsp-api` 32 · `:cel-lsp` 220 · `:cel-ui` 882 · `:cel-textmate` 96 · `demo` 68) |
+| Fichiers de test | 310 |
+| Lignes de code (main) | ≈ 70 900 (bibliothèques ≈ 64 200 · démo ≈ 6 800) |
+| Tests unitaires | 2 714 (`:cel-core` 1 406 · `:cel-lsp-api` 32 · `:cel-lsp` 220 · `:cel-ui` 882 · `:cel-textmate` 96 · `demo` 78) |
 | Langages colorés intégrés | 29 |
 | Tokéniseurs intégrés | 14 (+ utilitaires SpanUtils, KeywordTables) |
-| Grammaires embarquées | 10 (`:cel-textmate` : csharp, css, html, java, javascript, kotlin, lua, markdown, python, xml) |
+| Grammaires embarquées | 23 (`:cel-textmate` : c, cpp, csharp, css, dockerfile, go, html, java, javascript, json, kotlin, lua, markdown, php, python, ruby, rust, shell, sql, toml, typescript, xml, yaml) |
 | Interfaces de providers LSP | 17 |
 | Providers de connexion LSP | 5 |

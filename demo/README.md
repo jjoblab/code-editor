@@ -1,6 +1,6 @@
 # demo — atelier de la bibliothèque
 
-> 65 tests · Robolectric (fumée : lancement réel des activités,
+> 78 tests · Robolectric (fumée : lancement réel des activités,
 > chaîne LSP complète) + JUnit pur (parseur, serveur) · application
 > `com.android.application`, **non publiée sur Maven** — c'est une
 > vitrine et un banc d'essai, pas un artefact.
@@ -46,7 +46,7 @@ Cartes de capacité — chaque carte ouvre l'atelier préconfiguré pour
 la fonctionnalité : **Diagnostics LSP Java** (moteur LSP connecté),
 Atelier multi-langages, Grammaires TextMate (C#), Aperçu XML/HTML,
 Stress bundle minifié, Cascade de thèmes. Les chiffres de tête
-(32 langages · 23 grammaires · 5 modules) et l'entrée Réglages.
+(29 langages · 23 grammaires · 5 modules) et l'entrée Réglages.
 
 ### Coquille IDE (`EditorActivity`)
 
@@ -60,8 +60,9 @@ Stress bundle minifié, Cascade de thèmes. Les chiffres de tête
   Python, JavaScript, **Minifié (JS)** (bundle de ~14 Ko sur une
   ligne), TypeScript, PHP, Ruby, Lua, Shell, C, C++, Go, Rust, Swift,
   Dart, XML, HTML (page autonome), JSON, YAML, TOML, Properties, CSS,
-  Markdown, SQL, Smali, Log — **29 langages + un échantillon de
-  stress**.
+  Markdown, SQL, Smali, Log, Dockerfile — **30 langages (dont
+  Minifié, échantillon de stress) + 2 échantillons de charge Java**
+  (100k et 480k lignes).
 - **Onglets multi-fichiers** (jusqu'à 10) : session + analyseur par
   fichier, fermeture par « × », réutilisation à la réouverture.
 - **Panneaux outils en bottom sheet Material** : la feuille s'ancre
@@ -79,10 +80,11 @@ Stress bundle minifié, Cascade de thèmes. Les chiffres de tête
   lecture seule.
 - Barre de fil d'Ariane et recherche/remplacement intégrées, bascules
   **Moteur LSP** et **Grammaires TextMate** au menu (visible dès le
-  premier lancement sur les 10 langages à grammaire — sonde
+  premier lancement sur les langages à grammaire embarquée — sonde
   `hasEmbeddedGrammar`), options de vue (numéros, plis, guides,
-  collantes, loupe, swatches, couleurs de variables, point d'arrêt)
-  au sous-menu.
+  collantes, loupe, swatches, couleurs de variables, bande
+  d'erreurs, sélecteur de couleur, point d'arrêt) et banc d'essai
+  **« Complétion (listes tronquées) »** (4.3.1) au sous-menu.
 - **Transition accueil → atelier** en « fade through » Material,
   miroir exact au retour.
 
@@ -120,6 +122,31 @@ les DEUX voies de `USAGE.md` sur le même document : moteur maison
 (popups synthétiques) contre serveur LSP réel (diagnostics poussés à
 chaque édition, soulignés dans l'éditeur et listés au panneau).
 
+## Banc d'essai « listes tronquées » (4.3.1)
+
+Le menu **Complétion (listes tronquées)** transforme le moteur maison
+en serveur qui plafonne sa réponse — la vitrine du chantier complétion
+4.3.0 sans serveur :
+
+1. **« Simuler un moteur qui plafonne »** : la base livrée au popup est
+   coupée à 8 candidats et marquée incomplète
+   (`provideResult`/`CompletionResult`).
+2. **Ouvrir le panneau Journal** puis taper un identifiant caractère
+   par caractère : chaque frappe re-requête le moteur (une ligne par
+   requête : préfixe, déclencheur, plafond) — le candidat écarté par
+   le plafond finit par réapparaître. Retour arrière inclus.
+3. **« Filtrage local seul »** coupe la re-requête
+   (`setHonorIncompleteCompletion(false)`) : le filtrage local travaille
+   sur la base amputée — le comportement historique, candidats
+   manquants possibles.
+4. **Anti-rebond 80/200/500 ms** (`setCompletionDebounceMs`) : à
+   500 ms, la coalescence des frappes rapides devient visible à l'œil
+   nu.
+
+La bascule porte sur tous les onglets ouverts et les suivants ; sur
+l'onglet Java avec moteur LSP actif, le fournisseur est celui du
+serveur (le banc s'applique au moteur maison).
+
 ## Build et installation
 
 ```bash
@@ -134,7 +161,7 @@ Le mini serveur LSP est **embarqué et in-process** : la démo reste
 ## Tests
 
 ```bash
-./gradlew :demo:testDebugUnitTest     # 65 tests
+./gradlew :demo:testDebugUnitTest     # 78 tests
 ```
 
 - `MiniJavaParserTest` (20) — chaque règle, ses déclencheurs ET ses
@@ -155,9 +182,22 @@ Le mini serveur LSP est **embarqué et in-process** : la démo reste
   du « ⋯ » du toolbar de sélection (icône + bascule pose/retrait).
 - `SampleDrawerTest` (3) — filtre sans casse ni accents, familles +
   échantillons filtrés en direct, remontée des sélections.
-- `DemoPreviewHostTest` (23) — comportement de l'hôte d'aperçu,
+- `DemoPreviewHostTest` (24) — comportement de l'hôte d'aperçu,
   y compris la voie carte « goutte d'eau » B27 (xml prévisualisable,
   préférence carte seulement pour les layouts, onglets/badges).
+- `ProgressiveEquivalenceE2ETest` (2) — équivalence régime progressif
+  vs chaîne séquentielle (grammaire java réelle, 1 200 lignes).
+- `EditorInfoHookDemoTest` (1) — hook `EditorInfo` : l'hôte pose
+  `IME_FLAG_NO_PERSONALIZED_LEARNING` sans patcher la bibliothèque.
+- `CompletionTruncatedDemoTest` (4) — le banc 4.3.1 : plafonnement +
+  drapeau tronqué, compteur/journal des requêtes, relais des
+  réglages hôtes, portée tous onglets.
+- `EditorTogglesDemoTest` (2) — bascules bande d'erreurs et
+  sélecteur de couleur relayées à la vue.
+- `LspAutoPreferenceTest` (2) — la préférence « LSP automatique »
+  branche le moteur sans extra ; l'extinction manuelle garde la main.
+- `ThemeIdentityDemoTest` (2) — la base émeraude survit aux
+  changements d'onglet (cas clair et sombre).
 
 ## Voir aussi
 
