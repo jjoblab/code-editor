@@ -653,6 +653,12 @@ public class EditorTapResolver {
      * historique, la carte engloutit d'abord).
      */
     private boolean tapCompletionRow(float x, float y) {
+        // 4.4.0 : un tap dans le panneau de documentation est CONSOMMÉ
+        // sans action — il ne sélectionne aucune rangée et ne referme
+        // pas le popup (la documentation se lit, le tap n'y change rien).
+        if (hitTester.hitCompletionDocPanel(x, y)) {
+            return true;
+        }
         int hitRow = hitTester.hitTestCompletionPopup(x, y);
         if (hitRow >= 0) {
             view.completion.selected = hitRow;

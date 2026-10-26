@@ -598,19 +598,28 @@ public class EditorCompletionPopup {
      * arrive posait problème : avec le clavier logiciel ouvert
      * (adjustResize), le popup était clamppé à Y=0 et recouvrait la ligne
      * de frappe.
+     *
+     * <p>4.4.0 : le panneau de documentation est DÉDUIT de la place
+     * disponible — le popup complet (liste + panneau) doit tenir sans
+     * recouvrir la bande du caret.</p>
      */
     int completionRowsVisible() {
+        float density = view.getResources().getDisplayMetrics().density;
+        float rowH = CompletionState.ROW_HEIGHT_DP * density;
+        return completionRowsVisible(completionDocPanelHeight(density), rowH);
+    }
+
+    /** Variante paramétrée (l'ancre a déjà calculé la hauteur du panneau). */
+    private int completionRowsVisible(float panelH, float rowH) {
         int maxRows = Math.min(CompletionState.MAX_ROWS, view.completion.items.size());
         if (maxRows <= 1 || view.getHeight() <= 0 || view.session == null) {
             return Math.max(1, maxRows);
         }
-        float density = view.getResources().getDisplayMetrics().density;
-        float rowH = CompletionState.ROW_HEIGHT_DP * density;
         float[] band = completionCaretBand();
         // Espaces disponibles SANS recouvrir la ligne du caret :
         float below = view.getHeight() - (band[1] + COMPLETION_ANCHOR_GAP_PX);
         float above = band[0] - COMPLETION_ANCHOR_GAP_PX;
-        float best = Math.max(below, above);
+        float best = Math.max(below, above) - panelH;
         int fit = (int) Math.floor(best / rowH);
         return Math.max(1, Math.min(maxRows, fit));
     }
@@ -618,12 +627,88 @@ public class EditorCompletionPopup {
     /** Écart visuel (px) entre le popup et la ligne du caret. */
     private static final int COMPLETION_ANCHOR_GAP_PX = 4;
 
+    /**
+     * ★ 4.4.0 — Panneau de documentation de l'item SÉLECTIONNÉ : les
+     * lignes plafonnées sont calculées ICI (l'ancre est la source unique
+     * de géométrie) et posées dans {@code completion.docPanelLines} pour
+     * le peintre ; la hauteur du panneau est retournée. 0 si le panneau
+     * est absent : pas de documentation sur l'item sélectionné, vue
+     * trop étroite (la documentation se réduit alors au glyphe de
+     * rangée) ou place insuffisante pour AU MOINS une rangée + le
+     * panneau sans recouvrir la bande du caret.
+     *
+     * <p>Moteur identique à la bande documentation de l'aide de
+     * signature : QuickDoc (description + sections compactées), wrap
+     * plafonné, ligne = 0,75 × taille de texte × 1,3.</p>
+     */
+    float completionDocPanelHeight(float density) {
+        view.completion.docPanelLines.clear();
+        if (view.getWidth() <= 0 || view.getHeight() <= 0) return 0f;
+        if (view.getWidth() < CompletionState.DOC_PANEL_MIN_VIEW_WIDTH_DP * density) {
+            return 0f;   // vue trop étroite : glyphe de rangée
+        }
+        int sel = view.completion.selected;
+        if (sel < 0 || sel >= view.completion.items.size()) return 0f;
+        String documentation = view.completion.items.get(sel).documentation;
+        if (documentation == null || documentation.isEmpty()) return 0f;
+        // Le panneau ne doit JAMAIS forcer le popup à recouvrir la bande
+        // du caret : au moins une rangée + le panneau doivent tenir d'un
+        // côté de la bande.
+        float[] band = completionCaretBand();
+        float below = view.getHeight() - (band[1] + COMPLETION_ANCHOR_GAP_PX);
+        float above = band[0] - COMPLETION_ANCHOR_GAP_PX;
+        float best = Math.max(below, above);
+        float rowH = CompletionState.ROW_HEIGHT_DP * density;
+        // Mesure avec la discipline du paint partagé : taille posée puis
+        // RESTAURÉE (jamais d'état résiduel pour les couches suivantes).
+        float savedSize = view.textPaint.getTextSize();
+        List<String> lines = new ArrayList<>();
+        try {
+            view.textPaint.setTypeface(view.metrics.getTypeface());
+            view.textPaint.setTextSize(view.metrics.getTextSize() * 0.75f);
+            float docWidth = CompletionState.WIDTH_DP * density - 16 * density;
+            jo.codeeditor.doc.QuickDoc.QuickDocContent parsed =
+                    jo.codeeditor.doc.QuickDoc.parseQuickDoc(documentation, "java");
+            if (!parsed.description.isEmpty()) {
+                lines.addAll(jo.codeeditor.view.render.EditorAssistPopupPainter
+                        .wrapText(parsed.description, docWidth, view.textPaint));
+            }
+            for (jo.codeeditor.doc.QuickDoc.DocSection s : parsed.sections) {
+                if (lines.size() >= CompletionState.DOC_PANEL_MAX_LINES) break;
+                for (String item : s.items) {
+                    if (lines.size() >= CompletionState.DOC_PANEL_MAX_LINES) break;
+                    String line = s.title + " " + item;
+                    lines.addAll(jo.codeeditor.view.render.EditorAssistPopupPainter
+                            .wrapText(line, docWidth, view.textPaint));
+                }
+            }
+        } finally {
+            view.textPaint.setTextSize(savedSize);
+        }
+        if (lines.isEmpty()) return 0f;
+        if (lines.size() > CompletionState.DOC_PANEL_MAX_LINES) {
+            lines = new ArrayList<>(lines.subList(0, CompletionState.DOC_PANEL_MAX_LINES));
+        }
+        float docRowH = view.metrics.getTextSize() * 0.75f * 1.3f;
+        float panelH = lines.size() * docRowH + 8 * density;
+        if (panelH + rowH > best) {
+            return 0f;   // pas la place : la documentation se réduit au glyphe
+        }
+        view.completion.docPanelLines.addAll(lines);
+        return panelH;
+    }
+
     float[] completionPopupAnchor() {
         float density = view.getResources().getDisplayMetrics().density;
         float rowH = CompletionState.ROW_HEIGHT_DP * density;
         float width = CompletionState.WIDTH_DP * density;
-        int rowsToShow = completionRowsVisible();
-        float popupH = rowH * rowsToShow;
+        // ★ 4.4.0 : le panneau de documentation est calculé AVANT les
+        // rangées (source unique) et déduit de la place disponible —
+        // le popup complet (liste + panneau) ne recouvre jamais la bande
+        // du caret.
+        float panelH = completionDocPanelHeight(density);
+        int rowsToShow = completionRowsVisible(panelH, rowH);
+        float popupH = rowH * rowsToShow + panelH;
         EditorDocument doc = view.session.getDocument();
         int line = EditorView.clamp(doc.lineForOffset(view.completion.tokenStart), 0, doc.lineCount() - 1);
         int col = view.completion.tokenStart - doc.lineStart(line);
@@ -646,7 +731,9 @@ public class EditorCompletionPopup {
                 anchorX, caretTopY, caretBottomY, width, popupH,
                 false, COMPLETION_ANCHOR_GAP_PX, 0f,
                 0f, 4f, false, view.metrics.getGutterWidth());
-        return new float[]{pos[0], pos[1], width, popupH, rowH};
+        // 6ᵉ élément (4.4.0) : hauteur du panneau de documentation —
+        // peintre et hit-testeur en déduisent la zone de liste.
+        return new float[]{pos[0], pos[1], width, popupH, rowH, panelH};
     }
 
     /**

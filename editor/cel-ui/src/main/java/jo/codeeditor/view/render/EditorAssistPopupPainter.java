@@ -530,8 +530,14 @@ public class EditorAssistPopupPainter {
         }
     }
 
-    /** Découpe {@code text} par retour à la ligne pour tenir dans {@code maxWidth} (px). */
-    private static List<String> wrapText(String text, float maxWidth, Paint paint) {
+    /**
+     * Découpe {@code text} par retour à la ligne pour tenir dans
+     * {@code maxWidth} (px). Visible du groupe : l'ancrage du popup de
+     * complétion (contrôleur) mesure les lignes du panneau de
+     * documentation avec le MÊME moteur que la bande doc de l'aide de
+     * signature (4.4.0).
+     */
+    public static List<String> wrapText(String text, float maxWidth, Paint paint) {
         List<String> out = new ArrayList<>();
         if (text == null || text.isEmpty()) return out;
         String[] parts = text.split("\n");
@@ -770,11 +776,16 @@ public class EditorAssistPopupPainter {
         float rowH = CompletionState.ROW_HEIGHT_DP * density;
         float width = CompletionState.WIDTH_DP * density;
         float radius = COMPLETION_BORDER_RADIUS_DP * density;
+        // ★ 4.4.0 : le panneau de documentation est inclus dans la
+        // hauteur du popup — la zone de LISTE en est déduite (6ᵉ
+        // élément de l'ancre, source unique).
+        float panelH = anchor.length > 5 ? anchor[5] : 0f;
+        boolean panelShown = panelH > 0f;
         // L'ancre est la SOURCE UNIQUE — le nombre de rangées dérive de sa
         // hauteur (elle réduit les rangées quand le viewport est petit,
         // cf. completionRowsVisible).
-        int rowsToShow = Math.max(1, Math.round(anchor[3] / rowH));
-        float popupH = rowH * rowsToShow;
+        int rowsToShow = Math.max(1, Math.round((anchor[3] - panelH) / rowH));
+        float popupH = anchor[3];
         float anchorX = anchor[0];
         float anchorY = anchor[1];
 
@@ -818,15 +829,40 @@ public class EditorAssistPopupPainter {
                 canvas.drawRect(anchorX + 1, y, anchorX + width - 1, y + rowH, view.selPaint);
             }
             jo.codeeditor.completion.CompletionSession.Item item = view.completion.items.get(idx);
-            drawCompletionRow(canvas, item, anchorX, y, width, rowH, padX, density, darkTheme);
+            drawCompletionRow(canvas, item, anchorX, y, width, rowH, padX, density, darkTheme,
+                    panelShown);
+        }
+        // ★ 4.4.0 — Panneau de documentation sous la liste (miroir de la
+        // bande doc de l'aide de signature) : séparateur + fond teinté +
+        // lignes plafonnées calculées par l'ancrage.
+        if (panelShown && !view.completion.docPanelLines.isEmpty()) {
+            float docTop = anchorY + rowsToShow * rowH;
+            view.caretPaint.setStyle(Paint.Style.STROKE);
+            view.caretPaint.setStrokeWidth(1f);
+            view.caretPaint.setColor(view.theme.glassBorder);
+            canvas.drawLine(anchorX, docTop, anchorX + width, docTop, view.caretPaint);
+            view.selPaint.setColor(view.theme.selection);
+            canvas.drawRect(anchorX, docTop, anchorX + width, anchorY + popupH, view.selPaint);
+            view.textPaint.setTextSize(view.metrics.getTextSize() * 0.75f);
+            float docRowH = view.metrics.getTextSize() * 0.75f * 1.3f;
+            for (int i = 0; i < view.completion.docPanelLines.size(); i++) {
+                String l = view.completion.docPanelLines.get(i);
+                boolean isTag = !l.isEmpty() && l.charAt(0) == '@';
+                view.textPaint.setColor(isTag ? view.theme.keyword : view.theme.textColor);
+                float baseline = docTop + 4 * density + i * docRowH + docRowH * 0.75f;
+                canvas.drawText(l, anchorX + padX, baseline, view.textPaint);
+            }
         }
         // Réinitialiser la taille du paint de texte
         view.textPaint.setTextSize(view.metrics.getTextSize());
-        // Scrollbar s'il y a plus d'éléments que de visibles
+        // Scrollbar s'il y a plus d'éléments que de visibles — la voie
+        // suit la zone de LISTE uniquement (4.4.0 : le panneau n'est pas
+        // une rangée).
         if (view.completion.items.size() > rowsToShow) {
+            float listH = popupH - panelH;
             float sbX = anchorX + width - 3 * density;
-            float sbH = popupH * rowsToShow / (float) view.completion.items.size();
-            float sbY = anchorY + (popupH - sbH) * (view.completion.scrollOffset / (float)(view.completion.items.size() - rowsToShow));
+            float sbH = listH * rowsToShow / (float) view.completion.items.size();
+            float sbY = anchorY + (listH - sbH) * (view.completion.scrollOffset / (float)(view.completion.items.size() - rowsToShow));
             view.selPaint.setColor(view.theme.gutterBorder);
             canvas.drawRect(sbX, sbY, sbX + 2 * density, sbY + sbH, view.selPaint);
         }
@@ -838,12 +874,20 @@ public class EditorAssistPopupPainter {
      * glyphe) puis label (caractères matchés du préfixe en accent/gras) et
      * detail aligné à droite (signature, package). Le label est clippé à
      * la zone restante pour ne jamais recouvrir le detail.
+     *
+     * <p>★ 4.4.0 : quand le panneau de documentation est masqué (vue
+     * étroite) et que l'item PORTE une documentation, un petit glyphe
+     * ⓘ occupe la place du container (la documentation se réduit à une
+     * icône) — le container, quand il existe, garde sa place.</p>
      */
     private void drawCompletionRow(Canvas canvas,
                                    jo.codeeditor.completion.CompletionSession.Item item,
                                    float anchorX, float y, float width, float rowH,
-                                   float padX, float density, boolean darkTheme) {
+                                   float padX, float density, boolean darkTheme,
+                                   boolean panelShown) {
         String label = item.label;
+        boolean docGlyph = !panelShown && item.documentation != null
+                && !item.documentation.isEmpty();
 
         // ── Badge de type ──
         jo.codeeditor.completion.CompletionKindBadge.Meta badge =
@@ -920,6 +964,8 @@ public class EditorAssistPopupPainter {
                 view.textPaint.setTextSize(view.metrics.getTextSize() * 0.7f);
                 view.textPaint.setColor(view.theme.gutterText);
                 canvas.drawText(container, containerLeft, y + rowH * 0.7f, view.textPaint);
+            } else if (docGlyph) {
+                drawCompletionDocGlyph(canvas, anchorX + width - padX, y, rowH, density);
             }
             view.textPaint.setTextSize(view.metrics.getTextSize() * 0.9f);
             return;
@@ -973,8 +1019,44 @@ public class EditorAssistPopupPainter {
             view.textPaint.setTextSize(view.metrics.getTextSize() * 0.7f);
             view.textPaint.setColor(view.theme.gutterText);
             canvas.drawText(container, containerLeft, y + rowH * 0.7f, view.textPaint);
+        } else if (docGlyph) {
+            // 4.4.0 : la documentation se réduit à une icône quand le
+            // panneau ne tient pas (vue étroite) et que le container
+            // laisse la place libre.
+            drawCompletionDocGlyph(canvas, containerRight, y, rowH, density);
         }
         view.textPaint.setTextSize(view.metrics.getTextSize() * 0.9f);
+    }
+
+    /**
+     * ★ 4.4.0 — Petit glyphe ⓘ de documentation de rangée : cercle
+     * atténué + « i » italique, aligné à droite de la rangée (place du
+     * container). Le paint partagé est restauré (style du caretPaint,
+     * taille du textPaint).
+     */
+    private void drawCompletionDocGlyph(Canvas canvas, float rightX, float y,
+                                        float rowH, float density) {
+        float size = rowH - 14 * density;   // rangée 28 dp → glyphe 14 dp
+        float cx = rightX - size * 0.5f;
+        float cy = y + rowH * 0.5f;
+        android.graphics.Paint.Style savedStyle = view.caretPaint.getStyle();
+        float savedStroke = view.caretPaint.getStrokeWidth();
+        view.caretPaint.setStyle(android.graphics.Paint.Style.STROKE);
+        view.caretPaint.setStrokeWidth(1.2f);
+        view.caretPaint.setColor(view.theme.comment);
+        canvas.drawCircle(cx, cy, size * 0.5f, view.caretPaint);
+        view.caretPaint.setStyle(savedStyle);
+        view.caretPaint.setStrokeWidth(savedStroke);
+        float savedSize = view.textPaint.getTextSize();
+        view.textPaint.setTextSize(view.metrics.getTextSize() * 0.6f);
+        view.textPaint.setColor(view.theme.comment);
+        view.textPaint.setTextSkewX(-0.25f);
+        Paint.FontMetrics fm = view.textPaint.getFontMetrics();
+        float w = view.textPaint.measureText("i");
+        canvas.drawText("i", cx - w * 0.5f,
+                cy - (fm.ascent + fm.descent) * 0.5f, view.textPaint);
+        view.textPaint.setTextSkewX(0f);
+        view.textPaint.setTextSize(savedSize);
     }
 
     /**

@@ -43,6 +43,18 @@ public final class CompletionState {
     /** Largeur du popup en dp. */
     public static final float WIDTH_DP = 280f;
 
+    // ── Panneau de documentation (4.4.0) ──────────────────────
+    /** Plafond de lignes du panneau de documentation (miroir de
+     *  SIGNATURE_DOC_MAX_LINES). */
+    public static final int DOC_PANEL_MAX_LINES = 6;
+    /**
+     * Largeur minimale de VUE (dp) pour afficher le panneau de
+     * documentation — en dessous (écran partagé, multi-paneau), le
+     * panneau ne tient pas de façon lisible et la documentation se
+     * réduit au glyphe de rangée.
+     */
+    public static final float DOC_PANEL_MIN_VIEW_WIDTH_DP = 340f;
+
     // ── État affiché ─────────────────────────────────────────────
     /** Items affichés (après filtrage). */
     public final List<jo.codeeditor.completion.CompletionSession.Item> items = new ArrayList<>();
@@ -56,6 +68,15 @@ public final class CompletionState {
     public String prefix = "";
     /** Popup affiché ? */
     public boolean visible = false;
+
+    /**
+     * (4.4.0) Lignes plafonnées du panneau de documentation de l'item
+     * SÉLECTIONNÉ — données de RENDU transitoires : recalculées par
+     * l'ancrage (source unique de géométrie) à chaque frame, lues par
+     * le peintre. Vide = pas de panneau (le peintre dessine alors le
+     * glyphe de rangée si la vue est trop étroite).
+     */
+    public final List<String> docPanelLines = new ArrayList<>();
 
     // ── Cache de filtrage par token ──────────────────────────────
     // Le provider retourne un jeu de base pour un token ; les frappes

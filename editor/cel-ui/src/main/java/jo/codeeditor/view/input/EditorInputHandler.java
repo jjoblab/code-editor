@@ -1084,7 +1084,10 @@ public class EditorInputHandler {
         if (view.preview.hitTestDrop(x, y)) {
             return true;
         }
-        if (view.completion.visible && hitTester.hitTestCompletionPopup(x, y) >= 0) {
+        if (view.completion.visible && (hitTester.hitTestCompletionPopup(x, y) >= 0
+                // 4.4.0 : le panneau de documentation possède aussi ses
+                // points — l'appui long derrière lui ne sélectionne pas.
+                || hitTester.hitCompletionDocPanel(x, y))) {
             return true;
         }
         if (view.quickDocVisible) {

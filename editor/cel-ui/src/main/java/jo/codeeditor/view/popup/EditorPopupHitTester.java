@@ -30,15 +30,37 @@ public class EditorPopupHitTester {
         float[] anchor = view.completionPopupAnchor();
         float anchorX = anchor[0], anchorY = anchor[1];
         float width = anchor[2], popupH = anchor[3], rowH = anchor[4];
+        // 4.4.0 : le panneau de documentation est inclus dans la hauteur
+        // — la zone de LISTE en est déduite (une rangée ne vit QUE dans
+        // la zone de liste).
+        float panelH = anchor.length > 5 ? anchor[5] : 0f;
         if (x < anchorX || x > anchorX + width || y < anchorY || y > anchorY + popupH) {
             return -1;
         }
         int rowInPopup = (int) ((y - anchorY) / rowH);
         // L'ancre réduit les rangées quand le viewport est petit —
-        // le hit-test suit la hauteur réelle du popup.
-        int rowsToShow = Math.max(1, Math.round(popupH / rowH));
+        // le hit-test suit la hauteur réelle de la zone de liste.
+        int rowsToShow = Math.max(1, Math.round((popupH - panelH) / rowH));
         if (rowInPopup < 0 || rowInPopup >= rowsToShow) return -1;
         return view.completion.scrollOffset + rowInPopup;
+    }
+
+    /**
+     * 4.4.0 — (x, y) touche-t-il le PANNEAU de documentation du popup de
+     * complétion (zone sous la liste) ? Un tap là est CONSOMMÉ sans
+     * action : il ne sélectionne aucune rangée et ne referme pas le
+     * popup.
+     */
+    public boolean hitCompletionDocPanel(float x, float y) {
+        if (!view.completion.visible || view.completion.items.isEmpty()) return false;
+        float[] anchor = view.completionPopupAnchor();
+        float panelH = anchor.length > 5 ? anchor[5] : 0f;
+        if (panelH <= 0f) return false;
+        float anchorX = anchor[0], anchorY = anchor[1];
+        float width = anchor[2], rowH = anchor[4];
+        float listBottom = anchorY + Math.round((anchor[3] - panelH) / rowH) * rowH;
+        return x >= anchorX && x <= anchorX + width
+                && y >= listBottom && y <= anchorY + anchor[3];
     }
 
     /**
