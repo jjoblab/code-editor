@@ -276,8 +276,8 @@ Consommé par CodeIDE v0.176.0 (mission « Previews » C3, ADR 0142).
 | Élément | État |
 |---|---|
 | Tag | `v4.2.0` (annoté, posé sur `main`) |
-| SHA de la version | le commit de cette livraison (`main`, 2026-10-24) |
-| `ci.yml` (main) | SUCCESS |
+| SHA de la version | `0f31ff4` (`main`, 2026-10-24 — le tag v4.2.0 a D'ABORD vécu sur `936d5bf` dont la CI échouait au SEUL garde-fou D-09 de version documentée (README resté 4.1.0, zéro échec de code/tests) ; le tag est DÉPLACÉ sur le commit resynchronisé — patron v4.0.0/849bf3c, artefacts IDENTIQUES, seuls des fichiers `.md` changent) |
+| `ci.yml` (main) | `936d5bf` : échec doc-seul ; `0f31ff4` : SUCCESS attendu (docs pures) |
 | JitPack `com.github.jjoblab/code-editor` | `v4.2.0` — consommé par CodeIDE v0.177.0 (la chaîne locale de l'hôte a résolu et compilé l'API B28) |
 
 ### 2. Compatibilité (l'application vient de 4.1.0)
