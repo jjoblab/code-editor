@@ -33,6 +33,16 @@ public class EditorPreviewController {
 
     private String currentFileName = "";
 
+    /**
+     * ★ B28 : rangées d'ANCRE des yeux d'aperçu — null = MODE
+     *  HISTORIQUE (œil unique du caret/gelé B27, au bit près) ; VIDE =
+     *  AUCUN œil (fichier sans `@Preview`) ; sinon UN œil par ligne
+     *  d'annotation (triée, dédupliquée — les hôtes posent via
+     *  [setPreviewAnchors], le renderer pousse à la gouttière chaque
+     *  frame, le hit-test résout la LIGNE tapée).
+     */
+    private int[] previewAnchors = null;
+
     // Hôte d'aperçu découplé. L'app hôte fournit la fonctionnalité
     // d'aperçu (inflation XML, rendu Markdown, etc.) via cette interface.
     // La bibliothèque éditeur ne dépend plus des modules d'aperçu.
@@ -56,6 +66,80 @@ public class EditorPreviewController {
     /** B27 — la carte « goutte d'eau » (état vivant, accès painter/tests). */
     public EditorPreviewDrop drop() {
         return drop;
+    }
+
+    /**
+     * ★ B28 — pose les rangées d'ANCRE des yeux d'aperçu (une par
+     * `@Preview`, façon Android Studio : l'icône vit à la ligne de
+     * l'annotation, JAMAIS sur le caret). {@code null} : MODE HISTORIQUE
+     * au bit près (œil unique du caret/gelé B27 — les hôtes existants ne
+     * changent RIEN) ; liste VIDE : AUCUN œil (fichier sans `@Preview` —
+     * parité exacte avec la référence : aucune icône sans sujet) ;
+     * sinon UN œil par rangée, triée et dédupliquée, CLAMPÉE au document
+     * au tap (une ancre périmée ne crée pas de zone tactile fantôme).
+     * Le mode ancré PREND LE PAS sur l'œil du caret.
+     *
+     * @param lines rangées 0-based des `@Preview`, ou null
+     */
+    public void setPreviewAnchors(java.util.List<Integer> lines) {
+        if (lines == null) {
+            previewAnchors = null;
+        } else {
+            java.util.TreeSet<Integer> trie = new java.util.TreeSet<>();
+            for (Integer l : lines) {
+                if (l != null && l >= 0) trie.add(l);
+            }
+            int[] nus = new int[trie.size()];
+            int i = 0;
+            for (Integer l : trie) nus[i++] = l;
+            previewAnchors = nus;
+        }
+        view.invalidate();
+    }
+
+    /** ★ B28 — les rangées d'ancre courantes (null = mode historique). */
+    public int[] getPreviewAnchors() {
+        return previewAnchors;
+    }
+
+    /**
+     * ★ B28 — hit-test des yeux ANCRÉS : la rangée d'ancre dont la pill
+     * contient le point (géométrie DÉTERMINISTE partagée avec le dessin
+     * — {@code GutterView.previewActionRect}), ou -1. Les rangées hors
+     * document ou hors écran ne touchent rien (pas de zone tactile
+     * fantôme).
+     */
+    public int hitTestGutterPreviewAnchor(float x, float y) {
+        if (previewAnchors == null || previewAnchors.length == 0
+                || view.session == null || view.session.getDocument() == null) {
+            return -1;
+        }
+        jo.codeeditor.document.EditorDocument doc = view.session.getDocument();
+        if (doc.lineCount() <= 0) return -1;
+        float lineHeight = view.metrics.getLineHeight();
+        float density = view.getResources().getDisplayMetrics().density;
+        for (int anchor : previewAnchors) {
+            if (anchor < 0 || anchor >= doc.lineCount()) continue;
+            float rowTop = view.docLineToY(anchor) - view.scroll.vOffset;
+            if (rowTop + lineHeight < 0 || rowTop > view.getHeight()) continue;
+            if (jo.codeeditor.view.chrome.GutterView.previewActionContains(
+                    view.metrics, density, rowTop, lineHeight, x, y)) {
+                return anchor;
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * ★ B28 — sélectionne l'ONGLET de la carte « goutte d'eau » par
+     * programme (miroir exact d'un tap d'onglet). Le hôte l'appelle
+     * depuis {@code onPreviewAnchorTapped} pour ouvrir la carte sur LA
+     * preview de l'œil tapé. Sans carte ouverte : no-op honnête.
+     *
+     * @param index l'onglet visé (clampé aux bornes)
+     */
+    public void selectPreviewDropTab(int index) {
+        drop.selectTab(index);
     }
 
     /**

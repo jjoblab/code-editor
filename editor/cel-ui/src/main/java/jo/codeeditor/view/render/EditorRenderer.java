@@ -466,7 +466,7 @@ public class EditorRenderer {
         // ★ B28 : les ANCRES d'yeux (une par `@Preview`) rejoignent la
         // gouttière à chaque frame — miroir du push B9c ci-dessus (null
         // = mode historique, la gouttière garde son état B27).
-        view.gutterView.setPreviewAnchors(view.previewAnchors);
+        view.gutterView.setPreviewAnchors(view.preview.getPreviewAnchors());
         view.gutterView.draw(canvas, view.scroll.vOffset, height, doc.lineCount(), currentLine);
         chrome.drawFoldChevrons(canvas, doc, firstDocVisible, lastDocVisible, lineHeight, paddingTop);
         canvas.restore();

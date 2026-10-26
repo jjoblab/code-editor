@@ -147,7 +147,19 @@ budget() {
 # de branche pris seul — relevé au total combiné, marge 13 lignes,
 # champs 177/180 et méthodes 291/292 INCHANGÉS. Le relèvement ne
 # dispense pas de la décomposition du plan 01.
-budget editor/cel-ui/src/main/java/jo/codeeditor/view/EditorView.java 4180 180 292
+# Écart au ratchet (4.2.0, B28 — yeux ancrés aux lignes @Preview) : les
+# plafonds LIGNES 4180 → 4225 et MÉTHODES 292 → 295 sont relevés par
+# décision explicite : le contrat B28 EXIGE ses QUATRE relais publics
+# sur la vue (setPreviewAnchors/getPreviewAnchors/hitTestGutterPreview
+# Anchor/selectPreviewDropTab — l'API hôte de cel-ui 4.2.0, consommée
+# par CodeIDE v0.177.0), miroir des 16 relais preview existants. L'ÉTAT
+# (le champ, le tri/dédupliqué, le clamp) et la LOGIQUE (le hit-test
+# déterministe) vivent dans EditorPreviewController — le détenteur de
+# l'état d'aperçu créé pour ça (plan 01) ; EditorView ne conserve que
+# les relais. Mesuré : 4213 l. / 177 champs / 295 méthodes (marges 12 /
+# 3 / 0). Champs SOUS le plafond (177/180). Le relèvement ne dispense
+# pas de la décomposition du plan 01.
+budget editor/cel-ui/src/main/java/jo/codeeditor/view/EditorView.java 4225 180 295
 # Écart au ratchet : plafonds LIGNES 1600 → 1610 et MÉTHODES 100 → 102
 # (R2 du plan 09, IME) : +1 méthode publique (imeSelectedText — la voie
 # IME bornée au plafond Binder, distincte de selectedText interne) et
