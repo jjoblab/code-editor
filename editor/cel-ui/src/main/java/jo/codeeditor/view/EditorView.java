@@ -3511,6 +3511,46 @@ public class EditorView extends View {
     }
 
     /**
+     * Honore le drapeau « liste tronquée » des fournisseurs de
+     * complétion (défaut : vrai). Quand un fournisseur signale une liste
+     * plafonnée par son backend, le popup re-requête à chaque édition du
+     * préfixe (prolongation comme raccourcissement, requêtes
+     * coalescées) au lieu de filtrer localement une base amputée — un
+     * candidat écarté par le plafond finit par apparaître. À faux, le
+     * filtrage local pur historique est restauré (une seule requête par
+     * token, réactivité maximale, candidats manquants possibles).
+     *
+     * @param honor vrai pour re-requêter sur liste tronquée
+     * @since 4.3.0
+     */
+    public void setHonorIncompleteCompletion(boolean honor) {
+        popupManager.setHonorIncompleteCompletion(honor);
+    }
+
+    /** L'état courant du réglage « honorer les listes tronquées ». */
+    public boolean isHonorIncompleteCompletion() {
+        return popupManager.isHonorIncompleteCompletion();
+    }
+
+    /**
+     * Débounce (en millisecondes) avant chaque requête de complétion au
+     * fournisseur — les caractères déclencheurs (ex : « . ») et les
+     * invocations explicites (Ctrl+Espace) le court-circuitent toujours.
+     * Défaut : 80 ms. Les valeurs négatives sont ramenées à 0.
+     *
+     * @param debounceMs le débounce souhaité, en millisecondes
+     * @since 4.3.0
+     */
+    public void setCompletionDebounceMs(int debounceMs) {
+        popupManager.setCompletionDebounceMs(debounceMs);
+    }
+
+    /** Le débounce courant (ms) avant requête de complétion. */
+    public int getCompletionDebounceMs() {
+        return popupManager.getCompletionDebounceMs();
+    }
+
+    /**
      * Branche un resolver d'aide de signature. Sans resolver, le popup
      * retombe sur un indice synthétique « function(…) param N » dérivé d'un
      * scan local du contexte d'appel.

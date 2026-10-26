@@ -66,10 +66,57 @@ public class EditorCompletionPopup {
      * frappe rapide (10+ touches/sec) ; les caractères déclencheurs
      * (ex : {@code .}) court-circuitent entièrement ce debounce via le
      * paramètre {@code immediate=true} de {@link #scheduleAsyncFetch}.</p>
+     *
+     * <p>La valeur par défaut est historique (80 ms) ; le réglage courant
+     * vit dans {@link #completionDebounceMs} (exposé par
+     * {@code EditorView.setCompletionDebounceMs(int)}).</p>
      */
     private static final int COMPLETION_DEBOUNCE_MS = 80;
+    /** Débounce courant avant requête moteur (ms), réglable. */
+    private int completionDebounceMs = COMPLETION_DEBOUNCE_MS;
+    /**
+     * Honorons-nous le drapeau « liste tronquée » des fournisseurs ?
+     * (défaut : oui). À vrai, une base tronquée re-requête à chaque
+     * édition du préfixe (coalescée) ; à faux, filtrage local pur
+     * historique — une seule requête par token.
+     */
+    private boolean honorIncompleteCompletion = true;
     private Runnable completionDebounceTask;
-    private boolean fetchInFlight = false;
+    /**
+     * Une requête est-elle en vol (lancée, pas encore livrée) ? Confine
+     * au thread UI en production ; volatile car les bancs sans handler
+     * exécutent la livraison sur la voie dédiée.
+     */
+    private volatile boolean fetchInFlight = false;
+    /** Token de la requête en vol (garant d'identité pour la coalescence). */
+    private int inflightTokenStart = -1;
+    /** Génération de la requête en vol — une requête périmée (dismiss,
+     * frappe plus récente) n'est plus coalescée : sa livraison sera
+     * jetée par la garde de génération, il faut repartir d'une requête
+     * neuve. */
+    private int inflightGen = -1;
+
+    /** Réglage : honorer le drapeau « liste tronquée » (défaut : vrai). */
+    void setHonorIncompleteCompletion(boolean honor) {
+        this.honorIncompleteCompletion = honor;
+    }
+
+    boolean isHonorIncompleteCompletion() {
+        return honorIncompleteCompletion;
+    }
+
+    /**
+     * Réglage du débounce (ms) avant requête moteur — les demandes
+     * immédiates (caractère déclencheur, Ctrl+Espace) le court-circuitent
+     * toujours. Les valeurs négatives sont ramenées à 0.
+     */
+    void setCompletionDebounceMs(int debounceMs) {
+        this.completionDebounceMs = Math.max(0, debounceMs);
+    }
+
+    int getCompletionDebounceMs() {
+        return completionDebounceMs;
+    }
 
     private void cancelPendingFetch() {
         android.os.Handler h = view.getHandler();
@@ -241,10 +288,33 @@ public class EditorCompletionPopup {
             return;
         }
 
-        // ── Étendre : même token, base en cache → filtrage local pur. ──
+        // ── Étendre : même token, base en cache. ──
         if (!prefix.isEmpty()
                 && view.completion.baseTokenStart == tokenStart
                 && !view.completion.baseItems.isEmpty()) {
+            // Base signalée TRONQUÉE par le fournisseur : le filtrage
+            // local donne le retour visuel immédiat, mais une base
+            // amputée ne peut pas faire réapparaître un candidat écarté
+            // par le plafond du backend (monotonie des correspondances :
+            // filtrer davantage ne recrée pas ce qui a été retiré avant
+            // le filtre). On relance donc une requête débouncée à CHAQUE
+            // édition qui modifie le préfixe — prolongation comme
+            // raccourcissement (un retour arrière élargit le champ des
+            // candidats attendus : c'est précisément le cas où la base
+            // tronquée est la plus fausse).
+            if (view.completion.baseIncomplete && honorIncompleteCompletion) {
+                applyLocalFilter(tokenStart, prefix);
+                // Coalescence : une requête COURANTE pour ce token vole
+                // déjà — on ne l'empile pas ; sa livraison refiltrera
+                // contre le préfixe courant et une re-requête partira si
+                // le préfixe a encore évolué pendant le vol.
+                if (!fetchInFlight || inflightGen != completionGeneration.get()) {
+                    scheduleAsyncFetch(tokenStart, false, null);
+                }
+                return;
+            }
+            // Base complète : filtrage local pur, réactif — la réponse en
+            // vol pour ce token est jetée (le filtrage local la remplace).
             completionGeneration.incrementAndGet(); // jette toute réponse en vol pour ce token
             cancelPendingFetch();
             applyLocalFilter(tokenStart, prefix);
@@ -272,6 +342,22 @@ public class EditorCompletionPopup {
                 dismissCompletion();
                 return;
             }
+        }
+        // ── Coalescence : une requête COURANTE pour CE token vole déjà —
+        // la frappe ne s'empile pas. La livraison refiltrera la réponse
+        // contre le préfixe courant (curPrefix) ; si la base livrée est
+        // encore tronquée et que le préfixe a évolué pendant le vol, une
+        // re-requête débouncée partira à la livraison. Ne s'applique ni
+        // aux demandes immédiates (caractère déclencheur ci-dessus,
+        // Ctrl+Espace qui appelle scheduleAsyncFetch directement), ni
+        // aux changements de token (le garde d'identité du token), ni
+        // quand l'honneur du drapeau est coupé (comportement historique).
+        if (!triggeredByTriggerChar
+                && honorIncompleteCompletion
+                && fetchInFlight
+                && inflightGen == completionGeneration.get()
+                && inflightTokenStart == tokenStart) {
+            return;
         }
         // ★ Après un char déclencheur (ex : "."), on lance la
         // requête moteur IMMÉDIATEMENT (immediate=true) au lieu d'attendre
@@ -364,7 +450,7 @@ public class EditorCompletionPopup {
         android.os.Handler h = view.getHandler();
         if (!immediate && h != null) {
             completionDebounceTask = launch;
-            h.postDelayed(launch, COMPLETION_DEBOUNCE_MS);
+            h.postDelayed(launch, completionDebounceMs);
         } else {
             launchFetch(gen, tokenStart, triggerCharacter);
         }
@@ -377,6 +463,10 @@ public class EditorCompletionPopup {
         if (gen != completionGeneration.get()) return; // superseded pendant le debounce
         if (view.session == null) return;
         fetchInFlight = true;
+        // Identité du vol — la coalescence de refreshCompletion ne
+        // fusionne que les frappes du MÊME token dont la génération est
+        // encore courante.
+        inflightGen = gen;
         // Lot 1+3 (audit v3.41.0) : on évite la copie complète du
         // document (O(n) sur le thread UI) tant qu'on n'en a pas
         // besoin. Le prefix est extrait via subText (O(log n +
@@ -385,6 +475,7 @@ public class EditorCompletionPopup {
         // est branché (son API prend String en paramètre).
         final int snapCaret = view.session.getSelection().start;
         final int safeTokenStart = Math.min(tokenStart, snapCaret);
+        inflightTokenStart = safeTokenStart;
         final jo.codeeditor.view.EditorView.CompletionProvider provider = view.completionProvider;
         final String langName = view.session.getLanguage();
         final String prefix = view.session.getDocument().subText(safeTokenStart, snapCaret);
@@ -444,6 +535,18 @@ public class EditorCompletionPopup {
                 view.completion.baseIncomplete = baseIncomplete;
                 applyFilteredItems(filterCompletionItems(fetched, curPrefix),
                         safeTokenStart, curPrefix);
+                // Base encore tronquée + préfixe ayant évolué pendant le
+                // vol : la réponse servie a été calculée pour un préfixe
+                // plus ancien, elle est déjà périmée pour le préfixe
+                // courant — une re-requête débouncée part maintenant
+                // (l'honneur du drapeau seul la conditionne ; la
+                // coalescence empêche l'empilement si une frappe
+                // arrive entre-temps). Une base COMPLETE n'en déclenche
+                // jamais : le filtrage local reprend ses droits.
+                if (view.completion.baseIncomplete && honorIncompleteCompletion
+                        && !curPrefix.equals(prefix)) {
+                    scheduleAsyncFetch(safeTokenStart, false, null);
+                }
             };
             android.os.Handler hh = view.getHandler();
             if (hh != null) {

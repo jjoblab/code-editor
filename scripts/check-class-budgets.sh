@@ -159,7 +159,21 @@ budget() {
 # les relais. Mesuré : 4213 l. / 177 champs / 295 méthodes (marges 12 /
 # 3 / 0). Champs SOUS le plafond (177/180). Le relèvement ne dispense
 # pas de la décomposition du plan 01.
-budget editor/cel-ui/src/main/java/jo/codeeditor/view/EditorView.java 4225 180 295
+# Écart au ratchet (4.3.0, complétion — fiabiliser le popup) : les
+# plafonds LIGNES 4225 → 4270 et MÉTHODES 295 → 299 sont relevés par
+# décision explicite : l'honorabilité du drapeau « liste tronquée » et
+# le réglage du débounce de complétion EXIGENT leurs QUATRE relais
+# publics sur la vue (setHonorIncompleteCompletion/
+# isHonorIncompleteCompletion/setCompletionDebounceMs/
+# getCompletionDebounceMs — réglages hôtes de cel-ui 4.3.0) ; la
+# POLITIQUE (coalescence, re-requête, génération) vit dans
+# EditorCompletionPopup, le résultat dans CompletionResult (classe
+# dédiée) — EditorView ne conserve que les relais. L'interface interne
+# CompletionProvider gagne sa variante résultat (provideResult, à
+# défaut). Mesuré : 4270 l. / 177 champs / 299 méthodes (marges 0 / 3 /
+# 0). Champs SOUS le plafond (177/180). Le relèvement ne dispense pas
+# de la décomposition du plan 01.
+budget editor/cel-ui/src/main/java/jo/codeeditor/view/EditorView.java 4270 180 299
 # Écart au ratchet : plafonds LIGNES 1600 → 1610 et MÉTHODES 100 → 102
 # (R2 du plan 09, IME) : +1 méthode publique (imeSelectedText — la voie
 # IME bornée au plafond Binder, distincte de selectedText interne) et

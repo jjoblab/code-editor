@@ -113,6 +113,24 @@ public class EditorPopupManager {
 
     public float[] completionPopupAnchor() { return completion.completionPopupAnchor(); }
 
+    /** Réglage du popup : honorer le drapeau « liste tronquée ». */
+    public void setHonorIncompleteCompletion(boolean honor) {
+        completion.setHonorIncompleteCompletion(honor);
+    }
+
+    public boolean isHonorIncompleteCompletion() {
+        return completion.isHonorIncompleteCompletion();
+    }
+
+    /** Réglage du popup : débounce (ms) avant requête de complétion. */
+    public void setCompletionDebounceMs(int debounceMs) {
+        completion.setCompletionDebounceMs(debounceMs);
+    }
+
+    public int getCompletionDebounceMs() {
+        return completion.getCompletionDebounceMs();
+    }
+
     // ════════════════════════════════════════════════════════════════
     // Popup d'aide de signature — corps délégués à EditorSignaturePopup
     // ════════════════════════════════════════════════════════════════
