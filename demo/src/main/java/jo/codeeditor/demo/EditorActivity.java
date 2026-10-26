@@ -908,6 +908,24 @@ public class EditorActivity extends AppCompatActivity {
             editor.setVariableColorsEnabled(false);
             return true;
         }
+        // B11 : bande d'erreurs (marqueurs de diagnostics au bord droit).
+        if (id == R.id.error_stripe_on) {
+            applyErrorStripe(true);
+            return true;
+        }
+        if (id == R.id.error_stripe_off) {
+            applyErrorStripe(false);
+            return true;
+        }
+        // B26 : sélecteur de couleur au tap d'un code hex.
+        if (id == R.id.color_picker_on) {
+            applyColorPicker(true);
+            return true;
+        }
+        if (id == R.id.color_picker_off) {
+            applyColorPicker(false);
+            return true;
+        }
         // 4.3.0 — complétion : simulation de troncature, réglages hôtes
         // (honneur au drapeau, anti-rebond).
         if (id == R.id.completion_truncated_on) {
@@ -969,6 +987,16 @@ public class EditorActivity extends AppCompatActivity {
         editor.setCompletionDebounceMs(ms);
         Toast.makeText(this, getString(R.string.completion_debounce_set, ms),
                 Toast.LENGTH_SHORT).show();
+    }
+
+    /** B11 — montre (ou cache) la bande d'erreurs du bord droit. */
+    void applyErrorStripe(boolean enabled) {
+        editor.setErrorStripeEnabled(enabled);
+    }
+
+    /** B26 — le tap au cœur d'un code hex ouvre-t-il le sélecteur ? */
+    void applyColorPicker(boolean enabled) {
+        editor.setColorPickerEnabled(enabled);
     }
 
     /** Point d'arrêt de démo sur la ligne du caret (API GutterAction). */

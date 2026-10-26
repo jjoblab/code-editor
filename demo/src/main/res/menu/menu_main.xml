@@ -196,6 +196,27 @@
         </menu>
     </item>
 
+    <!-- B11/B26 : bande d'erreurs et sélecteur de couleur au code hex -->
+    <item
+        android:id="@+id/action_error_stripe"
+        android:title="@string/menu_error_stripe"
+        app:showAsAction="never">
+        <menu>
+            <item android:id="@+id/error_stripe_on" android:title="@string/error_stripe_on" />
+            <item android:id="@+id/error_stripe_off" android:title="@string/error_stripe_off" />
+        </menu>
+    </item>
+
+    <item
+        android:id="@+id/action_color_picker"
+        android:title="@string/menu_color_picker"
+        app:showAsAction="never">
+        <menu>
+            <item android:id="@+id/color_picker_on" android:title="@string/color_picker_on" />
+            <item android:id="@+id/color_picker_off" android:title="@string/color_picker_off" />
+        </menu>
+    </item>
+
     <item
         android:id="@+id/action_breakpoint"
         android:title="@string/menu_breakpoint"

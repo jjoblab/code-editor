@@ -176,6 +176,14 @@
     <string name="completion_truncated_disarmed">Base complète restaurée : une seule requête par mot tapé, filtrage local ensuite</string>
     <string name="completion_debounce_set">Anti-rebond de complétion : %1$d ms</string>
 
+    <!-- B11/B26 : bande d'erreurs + sélecteur de couleur au code hex -->
+    <string name="menu_error_stripe">Bande d\u2019erreurs</string>
+    <string name="error_stripe_on">Activée (défaut)</string>
+    <string name="error_stripe_off">Désactivée</string>
+    <string name="menu_color_picker">Sélecteur de couleur (code hex)</string>
+    <string name="color_picker_on">Activé (défaut)</string>
+    <string name="color_picker_off">Désactivé</string>
+
     <!-- Grammaires TextMate -->
     <string name="grammars_html_css">Grammaires html + css actives — les blocs &lt;style&gt; sont colorés par la grammaire CSS incluse</string>
     <string name="grammars_none">Aucune grammaire embarquée pour %1$s — coloration intégrée conservée</string>
