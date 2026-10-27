@@ -332,7 +332,7 @@ sans) :
 | Élément | État |
 |---|---|
 | Tag | `v4.3.0` (annoté, posé sur `main`) |
-| SHA de la version | `6ffb490` (`main`, 2026-10-26) |
+| SHA de la version | `7cad81e` (`main`, 2026-10-26) |
 | `ci.yml` (main) | SUCCESS (build + 2 704 tests + lint + garde-fous) |
 | `publish.yml` (tag) | SUCCESS — les 5 AAR publiés sur GitHub Packages (`jo.codeeditor:cel-{core,lsp-api,lsp,ui,textmate}:4.3.0`) |
 | JitPack `com.github.jjoblab/code-editor` | se construit À LA PREMIÈRE DEMANDE (`v4.3.1` lancé à la demande le 2026-10-27 ; la 4.3.0 n'est pas encore consommée — demander la résolution déclenche le build) |
@@ -481,7 +481,7 @@ renvoi. `NavigationMenu.isCamelHumpSubsequence` DÉLÈGUE au matcher.
 | Élément | État |
 |---|---|
 | Tag | `v4.3.1` (annoté, posé sur `main`) |
-| SHA de la version | `4ccd6c4` (`main`, 2026-10-27) |
+| SHA de la version | `f5928fd` (`main`, 2026-10-27) |
 | `ci.yml` (main) | SUCCESS (build + 2 714 tests + lint + garde-fous) |
 | `publish.yml` (tag) | SUCCESS — les 5 AAR publiés sur GitHub Packages (`jo.codeeditor:cel-*:4.3.1`) |
 | JitPack `com.github.jjoblab/code-editor` | `v4.3.1` build lancé à la demande le 2026-10-27 (« Building » à la rédaction) |
@@ -506,7 +506,7 @@ montrent les re-requêtes en direct.
 | Élément | État |
 |---|---|
 | Tag | `v4.4.0` (annoté, posé sur `main`) |
-| SHA de la version | `bf752d3` (`main`, 2026-10-27) |
+| SHA de la version | `9db4f11` (`main`, 2026-10-27) |
 | `ci.yml` (main) | à l'écriture : build local complet vert (clean assembleDebug test lint, 2 765 tests, 0 échec) + garde-fous verts (figures écart 0, budgets, refs externes) |
 | `publish.yml` (tag) | déclenché par la poussée du tag — les 5 AAR `jo.codeeditor:cel-*:4.4.0` |
 | JitPack `com.github.jjoblab.code-editor` | se construit À LA PREMIÈRE DEMANDE (`v4.4.0` → demander la résolution déclenche le build) |
