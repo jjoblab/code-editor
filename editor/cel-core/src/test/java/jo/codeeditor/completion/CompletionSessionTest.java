@@ -13,53 +13,6 @@ class CompletionSessionTest {
     }
 
     @Test
-    void filterByPrefix() {
-        List<CompletionSession.Item> items = List.of(
-            item("getString", 10, false),
-            item("getView", 8, false),
-            item("setString", 5, false),
-            item("toString", 3, false)
-        );
-        CompletionSession session = new CompletionSession(0, items, true, false);
-        List<CompletionSession.Item> filtered = session.filtered("get");
-        assertEquals(2, filtered.size());
-        assertEquals("getString", filtered.get(0).label);
-        assertEquals("getView", filtered.get(1).label);
-    }
-
-    @Test
-    void filterEmptyPrefix_returnsAll() {
-        List<CompletionSession.Item> items = List.of(
-            item("a", 1, false), item("b", 2, false)
-        );
-        CompletionSession session = new CompletionSession(0, items, true, false);
-        assertEquals(2, session.filtered("").size());
-        assertEquals(2, session.filtered(null).size());
-    }
-
-    @Test
-    void filterNoMatch_returnsEmpty() {
-        List<CompletionSession.Item> items = List.of(
-            item("getString", 10, false)
-        );
-        CompletionSession session = new CompletionSession(0, items, true, false);
-        assertTrue(session.filtered("xyz").isEmpty());
-    }
-
-    @Test
-    void filterReRanks_keywordsBelowSemantic() {
-        List<CompletionSession.Item> items = List.of(
-            item("class", 20, true),
-            item("getClass", 10, false)
-        );
-        CompletionSession session = new CompletionSession(0, items, true, false);
-        List<CompletionSession.Item> filtered = session.filtered("cl");
-        // "class" correspond comme mot-clé, "getClass" comme camel-hump
-        // Le sémantique doit être classé au-dessus du mot-clé
-        assertFalse(filtered.isEmpty());
-    }
-
-    @Test
     void coversCaret_withinToken() {
         CompletionSession session = new CompletionSession(5,
             List.of(item("hello", 1, false), item("help", 1, false)),
@@ -102,35 +55,12 @@ class CompletionSessionTest {
     }
 
     @Test
-    void matchTier_exact() {
-        // ★ 4.3.0 : matchTier délègue au matcher unifié et retourne
-        // l'échelle à 6 niveaux — l'exact à la casse près est désormais
-        // DISTINGUÉ de l'exact strict.
-        assertEquals(CompletionMatcher.TIER_EXACT,
-                CompletionSession.matchTier("hello", "hello"));
-        assertEquals(CompletionMatcher.TIER_EXACT_CI,
-                CompletionSession.matchTier("Hello", "hello"));
-    }
-
-    @Test
-    void matchTier_prefix() {
-        assertEquals(CompletionMatcher.TIER_PREFIX,
-                CompletionSession.matchTier("getString", "get"));
-        assertEquals(CompletionMatcher.TIER_PREFIX_CI,
-                CompletionSession.matchTier("GetString", "get"));
-        // L'identifiant de tête fait foi : « Text() » est EXACT pour
-        // « Text » tapé (le libellé entier ne l'était pas).
-        assertEquals(CompletionMatcher.TIER_EXACT,
-                CompletionSession.matchTier("Text()", "Text"));
-    }
-
-    @Test
-    void matchTier_camelHump() {
-        int tier = CompletionSession.matchTier("getString", "gS");
-        assertEquals(CompletionMatcher.TIER_CAMEL_HUMP, tier);
+    void matcher_camelHump() {
+        assertEquals(CompletionMatcher.TIER_CAMEL_HUMP,
+                CompletionMatcher.tier("getString", "gS"));
         // Les runs contigus comptent comme humps canoniques.
         assertEquals(CompletionMatcher.TIER_PREFIX,
-                CompletionSession.matchTier("getString", "get"));
+                CompletionMatcher.tier("getString", "get"));
         // Les initiales de mots passent devant les sous-séquences
         // quelconques : « LLM » est un hump sur « LazyListModifier »…
         assertEquals(CompletionMatcher.TIER_CAMEL_HUMP,
@@ -139,21 +69,8 @@ class CompletionSessionTest {
         assertEquals(CompletionMatcher.TIER_SUBSEQUENCE,
                 CompletionMatcher.tier("parallelStream", "LLM"));
     }
-
     @Test
-    void matchTier_none() {
-        assertEquals(CompletionMatcher.TIER_NONE,
-                CompletionSession.matchTier("hello", "xyz"));
-    }
-
-    @Test
-    void matchTier_emptyPrefix_returnsExact() {
-        assertEquals(CompletionMatcher.TIER_EXACT,
-                CompletionSession.matchTier("anything", ""));
-    }
-
-    @Test
-    void matchTier_filterTextRepli() {
+    void matcher_filterTextRepli() {
         // Le filterText du fournisseur sert de repli — et peut améliorer
         // le palier du libellé (exact du texte de filtrage contre
         // préfixe insensible du libellé).

@@ -245,7 +245,7 @@ public class EditorRenderer {
             }
         }
 
-        // 3. Guides d'indentation (fins traits verticaux à chaque INDENT_UNIT_COLS) — dessinés avant le texte
+        // 3. Guides d'indentation (fins traits verticaux à chaque unité d'indentation) — dessinés avant le texte
         // ★ B9 : les passes non sensibles aux plis itèrent des LIGNES DOCUMENT
         //        (elles comparent doc.lineForOffset et positionnent via
         //        docLineToY) — leur passer la plage de lignes document

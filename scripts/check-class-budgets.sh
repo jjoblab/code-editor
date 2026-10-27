@@ -212,11 +212,14 @@ budget() {
 # session, qui possède le chemin d'édition) ferme l'écart avec les
 # autres réglages comportementaux de la vue (setLargeFileMode,
 # setColorPickerEnabled, setCompletionRankingLearningEnabled…). Le
-# retrait des dépréciations 4.3.0 dans la MÊME version rendra le solde
-# net de la version NÉGATIF et le plafond sera rabattu en conséquence.
-# Mesuré : 4498 l. / 179 champs / 309 méthodes. Le relèvement ne
-# dispense pas de la décomposition du plan 01.
-budget editor/cel-ui/src/main/java/jo/codeeditor/view/EditorView.java 4500 180 309
+# retrait des dépréciations 4.3.0 dans la MÊME version a rendu le solde
+# net NÉGATIF : les 4 relais dépréciés (setGoToLineText/acceptGoToLine/
+# setRenameText/acceptRename) sont partis (-24 l., -4 méthodes
+# publiques) — le plafond est RABATTU en conséquence (4500 → 4480 l.,
+# 309 → 307 méthodes ; le délégué du renommage lié reste, mesuré
+# 4474 l. / 179 champs / 305 méthodes, marges 6 / 1 / 2). Le cliquet
+# continue de descendre avec la décomposition du plan 01.
+budget editor/cel-ui/src/main/java/jo/codeeditor/view/EditorView.java 4480 180 307
 # Écart au ratchet : plafonds LIGNES 1600 → 1610 et MÉTHODES 100 → 102
 # (R2 du plan 09, IME) : +1 méthode publique (imeSelectedText — la voie
 # IME bornée au plafond Binder, distincte de selectedText interne) et

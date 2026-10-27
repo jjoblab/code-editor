@@ -252,41 +252,5 @@ public final class EditOps {
         return XmlLinkedTagEdits.backspaceEdit(text, caret);
     }
 
-    /**
-     * Tente de déclencher une complétion postfix. Si un postfix est
-     * détecté (.if, .for, .notnull, .return, .var, .while, .try,
-     * .else), retourne un tableau [start, end, caret]. Le texte à
-     * insérer est disponible via {@link #getPostfixInsertText()}.
-     *
-     * @return [start, end, caret] ou null si pas de postfix
-     * @deprecated depuis 3.71.0 (D-04) : la paire
-     *             {@code tryPostfixCompletion}/{@code getPostfixInsertText}
-     *             reposait sur un champ STATIQUE MUTABLE partagé entre
-     *             sessions — entrelacée en concurrence, la seconde
-     *             session lisait le texte de la première. Utiliser
-     *             {@link #tryPostfix(CharSequence, int, String)} qui
-     *             retourne l'objet résultat immuable PAR APPEL.
-     *             Retrait prévu au palier suivant (voir CHANGELOG).
-     */
-    @Deprecated
-    public static int[] tryPostfixCompletion(CharSequence text, int pos, String language) {
-        PostfixResult r = tryPostfix(text, pos, language);
-        if (r == null) return null;
-        return new int[]{r.start, r.end, r.caret};
-    }
 
-    /**
-     * Récupère le texte à insérer du dernier appel à tryPostfixCompletion.
-     *
-     * @deprecated depuis 3.71.0 (D-04) : retourne TOUJOURS null — l'état
-     *             partagé a été retiré (le texte voyage dans le
-     *             résultat immuable de
-     *             {@link #tryPostfix(CharSequence, int, String)}).
-     *             Retrait prévu au palier suivant (voir CHANGELOG).
-     * @return toujours null
-     */
-    @Deprecated
-    public static String getPostfixInsertText() {
-        return null;
-    }
 }

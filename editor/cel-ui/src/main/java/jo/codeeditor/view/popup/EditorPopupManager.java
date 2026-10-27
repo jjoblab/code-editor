@@ -244,12 +244,6 @@ public class EditorPopupManager {
 
     public boolean isGoToLineVisible() { return goToLine.isGoToLineVisible(); }
 
-    @Deprecated
-    public void setGoToLineText(String text) { goToLine.setGoToLineText(text); }
-
-    @Deprecated
-    public boolean acceptGoToLine() { return goToLine.acceptGoToLine(); }
-
     // ════════════════════════════════════════════════════════════════
     // Popup de renommage — corps délégués à EditorRenamePopup
     // ════════════════════════════════════════════════════════════════
@@ -261,12 +255,6 @@ public class EditorPopupManager {
     public void dismissRename() { rename.dismissRename(); }
 
     public boolean isRenameVisible() { return rename.isRenameVisible(); }
-
-    @Deprecated
-    public void setRenameText(String text) { rename.setRenameText(text); }
-
-    @Deprecated
-    public boolean acceptRename() { return rename.acceptRename(); }
 
     // ════════════════════════════════════════════════════════════════
     // Popup + fiche de diagnostic — corps délégués à EditorDiagnosticPopups

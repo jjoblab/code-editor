@@ -97,7 +97,7 @@ class FoldDetectorTest {
     }
 
     @Test
-    void detectPythonFolds_defClass() {
+    void detectPython_defClass() {
         String text = "class Foo:\n" +
             "    def bar(self):\n" +
             "        x = 1\n" +
@@ -112,7 +112,7 @@ class FoldDetectorTest {
     }
 
     @Test
-    void detectPythonFolds_ifElif() {
+    void detectPython_ifElif() {
         String text = "if True:\n" +
             "    x = 1\n" +
             "    y = 2\n" +

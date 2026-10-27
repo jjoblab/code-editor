@@ -29,7 +29,6 @@ public class EditorGoToLinePopup {
 
     // ── État du popup (déplacé d'EditorView — seul consommateur) ──
     boolean goToLineVisible = false;
-    String goToLineText = "";
     android.widget.PopupWindow goToLinePopup;
 
     EditorGoToLinePopup(EditorView view) {
@@ -133,16 +132,4 @@ public class EditorGoToLinePopup {
     }
 
     boolean isGoToLineVisible() { return goToLineVisible; }
-
-    @Deprecated
-    void setGoToLineText(String text) {
-        goToLineText = text == null ? "" : text;
-        view.invalidate();
-    }
-
-    @Deprecated
-    boolean acceptGoToLine() {
-        acceptGoToLineInput(goToLineText);
-        return goToLineVisible;
-    }
 }

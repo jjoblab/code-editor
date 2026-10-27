@@ -85,19 +85,6 @@ class EditOpsPostfixConcurrencyTest {
     }
 
     @Test
-    void anciensAccesseursDépréciés_inertesSansÉtatPartagé() {
-        // La paire dépréciée ne transporte plus d'état : le second
-        // accesseur est inerte (null) et aucune exception n'est levée.
-        assertNull(EditOps.getPostfixInsertText(),
-                "getPostfixInsertText est inerte depuis le retrait de l'état partagé");
-        int[] pc = EditOps.tryPostfixCompletion("int value.if", 12, "java");
-        assertNotNull(pc, "la variante dépréciée retourne toujours la plage");
-        assertEquals(3, pc.length);
-        assertNull(EditOps.getPostfixInsertText(),
-                "le texte ne transite plus par un état global");
-    }
-
-    @Test
     void résultatImmuable_champsCohérents() {
         EditOps.PostfixResult r = EditOps.tryPostfix("int value.if", 12, "java");
         assertNotNull(r);

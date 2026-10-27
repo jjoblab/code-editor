@@ -288,15 +288,4 @@ public class EditorRenamePopup {
     }
 
     boolean isRenameVisible() { return renameVisible; }
-
-    @Deprecated
-    void setRenameText(String text) {
-        renameText = text == null ? "" : text;
-        view.invalidate();
-    }
-
-    @Deprecated
-    boolean acceptRename() {
-        return acceptRenameInput(renameText);
-    }
 }

@@ -4368,18 +4368,6 @@ public class EditorView extends View {
 
     public boolean isGoToLineVisible() { return popupManager.isGoToLineVisible(); }
 
-    /** @deprecated Utiliser plutôt le {@link #showGoToLine()} basé popup. */
-    @Deprecated
-    public void setGoToLineText(String text) {
-        popupManager.setGoToLineText(text);
-    }
-
-    /** @deprecated Utiliser plutôt le {@link #showGoToLine()} basé popup. */
-    @Deprecated
-    public boolean acceptGoToLine() {
-        return popupManager.acceptGoToLine();
-    }
-
     /**
      * Ouvre le popup de renommage. Utilise un vrai
      * {@link android.widget.PopupWindow} Android avec un
@@ -4400,18 +4388,6 @@ public class EditorView extends View {
     }
 
     public boolean isRenameVisible() { return popupManager.isRenameVisible(); }
-
-    /** @deprecated Utiliser plutôt le {@link #showRename()} basé popup. */
-    @Deprecated
-    public void setRenameText(String text) {
-        popupManager.setRenameText(text);
-    }
-
-    /** @deprecated Utiliser plutôt le {@link #showRename()} basé popup. */
-    @Deprecated
-    public boolean acceptRename() {
-        return popupManager.acceptRename();
-    }
 
     /** Ouvre la feuille de diagnostics — une bottom sheet listant tous les diagnostics. */
     public void showDiagnosticSheet() {

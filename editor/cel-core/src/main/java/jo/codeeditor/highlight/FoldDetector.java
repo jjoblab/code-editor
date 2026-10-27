@@ -337,15 +337,6 @@ public final class FoldDetector {
         return folds;
     }
 
-    /**
-     * @deprecated Utiliser {@link #detectIndentFolds(String)} (le nom
-     * reste pour compat binaire avec les tests existants).
-     */
-    @Deprecated
-    public static List<DiagnosticShift.FoldRegion> detectPythonFolds(String text) {
-        return detectIndentFolds(text);
-    }
-
     // ── Régions nommées (// region ... // endregion) ───────────
 
     /**

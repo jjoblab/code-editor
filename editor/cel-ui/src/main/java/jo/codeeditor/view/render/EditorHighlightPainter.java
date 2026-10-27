@@ -30,17 +30,6 @@ public class EditorHighlightPainter {
         this.view = view;
     }
 
-    // Guides d'indentation
-    /**
-     * Lot B (audit v3.41.0) : l'unité d'indentation n'est plus figée
-     * à 4 colonnes. {@link #drawIndentGuides} détecte l'unité réelle
-     * (2/4/8 espaces ou tabulation) via {@link jo.codeeditor.edit.EditOps#detectIndentUnit}.
-     * La constante reste pour compatibilité ascendante des appels
-     * existants, mais n'est plus utilisée dans drawIndentGuides.
-     */
-    @Deprecated
-    static final int INDENT_UNIT_COLS = 4;
-
     // Clignotement du curseur (plein après édition + période de clignotement)
     static final long CARET_BLINK_MS = 530;
 

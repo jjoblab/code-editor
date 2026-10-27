@@ -387,27 +387,6 @@ public class LspEditor {
     }
 
     /**
-     * Appelé quand le texte de l'éditeur change. Envoie une notification
-     * didChange (sync complète ou incrémentale selon le serveur).
-     *
-     * <p>Débounce de 300 ms + envoi sur un thread de fond pour ne pas
-     * bloquer le thread UI. Le didChange est envoyé via l'exécuteur LSP4J
-     * (asynchrone) — le serveur le traite sur son propre thread et pousse
-     * les diagnostics en retour via publishDiagnostics (asynchrone aussi).</p>
-     *
-     * @deprecated depuis 3.71.0 (P-02) : le pont câble désormais le suivi
-     *             AUTOMATIQUE des éditions ({@code OnTextEditListener} 4-arg)
-     *             — plus besoin de pousser le texte complet à chaque
-     *             frappe. Conservé pour compatibilité : force une
-     *             resynchronisation plein texte avec le texte fourni.
-     *             Retrait prévu au palier suivant (voir CHANGELOG).
-     */
-    @Deprecated
-    public void onTextChanged(CharSequence text) {
-        synchronizer.resyncFull(text);
-    }
-
-    /**
      * ★ P-02 : relaie une édition suivie de la session au synchroniseur —
      * positions LSP et vue de rope capturées au moment de l'édition,
      * aucune copie du document. Accès package (le pont interne).

@@ -489,10 +489,10 @@ class LspDocumentSynchronizer {
 
     /**
      * Resynchronisation PLEIN TEXTE forcée avec le texte fourni (didChange
-     * sans plage) — ancre l'état serveur dessus. Sert au point d'entrée
-     * hérité {@link LspEditor#onTextChanged(CharSequence)} (déprécié) :
-     * le suivi automatique des éditions (P-02) rend ce pousser de texte
-     * complet inutile en usage normal.
+     * sans plage) — ancre l'état serveur dessus. Le suivi automatique des
+     * éditions (P-02) rend ce pousser de texte complet inutile en usage
+     * normal ; le point d'entrée hérité qui l'appelait a été retiré
+     * (4.6.0, politique de dépréciation).
      */
     void resyncFull(CharSequence text) {
         if (!editor.isConnected()) return;

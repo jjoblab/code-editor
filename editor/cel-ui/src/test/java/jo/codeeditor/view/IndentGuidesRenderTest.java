@@ -27,10 +27,10 @@ import static org.junit.Assert.*;
  * après la refonte du Lot B :</p>
  * <ul>
  *   <li><b>Niveaux dès la colonne 0</b> : la boucle actuelle part de
- *       level = 4 (INDENT_UNIT_COLS), donc les lignes à 4 colonnes
+ *       level = 4 (unité d'indentation historique), donc les lignes à 4 colonnes
  *       (contenu direct d'un objet JSON racine) n'ont AUCUN guide.
  *       Les éditeurs de référence tracent aussi le premier niveau.</li>
- *   <li><b>Unité d'indentation réelle</b> : INDENT_UNIT_COLS = 4 est
+ *   <li><b>Unité d'indentation réelle</b> : l'unité historique de 4 colonnes est
  *       figé. Pour un fichier à 2 espaces, les guides tombent un
  *       niveau sur deux ; pour un fichier à tabulations, \t est
  *       compté à plat pour 4 colonnes sans tenir compte de la

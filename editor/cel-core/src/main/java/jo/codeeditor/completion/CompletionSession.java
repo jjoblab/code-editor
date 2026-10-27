@@ -169,60 +169,11 @@ public class CompletionSession {
     /** Indique si la liste de base a été tronquée par le backend. */
     public final boolean isIncomplete;
 
-    /** Paliers de classement pour la qualité de correspondance.
-     * @deprecated Échelle historique à 5 valeurs remplacée par
-     *             l'échelle à 6 niveaux de {@link CompletionMatcher}
-     *             ({@code TIER_EXACT / TIER_EXACT_CI / TIER_PREFIX /
-     *             TIER_PREFIX_CI / TIER_CAMEL_HUMP / TIER_SUBSEQUENCE /
-     *             TIER_NONE}) — les valeurs numériques DIFFÈRENT.
-     */
-    @Deprecated
-    public static final int TIER_EXACT = 0;
-    /** @deprecated Voir {@link #TIER_EXACT}. */
-    @Deprecated
-    public static final int TIER_PREFIX = 1;
-    /** @deprecated Voir {@link #TIER_EXACT}. */
-    @Deprecated
-    public static final int TIER_CAMEL_HUMP = 2;
-    /** @deprecated Voir {@link #TIER_EXACT}. */
-    @Deprecated
-    public static final int TIER_SUBSEQUENCE = 3;
-    /** @deprecated Voir {@link #TIER_EXACT}. */
-    @Deprecated
-    public static final int TIER_NONE = 4;
-
     public CompletionSession(int tokenStart, List<Item> base, boolean canFilterLocally, boolean isIncomplete) {
         this.tokenStart = tokenStart;
         this.base = base != null ? Collections.unmodifiableList(new ArrayList<>(base)) : Collections.emptyList();
         this.canFilterLocally = canFilterLocally;
         this.isIncomplete = isIncomplete;
-    }
-
-    /**
-     * Filtre les éléments par préfixe ou sous-séquence camel-hump, puis
-     * re-classe. Les éléments de buffer/mots-clés sont classés sous les
-     * éléments sémantiques.
-     *
-     * @param prefix le texte tapé par l'utilisateur jusqu'ici
-     * @return liste filtrée et re-classée
-     * @deprecated Le classement de production vit dans le filtre local
-     *             du popup (paliers + groupes de
-     *             {@link CompletionMatcher}) ; cette méthode et son
-     *             classement par score historique ne servent plus.
-     */
-    @Deprecated
-    public List<Item> filtered(String prefix) {
-        if (prefix == null || prefix.isEmpty()) {
-            return reRanked(base);
-        }
-
-        List<Item> matched = new ArrayList<>();
-        for (Item item : base) {
-            if (matchesItem(item, prefix)) {
-                matched.add(item);
-            }
-        }
-        return reRanked(matched);
     }
 
     /**
@@ -247,37 +198,6 @@ public class CompletionSession {
         if (matchesFilter(item.label, prefix)) return true;
         return item.filterText != null && !item.filterText.isEmpty()
                 && matchesFilter(item.filterText, prefix);
-    }
-
-    /**
-     * Re-classe les éléments : les mots du buffer passent sous les
-     * éléments sémantiques. Mots-clés et snippets en priorité plus basse.
-     */
-    private List<Item> reRanked(List<Item> items) {
-        List<Item> result = new ArrayList<>(items);
-        result.sort((a, b) -> {
-            // Mots-clés/snippets sous les éléments sémantiques
-            if (a.isKeyword != b.isKeyword) return a.isKeyword ? 1 : -1;
-            if (a.isSnippet != b.isSnippet) return a.isSnippet ? 1 : -1;
-            // sortScore le plus élevé d'abord
-            int scoreCmp = Integer.compare(b.sortScore, a.sortScore);
-            if (scoreCmp != 0) return scoreCmp;
-            // Départage par sortText (ordre naturel croissant, null en
-            // dernier) puis ordre alphabétique.
-            int sortTextCmp = compareSortText(a.sortText, b.sortText);
-            if (sortTextCmp != 0) return sortTextCmp;
-            // Ordre alphabétique
-            return a.label.compareToIgnoreCase(b.label);
-        });
-        return result;
-    }
-
-    /** Comparaison de sortText : ordre naturel croissant, null en dernier. */
-    private static int compareSortText(String a, String b) {
-        if (a == null && b == null) return 0;
-        if (a == null) return 1;
-        if (b == null) return -1;
-        return a.compareTo(b);
     }
 
     /**
@@ -315,22 +235,6 @@ public class CompletionSession {
      */
     public static List<Integer> matchPositions(String label, String prefix) {
         return CompletionMatcher.matchPositionsForItem(label, null, prefix);
-    }
-
-    /**
-     * Palier de classement de la correspondance.
-     *
-     * @param label  le libellé de complétion
-     * @param prefix le préfixe tapé
-     * @return constante de palier
-     * @deprecated Délègue à {@link CompletionMatcher#tier(String, String)}
-     *             et retourne l'échelle à 6 niveaux (les anciennes
-     *             constantes {@code TIER_*} de cette classe n'ont plus
-     *             les bonnes valeurs).
-     */
-    @Deprecated
-    public static int matchTier(String label, String prefix) {
-        return CompletionMatcher.tier(label, prefix);
     }
 
     /**
