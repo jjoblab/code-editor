@@ -34,14 +34,14 @@ dependencyResolutionManagement {
 // app/build.gradle.kts
 dependencies {
     // Le module UI embarque transitivement cel-core et cel-lsp-api.
-    implementation("jo.codeeditor:cel-ui:4.7.0")
+    implementation("jo.codeeditor:cel-ui:4.8.0")
 
     // Optionnel — intégration Language Server Protocol (LSP4J).
-    implementation("jo.codeeditor:cel-lsp:4.7.0")
+    implementation("jo.codeeditor:cel-lsp:4.8.0")
 
     // Optionnel — voie grammaires (ADR-002 C3) : coloration par
     // grammaires TextMate-like + grammaires embarquées (C#).
-    implementation("jo.codeeditor:cel-textmate:4.7.0")
+    implementation("jo.codeeditor:cel-textmate:4.8.0")
 }
 ```
 
@@ -53,7 +53,7 @@ maven { url = uri("https://jitpack.io") }
 
 // app/build.gradle.kts
 dependencies {
-    implementation("com.github.jjoblab.code-editor:cel-ui:v4.7.0")
+    implementation("com.github.jjoblab.code-editor:cel-ui:v4.8.0")
 }
 ```
 
@@ -412,6 +412,50 @@ view.setLanguage(new Language() {
         };
     }
 });
+```
+
+### Plancher local de complétion fusionné (4.8.0)
+
+Brancher un fournisseur — hôte ou LSP — ne RETIRE plus les mots-clés
+et snippets du profil de langage : une réponse NON VIDE est fusionnée
+avec la base intégrée, dédupliquée par libellé (le candidat serveur,
+plus riche — documentation, détail, container — gagne le conflit),
+ordonnée par le classement commun. Un serveur pauvre ne fait donc plus
+régresser la complétion par rapport au mode sans serveur. Une réponse
+VIDE est respectée : pas de mots-clés hors contexte après un point,
+une arobase ou un import.
+
+```java
+// Défaut : fusion ACTIVE. Pour servir une liste strictement
+// sienne (comportement historique exclusif) :
+view.setMergeBuiltinCompletionsEnabled(false);
+```
+
+### Aide de signature redessinée (4.8.0)
+
+La bannière au-dessus du caret gagne une largeur adaptative (contenu
+mesuré, borné [200, 320] dp), un paramètre actif garanti visible (les
+libellés longs sont ellipsés AUTOUR de lui) et un badge de surcharges
+« n/m » — la seule surface tactile du popup : le tap qui le vise fait
+défiler les surcharges (l'équivalent tactile des flèches Haut/Bas du
+clavier), tout autre tap referme la bannière comme avant. La bande de
+documentation ouvre sur le paramètre ACTIF (libellé en couleur de
+fonction), puis la javadoc de la signature.
+
+Sans résolveur, le repli synthétique affiche l'appel VIVANT du buffer
+(vos arguments, l'actif en surbrillance) et le numéro du paramètre —
+chaîne `cel_signature_active_param`, surchargeable dans vos ressources
+pour la localiser. Ce repli est borné aux langages à syntaxe d'appel :
+le drapeau `callSyntax` du profil (défaut calculé depuis la famille —
+vrai pour C_LIKE, PYTHON, LUA, SQL ; faux ailleurs) le coupe sur le
+texte brut, le XML ou la prose, et borne aussi l'éligibilité postfix.
+
+```java
+// Profil maison : déclarer explicitement une syntaxe d'appel
+LanguageProfile custom = LanguageProfile.builder("mylang")
+        .family(SyntaxFamily.C_LIKE)
+        .callSyntax(true)   // défaut déjà vrai pour C_LIKE — exemple
+        .build();
 ```
 
 ### Gabarits : variables de choix et macros (4.5.0)

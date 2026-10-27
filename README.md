@@ -13,13 +13,18 @@ Ce que c'est — et ce que ce n'est pas :
   réellement embarquées (LSP4J, Gson) et les grammaires tierces du
   module optionnel sont attribuées dans [`NOTICE`](NOTICE).
 - **Publication** : coordonnées Maven `jo.codeeditor:<module>` —
-  version courante : `4.7.0` (la résolution à la demande : la
-  documentation des candidats de complétion arrive au
-  `completionItem/resolve` — dwell 200 ms du popup, ancre stable, cache
-  client —, sur la 4.6.0 de la consolidation :
-  l'apprentissage survit aux sessions — persistance `snapshot()`/
-  `restore()` + télémétrie `recorded`/`boosted` —, bascule publique du
-  renommage XML lié, zéro dépréciation restante ; sur la 4.5.1 des
+  version courante : `4.8.0` (le local ne se perd plus : plancher de
+  complétion fusionné — brancher un serveur ne retire plus les
+  mots-clés/snippets du profil —, aide de signature redessinée —
+  largeur adaptative, badge de surcharges tactile, documentation du
+  paramètre actif —, session vierge neutre `text`, drapeau
+  `callSyntax` des profils ; sur la 4.7.0 de la résolution à la
+  demande : la documentation des candidats arrive au
+  `completionItem/resolve` — dwell 200 ms du popup, ancre stable,
+  cache client ; sur la 4.6.0 de la consolidation : l'apprentissage
+  survit aux sessions — persistance `snapshot()`/`restore()` +
+  télémétrie `recorded`/`boosted` —, bascule publique du renommage
+  XML lié, zéro dépréciation restante ; sur la 4.5.1 des
   bancs démo postfix, XML lié, compensation viewport ; sur la 4.5.0 des paliers
   P2 et P3 du plan de rattrapage : gabarits riches — choix et macros
   —, apprentissage du classement,
@@ -106,18 +111,18 @@ dependencyResolutionManagement {
 // app/build.gradle.kts
 dependencies {
     // Le module UI embarque transitivement cel-core et cel-lsp-api.
-    implementation("jo.codeeditor:cel-ui:4.7.0")
+    implementation("jo.codeeditor:cel-ui:4.8.0")
 
     // Optionnel — intégration Language Server Protocol (LSP4J).
     // Ses dépendances vers cel-core/cel-lsp-api sont compileOnly :
     // gardez la ligne cel-ui ci-dessus (l'adaptateur LspEditorViewHost
     // du pont LSP y vit — plan 03 : le client LSP ne dépend plus de la vue).
-    implementation("jo.codeeditor:cel-lsp:4.7.0")
+    implementation("jo.codeeditor:cel-lsp:4.8.0")
 
     // Optionnel — voie grammaires (ADR-002 C3) : coloration par
     // grammaires TextMate, grammaires embarquées + registration
     // hôte (supporter un langage de plus = un FICHIER, pas du Java).
-    implementation("jo.codeeditor:cel-textmate:4.7.0")
+    implementation("jo.codeeditor:cel-textmate:4.8.0")
     // … puis UNE fois au démarrage, avant toute vue éditeur :
     // SyntaxHighlighter.setTextMateTokenizer(TextMateTokenizerImpl.create());
 }
@@ -135,9 +140,9 @@ maven { url = uri("https://jitpack.io") }
 
 ```kotlin
 dependencies {
-    implementation("com.github.jjoblab.code-editor:cel-ui:v4.7.0")
-    implementation("com.github.jjoblab.code-editor:cel-lsp:v4.7.0") // optionnel
-    implementation("com.github.jjoblab.code-editor:cel-textmate:v4.7.0") // optionnel (voie grammaires)
+    implementation("com.github.jjoblab.code-editor:cel-ui:v4.8.0")
+    implementation("com.github.jjoblab.code-editor:cel-lsp:v4.8.0") // optionnel
+    implementation("com.github.jjoblab.code-editor:cel-textmate:v4.8.0") // optionnel (voie grammaires)
 }
 ```
 
@@ -329,8 +334,8 @@ interface `EditorPreviewHost`) figure dans
 
 ```bash
 ./gradlew test
-# 2 914 tests, 0 failure :
-#   cel-core 1 487 · cel-lsp-api 32 · cel-lsp 235 · cel-ui 960 · cel-textmate 96 · demo 104
+# 2 935 tests, 0 failure :
+#   cel-core 1 495 · cel-lsp-api 32 · cel-lsp 235 · cel-ui 971 · cel-textmate 96 · demo 106
 # (contrôle d'écart : scripts/check-doc-figures.sh, exécuté en CI)
 ```
 

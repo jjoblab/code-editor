@@ -104,10 +104,10 @@ par responsabilité.
 |----------------|------|---------|-------------|
 | CompletionSession (cache + filtre) | ✅ | `completion/CompletionSession.java` | Cache + filtre local ; 4.3.0 : délègue l'appariement au matcher, méthodes mortes `@Deprecated` avec renvoi |
 | CompletionMatcher (appariement unifié) | ✅ | `completion/CompletionMatcher.java` | 4.3.0 : identifiant de tête (`Text(text: String)` → `Text`, noms XML entiers), échelle 6 paliers (exact > exact casse > préfixe > préfixe casse > camel humps canoniques — `gS` ET `get` sur `getString` — > sous-séquence quelconque), positions de surbrillance = caractères qui ont fait matcher, groupes (résolu > mot-clé > snippet > mot du buffer) — partagé par le popup, la surbrillance et la navigation |
-| Candidats riches (container + documentation) | ✅ | `completion/CompletionSession.java` | 4.3.0 : champs optionnels `container` (origine) et `documentation` transportés jusqu'au popup ; 4.4.0 : la documentation est AFFICHÉE — panneau sous la liste (QuickDoc, wrap plafonné 6 lignes), hauteur comptée dans l'ancre et déduite des rangées, glyphe ⓘ sur vue étroite (< 340 dp), tap dans le panneau consommé sans action ; 4.7.0 : la documentation manquante arrive au `completionItem/resolve` (dwell 200 ms, cache client, ancre stable). |
+| Candidats riches (container + documentation) | ✅ | `completion/CompletionSession.java` | 4.3.0 : champs optionnels `container` (origine) et `documentation` transportés jusqu'au popup ; 4.4.0 : la documentation est AFFICHÉE — panneau sous la liste (QuickDoc, wrap plafonné 6 lignes), hauteur comptée dans l'ancre et déduite des rangées, glyphe ⓘ sur vue étroite (< 340 dp), tap dans le panneau consommé sans action ; 4.7.0 : la documentation manquante arrive au `completionItem/resolve` (dwell 200 ms, cache client, ancre stable) ; 4.8.0 : PLANCHER LOCAL FUSIONNÉ — brancher un fournisseur ne retire plus les mots-clés/snippets du profil (dédup par libellé, le serveur gagne le conflit ; réponse vide respectée ; bascule `setMergeBuiltinCompletionsEnabled`, défaut vrai). |
 | Apprentissage du classement | ✅ | `completion/CompletionAcceptanceHistory.java` + `view/popup/EditorCompletionPopup.java` | 4.5.0 : historique d'acceptations par (langage, identifiant de tête) — capacité 200/langage avec éviction du plus faible, compartiments étanches ; 3ᵉ départage du tri stable APRÈS (palier, groupe) : fréquence puis fraîcheur, jamais au-delà des barrières ; bascule + purge publiques sur la vue. 4.6.0 : PERSISTANCE entre sessions (snapshot immuable plat + restore intégral, format versionné, rebase du compteur de fraîcheur) et TÉLÉMÉTRIE (acceptations comptées / dont boostées — le rendement du mécanisme) |
 | Badges de type de complétion | ✅ | `completion/CompletionKindBadge.java` | Pastilles keyword/function/variable… |
-| SignatureHelpController | ✅ | `completion/SignatureHelpController.java` | Param info, Ctrl+P |
+| SignatureHelpController | ✅ | `completion/SignatureHelpController.java` | Param info, Ctrl+P, surcharges cyclables (clavier Haut/Bas + override persistant au fil de la frappe) ; 4.8.0 : popup redessiné — largeur adaptative [200, 320] dp, paramètre actif garanti visible (ellipses autour de lui), badge « n/m » TACTILE (seule surface interactive, nuance B8), bande doc ouvrant sur le paramètre ACTIF (libellé en accent) puis la javadoc ; repli synthétique = appel VIVANT du buffer (« Parameter N » localisé via `cel_signature_active_param`), borné aux langages à syntaxe d'appel (drapeau `callSyntax` du profil) |
 | QuickDoc (Javadoc/KDoc) | ✅ | `doc/QuickDoc.java` | Parsing markup, sections |
 | NavigationMenu (go-to) | ✅ | `navigation/NavigationMenu.java` | Declaration, impl, type, super ; 4.3.0 : camel humps délégués au matcher (runs contigus acceptés, conformes à la Javadoc) |
 
@@ -391,9 +391,9 @@ parallèle.
 | Indicateur | Valeur |
 |------------|--------|
 | Fichiers source | 305 (`:cel-core` 88 · `:cel-lsp-api` 41 · `:cel-lsp` 45 · `:cel-ui` 102 · `:cel-textmate` 12 · `demo` 17) |
-| Fichiers de test | 345 |
-| Lignes de code (main) | ≈ 79 100 (bibliothèques ≈ 71 600 · démo ≈ 7 500) |
-| Tests unitaires | 2 914 (`:cel-core` 1 487 · `:cel-lsp-api` 32 · `:cel-lsp` 235 · `:cel-ui` 960 · `:cel-textmate` 96 · `demo` 104) |
+| Fichiers de test | 354 |
+| Lignes de code (main) | ≈ 79 700 (bibliothèques ≈ 72 100 · démo ≈ 7 700) |
+| Tests unitaires | 2 935 (`:cel-core` 1 495 · `:cel-lsp-api` 32 · `:cel-lsp` 235 · `:cel-ui` 971 · `:cel-textmate` 96 · `demo` 106) |
 | Langages colorés intégrés | 29 |
 | Tokéniseurs intégrés | 14 (+ utilitaires SpanUtils, KeywordTables) |
 | Grammaires embarquées | 23 (`:cel-textmate` : c, cpp, csharp, css, dockerfile, go, html, java, javascript, json, kotlin, lua, markdown, php, python, ruby, rust, shell, sql, toml, typescript, xml, yaml) |

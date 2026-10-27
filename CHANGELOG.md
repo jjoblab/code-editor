@@ -7,6 +7,84 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Les sections antérieures à la période courante sont archivées dans
 [`docs/archive/CHANGELOG-archive.md`](docs/archive/CHANGELOG-archive.md) (A-08, audit 3.69.0).
 
+## [4.8.0] — 2026-10-28 — Le local ne se perd plus : plancher de complétion fusionné, aide de signature redessinée, session vierge neutre
+
+Trois chantiers nés d'une question d'architecture : « que reste-t-il
+quand un serveur est branché, et quand il ne l'est pas ? » Réponse
+désormais : le socle local est un plancher JAMAIS perdu, la bannière
+d'aide de signature est un citoyen de première classe, et une session
+qui n'a rien déclaré ne prétend plus parler Java.
+
+### Ajouté
+
+- **Plancher local de complétion fusionné** — brancher un fournisseur
+  (hôte ou LSP) ne RETIRE plus les mots-clés et snippets du profil :
+  une réponse NON VIDE est fusionnée avec la base intégrée du langage,
+  dédupliquée par libellé (le candidat serveur, plus riche —
+  documentation, détail, container — gagne le conflit), ordonnée par
+  le classement commun. Une réponse VIDE est respectée (pas de
+  plancher sur un « rien ici » délibéré). Bascule publique
+  `setMergeBuiltinCompletionsEnabled` (défaut VRAI) pour retrouver le
+  comportement historique exclusif.
+- **Aide de signature redessinée** — largeur ADAPTATIVE (contenu
+  mesuré, borné [200, 320] dp et par l'écran) ; le paramètre actif est
+  garanti VISIBLE (ellipses autour de lui : le préfixe cède à gauche,
+  le suffixe à droite — auparavant coupés nets, l'actif pouvait
+  sortir de l'écran) ; badge de surcharges « n/m » au coin haut droit,
+  SEULE surface tactile du popup (nuance B8 : le tap qui le vise fait
+  défiler les surcharges — l'équivalent tactile des flèches Haut/Bas,
+  autrement inaccessibles au doigt ; tout autre tap referme toujours) ;
+  la bande de documentation ouvre sur le paramètre ACTIF (libellé en
+  couleur de fonction), puis la javadoc de la signature.
+- **Repli synthétique repensé** — sans résolveur, le libellé est
+  l'appel VIVANT du buffer (arguments complets jusqu'à la fermente
+  appariée, un paramètre par argument, l'actif documenté
+  « Parameter N » — chaîne `cel_signature_active_param`, anglais
+  canonique surchargeable par l'hôte).
+- **Drapeau `callSyntax` sur `LanguageProfile`** (cel-core) — « ce
+  langage a-t-il une syntaxe d'appel entre parenthèses ? ». Défaut
+  calculé depuis la famille (vrai pour C_LIKE, PYTHON, LUA, SQL ;
+  faux ailleurs), surchargeable par le builder. Porte deux gardes :
+  le repli synthétique d'aide de signature et l'éligibilité postfix
+  (une table EXPLICITEMENT déclarée par l'hôte court-circuite la
+  porte — contrat 4.5.0 préservé).
+
+### Changements de comportement
+
+- ⚠️ **Session vierge neutre** : `EditorSession` naît en `text`
+  (profil intégré sans mot-clé ni snippet) au lieu de `java`. Un hôte
+  qui n'appelait jamais `setLanguage` obtenait des mots-clés Java, une
+  coloration C-like Java et un postfix éligible sur n'importe quel
+  fichier — un `.txt` compris. Les hôtes qui veulent un langage le
+  déclarent désormais explicitement (aucun changement pour les hôtes
+  corrects, dont la démo).
+- **Repli d'aide de signature borné aux langages à appels** : plus de
+  « name(…) param N » sur du texte brut, du XML ou de la prose
+  Markdown. Un résolveur branché (hôte ou LSP) reste maître — la
+  porte ne borne que la synthèse maison.
+- **Postfix borné aux langages de code** : `mot.if` ne déclenche plus
+  sur le profil `text` (famille C_LIKE pour le routage du tokenizer,
+  mais pas un langage de code).
+
+### Corrections
+
+- **Badge « LSP » du tiroir démo** — il ne marquait que l'échantillon
+  « java » alors que la charge 100k/480k et le banc postfix acceptent
+  le mini serveur (menu visible, reconnexion collante). Le tiroir
+  reçoit une sonde LSP de l'activité (mapping `editorLanguageIdFor`
+  partagé) : 4 badges, alignés sur ce que le menu propose.
+- **Analyseur démo borné** — le résolveur factice ne répond plus
+  « Signature de démonstration » sur une parenthèse de prose Markdown.
+
+### Pour l'hôte
+
+- **Recompilation conseillée** (changement de comportement, pas de
+  retrait d'API) : un hôte qui comptait tacitement sur la session
+  Java par défaut doit poser `setLanguage` — c'était déjà le contrat
+  documenté. La fusion du plancher est le nouveau défaut ; la bascule
+  `setMergeBuiltinCompletionsEnabled(false)` restaure l'ancien
+  comportement si un hôte veut servir une liste strictement sienne.
+
 ## [4.7.0] — 2026-10-27 — Résolution à la demande : la documentation des candidats arrive au completionItem/resolve
 
 Le dernier chaînon des candidats riches (D.3) : depuis 4.4.0 le

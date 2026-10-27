@@ -955,3 +955,68 @@ EditorView.
 3. Vérifier dans le journal LSP : une ligne `completion/resolve:` par
    candidat résolu (pas une par frame ni par frappe).
 
+
+## 4.8.0
+
+### 1. État de publication
+
+Tag `v4.8.0`, coordonnées Maven `jo.codeeditor:<module>:4.8.0`
+(GitHub Packages).
+
+### 2. Compatibilité (l'application vient de 4.7.x)
+
+**Recompilation obligatoire ? Non** — aucune API retirée, tout est
+additif. DEUX changements de comportement à connaître (ci-dessous) ;
+le second ne concerne l'application QUE si elle comptait tacitement
+sur la session Java par défaut.
+
+### 3. API ajoutée (signatures exactes, `@since 4.8.0`)
+
+```java
+// cel-ui, EditorView :
+public void setMergeBuiltinCompletionsEnabled(boolean merge)
+public boolean isMergeBuiltinCompletionsEnabled()   // défaut : vrai
+// Fusionne la base intégrée (mots-clés + snippets du profil) avec
+// la réponse du fournisseur de complétion — dédup par libellé, le
+// candidat serveur gagne. Une réponse VIDE est respectée.
+
+// cel-core, LanguageProfile.Builder :
+public Builder callSyntax(boolean value)
+// « Ce langage a-t-il une syntaxe d'appel entre parenthèses ? »
+// Défaut calculé depuis la famille (vrai : C_LIKE, PYTHON, LUA,
+// SQL ; faux ailleurs). Porte le repli d'aide de signature et
+// l'éligibilité postfix. Champ public : profile.callSyntax.
+```
+
+### 4. Changements de comportement notables
+
+- ⚠️ **Session vierge neutre** : `new EditorSession()` naît en
+  `text` (plus de `java` implicite — mots-clés, coloration et postfix
+  Java sur n'importe quel fichier, `.txt` compris). L'application
+  appelle déjà `setLanguage` à l'ouverture de chaque fichier : aucun
+  changement attendu. Un écran qui créerait une session SANS jamais
+  poser de langue doit désormais le faire.
+- **Plancher de complétion fusionné** (défaut ACTIF) : avec un
+  fournisseur branché, les mots-clés/snippets du profil s'ajoutent à
+  sa réponse (dédupliqués). Pour servir une liste strictement sienne :
+  `setMergeBuiltinCompletionsEnabled(false)`.
+- **Aide de signature** : largeur adaptative, paramètre actif
+  garanti visible, badge de surcharges « n/m » TACTILE (tap = défiler,
+  reste de la bannière passif comme avant), bande doc ouvrant sur le
+  paramètre actif. Le repli sans résolveur affiche l'appel vivant et
+  se tait hors langages à appels (`callSyntax`) — le résolveur maison
+  de l'application reste maître sur TOUT langage.
+- **Postfix borné** : `mot.if` ne déclenche plus sur le profil
+  `text` (une table postfix déclarée explicitement passe toujours).
+
+### 5. Scénarios de vérification sur appareil
+
+1. Java avec le moteur LSP : taper `fo` — le popup montre le candidat
+   serveur ET `for` (plancher fusionné, badge « k ») ; un serveur
+   silencieux ne vide plus le popup.
+2. Ouvrir un appel `strlen(hello,` : la bannière montre l'appel
+   vivant, l'argument actif en couleur ; avec deux surcharges
+   (résolveur maison), le badge « 1/2 » se tape pour défiler.
+3. Échantillon Markdown : une parenthèse dans la prose n'ouvre plus
+   la bannière ; `mot.if` + Entrée sur du texte brut ne déclenche
+   plus le postfix.

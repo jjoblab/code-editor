@@ -229,6 +229,27 @@ sans serveur ni gymnastique :
    content-stable) ; « Retirer le bloc » fait le miroir. Le panneau
    Journal trace chaque geste.
 
+## Bancs d'essai 4.8.0 — le local ne se perd plus
+
+- **Plancher fusionné** (tous onglets à fournisseur) : brancher le
+  moteur maison ou le mini serveur Java ne retire plus les mots-clés
+  et snippets du profil — sur l'onglet Java avec LSP, `ad` montre les
+  candidats du serveur ET les mots-clés/snippets java filtrés par le
+  préfixe (dédupliqués : le candidat serveur, plus riche, gagne).
+  Bascule d'API non exposée dans la démo (défaut actif).
+- **Aide de signature redessinée** (tous onglets de code) : la
+  bannière s'adapte au contenu, le paramètre actif reste visible
+  (ellipses autour de lui), le badge « 1/2 » des surcharges (résolveur
+  maison) se TAPE pour défiler — l'équivalent tactile des flèches
+  clavier. Sans résolveur, l'appel vivant remplace le « name(…) »
+  muet ; sur l'échantillon Markdown, une parenthèse de prose ne
+  déclenche plus rien.
+- **Badge LSP ×4** (tiroir) : la charge 100k, la charge 480k et le
+  banc postfix portent désormais le badge « LSP » comme l'onglet
+  Java — alignés sur ce que le menu propose réellement.
+- Tests : `CompletionMergeBuiltinTest`, `SignatureHelpDesignTest`,
+  `SignatureGateDemoTest`, `SampleDrawerTest` (badge ×4).
+
 ## Bancs d'essai 4.7.0 — la documentation arrive à la demande
 
 - **Résolution différée** (mini serveur Java étendu) : le moteur LSP

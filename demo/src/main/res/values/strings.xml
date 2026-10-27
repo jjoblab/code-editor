@@ -308,6 +308,7 @@
 \u2022 Carte « Banc postfix » : tapez resultat.sout puis Entrée ; carte « XML lié » : renommez la balise ouvrante, la fermante suit ; menu « Banc viewport » : défilez puis insérez 30 lignes en tête — l\u2019écran reste ancré.
 \u2022 Acceptez deux fois le même candidat de complétion, tuez l\u2019app, rouvrez-la : le candidat appris remonte toujours (menu Apprentissage → État : le rendement du boost).
 \u2022 Moteur LSP + onglet Java : tapez ad, restez sur « add » un instant — la documentation arrive à la demande (completionItem/resolve), le journal raconte le voyage ; ré-ouvrez : elle est immédiate (cache).
+\u2022 4.8.0 : Java + LSP, tapez fo — le serveur et le plancher local cohabitent dans le popup ; println(hello, ouvre la bannière redessinée (badge des surcharges tapable, argument actif en couleur) ; sur Markdown, une parenthèse de prose ne déclenche plus rien.
 
 Clavier physique : Ctrl+Z/Y annuler/rétablir, Ctrl+F recherche, Ctrl+Shift+O aller au symbole.</string>
 </resources>
