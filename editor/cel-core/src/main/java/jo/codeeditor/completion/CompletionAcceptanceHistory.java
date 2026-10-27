@@ -179,6 +179,25 @@ public final class CompletionAcceptanceHistory {
     /** Compteur monotone d'acceptations (fraîcheur). */
     private long seq = 0;
 
+    /**
+     * Télémétrie (4.6.0) : acceptations comptabilisées depuis la
+     * construction ou le dernier {@link #clear()} total — la purge par
+     * langage ne les touche pas (mesure de session, pas un état par
+     * langage). Les no-op (bascule fermée, entrées vides) ne comptent
+     * pas, et les compteurs ne voyagent PAS dans le snapshot : ils
+     * mesurent les acceptations VÉCUES par cette instance.
+     */
+    private long recordedAcceptances = 0;
+
+    /**
+     * Télémétrie : sous-ensemble des acceptations dont le candidat
+     * était DÉJÀ appris au moment d'accepter — celles que le boost
+     * avait fait remonter. Le rapport boosted/recorded mesure ce que
+     * l'apprentissage RAPPORTE avant de l'enrichir (fuzzy récent,
+     * boost par type de symbole…).
+     */
+    private long boostedAcceptances = 0;
+
     private boolean enabled = true;
 
     /**
@@ -217,6 +236,13 @@ public final class CompletionAcceptanceHistory {
             byLanguage.put(language, compartment);
         }
         Entry entry = compartment.get(identifier);
+        // Télémétrie AVANT la comptabilisation : une entrée existante
+        // (count ≥ 1) signifie que le candidat accepté était déjà appris
+        // — le boost l'avait remonté dans les listes précédentes.
+        if (entry != null) {
+            boostedAcceptances++;
+        }
+        recordedAcceptances++;
         if (entry == null) {
             entry = new Entry();
             compartment.put(identifier, entry);
@@ -260,10 +286,14 @@ public final class CompletionAcceptanceHistory {
 
     /**
      * Purge TOUT l'historique, tous langages — branché sur le réglage
-     * « effacer l'apprentissage » de l'hôte.
+     * « effacer l'apprentissage » de l'hôte. Remet AUSSI les compteurs
+     * de télémétrie à zéro (une purge est un nouveau départ de
+     * l'apprentissage, donc de sa mesure).
      */
     public synchronized void clear() {
         byLanguage.clear();
+        recordedAcceptances = 0;
+        boostedAcceptances = 0;
     }
 
     /**
@@ -289,6 +319,35 @@ public final class CompletionAcceptanceHistory {
             total += compartment.size();
         }
         return total;
+    }
+
+    /**
+     * Télémétrie : le nombre d'acceptations comptabilisées depuis la
+     * construction ou le dernier {@link #clear()} total. Les no-op
+     * (bascule fermée, langage ou identifiant vide) ne comptent pas,
+     * et les compteurs ne voyagent PAS dans le snapshot — ils mesurent
+     * les acceptations vécues par cette instance.
+     *
+     * @return les acceptations comptabilisées
+     * @since 4.6.0
+     */
+    public synchronized long recordedAcceptanceCount() {
+        return recordedAcceptances;
+    }
+
+    /**
+     * Télémétrie : parmi les acceptations comptabilisées, celles dont
+     * le candidat était DÉJÀ appris au moment d'accepter — le boost
+     * les avait remontées dans les listes précédentes. Le rapport
+     * {@code boostedAcceptanceCount() / recordedAcceptanceCount()}
+     * mesure ce que l'apprentissage rapporte réellement avant
+     * d'enrichir le mécanisme.
+     *
+     * @return les acceptations de candidats déjà appris
+     * @since 4.6.0
+     */
+    public synchronized long boostedAcceptanceCount() {
+        return boostedAcceptances;
     }
 
     /**
