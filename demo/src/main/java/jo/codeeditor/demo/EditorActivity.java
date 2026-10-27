@@ -173,6 +173,12 @@ public class EditorActivity extends AppCompatActivity {
 
         buildUi();
 
+        // 4.6.0 — persistance de l'apprentissage : la photographie de la
+        // session précédente (posée dans onStop) revient ICI, avant la
+        // première complétion — l'apprentissage survit aux morts de
+        // processus, le point qui manquait au mécanisme depuis 4.5.0.
+        LearningStateStore.restore(editor, prefs.completionHistory());
+
         String sampleId = getIntent().getStringExtra(EXTRA_SAMPLE_ID);
         String sampleLabel = getIntent().getStringExtra(EXTRA_SAMPLE_LABEL);
         boolean schemeExtra = getIntent().getBooleanExtra(EXTRA_SCHEME, false);
@@ -1068,6 +1074,11 @@ public class EditorActivity extends AppCompatActivity {
             clearRankingLearning();
             return true;
         }
+        // 4.6.0 — état de l'apprentissage : mesures + persistance.
+        if (id == R.id.ranking_learning_state) {
+            showLearningStateDialog();
+            return true;
+        }
         // 4.5.0 — banc gabarits riches (choix + macros).
         if (id == R.id.templates_bench_on) {
             applyTemplatesBench(true);
@@ -1111,6 +1122,15 @@ public class EditorActivity extends AppCompatActivity {
         }
         if (id == R.id.viewport_bench_remove) {
             applyViewportBenchRemove();
+            return true;
+        }
+        // 4.6.0 — bascule du renommage XML lié.
+        if (id == R.id.linked_tag_edits_on) {
+            applyLinkedTagEdits(true);
+            return true;
+        }
+        if (id == R.id.linked_tag_edits_off) {
+            applyLinkedTagEdits(false);
             return true;
         }
         return false;
@@ -1185,6 +1205,45 @@ public class EditorActivity extends AppCompatActivity {
         editor.clearCompletionRankingHistory();
         Toast.makeText(this, getString(R.string.ranking_learning_cleared),
                 Toast.LENGTH_SHORT).show();
+    }
+
+    /**
+     * 4.6.0 — bascule le renommage lié des balises XML (l'échantillon
+     * « XML lié » du tiroir le met à l'essai). Le point d'arrêt d'un
+     * hôte qui poserait son PROPRE miroir de renommage.
+     */
+    void applyLinkedTagEdits(boolean enabled) {
+        editor.setLinkedTagEditsEnabled(enabled);
+        panels.appendLog(getString(enabled
+                ? R.string.linked_tag_edits_on
+                : R.string.linked_tag_edits_off));
+    }
+
+    /** L'état courant de la bascule du renommage lié. */
+    boolean isLinkedTagEdits() {
+        return editor.isLinkedTagEditsEnabled();
+    }
+
+    /**
+     * 4.6.0 — l'état de l'apprentissage : télémétrie (acceptations
+     * comptées, dont boostées — le rendement du mécanisme) et la
+     * persistance (sauvegarde au onStop, relecture au démarrage).
+     */
+    void showLearningStateDialog() {
+        long recorded = editor.completionHistory.recordedAcceptanceCount();
+        long boosted = editor.completionHistory.boostedAcceptanceCount();
+        int learned = editor.completionHistory.size();
+        int ratio = recorded == 0 ? 0 : (int) Math.round(100.0 * boosted / recorded);
+        String message = getString(
+                R.string.learning_state_body,
+                learned, recorded, boosted, ratio);
+        new com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.learning_state_title)
+                .setMessage(message)
+                .setPositiveButton(android.R.string.ok, null)
+                .show();
+        panels.appendLog(getString(R.string.learning_state_logged,
+                learned, recorded, boosted));
     }
 
     /** L'état courant de l'apprentissage. */
@@ -1745,6 +1804,16 @@ public class EditorActivity extends AppCompatActivity {
     public void finish() {
         super.finish();
         overridePendingTransition(R.anim.home_reenter, R.anim.atelier_exit);
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        // 4.6.0 — persistance de l'apprentissage : photographier au
+        // moment où l'activité quitte le premier plan (le kill de
+        // processus peut suivre à tout moment — onDestroy n'est pas
+        // garanti, onStop SI).
+        prefs.setCompletionHistory(LearningStateStore.snapshotJson(editor));
     }
 
     @Override

@@ -132,6 +132,21 @@
                 android:title="@string/ranking_learning_off" />
             <item android:id="@+id/ranking_learning_clear"
                 android:title="@string/ranking_learning_clear" />
+            <item android:id="@+id/ranking_learning_state"
+                android:title="@string/ranking_learning_state" />
+        </menu>
+    </item>
+
+    <!-- 4.6.0 : bascule du renommage XML lié -->
+    <item
+        android:id="@+id/action_linked_tag_edits"
+        android:title="@string/menu_linked_tag_edits"
+        app:showAsAction="never">
+        <menu>
+            <item android:id="@+id/linked_tag_edits_on"
+                android:title="@string/linked_tag_edits_menu_on" />
+            <item android:id="@+id/linked_tag_edits_off"
+                android:title="@string/linked_tag_edits_menu_off" />
         </menu>
     </item>
 

@@ -26,6 +26,7 @@ final class EditorPrefs {
     private static final String KEY_LSP_AUTO = "lsp_auto";
     private static final String KEY_DROP_POLICY = "preview_drop_policy";
     private static final String KEY_DROP_SCALE = "preview_drop_scale";
+    private static final String KEY_HISTORY = "completion_history";
 
     private final SharedPreferences prefs;
 
@@ -92,6 +93,18 @@ final class EditorPrefs {
 
     void set(String key, boolean value) {
         prefs.edit().putBoolean(key, value).apply();
+    }
+
+    /**
+     * La photographie JSON de l'historique d'apprentissage (4.6.0) —
+     * null tant qu'aucune session n'a été sauvegardée.
+     */
+    String completionHistory() {
+        return prefs.getString(KEY_HISTORY, null);
+    }
+
+    void setCompletionHistory(String json) {
+        prefs.edit().putString(KEY_HISTORY, json).apply();
     }
 
     static String keyWrap() {

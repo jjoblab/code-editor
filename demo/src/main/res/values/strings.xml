@@ -197,6 +197,15 @@
     <string name="ranking_learning_off">Désactivé</string>
     <string name="ranking_learning_clear">Effacer l\u2019historique</string>
     <string name="ranking_learning_cleared">Historique d\u2019acceptation effacé — le classement redevient celui du moteur</string>
+    <string name="ranking_learning_state">État de l\u2019apprentissage — mesures et persistance</string>
+    <string name="learning_state_title">Apprentissage du classement</string>
+    <string name="learning_state_body">Identifiants appris : %1$d\n\nAcceptations comptées cette session : %2$d\nDont candidats déjà appris (remontés par le boost) : %3$d\nRendement : %4$d %%\n\nL\u2019historique est photographié à chaque sortie de l\u2019atelier et restauré au démarrage suivant — l\u2019apprentissage survit aux morts de processus.</string>
+    <string name="learning_state_logged">Apprentissage : %1$d identifiants appris, %2$d acceptations (%3$d boostées) cette session</string>
+    <string name="menu_linked_tag_edits">Renommage XML lié</string>
+    <string name="linked_tag_edits_menu_on">Lié (défaut) — la fermante suit l\u2019ouvrante</string>
+    <string name="linked_tag_edits_menu_off">Non lié — éditions ordinaires</string>
+    <string name="linked_tag_edits_on">Renommage lié ACTIF — la fermante suit l\u2019ouvrante</string>
+    <string name="linked_tag_edits_off">Renommage lié COUPÉ — les noms de balises s\u2019éditent seuls</string>
     <string name="menu_templates_bench">Banc gabarits (choix + macros)</string>
     <string name="templates_bench_on">Armer les gabarits riches (variables de choix, $FILE$/$DATE$/$USER$)</string>
     <string name="templates_bench_off">Retirer les gabarits du banc</string>
