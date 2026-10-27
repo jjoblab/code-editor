@@ -13,8 +13,8 @@ Le module `:cel-textmate` (refonte 4.0, plan 10 — voir
 dépendance directe unique le moteur d'expressions rationnelles du
 dialecte des grammaires TextMate :
 
-- `org.jruby.joni:joni:2.2.7` — licence **MIT** — somme SHA-256 de
-  l'artefact : `6054ab5bbf2dcc633fe62a359f1b39518e591fa76c90f9d50c7abb987d1f6774`
+- `org.jruby.joni:joni:2.2.8` — licence **MIT** — somme SHA-256 de
+  l'artefact : `663e0af644b3b6c323e556a20ce748b98bf4b13b1c8b57720a26d7b9c756f767`
 - `org.jruby.jcodings:jcodings:1.0.64` — licence **MIT** — somme
   SHA-256 de l'artefact :
   `0b4d0b0c1e2f1bdf17f4c30ecf5261bf62763af6f18b0fd1e743226c994ccf96`

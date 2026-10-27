@@ -283,28 +283,43 @@ class LspCompletionProvider implements CompletionProvider {
         }
         log("completion/resolve: requesting doc for \"" + label + "\"", null);
         final long timeoutMs = wrapper.requestTimeouts().completionResolveMs();
-        server.getTextDocumentService().resolveCompletionItem(original)
-            .orTimeout(timeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS)
-            .whenComplete((resolved, err) -> {
-                String doc = null;
-                if (err == null && resolved != null) {
-                    doc = documentationOf(resolved);
-                } else if (err != null) {
-                    log("completion/resolve: " + label + " — " + err.getClass().getSimpleName(), null);
-                }
-                if (doc != null) {
-                    resolvedDocumentation.put(label, doc);
-                }
-                // Le callback peut venir d'ICI de n'importe quel thread
-                // — le consommateur marshalle vers le sien (contrat SPI).
-                try {
-                    callback.accept(doc);
-                } catch (Exception t) {
-                    // Un consommateur mort ne doit pas tuer le thread du pont.
-                    jo.codeeditor.util.EditorLog.warn("LspCompletion",
-                        "callback resolve échoué", t);
-                }
-            });
+        java.util.concurrent.CompletableFuture<org.eclipse.lsp4j.CompletionItem> future =
+                server.getTextDocumentService().resolveCompletionItem(original);
+        // Timeout compatible minSdk 24 : CompletableFuture.orTimeout exige
+        // l'API 31 — une tâche planifiée complète le futur en exception à
+        // l'échéance, même sémantique (TimeoutException à la livraison),
+        // l'appelant n'est JAMAIS bloqué (contrat du SPI). Le planificateur
+        // est POSSÉDÉ par le wrapper (fermé au shutdown — aucun thread
+        // cel-lsp-* ne survit à la déconnexion).
+        final java.util.concurrent.ScheduledFuture<?> garde =
+                wrapper.scheduleResolveTimeout(() -> {
+                    future.completeExceptionally(
+                            new java.util.concurrent.TimeoutException(
+                                    "completionItem/resolve > " + timeoutMs + " ms"));
+                }, timeoutMs);
+        future.whenComplete((resolved, err) -> {
+            if (garde != null) {
+                garde.cancel(false);
+            }
+            String doc = null;
+            if (err == null && resolved != null) {
+                doc = documentationOf(resolved);
+            } else if (err != null) {
+                log("completion/resolve: " + label + " — " + err.getClass().getSimpleName(), null);
+            }
+            if (doc != null) {
+                resolvedDocumentation.put(label, doc);
+            }
+            // Le callback peut venir d'ICI de n'importe quel thread
+            // — le consommateur marshalle vers le sien (contrat SPI).
+            try {
+                callback.accept(doc);
+            } catch (Exception t) {
+                // Un consommateur mort ne doit pas tuer le thread du pont.
+                jo.codeeditor.util.EditorLog.warn("LspCompletion",
+                    "callback resolve échoué", t);
+            }
+        });
     }
 
     /** Copie d'un item SPI avec la documentation posée (champs finaux). */

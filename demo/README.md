@@ -1,6 +1,6 @@
 # demo — atelier de la bibliothèque
 
-> 102 tests · Robolectric (fumée : lancement réel des activités,
+> 104 tests · Robolectric (fumée : lancement réel des activités,
 > chaîne LSP complète) + JUnit pur (parseur, serveur) · application
 > `com.android.application`, **non publiée sur Maven** — c'est une
 > vitrine et un banc d'essai, pas un artefact.
@@ -229,6 +229,22 @@ sans serveur ni gymnastique :
    content-stable) ; « Retirer le bloc » fait le miroir. Le panneau
    Journal trace chaque geste.
 
+## Bancs d'essai 4.7.0 — la documentation arrive à la demande
+
+- **Résolution différée** (mini serveur Java étendu) : le moteur LSP
+  branché sur l'onglet Java annonce désormais `completionProvider`
+  avec `resolveProvider` — la liste est servie SANS documentation pour
+  `add`/`addAll` (elle ne vient qu'au `completionItem/resolve`), les
+  autres candidats (`toString`, `size`) sont documentés directement.
+- **Le scénario au doigt** : taper `ad` → popup (panneau vide sur
+  `add`) ; rester 200 ms sur la sélection → le panneau se remplit,
+  l'ancre ne bouge pas ; le panneau Journal raconte le voyage
+  (`completion:` puis `completion/resolve:`). Ré-ouvrir la complétion :
+  la documentation est immédiate (cache client, zéro requête).
+- Test : `CompletionResolveBenchTest` — la chaîne complète en deux
+  temps (lot + résolution asynchrone, puis dwell du popup avec le
+  vrai serveur).
+
 ## Bancs d'essai 4.6.0 — l'apprentissage survit aux sessions
 
 - **Persistance de bout en bout** (`LearningStateStore`) :
@@ -261,7 +277,7 @@ Le mini serveur LSP est **embarqué et in-process** : la démo reste
 ## Tests
 
 ```bash
-./gradlew :demo:testDebugUnitTest     # 102 tests
+./gradlew :demo:testDebugUnitTest     # 104 tests
 ```
 
 - `MiniJavaParserTest` (20) — chaque règle, ses déclencheurs ET ses

@@ -21,7 +21,7 @@ lsp4j = "0.22.0"
 # Plan 10 (D3) : moteur d'expressions rationnelles du dialecte des grammaires
 # TextMate — dépendance unique du module cel-textmate (licences MIT,
 # attributions et épinglage des sommes dans NOTICE). Pur Java, JDK 8.
-joni = "2.2.7"
+joni = "2.2.8"
 jcodings = "1.0.64"
 junitJupiter = "6.1.3"
 junitVintage = "6.1.3"

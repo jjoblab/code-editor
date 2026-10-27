@@ -7,6 +7,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Les sections antérieures à la période courante sont archivées dans
 [`docs/archive/CHANGELOG-archive.md`](docs/archive/CHANGELOG-archive.md) (A-08, audit 3.69.0).
 
+## [4.7.0] — 2026-10-27 — Résolution à la demande : la documentation des candidats arrive au completionItem/resolve
+
+Le dernier chaînon des candidats riches (D.3) : depuis 4.4.0 le
+panneau affichait la documentation TRANSPORTÉE — les serveurs qui ne
+la servent qu'à la demande laissaient le panneau vide. La chaîne est
+complète : négociation, requête paresseuse, dwell du popup, cache.
+
+### Ajouté
+
+- **SPI `CompletionProvider.resolveDocumentation(label, callback)`**
+  (cel-lsp-api) — le contrat de la résolution paresseuse, la même
+  discipline que `resolveHint` des inlay hints : jamais au rendu,
+  jamais à la demande de liste, uniquement après un séjour de la
+  sélection ; non bloquant, callback depuis n'importe quel thread,
+  `null` = rien à résoudre. Implémentation par défaut : callback null
+  immédiat — les fournisseurs existants ne changent pas.
+- **Client LSP** — `ClientCapabilities.completion.completionItem.
+  resolveSupport = [documentation, detail]` (la carte cliente reste
+  COMPLÈTE sur le consommé) ; `LspCompletionProvider` retient le
+  dernier lot par libellé : c'est l'item ORIGINAL qui voyage au
+  `completionItem/resolve` (champ `data` intact au round-trip), porte
+  capacité `resolveProvider` (sans annonce : zéro requête), cache des
+  documentations résolues (re-service immédiat + pré-remplissage des
+  lots suivants), timeout dédié `completionResolveMs` (3 s, réglable),
+  callback défaillant sans mort du thread du pont.
+- **Popup : dwell de 200 ms** — la requête part après un séjour de la
+  sélection SANS documentation ; chaque mouvement (flèche, drag,
+  frappe, nouveau lot) RESET le séjour. Jeton de génération propre +
+  garde par libellé : une réponse périmée est jetée, une livraison
+  tardive ne rouvre jamais un popup refermé. La documentation livrée
+  remplace l'item EN PLACE (attachment et plage de remplacement
+  préservés), le panneau apparaît, les rangées rétrécissent de sa
+  hauteur, la fenêtre reste solidaire de la sélection — l'ANCRE ne
+  bouge pas (elle vit à la ligne du caret, la garde 4.4.0 « ne jamais
+  recouvrir la bande du caret » tient par construction).
+- **Banc démo** — le mini serveur Java annonce `completionProvider`
+  avec `resolveProvider` : la liste est servie SANS documentation pour
+  `add`/`addAll` (résolution différée), DIRECTE pour `toString`/`size`
+  — le comportement standard des serveurs réels. Moteur LSP branché
+  sur l'onglet Java : rester sur la sélection remplit le panneau, le
+  journal raconte le voyage (`completion:` puis
+  `completion/resolve:`), le cache re-sert sans requête.
+
+### Pour l'hôte
+
+- Rien à faire : la résolution est automatique dès que le serveur la
+  propose (et que le langage passe par le client LSP). Un hôte avec
+  son PROPRE moteur de langage peut implémenter le SPI
+  `resolveDocumentation` pour la même expérience.
+
 ## [4.6.0] — 2026-10-27 — L'apprentissage survit aux sessions : persistance, télémétrie, bascule XML lié, nettoyage des dépréciations
 
 La version de consolidation recommandée par l'analyse 4.5.1 : quatre

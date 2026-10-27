@@ -104,7 +104,7 @@ par responsabilité.
 |----------------|------|---------|-------------|
 | CompletionSession (cache + filtre) | ✅ | `completion/CompletionSession.java` | Cache + filtre local ; 4.3.0 : délègue l'appariement au matcher, méthodes mortes `@Deprecated` avec renvoi |
 | CompletionMatcher (appariement unifié) | ✅ | `completion/CompletionMatcher.java` | 4.3.0 : identifiant de tête (`Text(text: String)` → `Text`, noms XML entiers), échelle 6 paliers (exact > exact casse > préfixe > préfixe casse > camel humps canoniques — `gS` ET `get` sur `getString` — > sous-séquence quelconque), positions de surbrillance = caractères qui ont fait matcher, groupes (résolu > mot-clé > snippet > mot du buffer) — partagé par le popup, la surbrillance et la navigation |
-| Candidats riches (container + documentation) | ✅ | `completion/CompletionSession.java` | 4.3.0 : champs optionnels `container` (origine) et `documentation` transportés jusqu'au popup ; 4.4.0 : la documentation est AFFICHÉE — panneau sous la liste (QuickDoc, wrap plafonné 6 lignes), hauteur comptée dans l'ancre et déduite des rangées, glyphe ⓘ sur vue étroite (< 340 dp), tap dans le panneau consommé sans action |
+| Candidats riches (container + documentation) | ✅ | `completion/CompletionSession.java` | 4.3.0 : champs optionnels `container` (origine) et `documentation` transportés jusqu'au popup ; 4.4.0 : la documentation est AFFICHÉE — panneau sous la liste (QuickDoc, wrap plafonné 6 lignes), hauteur comptée dans l'ancre et déduite des rangées, glyphe ⓘ sur vue étroite (< 340 dp), tap dans le panneau consommé sans action ; 4.7.0 : la documentation manquante arrive au `completionItem/resolve` (dwell 200 ms, cache client, ancre stable). |
 | Apprentissage du classement | ✅ | `completion/CompletionAcceptanceHistory.java` + `view/popup/EditorCompletionPopup.java` | 4.5.0 : historique d'acceptations par (langage, identifiant de tête) — capacité 200/langage avec éviction du plus faible, compartiments étanches ; 3ᵉ départage du tri stable APRÈS (palier, groupe) : fréquence puis fraîcheur, jamais au-delà des barrières ; bascule + purge publiques sur la vue. 4.6.0 : PERSISTANCE entre sessions (snapshot immuable plat + restore intégral, format versionné, rebase du compteur de fraîcheur) et TÉLÉMÉTRIE (acceptations comptées / dont boostées — le rendement du mécanisme) |
 | Badges de type de complétion | ✅ | `completion/CompletionKindBadge.java` | Pastilles keyword/function/variable… |
 | SignatureHelpController | ✅ | `completion/SignatureHelpController.java` | Param info, Ctrl+P |
@@ -391,9 +391,9 @@ parallèle.
 | Indicateur | Valeur |
 |------------|--------|
 | Fichiers source | 305 (`:cel-core` 88 · `:cel-lsp-api` 41 · `:cel-lsp` 45 · `:cel-ui` 102 · `:cel-textmate` 12 · `demo` 17) |
-| Fichiers de test | 342 |
-| Lignes de code (main) | ≈ 78 700 (bibliothèques ≈ 71 100 · démo ≈ 7 500) |
-| Tests unitaires | 2 896 (`:cel-core` 1 487 · `:cel-lsp-api` 32 · `:cel-lsp` 226 · `:cel-ui` 953 · `:cel-textmate` 96 · `demo` 102) |
+| Fichiers de test | 345 |
+| Lignes de code (main) | ≈ 79 100 (bibliothèques ≈ 71 600 · démo ≈ 7 500) |
+| Tests unitaires | 2 914 (`:cel-core` 1 487 · `:cel-lsp-api` 32 · `:cel-lsp` 235 · `:cel-ui` 960 · `:cel-textmate` 96 · `demo` 104) |
 | Langages colorés intégrés | 29 |
 | Tokéniseurs intégrés | 14 (+ utilitaires SpanUtils, KeywordTables) |
 | Grammaires embarquées | 23 (`:cel-textmate` : c, cpp, csharp, css, dockerfile, go, html, java, javascript, json, kotlin, lua, markdown, php, python, ruby, rust, shell, sql, toml, typescript, xml, yaml) |

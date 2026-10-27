@@ -34,14 +34,14 @@ dependencyResolutionManagement {
 // app/build.gradle.kts
 dependencies {
     // Le module UI embarque transitivement cel-core et cel-lsp-api.
-    implementation("jo.codeeditor:cel-ui:4.6.0")
+    implementation("jo.codeeditor:cel-ui:4.7.0")
 
     // Optionnel — intégration Language Server Protocol (LSP4J).
-    implementation("jo.codeeditor:cel-lsp:4.6.0")
+    implementation("jo.codeeditor:cel-lsp:4.7.0")
 
     // Optionnel — voie grammaires (ADR-002 C3) : coloration par
     // grammaires TextMate-like + grammaires embarquées (C#).
-    implementation("jo.codeeditor:cel-textmate:4.6.0")
+    implementation("jo.codeeditor:cel-textmate:4.7.0")
 }
 ```
 
@@ -53,7 +53,7 @@ maven { url = uri("https://jitpack.io") }
 
 // app/build.gradle.kts
 dependencies {
-    implementation("com.github.jjoblab.code-editor:cel-ui:v4.6.0")
+    implementation("com.github.jjoblab.code-editor:cel-ui:v4.7.0")
 }
 ```
 
@@ -382,6 +382,37 @@ long boostées   = editorView.completionHistory.boostedAcceptanceCount();
 Compteurs cumulatifs de session : la purge TOTALE les remet à zéro,
 la purge PAR LANGAGE les épargne ; ils ne voyagent pas dans le
 snapshot (une instance restaurée repart à zéro côté mesure).
+
+### Résolution à la demande de la documentation (4.7.0)
+
+Automatique : quand le serveur LSP annonce `resolveProvider` et sert
+un candidat SANS documentation, le popup en fait la demande
+(`completionItem/resolve`) après un séjour de 200 ms de la sélection —
+jamais pendant le mouvement, jamais au rendu. La documentation arrive
+dans le panneau sans bouger l'ancre ; un cache client re-sert les
+lots suivants sans nouvelle requête.
+
+Un hôte avec son PROPRE moteur de langage implémente le SPI pour la
+même expérience :
+
+```java
+view.setLanguage(new Language() {
+    // ...
+    @Override
+    public CompletionProvider getCompletionProvider() {
+        return new CompletionProvider() {
+            // complete(...) sert la liste SANS documentation…
+            @Override
+            public void resolveDocumentation(String label,
+                    Consumer<String> callback) {
+                // …et elle ne vient qu'ici, à la demande. Peut répondre
+                // depuis n'importe quel thread ; null = rien à résoudre.
+                callback.accept(documentationDe(label));
+            }
+        };
+    }
+});
+```
 
 ### Gabarits : variables de choix et macros (4.5.0)
 

@@ -307,6 +307,7 @@
 \u2022 Pincez pour zoomer, double-tap pour un mot, glissez les poignées (loupe).
 \u2022 Carte « Banc postfix » : tapez resultat.sout puis Entrée ; carte « XML lié » : renommez la balise ouvrante, la fermante suit ; menu « Banc viewport » : défilez puis insérez 30 lignes en tête — l\u2019écran reste ancré.
 \u2022 Acceptez deux fois le même candidat de complétion, tuez l\u2019app, rouvrez-la : le candidat appris remonte toujours (menu Apprentissage → État : le rendement du boost).
+\u2022 Moteur LSP + onglet Java : tapez ad, restez sur « add » un instant — la documentation arrive à la demande (completionItem/resolve), le journal raconte le voyage ; ré-ouvrez : elle est immédiate (cache).
 
 Clavier physique : Ctrl+Z/Y annuler/rétablir, Ctrl+F recherche, Ctrl+Shift+O aller au symbole.</string>
 </resources>

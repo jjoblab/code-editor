@@ -908,3 +908,50 @@ pas le cas aujourd'hui, laisser le défaut.
    suit (comme 4.5.0) ; menu « Renommage XML lié » → non lié : la
    fermante ne suit plus ; réactiver : elle suit à nouveau.
 
+## 4.7.0
+
+### 1. État de publication
+
+Tag `v4.7.0`, coordonnées Maven `jo.codeeditor:<module>:4.7.0`
+(GitHub Packages).
+
+### 2. Compatibilité (l'application vient de 4.6.x)
+
+Aucune action : la résolution est ADDITIVE et automatique (défaut
+actif quand le serveur la propose, silencieuse sinon). Recompilation
+seule.
+
+### 3. API ajoutée (signatures exactes, `@since 4.7.0`)
+
+```java
+// cel-lsp-api, jo.codeeditor.lang.provider.CompletionProvider :
+default void resolveDocumentation(String label,
+                                  java.util.function.Consumer<String> callback)
+// callback.accept(null) par défaut — les fournisseurs existants
+// (dont le moteur maison de l'application) ne changent pas.
+```
+
+Côté vue, TOUT est interne (dwell 200 ms, jeton de génération, cache
+client, remplissage du panneau) : aucune nouvelle méthode publique sur
+EditorView.
+
+### 4. Changements de comportement notables
+
+- Avec un serveur qui annonce `resolveProvider` : le popup émet une
+  requête `completionItem/resolve` après 200 ms de séjour sur un
+  candidat sans documentation — au plus une requête par candidat et
+  par lot (cache par libellé, pré-remplissage des lots suivants).
+- Le timeout est réglable :
+  `wrapper.requestTimeouts().setCompletionResolve(ms)` (3 s par défaut).
+- Sans `resolveProvider` annoncé : STRICTEMENT AUCUN changement (zéro
+  requête émise).
+
+### 5. Scénarios de vérification sur appareil
+
+1. Java avec le moteur LSP : taper un préfixe, laisser la sélection
+   posée sur un candidat — la documentation du panneau arrive ~200 ms
+   après l'arrêt (jamais pendant le défilement de la liste).
+2. La même complétion re-ouverte : documentation immédiate (cache).
+3. Vérifier dans le journal LSP : une ligne `completion/resolve:` par
+   candidat résolu (pas une par frame ni par frappe).
+

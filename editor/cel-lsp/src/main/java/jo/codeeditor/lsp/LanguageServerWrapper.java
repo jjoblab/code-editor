@@ -34,6 +34,14 @@ public class LanguageServerWrapper {
     private volatile ServerCapabilities capabilities;
     private StreamConnectionProvider connectionProvider;
     private volatile boolean initialized = false;
+
+    /**
+     * 4.7.0 — planificateur paresseux des gardes de timeout de la
+     * résolution de complétion ({@code completionItem/resolve}) —
+     * mono-thread daemon possédé par CE wrapper et fermé au
+     * shutdown (aucun thread cel-lsp-* ne survit à l'arrêt).
+     */
+    private volatile java.util.concurrent.ScheduledExecutorService resolveTimeoutScheduler;
     /**
      * Le launcher — construit avec {@link CodeIdeLanguageServer} comme
      * interface remote (la méthode custom superDefinition doit figurer
@@ -350,7 +358,48 @@ public class LanguageServerWrapper {
             }
             connectionProvider = null;
         }
+        // 4.7.0 — les gardes de timeout de la résolution de complétion
+        // vivent et meurent avec le wrapper (aucun thread cel-lsp-* ne
+        // survit à l'arrêt, l'invariant des lanes).
+        java.util.concurrent.ScheduledExecutorService gardes = resolveTimeoutScheduler;
+        resolveTimeoutScheduler = null;
+        if (gardes != null) {
+            gardes.shutdownNow();
+        }
         launcher = null;
         initialized = false;
+    }
+
+    /**
+     * Planificateur paresseux des gardes de timeout de la résolution de
+     * complétion ({@code completionItem/resolve}) — mono-thread daemon
+     * POSSÉDÉ par ce wrapper (fermé au shutdown, jamais de fuite de
+     * thread au-delà de la connexion). Null-safe : null après shutdown.
+     *
+     * @since 4.7.0
+     */
+    java.util.concurrent.ScheduledFuture<?> scheduleResolveTimeout(
+            Runnable task, long delayMs) {
+        java.util.concurrent.ScheduledExecutorService s = resolveTimeoutScheduler;
+        if (s == null) {
+            if (server == null) {
+                return null; // arrêté — plus aucune garde ne se pose
+            }
+            synchronized (this) {
+                s = resolveTimeoutScheduler;
+                if (s == null) {
+                    if (server == null) {
+                        return null;
+                    }
+                    s = java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r -> {
+                        Thread t = new Thread(r, "cel-lsp-resolve-timeout");
+                        t.setDaemon(true);
+                        return t;
+                    });
+                    resolveTimeoutScheduler = s;
+                }
+            }
+        }
+        return s.schedule(task, delayMs, java.util.concurrent.TimeUnit.MILLISECONDS);
     }
 }
