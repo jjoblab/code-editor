@@ -197,10 +197,13 @@
     <string name="ranking_learning_off">Désactivé</string>
     <string name="ranking_learning_clear">Effacer l\u2019historique</string>
     <string name="ranking_learning_cleared">Historique d\u2019acceptation effacé — le classement redevient celui du moteur</string>
-    <string name="ranking_learning_state">État de l\u2019apprentissage — mesures et persistance</string>
+    <string name="ranking_learning_state">État de l\u2019apprentissage — mesures et sauvegarde des sessions</string>
     <string name="learning_state_title">Apprentissage du classement</string>
     <string name="learning_state_body">Identifiants appris : %1$d\n\nAcceptations comptées cette session : %2$d\nDont candidats déjà appris (remontés par le boost) : %3$d\nRendement : %4$d %%\n\nL\u2019historique est photographié à chaque sortie de l\u2019atelier et restauré au démarrage suivant — l\u2019apprentissage survit aux morts de processus.</string>
-    <string name="learning_state_logged">Apprentissage : %1$d identifiants appris, %2$d acceptations (%3$d boostées) cette session</string>
+    <plurals name="learning_state_logged">
+        <item quantity="one">Apprentissage : %1$d identifiant appris, %2$d acceptations (%3$d boostée) cette session</item>
+        <item quantity="other">Apprentissage : %1$d identifiants appris, %2$d acceptations (%3$d boostées) cette session</item>
+    </plurals>
     <string name="menu_linked_tag_edits">Renommage XML lié</string>
     <string name="linked_tag_edits_menu_on">Lié (défaut) — la fermante suit l\u2019ouvrante</string>
     <string name="linked_tag_edits_menu_off">Non lié — éditions ordinaires</string>
@@ -303,6 +306,7 @@
 \u2022 Lignes TODO / FIXME \u2192 squiggles ; ampoule de gouttière \u2192 code actions ; menu ou \u2026 de la sélection \u2192 point d\u2019arrêt (pill armable).
 \u2022 Pincez pour zoomer, double-tap pour un mot, glissez les poignées (loupe).
 \u2022 Carte « Banc postfix » : tapez resultat.sout puis Entrée ; carte « XML lié » : renommez la balise ouvrante, la fermante suit ; menu « Banc viewport » : défilez puis insérez 30 lignes en tête — l\u2019écran reste ancré.
+\u2022 Acceptez deux fois le même candidat de complétion, tuez l\u2019app, rouvrez-la : le candidat appris remonte toujours (menu Apprentissage → État : le rendement du boost).
 
 Clavier physique : Ctrl+Z/Y annuler/rétablir, Ctrl+F recherche, Ctrl+Shift+O aller au symbole.</string>
 </resources>

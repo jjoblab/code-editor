@@ -1,6 +1,6 @@
 # demo — atelier de la bibliothèque
 
-> 95 tests · Robolectric (fumée : lancement réel des activités,
+> 102 tests · Robolectric (fumée : lancement réel des activités,
 > chaîne LSP complète) + JUnit pur (parseur, serveur) · application
 > `com.android.application`, **non publiée sur Maven** — c'est une
 > vitrine et un banc d'essai, pas un artefact.
@@ -229,6 +229,24 @@ sans serveur ni gymnastique :
    content-stable) ; « Retirer le bloc » fait le miroir. Le panneau
    Journal trace chaque geste.
 
+## Bancs d'essai 4.6.0 — l'apprentissage survit aux sessions
+
+- **Persistance de bout en bout** (`LearningStateStore`) :
+  l'historique d'acceptation est photographié en JSON à chaque
+  `onStop` de l'atelier et restauré au `onCreate` suivant
+  (SharedPreferences). Tuez l'application, rouvrez-la : les candidats
+  appris sont TOUJOURS remontés — le test
+  `LearningPersistenceDemoTest` prouve le cycle complet (session 1
+  apprend → session 2 retrouve).
+- **Menu « État de l'apprentissage »** (sous-menu Apprentissage) :
+  identifiants appris, acceptations comptées cette session, dont
+  boostées (celles que le classement appris avait fait remonter) et
+  RENDEMENT en % — le thermomètre des enrichissements futurs.
+- **Menu « Renommage XML lié »** : lié (défaut) / non lié — la
+  bascule publique 4.6.0 à l'essai sur l'échantillon « XML lié » du
+  tiroir (fermez-la : la frappe dans le nom ouvrant ne touche plus la
+  fermante ; rouvrez-la : le miroir revient).
+
 ## Build et installation
 
 ```bash
@@ -243,7 +261,7 @@ Le mini serveur LSP est **embarqué et in-process** : la démo reste
 ## Tests
 
 ```bash
-./gradlew :demo:testDebugUnitTest     # 95 tests
+./gradlew :demo:testDebugUnitTest     # 102 tests
 ```
 
 - `MiniJavaParserTest` (20) — chaque règle, ses déclencheurs ET ses

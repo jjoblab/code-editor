@@ -34,14 +34,14 @@ dependencyResolutionManagement {
 // app/build.gradle.kts
 dependencies {
     // Le module UI embarque transitivement cel-core et cel-lsp-api.
-    implementation("jo.codeeditor:cel-ui:4.5.1")
+    implementation("jo.codeeditor:cel-ui:4.6.0")
 
     // Optionnel — intégration Language Server Protocol (LSP4J).
-    implementation("jo.codeeditor:cel-lsp:4.5.1")
+    implementation("jo.codeeditor:cel-lsp:4.6.0")
 
     // Optionnel — voie grammaires (ADR-002 C3) : coloration par
     // grammaires TextMate-like + grammaires embarquées (C#).
-    implementation("jo.codeeditor:cel-textmate:4.5.1")
+    implementation("jo.codeeditor:cel-textmate:4.6.0")
 }
 ```
 
@@ -53,7 +53,7 @@ maven { url = uri("https://jitpack.io") }
 
 // app/build.gradle.kts
 dependencies {
-    implementation("com.github.jjoblab.code-editor:cel-ui:v4.5.1")
+    implementation("com.github.jjoblab.code-editor:cel-ui:v4.6.0")
 }
 ```
 
@@ -340,6 +340,49 @@ L'historique vit en mémoire (200 identifiants par langage, éviction du
 score le plus faible, compartiments par langage étanches). La purge
 ramène immédiatement le classement à celui du fournisseur.
 
+### Persistance de l'apprentissage (4.6.0)
+
+L'historique survit aux morts de processus : photographiez-le quand
+l'activité quitte le premier plan, restaurez-le au démarrage.
+
+```java
+// Dans onStop() (pas onDestroy — non garanti) :
+CompletionAcceptanceHistory.Snapshot photo =
+        editorView.completionHistory.snapshot();
+// Structure PLATE, sérialisable en JSON tel quel :
+// {langage → {identifiant → [fréquence, séquence]}}
+sauvegarder(photo.entries());          // JSON, DataStore, fichier…
+
+// Au démarrage suivant :
+Map<String, Map<String, long[]>> data = relire();
+editorView.completionHistory.restore(
+        new CompletionAcceptanceHistory.Snapshot(
+                data, CompletionAcceptanceHistory.Snapshot.FORMAT_VERSION));
+```
+
+Garde-fous : le format est versionné (`FORMAT_VERSION = 1` — un
+snapshot d'une version inconnue est refusé silencieusement), les
+entrées malformées sont ignorées une à une, l'invariant capacitaire
+est rétabli dès le restore, et le compteur de fraîcheur est REBASSÉ —
+une acceptation toute fraîche ne peut jamais paraître plus vieille
+qu'une entrée restaurée. La bascule ci-dessus n'interdit ni
+photographie ni restore : elle coupe la collecte et le boost, pas le
+droit de sauvegarder des données.
+
+### Télémétrie de l'apprentissage (4.6.0)
+
+```java
+long acceptées  = editorView.completionHistory.recordedAcceptanceCount();
+long boostées   = editorView.completionHistory.boostedAcceptanceCount();
+// rendement = boostées / acceptées — les candidats que le boost a
+// fait remonter et qui ont été acceptés. Mesuré AVANT d'enrichir
+// l'apprentissage (fuzzy récent, boost par type de symbole…).
+```
+
+Compteurs cumulatifs de session : la purge TOTALE les remet à zéro,
+la purge PAR LANGAGE les épargne ; ils ne voyagent pas dans le
+snapshot (une instance restaurée repart à zéro côté mesure).
+
 ### Gabarits : variables de choix et macros (4.5.0)
 
 Le format snippet reconnaît deux familles nouvelles — les candidats
@@ -405,13 +448,20 @@ postfixe.
 
 ### Renommage lié des balises XML (4.5.0)
 
-Aucune API : la frappe et le backspace DANS le nom d'une balise
-ouvrante (famille XML du profil — XML, HTML, SVG via alias) se
-reflètent automatiquement sur la fermante appariée, en miroir aligné,
-les deux éditions en UNE étape d'annulation. L'appariement empile par
-nom (homonymes imbriqués respectés), ignore les auto-fermantes et
-saute les commentaires/CDATA/PI. Éditer la fermante ne touche pas
-l'ouvrante.
+Aucune configuration obligatoire : la frappe et le backspace DANS le
+nom d'une balise ouvrante (famille XML du profil — XML, HTML, SVG via
+alias) se reflètent automatiquement sur la fermante appariée, en
+miroir aligné, les deux éditions en UNE étape d'annulation.
+L'appariement empile par nom (homonymes imbriqués respectés), ignore
+les auto-fermantes et saute les commentaires/CDATA/PI. Éditer la
+fermante ne touche pas l'ouvrante.
+
+```java
+// 4.6.0 : le point d'arrêt d'un hôte qui poserait son PROPRE miroir
+// de renommage (sinon les deux miroirs doubleraient chaque édition).
+editorView.setLinkedTagEditsEnabled(false); // éditions ordinaires
+boolean lié = editorView.isLinkedTagEditsEnabled(); // défaut : vrai
+```
 
 ### Mode gros fichiers explicite (4.5.0)
 

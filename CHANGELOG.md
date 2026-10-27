@@ -7,6 +7,96 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Les sections antérieures à la période courante sont archivées dans
 [`docs/archive/CHANGELOG-archive.md`](docs/archive/CHANGELOG-archive.md) (A-08, audit 3.69.0).
 
+## [4.6.0] — 2026-10-27 — L'apprentissage survit aux sessions : persistance, télémétrie, bascule XML lié, nettoyage des dépréciations
+
+La version de consolidation recommandée par l'analyse 4.5.1 : quatre
+chantiers à fort rapport valeur/effort, aucun ne se contenant
+mutuellement.
+
+### Ajouté
+
+- **Persistance de l'historique d'apprentissage** — le mécanisme de
+  classement appris (4.5.0) vivait et mourait avec le processus : sur
+  Android, où le système tue les processus en jeu, il perdait
+  l'essentiel de sa valeur. `CompletionAcceptanceHistory` gagne
+  `snapshot()` (photographie immuable et PLATE :
+  `{langage → {identifiant → [fréquence, séquence]}}` — sérialisable
+  en JSON tel quel, la bibliothèque n'impose ni format ni dépendance)
+  et `restore(Snapshot)` (remplacement intégral au démarrage).
+  Garde-fous : format versionné (`Snapshot.FORMAT_VERSION = 1`, une
+  version inconnue est refusée silencieusement), entrées malformées
+  ignorées une à une, invariant capacitaire rétabli DÈS le restore,
+  et REBASE du compteur de fraîcheur au maximum des séquences
+  restaurées — sans lui, la première acceptation fraîche d'une
+  instance restaurée paraîtrait plus VIEILLE qu'une entrée restaurée
+  et serait classée derrière à fréquence égale. La bascule
+  `setEnabled(false)` n'interdit ni photographie ni restore.
+- **Télémétrie de l'apprentissage** — mesurer ce que le mécanisme
+  RAPPORTE avant de l'enrichir : `recordedAcceptanceCount()` (les
+  acceptations comptabilisées ; les no-op ne comptent pas) et
+  `boostedAcceptanceCount()` (le sous-ensemble dont le candidat était
+  DÉJÀ appris au moment d'accepter — celles que le boost avait fait
+  remonter). Le rapport boosted/recorded est le rendement réel de
+  l'apprentissage. La purge TOTALE remet les compteurs à zéro, la
+  purge PAR LANGAGE les épargne (mesure de session), et les compteurs
+  ne voyagent pas dans le snapshot.
+- **Bascule publique du renommage XML lié** — le miroir
+  ouvrante↔fermante (4.5.0) était actif sans aucun point d'arrêt ; un
+  hôte posant son PROPRE miroir doublait chaque édition.
+  `EditorSession.setLinkedTagEditsEnabled(boolean)` /
+  `isLinkedTagEditsEnabled()` (la session possède le chemin d'édition
+  où vit le miroir) + délégué `EditorView.setLinkedTagEditsEnabled` /
+  `isLinkedTagEditsEnabled` — cohérent avec les autres réglages
+  comportementaux. Défaut : ACTIF, aucun changement pour les hôtes
+  existants.
+- **Bancs démo** — la persistance devient observable de bout en bout :
+  `LearningStateStore` (le chemin JSON : photographie dans `onStop`
+  — pas `onDestroy`, qui n'est pas garanti — relecture au `onCreate`
+  suivant, via les `SharedPreferences` de la démo), menu « État de
+  l'apprentissage » (identifiants appris, acceptations, dont
+  boostées, rendement en %), menu « Renommage XML lié » (lié/défaut
+  vs non lié) sur l'échantillon « XML lié ». Le test du cycle de vie
+  prouve la survie : session 1 apprend → `onStop` photographie →
+  session 2 retrouve.
+
+### Retiré
+
+- **Zéro `@Deprecated` restant** — la politique du dépôt
+  (CONTRIBUTING : `@Deprecated` → un palier mineur fonctionnel →
+  retrait au palier suivant) était dûe sur TOUTES les dépréciations
+  existantes (17 symboles, aucune utilisée en production ni dans la
+  démo) : `CompletionSession.TIER_*` (5 constantes à l'échelle
+  incompatible), `CompletionSession.filtered(String)` et son
+  classement historique, `CompletionSession.matchTier(String,String)`
+  (le matcher unifié de 4.3.0 est la seule définition de la vérité) ;
+  `EditOps.tryPostfixCompletion`/`getPostfixInsertText` (l'état
+  statique partagé de 3.71.0) ; `LspEditor.onTextChanged(CharSequence)`
+  (le resync plein texte de 3.71.0) ; `FoldDetector.detectPythonFolds`
+  (alias) ; `EditorHighlightPainter.INDENT_UNIT_COLS` (l'unité est
+  détectée à l'exécution) ; les relais
+  `setGoToLineText`/`acceptGoToLine`/`setRenameText`/`acceptRename`
+  d'`EditorView`/`EditorPopupManager`/popups (remplacés par
+  `showGoToLine()`/`showRename()`). **Migration : voir USAGE §
+  montée 4.6.0.**
+
+### Changements internes
+
+- **Cliquets** — EditorSession relevé 1660→1690 l. / 104→106 méthodes
+  (la bascule du renommage lié vit dans la session, qui possède
+  `typeChar`/`backspace`), EditorView relevé PUIS RABATTU à 4480 l. /
+  307 méthodes : le délégué (+24 l.) arrive, les relais dépréciés
+  (−24 l., −4 méthodes) partent — le solde net de la version est
+  négatif côté vue.
+
+### Pour l'hôte
+
+- Montée : coordonnées Maven + recompiler (symboles dépréciés
+  retirés — tout hôte à jour des paliers 4.3+ n'a RIEN à changer ;
+  voir la section montée de USAGE). Nouveautés optionnelles :
+  persistance de l'apprentissage (`view.completionHistory.snapshot()`
+  dans `onStop`, `restore(...)` au démarrage), télémétrie, bascule du
+  renommage lié.
+
 ## [4.5.1] — 2026-10-27 — La démo met les chantiers P2/P3 à l'essai : bancs postfix, XML lié, viewport
 
 ### Ajouté

@@ -824,3 +824,87 @@ implementation("jo.codeeditor:cel-ui:4.5.1")
   viewport observable au doigt, sans serveur).
 - **Vérification recommandée après montée** : rien de spécifique —
   les scénarios de régression restent ceux de la 4.5.0.
+## 4.6.0
+
+### 1. État de publication
+
+Tag `v4.6.0`, coordonnées Maven `jo.codeeditor:<module>:4.6.0`
+(GitHub Packages) — publication CI comme pour les versions
+précédentes.
+
+### 2. Compatibilité (l'application vient de 4.5.x)
+
+**RECOMPILATION OBLIGATOIRE** : la 4.6.0 exécute la politique de
+dépréciation du dépôt — 17 symboles `@Deprecated` (tous hors fenêtre
+de migration, aucun utilisé par CodeIDE — vérifié) sont retirés :
+`CompletionSession.TIER_*`/`filtered`/`matchTier`,
+`EditOps.tryPostfixCompletion`/`getPostfixInsertText`,
+`LspEditor.onTextChanged(CharSequence)`,
+`FoldDetector.detectPythonFolds`,
+`EditorHighlightPainter.INDENT_UNIT_COLS`, et les relais
+`setGoToLineText`/`acceptGoToLine`/`setRenameText`/`acceptRename`
+d'`EditorView` (remplacés par `showGoToLine()`/`showRename()`).
+L'application compile telle quelle si elle est déjà à jour des
+paliers 4.3+ ; sinon, remplacer les appels listés ci-dessus par leurs
+remplacements (tous documentés dans USAGE).
+
+### 3. API ajoutée (signatures exactes, `@since 4.6.0`)
+
+```java
+// cel-core, jo.codeeditor.completion.CompletionAcceptanceHistory :
+public Snapshot snapshot()                       // photographie immuable
+public void restore(Snapshot snapshot)           // remplacement intégral
+public long recordedAcceptanceCount()            // télémétrie : acceptations
+public long boostedAcceptanceCount()             // télémétrie : dont boostées
+public static final class Snapshot {
+    public static final int FORMAT_VERSION = 1;
+    public Snapshot(Map<String, Map<String, long[]>> entries, int version)
+    public int version()
+    public Map<String, Map<String, long[]>> entries()   // copie défensive
+}
+
+// cel-core, jo.codeeditor.session.EditorSession (+ délégué EditorView) :
+public void setLinkedTagEditsEnabled(boolean enabled)
+public boolean isLinkedTagEditsEnabled()
+```
+
+### 4. Changements de comportement notables
+
+- **Aucun** — le renommage lié reste actif par défaut, l'apprentissage
+  reste actif et non persistant tant que l'hôte n'appelle pas
+  `snapshot()`/`restore()` lui-même (la bibliothèque ne décide JAMAIS
+  du stockage de l'hôte).
+- La purge totale (`clearCompletionRankingHistory()`) remet AUSSI les
+  compteurs de télémétrie à zéro (une purge est un nouveau départ de
+  la mesure).
+
+### 5. Recommandation pour l'application (CodeIDE)
+
+Brancher la persistance — trois lignes dans l'activité éditeur :
+
+```java
+@Override protected void onStop() {
+    super.onStop();
+    store.save(editorView.completionHistory.snapshot().entries());
+}
+@Override protected void onStart() {
+    super.onStart();
+    editorView.completionHistory.restore(
+        new CompletionAcceptanceHistory.Snapshot(
+            store.load(), CompletionAcceptanceHistory.Snapshot.FORMAT_VERSION));
+}
+```
+
+Le point d'arrêt du renommage lié (`setLinkedTagEditsEnabled(false)`)
+ne devient utile que si CodeIDE pose son propre miroir de renommage —
+pas le cas aujourd'hui, laisser le défaut.
+
+### 6. Scénarios de vérification sur appareil
+
+1. Accepter un candidat de complétion deux fois, tuer l'application
+   (swipe away), rouvrir : le candidat remonte en tête à palier égal —
+   l'apprentissage a survécu.
+2. Ouvrir un fichier XML, renommer une balise ouvrante : la fermante
+   suit (comme 4.5.0) ; menu « Renommage XML lié » → non lié : la
+   fermante ne suit plus ; réactiver : elle suit à nouveau.
+

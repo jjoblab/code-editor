@@ -1242,7 +1242,8 @@ public class EditorActivity extends AppCompatActivity {
                 .setMessage(message)
                 .setPositiveButton(android.R.string.ok, null)
                 .show();
-        panels.appendLog(getString(R.string.learning_state_logged,
+        panels.appendLog(getResources().getQuantityString(
+                R.plurals.learning_state_logged, learned,
                 learned, recorded, boosted));
     }
 
