@@ -188,4 +188,55 @@ class EditorSessionXmlLinkedRenameTest {
         // Insertion simple : la fermante ne suit pas hors famille XML.
         assertEquals("<divx></div>", s.getText());
     }
+
+    // ── Bascule publique (4.6.0) ────────────────────────────────
+
+    @Test
+    void bascule_activeParDéfaut() {
+        EditorSession s = sessionXml("<div></div>");
+        assertTrue(s.isLinkedTagEditsEnabled(),
+                "le miroir est actif sans configuration, comme en 4.5.0");
+    }
+
+    @Test
+    void basculeFermee_frappeSansMiroir() {
+        EditorSession s = sessionXml("<di></di>");
+        s.setLinkedTagEditsEnabled(false);
+        caretPosé(s, 3);
+        s.typeChar('v');
+        // Chemin standard : seule l'ouvrante reçoit le « v ».
+        assertEquals("<div></di>", s.getText());
+    }
+
+    @Test
+    void basculeFermee_backspaceSansMiroir() {
+        EditorSession s = sessionXml("<div></div>");
+        s.setLinkedTagEditsEnabled(false);
+        caretPosé(s, 4);
+        s.backspace();
+        // Chemin standard : seul le « v » de l'ouvrante part.
+        assertEquals("<di></div>", s.getText());
+    }
+
+    @Test
+    void réactivation_leMiroirRevient() {
+        EditorSession s = sessionXml("<di></di>");
+        s.setLinkedTagEditsEnabled(false);
+        s.setLinkedTagEditsEnabled(true);
+        caretPosé(s, 3);
+        s.typeChar('v');
+        assertEquals("<div></div>", s.getText());
+    }
+
+    @Test
+    void basculeFermee_uneSeuleÉtapeDundoStandard() {
+        // Fermée, chaque édition du nom est UNE insertion ordinaire —
+        // un undo retire le caractère unique, pas une paire.
+        EditorSession s = sessionXml("<di></di>");
+        s.setLinkedTagEditsEnabled(false);
+        caretPosé(s, 3);
+        s.typeChar('v');
+        assertTrue(s.undo());
+        assertEquals("<di></di>", s.getText());
+    }
 }

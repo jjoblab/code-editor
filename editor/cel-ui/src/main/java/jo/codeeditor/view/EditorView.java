@@ -3754,6 +3754,31 @@ public class EditorView extends View {
     }
 
     /**
+     * Active ou désactive le renommage lié des balises XML (défaut :
+     * actif — comportement 4.5.0). Fermée, la frappe et le backspace
+     * dans le nom d'une balise ouvrante redeviennent des éditions
+     * ordinaires : la fermante appariée ne suit plus. Le point
+     * d'arrêt d'un hôte qui poserait son PROPRE miroir de renommage
+     * (sinon les deux miroirs doubleraient chaque édition) — délégué
+     * à la session, qui possède le chemin d'édition.
+     *
+     * @param enabled vrai pour refléter les éditions sur la fermante
+     * @since 4.6.0
+     */
+    public void setLinkedTagEditsEnabled(boolean enabled) {
+        session.setLinkedTagEditsEnabled(enabled);
+    }
+
+    /**
+     * L'état courant de la bascule du renommage lié des balises XML.
+     *
+     * @since 4.6.0
+     */
+    public boolean isLinkedTagEditsEnabled() {
+        return session.isLinkedTagEditsEnabled();
+    }
+
+    /**
      * Branche un resolver d'aide de signature. Sans resolver, le popup
      * retombe sur un indice synthétique « function(…) param N » dérivé d'un
      * scan local du contexte d'appel.

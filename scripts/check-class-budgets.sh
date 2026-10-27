@@ -205,7 +205,18 @@ budget() {
 # champs / 307 méthodes (marges 7 / 1 / 0). Champs SOUS le plafond
 # (179/180). Le relèvement ne dispense pas de la décomposition du
 # plan 01.
-budget editor/cel-ui/src/main/java/jo/codeeditor/view/EditorView.java 4480 180 307
+# Écart au ratchet (4.6.0, bascule du renommage lié XML) : plafonds
+# LIGNES 4480 → 4500 et MÉTHODES 307 → 309 relevés par décision
+# explicite : le délégué setLinkedTagEditsEnabled/
+# isLinkedTagEditsEnabled (javadoc + 2 relais d'une ligne vers la
+# session, qui possède le chemin d'édition) ferme l'écart avec les
+# autres réglages comportementaux de la vue (setLargeFileMode,
+# setColorPickerEnabled, setCompletionRankingLearningEnabled…). Le
+# retrait des dépréciations 4.3.0 dans la MÊME version rendra le solde
+# net de la version NÉGATIF et le plafond sera rabattu en conséquence.
+# Mesuré : 4498 l. / 179 champs / 309 méthodes. Le relèvement ne
+# dispense pas de la décomposition du plan 01.
+budget editor/cel-ui/src/main/java/jo/codeeditor/view/EditorView.java 4500 180 309
 # Écart au ratchet : plafonds LIGNES 1600 → 1610 et MÉTHODES 100 → 102
 # (R2 du plan 09, IME) : +1 méthode publique (imeSelectedText — la voie
 # IME bornée au plafond Binder, distincte de selectedText interne) et
@@ -219,7 +230,18 @@ budget editor/cel-ui/src/main/java/jo/codeeditor/view/EditorView.java 4480 180 3
 # caret. AUCUNE nouvelle méthode publique (104/104 inchangé), champs
 # 10/15. Mesuré : 1651 l. Le relèvement ne dispense pas de la
 # décomposition du plan 01.
-budget editor/cel-core/src/main/java/jo/codeeditor/session/EditorSession.java 1660 15 104
+# Écart au ratchet (4.6.0, bascule du renommage lié XML) : plafonds
+# LIGNES 1660 → 1690 et MÉTHODES 104 → 106 relevés par décision
+# explicite : la bascule publique setLinkedTagEditsEnabled/
+# isLinkedTagEditsEnabled vit dans la SESSION car c'est elle qui
+# possède le chemin d'édition (typeChar/backspace) où vit le miroir
+# — un drapeau de vue ne pourrait pas l'atteindre. Le scanner pur
+# reste dans XmlLinkedTagEdits (cel-core) ; la session ne garde que
+# le drapeau, les 2 accesseurs et le garde-fou fermé dans
+# isXmlLinkedEditLanguage (privée). Mesuré : 1689 l. / 11 champs /
+# 106 méthodes. Le relèvement ne dispense pas de la décomposition
+# du plan 01.
+budget editor/cel-core/src/main/java/jo/codeeditor/session/EditorSession.java 1690 15 106
 
 # ── Règle de paquet (plan 03, §5) : le client LSP ne référence jamais
 # la vue. cel-lsp programme contre EditorHost (cel-lsp-api) ;

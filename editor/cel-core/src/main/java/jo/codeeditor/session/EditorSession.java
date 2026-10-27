@@ -66,6 +66,16 @@ public class EditorSession {
     // du contenu console tout en profitant du rendu/coloration de l'éditeur.
     private volatile boolean readOnly = false;
 
+    /**
+     * Bascule du renommage lié des balises XML (4.6.0) — défaut :
+     * vrai (comportement 4.5.0). Fermée, la frappe et le backspace
+     * dans le nom d'une balise ouvrante redeviennent des éditions
+     * ordinaires : le point d'arrêt d'un hôte qui poserait son
+     * PROPRE miroir de renommage (sinon les deux miroirs doubleraient
+     * chaque édition).
+     */
+    private volatile boolean linkedTagEditsEnabled = true;
+
     // ── Édition par lots ─────────────────────────────────────
 
     // Comptabilité d'annulation (pile UndoManager, coalescence des frappes
@@ -845,12 +855,40 @@ public class EditorSession {
 
     /**
      * Le renommage lié des balises s'applique aux langages de la
-     * famille XML du profil courant (XML, HTML, SVG via alias).
+     * famille XML du profil courant (XML, HTML, SVG via alias) ET
+     * quand la bascule est ouverte (4.6.0).
      */
     private boolean isXmlLinkedEditLanguage() {
+        if (!linkedTagEditsEnabled) {
+            return false;
+        }
         jo.codeeditor.languages.LanguageProfile profile = getLanguageProfile();
         return profile != null
                 && profile.family == jo.codeeditor.languages.SyntaxFamily.XML;
+    }
+
+    /**
+     * Bascule du renommage lié des balises XML (4.6.0) — défaut :
+     * vrai (comportement 4.5.0). Fermée, la frappe et le backspace
+     * dans le nom d'une balise ouvrante redeviennent des éditions
+     * ordinaires : la fermante ne suit plus. Le point d'arrêt d'un
+     * hôte qui poserait son PROPRE miroir de renommage (sinon les
+     * deux miroirs doubleraient chaque édition).
+     *
+     * @param enabled vrai pour refléter les éditions sur la fermante
+     * @since 4.6.0
+     */
+    public void setLinkedTagEditsEnabled(boolean enabled) {
+        this.linkedTagEditsEnabled = enabled;
+    }
+
+    /**
+     * L'état courant de la bascule du renommage lié des balises XML.
+     *
+     * @since 4.6.0
+     */
+    public boolean isLinkedTagEditsEnabled() {
+        return linkedTagEditsEnabled;
     }
 
     /**
