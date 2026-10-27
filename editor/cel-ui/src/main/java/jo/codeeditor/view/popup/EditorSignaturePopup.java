@@ -4,6 +4,8 @@ import jo.codeeditor.view.EditorView;
 
 import androidx.annotation.RestrictTo;
 
+import jo.codeeditor.ui.R;
+
 /**
  * Popup d'aide de signature : rafraîchissement (résolution LSP déportée
  * sur la lane « features » avec garde de génération), déclenchement
@@ -103,23 +105,42 @@ public class EditorSignaturePopup {
                 view.signatureHelpVisible = false;
                 view.signatureHelpData = null;
             } else {
-                // Pas de resolver : on peut faire la synthèse directement
-                // sur la vue live (pas de thread parallèle, pas de copie).
-                int paramIdx = jo.codeeditor.completion.SignatureHelpController
-                    .activeParameterIndex(liveText, callOpen, caret);
-                String name = extractFunctionName(liveText, callOpen);
-                String label = name + "(…)";
-                java.util.List<jo.codeeditor.completion.SignatureHelpController.Parameter> params =
-                    java.util.Collections.singletonList(
-                        new jo.codeeditor.completion.SignatureHelpController.Parameter(
-                            "param " + paramIdx, ""));
-                java.util.List<jo.codeeditor.completion.SignatureHelpController.Signature> sigs =
-                    java.util.Collections.singletonList(
-                        new jo.codeeditor.completion.SignatureHelpController.Signature(
-                            label, "Active parameter: " + paramIdx, params, paramIdx));
-                view.signatureHelpData = new jo.codeeditor.completion.SignatureHelpController.SignatureHelp(
-                    sigs, 0, paramIdx);
-                view.signatureHelpVisible = true;
+                // 4.8.0 — le repli synthétique est BORNÉ aux langages de
+                // code (drapeau callSyntax du profil). Avant, « foo(bar »
+                // dans n'importe quel fichier — XML, Markdown, prose —
+                // affichait un « name(…) param N » générique. Un
+                // RÉSOLVEUR branché (hôte ou LSP) reste maître : la
+                // porte ne borne que la synthèse de la bibliothèque.
+                jo.codeeditor.languages.LanguageProfile profile =
+                    jo.codeeditor.languages.LanguageRegistry.forName(
+                        view.session.getLanguage());
+                if (profile == null || !profile.callSyntax) {
+                    view.signatureHelpVisible = false;
+                    view.signatureHelpData = null;
+                } else {
+                    int paramIdx = jo.codeeditor.completion.SignatureHelpController
+                        .activeParameterIndex(liveText, callOpen, caret);
+                    String name = extractFunctionName(liveText, callOpen);
+                    // 4.8.0 — l'appel VIVANT remplace le « name(…) »
+                    // muet : l'utilisateur voit ses propres arguments,
+                    // celui du paramètre actif ressort en surbrillance
+                    // (le peintre surligne la plage du paramètre actif
+                    // du libellé — mêmes règles que les signatures
+                    // servies par un résolveur). Un paramètre par
+                    // argument FRAPPÉ : la bande de documentation du
+                    // peintre indexe parameters[activeParameter].
+                    String args = liveArgsSnippet(liveText, callOpen);
+                    String label = name + "(" + args + ")";
+                    java.util.List<jo.codeeditor.completion.SignatureHelpController.Parameter> params =
+                        splitLiveArgs(args, paramIdx, view);
+                    java.util.List<jo.codeeditor.completion.SignatureHelpController.Signature> sigs =
+                        java.util.Collections.singletonList(
+                            new jo.codeeditor.completion.SignatureHelpController.Signature(
+                                label, "", params, Math.min(paramIdx, params.size() - 1)));
+                    view.signatureHelpData = new jo.codeeditor.completion.SignatureHelpController.SignatureHelp(
+                        sigs, 0, Math.min(paramIdx, params.size() - 1));
+                    view.signatureHelpVisible = true;
+                }
             }
         }
         view.invalidate();
@@ -145,5 +166,91 @@ public class EditorSignaturePopup {
         }
         if (start >= end) return "function";
         return text.subSequence(start, end).toString();
+    }
+
+    /**
+     * Extrait les arguments de l'appel vivant — de la parenthèse
+     * ouvrante à sa FERMANTE APPARIÉE (l'appel complet du buffer,
+     * pas seulement ce qui précède le caret) — pour le libellé du
+     * repli synthétique : espaces aplatis, plafonné. Un appel qui
+     * court sur plusieurs lignes ne fabrique pas un libellé
+     * interminable (le peintre ellipse de toute façon, la borne garde
+     * la synthèse elle-même honnête).
+     */
+    private static String liveArgsSnippet(CharSequence text, int callOpen) {
+        int end = callOpen + 1;
+        int depth = 1; // la parenthèse ouvrante de l'appel compte
+        int limit = Math.min(text.length(), callOpen + 1 + 80);
+        while (end < limit) {
+            char c = text.charAt(end);
+            if (c == '\n' || c == '\r' || c == '\t') c = ' ';
+            if (c == ' ' && end > callOpen + 1 && text.charAt(end - 1) == ' ') {
+                end++; // espaces aplatis
+                continue;
+            }
+            if (c == '(' || c == '[' || c == '{') depth++;
+            else if (c == ')' || c == ']' || c == '}') {
+                depth--;
+                if (depth == 0) break; // fermente de l'appel — exclusive
+            }
+            end++;
+        }
+        StringBuilder sb = new StringBuilder();
+        boolean lastWs = true;
+        for (int i = callOpen + 1; i < end; i++) {
+            char c = text.charAt(i);
+            if (c == '\n' || c == '\r' || c == '\t') c = ' ';
+            if (c == ' ' && lastWs) continue;
+            sb.append(c);
+            lastWs = (c == ' ');
+            if (sb.length() >= 60) break;
+        }
+        String s = sb.toString().trim();
+        if (end >= limit && s.length() >= 60) return s + "…";
+        return s;
+    }
+
+    /**
+     * Découpe les arguments de l'appel vivant en paramètres (un par
+     * argument, virgules de profondeur 0 — les génériques
+     * {@code Map<K, V>} ne coupent pas). La documentation du paramètre
+     * ACTIF porte son numéro (chaîne cel_signature_active_param,
+     * 1-based) ; les autres restent muets.
+     */
+    private static java.util.List<jo.codeeditor.completion.SignatureHelpController.Parameter> splitLiveArgs(
+            String args, int activeIdx, EditorView view) {
+        java.util.List<jo.codeeditor.completion.SignatureHelpController.Parameter> out =
+            new java.util.ArrayList<>();
+        int depth = 0, start = 0;
+        for (int i = 0; i < args.length(); i++) {
+            char c = args.charAt(i);
+            if (c == '(' || c == '[' || c == '{' || c == '<') depth++;
+            else if (c == ')' || c == ']' || c == '}' || c == '>') depth--;
+            else if (c == ',' && depth == 0) {
+                out.add(liveArgParameter(args, start, i, out.size()));
+                start = i + 1;
+            }
+        }
+        out.add(liveArgParameter(args, start, args.length(), out.size()));
+        // La documentation porte sur le paramètre ACTIF — borné au
+        // dernier (un caret au-delà du dernier argument frappé, cas
+        // d'un extrait plafonné, documente ce dernier).
+        int docIdx = Math.max(0, Math.min(activeIdx, out.size() - 1));
+        jo.codeeditor.completion.SignatureHelpController.Parameter actif = out.get(docIdx);
+        out.set(docIdx, new jo.codeeditor.completion.SignatureHelpController.Parameter(
+                actif.label,
+                view.getResources().getString(
+                        R.string.cel_signature_active_param, docIdx + 1)));
+        return out;
+    }
+
+    /** Un paramètre de l'appel vivant : libellé = l'argument tel que
+     *  frappé (son texte, ou « arg N » si vide), sans documentation —
+     *  la doc est posée ensuite sur le seul paramètre actif. */
+    private static jo.codeeditor.completion.SignatureHelpController.Parameter liveArgParameter(
+            String args, int start, int end, int index) {
+        String label = args.substring(start, end).trim();
+        if (label.isEmpty()) label = "arg " + (index + 1);
+        return new jo.codeeditor.completion.SignatureHelpController.Parameter(label, "");
     }
 }

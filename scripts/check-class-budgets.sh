@@ -219,7 +219,13 @@ budget() {
 # 309 → 307 méthodes ; le délégué du renommage lié reste, mesuré
 # 4474 l. / 179 champs / 305 méthodes, marges 6 / 1 / 2). Le cliquet
 # continue de descendre avec la décomposition du plan 01.
-budget editor/cel-ui/src/main/java/jo/codeeditor/view/EditorView.java 4480 180 307
+# Écart au ratchet (4.8.0, badge de surcharges de l'aide de signature) :
+# plafond LIGNES 4480 → 4520 relevé pour le relais public
+# signatureHelpBadgeMetrics (+1 méthode, 306/307) — géométrie partagée
+# peintre/hit-test sur le modèle quickDocMetrics ; le layout du popup
+# et les ellipses vivent dans EditorAssistPopupPainter. Mesuré :
+# 4487 l. / 179 champs / 306 méthodes.
+budget editor/cel-ui/src/main/java/jo/codeeditor/view/EditorView.java 4520 180 307
 # Écart au ratchet : plafonds LIGNES 1600 → 1610 et MÉTHODES 100 → 102
 # (R2 du plan 09, IME) : +1 méthode publique (imeSelectedText — la voie
 # IME bornée au plafond Binder, distincte de selectedText interne) et

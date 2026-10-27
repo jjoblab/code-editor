@@ -54,11 +54,17 @@ public class EditorAssistPopupPainter {
     static final float COMPLETION_BORDER_RADIUS_DP = 12f;
     // Popup d'aide de signature
     static final float SIGNATURE_HELP_ROW_HEIGHT_DP = 22f;
-    static final float SIGNATURE_HELP_WIDTH_DP = 320f;
+    // 4.8.0 : largeur ADAPTATIVE — le contenu est mesuré, la largeur
+    // finale est bornée [min, max] (et par l'écran). Auparavant fixe à
+    // 320 dp : les libellés courts étiraient une carte vide, les
+    // longs étaient coupés NET sans ellipse (le paramètre actif
+    // pouvait sortir de l'écran).
+    static final float SIGNATURE_HELP_MIN_WIDTH_DP = 200f;
+    static final float SIGNATURE_HELP_MAX_WIDTH_DP = 320f;
     // 12 dp + bande de documentation sous la liste.
     static final float SIGNATURE_HELP_RADIUS_DP = 12f;
     static final int SIGNATURE_HELP_MAX_ROWS = 10;
-    /** Lignes max de la documentation de la signature active. */
+    /** Lignes max de la bande doc (paramètre actif + javadoc). */
     static final int SIGNATURE_DOC_MAX_LINES = 6;
     // Popup de documentation rapide
     // 12 dp — carte flottante.
@@ -79,34 +85,48 @@ public class EditorAssistPopupPainter {
     // Popup d'aide de signature
     // ════════════════════════════════════════════════════════════════
 
+    // ── Layout du popup d'aide de signature (4.8.0) ────────────────
+    // Calculé UNE fois par frame par computeSignatureLayout() et
+    // partagé entre le dessin (drawSignatureHelpPopup) et le hit-test
+    // tactile du badge de surcharges (signatureHelpBadgeMetrics) —
+    // mêmes bornes, mêmes mesures, aucune divergence possible.
+    // Mono-thread (onDraw / tap sur le fil UI).
+    /** Lignes wrappées de la bande doc (paramètre actif puis javadoc). */
+    private final List<String> sigDocLines = new ArrayList<>();
+    /** Libellé du paramètre actif (tête de la bande doc, en accent). */
+    private String sigParamDocLabel = "";
+
+    /** Indices du tableau de layout retourné par computeSignatureLayout(). */
+    private static final int SIG_ANCHOR_X = 0, SIG_ANCHOR_Y = 1, SIG_WIDTH = 2,
+            SIG_POPUP_H = 3, SIG_ROW_H = 4, SIG_ROWS = 5, SIG_ACTIVE = 6,
+            SIG_B_LEFT = 7, SIG_B_TOP = 8, SIG_B_RIGHT = 9, SIG_B_BOTTOM = 10,
+            SIG_HAS_BADGE = 11;
+
     /**
-     * Dessine le popup d'aide de signature. Ancré AU-DESSUS de la ligne du
-     * curseur (contrairement au popup de complétion, qui est EN DESSOUS).
-     * S'il n'y a pas de place au-dessus, basculer en dessous. Chaque
-     * signature tient sur une rangée ; le paramètre actif est surligné en
-     * gras + couleur d'accent.
+     * Calcule le layout complet du popup d'aide de signature : largeur
+     * ADAPTATIVE (contenu mesuré, borné [min, max] et par l'écran),
+     * lignes de la bande doc (documentation du paramètre ACTIF en tête,
+     * puis javadoc de la signature), ancre au-dessus de la ligne du
+     * caret (bascule en dessous, clampée à la vue), et rectangle du
+     * badge de surcharges.
+     *
+     * @return le tableau de layout (indices SIG_*), ou null (popup
+     *         absent). Remplit sigDocLines/sigParamDocLabel.
      */
-    void drawSignatureHelpPopup(Canvas canvas) {
+    private float[] computeSignatureLayout() {
         if (!view.signatureHelpVisible || view.signatureHelpData == null
-            || view.signatureHelpData.signatures == null
-            || view.signatureHelpData.signatures.isEmpty()) {
-            return;
+                || view.signatureHelpData.signatures == null
+                || view.signatureHelpData.signatures.isEmpty()
+                || view.session == null) {
+            return null;
         }
         float density = view.getResources().getDisplayMetrics().density;
         float rowH = SIGNATURE_HELP_ROW_HEIGHT_DP * density;
-        float width = SIGNATURE_HELP_WIDTH_DP * density;
-        float radius = SIGNATURE_HELP_RADIUS_DP * density;
-        int rowsToShow = Math.min(SIGNATURE_HELP_MAX_ROWS, view.signatureHelpData.signatures.size());
+        int rowsToShow = Math.min(SIGNATURE_HELP_MAX_ROWS,
+                view.signatureHelpData.signatures.size());
 
-        // ── ★ Documentation de la signature ACTIVE (javadoc de sa
-        // déclaration source) : bande sous la liste des surcharges.
-        // Parsée par QuickDoc (description + sections compactées),
-        // plafonnée à SIGNATURE_DOC_MAX_LINES lignes.
-        //
-        // ── ★ L'index actif vient du controller (override clavier Up/Down
-        // via cycleActiveSignature). Si l'override n'est pas posé, on
-        // retombe sur activeSignature du serveur LSP.
-        List<String> docLines = new ArrayList<>();
+        // ── Index actif : l'override clavier/tactile du contrôleur
+        // d'abord, sinon le choix du serveur.
         int activeIdx = view.getEffectiveActiveSignature();
         if (activeIdx < 0) {
             activeIdx = Math.max(0, Math.min(view.signatureHelpData.activeSignature,
@@ -114,37 +134,100 @@ public class EditorAssistPopupPainter {
         }
         jo.codeeditor.completion.SignatureHelpController.Signature activeSig =
                 view.signatureHelpData.signatures.get(activeIdx);
-        if (activeSig != null && activeSig.documentation != null
-                && !activeSig.documentation.isEmpty()) {
-            view.textPaint.setTypeface(view.metrics.getTypeface());
-            view.textPaint.setTextSize(view.metrics.getTextSize() * 0.75f);
-            jo.codeeditor.doc.QuickDoc.QuickDocContent parsed =
-                    jo.codeeditor.doc.QuickDoc.parseQuickDoc(
-                            activeSig.documentation, "java");
-            float docWidth = width - 16 * density;
-            if (!parsed.description.isEmpty()) {
-                docLines.addAll(wrapText(parsed.description, docWidth, view.textPaint));
+
+        // ── Mesure des rangées : largeur naturelle du contenu.
+        view.textPaint.setTypeface(view.metrics.getTypeface());
+        view.textPaint.setTextSize(view.metrics.getTextSize() * 0.85f);
+        float padX = 8 * density;
+        float maxRowW = 0;
+        for (int i = 0; i < rowsToShow; i++) {
+            String label = view.signatureHelpData.signatures.get(i).label;
+            int[] range = findParameterRangeInLabel(label,
+                    view.signatureHelpData.signatures.get(i).activeParameter);
+            float w;
+            if (range == null) {
+                w = view.textPaint.measureText(label);
+            } else {
+                w = view.textPaint.measureText(label.substring(0, range[0]))
+                        + view.textPaint.measureText(label.substring(range[0], range[1]))
+                        + view.textPaint.measureText(label.substring(range[1]));
             }
-            for (jo.codeeditor.doc.QuickDoc.DocSection s : parsed.sections) {
-                if (docLines.size() >= SIGNATURE_DOC_MAX_LINES) break;
-                for (String item : s.items) {
-                    if (docLines.size() >= SIGNATURE_DOC_MAX_LINES) break;
-                    String line = s.title + " " + item;
-                    docLines.addAll(wrapText(line, docWidth, view.textPaint));
+            if (w > maxRowW) maxRowW = w;
+        }
+
+        // ── Badge de surcharges « n/m » : présent seulement s'il y a
+        // un choix à faire. Coin haut droit — la rangée 0 lui cède sa
+        // droite, les autres rangées gardent toute la largeur.
+        boolean hasBadge = view.signatureHelpData.signatures.size() > 1;
+        float badgeTextSize = view.metrics.getTextSize() * 0.7f;
+        view.textPaint.setTextSize(badgeTextSize);
+        float badgeW = hasBadge
+                ? view.textPaint.measureText((activeIdx + 1) + "/"
+                        + view.signatureHelpData.signatures.size()) + 10 * density
+                : 0;
+        float badgeH = hasBadge ? badgeTextSize * 1.6f : 0;
+
+        // ── Largeur finale : contenu borné [min, max] et par l'écran.
+        float viewW = view.getWidth();
+        float contentW = maxRowW + 2 * padX + (hasBadge ? badgeW + 4 * density : 0);
+        float maxW = Math.min(SIGNATURE_HELP_MAX_WIDTH_DP * density, viewW - 8 * density);
+        float width = Math.max(Math.min(contentW, maxW),
+                Math.min(SIGNATURE_HELP_MIN_WIDTH_DP * density, maxW));
+
+        // ── Bande doc : documentation du paramètre ACTIF en tête
+        // (label en accent), puis la javadoc de la signature (QuickDoc,
+        // sections @ en couleur de mot-clé). Plafond commun.
+        sigDocLines.clear();
+        sigParamDocLabel = "";
+        view.textPaint.setTextSize(view.metrics.getTextSize() * 0.75f);
+        float docWidth = width - 2 * padX;
+        if (activeSig != null) {
+            if (!activeSig.parameters.isEmpty()) {
+                int activeParam = Math.max(0, Math.min(activeSig.activeParameter,
+                        activeSig.parameters.size() - 1));
+                jo.codeeditor.completion.SignatureHelpController.Parameter param =
+                        activeSig.parameters.get(activeParam);
+                if (param != null && !param.documentation.isEmpty()) {
+                    sigParamDocLabel = param.label == null ? "" : param.label;
+                    String head = sigParamDocLabel.isEmpty()
+                            ? param.documentation
+                            : sigParamDocLabel + " — " + param.documentation;
+                    for (String w : wrapText(head, docWidth, view.textPaint)) {
+                        if (sigDocLines.size() >= SIGNATURE_DOC_MAX_LINES) break;
+                        sigDocLines.add(w);
+                    }
                 }
             }
-            if (docLines.size() > SIGNATURE_DOC_MAX_LINES) {
-                docLines = new ArrayList<>(
-                        docLines.subList(0, SIGNATURE_DOC_MAX_LINES));
+            if (activeSig.documentation != null && !activeSig.documentation.isEmpty()) {
+                jo.codeeditor.doc.QuickDoc.QuickDocContent parsed =
+                        jo.codeeditor.doc.QuickDoc.parseQuickDoc(
+                                activeSig.documentation, "java");
+                if (!parsed.description.isEmpty()) {
+                    for (String w : wrapText(parsed.description, docWidth, view.textPaint)) {
+                        if (sigDocLines.size() >= SIGNATURE_DOC_MAX_LINES) break;
+                        sigDocLines.add(w);
+                    }
+                }
+                for (jo.codeeditor.doc.QuickDoc.DocSection s : parsed.sections) {
+                    if (sigDocLines.size() >= SIGNATURE_DOC_MAX_LINES) break;
+                    for (String item : s.items) {
+                        if (sigDocLines.size() >= SIGNATURE_DOC_MAX_LINES) break;
+                        String line = s.title + " " + item;
+                        for (String w : wrapText(line, docWidth, view.textPaint)) {
+                            if (sigDocLines.size() >= SIGNATURE_DOC_MAX_LINES) break;
+                            sigDocLines.add(w);
+                        }
+                    }
+                }
             }
         }
         float docRowH = view.metrics.getTextSize() * 0.75f * 1.3f;
-        float docH = docLines.isEmpty() ? 0
-                : docLines.size() * docRowH + 8 * density;
+        float docH = sigDocLines.isEmpty() ? 0
+                : sigDocLines.size() * docRowH + 8 * density;
         float popupH = rowH * rowsToShow + docH;
 
-        // Ancrage X = colonne du curseur, Y = haut de la ligne du curseur.
-        // Sensible aux inlays — le popup suit le X tissé du curseur.
+        // ── Ancrage X = colonne du curseur, Y = au-dessus de la ligne
+        // du curseur (bascule en dessous sinon, clampés à la vue).
         EditorDocument doc = view.session.getDocument();
         Selection sel = view.clampSelection(view.session.getSelection(), doc);
         int line = EditorView.clamp(doc.lineForOffset(sel.start), 0, doc.lineCount() - 1);
@@ -152,25 +235,78 @@ public class EditorAssistPopupPainter {
         float anchorX = view.metrics.getGutterWidth() + view.metrics.getPadLeft()
             + view.visualColFor(line, col) * view.metrics.getCharWidth() - view.scroll.hOffset;
         float caretY = view.docLineToY(line) - view.scroll.vOffset;
-        // Par défaut : le popup se place AU-DESSUS de la ligne du curseur.
         float anchorY = caretY - 4 - popupH;
-        // S'il ne tient pas au-dessus, basculer en dessous.
         if (anchorY < 0) {
             anchorY = caretY + view.metrics.getLineHeight() + 4;
         }
-        // Clamp bas — le popup ne sort pas de l'éditeur.
         if (anchorY + popupH > view.getHeight()) {
             anchorY = Math.max(0, view.getHeight() - popupH - 4);
         }
-        // Clamp horizontal.
-        float viewW = view.getWidth();
         if (anchorX + width > viewW) {
             anchorX = Math.max(view.metrics.getGutterWidth(), viewW - width - 4);
         }
 
+        float[] out = new float[12];
+        out[SIG_ANCHOR_X] = anchorX;
+        out[SIG_ANCHOR_Y] = anchorY;
+        out[SIG_WIDTH] = width;
+        out[SIG_POPUP_H] = popupH;
+        out[SIG_ROW_H] = rowH;
+        out[SIG_ROWS] = rowsToShow;
+        out[SIG_ACTIVE] = activeIdx;
+        out[SIG_B_LEFT] = anchorX + width - 6 * density - badgeW;
+        out[SIG_B_TOP] = anchorY + (rowH - badgeH) / 2f;
+        out[SIG_B_RIGHT] = anchorX + width - 6 * density;
+        out[SIG_B_BOTTOM] = out[SIG_B_TOP] + badgeH;
+        out[SIG_HAS_BADGE] = hasBadge ? 1 : 0;
+        return out;
+    }
+
+    /**
+     * Géométrie du badge de surcharges du popup d'aide de signature —
+     * partagée avec le hit-test tactile (le tap sur le badge fait
+     * défiler les surcharges, l'équivalent tactile des flèches
+     * Haut/Bas du clavier).
+     *
+     * @return {left, top, right, bottom} en px écran, ou null (popup
+     *         absent ou surcharge unique — pas de badge).
+     */
+    float[] signatureHelpBadgeMetrics() {
+        float[] layout = computeSignatureLayout();
+        if (layout == null || layout[SIG_HAS_BADGE] < 1) return null;
+        return new float[]{layout[SIG_B_LEFT], layout[SIG_B_TOP],
+                layout[SIG_B_RIGHT], layout[SIG_B_BOTTOM]};
+    }
+
+    /**
+     * Dessine le popup d'aide de signature. Ancré AU-DESSUS de la
+     * ligne du curseur (contrairement au popup de complétion, qui est
+     * EN DESSOUS) ; s'il n'y a pas de place au-dessus, bascule en
+     * dessous. Chaque signature tient sur une rangée ; le paramètre
+     * actif est surligné en gras + couleur d'accent et garanti
+     * VISIBLE — les débords sont ellipsés AUTOUR de lui (4.8.0 :
+     * auparavant coupés net, l'actif pouvait sortir de l'écran). Un
+     * badge « n/m » (coin haut droit) compte les surcharges et se
+     * tâte pour les faire défiler ; la bande de documentation ouvre
+     * sur le paramètre ACTIF (label en accent) puis la javadoc.
+     */
+    void drawSignatureHelpPopup(Canvas canvas) {
+        float[] l = computeSignatureLayout();
+        if (l == null) return;
+        float density = view.getResources().getDisplayMetrics().density;
+        float rowH = l[SIG_ROW_H];
+        float width = l[SIG_WIDTH];
+        float radius = SIGNATURE_HELP_RADIUS_DP * density;
+        int rowsToShow = (int) l[SIG_ROWS];
+        int activeIdx = (int) l[SIG_ACTIVE];
+        float anchorX = l[SIG_ANCHOR_X];
+        float anchorY = l[SIG_ANCHOR_Y];
+        boolean hasBadge = l[SIG_HAS_BADGE] >= 1;
+        float padX = 8 * density;
+
         // Fond + bordure
         RectF rect = scratchRect;
-        rect.set(anchorX, anchorY, anchorX + width, anchorY + popupH);
+        rect.set(anchorX, anchorY, anchorX + width, anchorY + l[SIG_POPUP_H]);
         view.bgPaint.setColor(view.theme.glassBg);
         canvas.drawRoundRect(rect, radius, radius, view.bgPaint);
         view.caretPaint.setStyle(Paint.Style.STROKE);
@@ -178,64 +314,64 @@ public class EditorAssistPopupPainter {
         view.caretPaint.setColor(view.theme.glassBorder);
         canvas.drawRoundRect(rect, radius, radius, view.caretPaint);
 
-        // Rangées — clippées au rect (labels longs ellipsisés de fait).
+        // Rangées — clippées au rect ; le paramètre actif garanti
+        // visible par ellipsizeAroundActive.
         canvas.save();
         canvas.clipRect(rect);
         view.textPaint.setTypeface(view.metrics.getTypeface());
         view.textPaint.setTextSize(view.metrics.getTextSize() * 0.85f);
-        float padX = 8 * density;
         for (int i = 0; i < rowsToShow; i++) {
             jo.codeeditor.completion.SignatureHelpController.Signature sig =
                 view.signatureHelpData.signatures.get(i);
             float y = anchorY + i * rowH;
-            // Surligner la rangée de la signature active.
-            // Utiliser la signature active effective (sensible à l'override).
+            // Surligner la rangée de la signature active (sensible à
+            // l'override clavier/tactile du contrôleur).
             if (i == activeIdx) {
                 view.selPaint.setColor(view.theme.selection);
                 canvas.drawRect(anchorX + 1, y, anchorX + width - 1, y + rowH, view.selPaint);
             }
-            // Dessiner le label. Le paramètre actif est rendu en couleur
-            // d'accent + gras en découpant le label autour de lui.
+            // La rangée 0 cède sa droite au badge (coin haut droit).
+            float availW = width - 2 * padX
+                    - (hasBadge && i == 0
+                        ? (l[SIG_B_RIGHT] - l[SIG_B_LEFT]) + 4 * density : 0);
             String label = sig.label;
-            int activeParam = sig.activeParameter;
-            // Trouver la plage du paramètre actif dans le label (au mieux :
-            // découpe par virgules à profondeur 0 — même logique
-            // qu'activeParameterIndex).
-            int[] paramRange = findParameterRangeInLabel(label, activeParam);
+            int[] paramRange = findParameterRangeInLabel(label, sig.activeParameter);
             if (paramRange == null) {
-                view.textPaint.setColor(view.theme.textColor);
-                canvas.drawText(label, anchorX + padX, y + rowH * 0.7f, view.textPaint);
+                String[] parts = ellipsizeAroundActive("", "", label, availW, view.textPaint);
+                drawSignatureRowText(canvas, anchorX + padX, y + rowH * 0.7f,
+                        parts[0], parts[1], parts[2]);
             } else {
-                // Dessiner pré-param, param (accent + gras), post-param.
                 String pre = label.substring(0, paramRange[0]);
                 String param = label.substring(paramRange[0], paramRange[1]);
                 String post = label.substring(paramRange[1]);
-                float x = anchorX + padX;
-                if (!pre.isEmpty()) {
-                    view.textPaint.setColor(view.theme.textColor);
-                    view.textPaint.setTypeface(view.metrics.getTypeface());
-                    canvas.drawText(pre, x, y + rowH * 0.7f, view.textPaint);
-                    x += view.textPaint.measureText(pre);
-                }
-                if (!param.isEmpty()) {
-                    view.textPaint.setColor(view.theme.func);
-                    android.graphics.Typeface bold = android.graphics.Typeface.create(
-                        view.metrics.getTypeface(), android.graphics.Typeface.BOLD);
-                    view.textPaint.setTypeface(bold);
-                    canvas.drawText(param, x, y + rowH * 0.7f, view.textPaint);
-                    x += view.textPaint.measureText(param);
-                }
-                if (!post.isEmpty()) {
-                    view.textPaint.setColor(view.theme.textColor);
-                    view.textPaint.setTypeface(view.metrics.getTypeface());
-                    canvas.drawText(post, x, y + rowH * 0.7f, view.textPaint);
-                }
+                String[] parts = ellipsizeAroundActive(pre, param, post, availW, view.textPaint);
+                drawSignatureRowText(canvas, anchorX + padX, y + rowH * 0.7f,
+                        parts[0], parts[1], parts[2]);
             }
         }
-        // ── ★ Bande documentation de la signature ACTIVE ──
-        if (!docLines.isEmpty()) {
+
+        // ── Badge de surcharges (coin haut droit) : pill teintée,
+        // texte « n/m » — la SEULE surface tactile du popup.
+        if (hasBadge) {
+            view.textPaint.setTextSize(view.metrics.getTextSize() * 0.7f);
+            String badgeText = (activeIdx + 1) + "/"
+                    + view.signatureHelpData.signatures.size();
+            RectF badge = scratchRect;
+            badge.set(l[SIG_B_LEFT], l[SIG_B_TOP], l[SIG_B_RIGHT], l[SIG_B_BOTTOM]);
+            view.selPaint.setColor(view.theme.selection);
+            canvas.drawRoundRect(badge, badge.height() / 2f, badge.height() / 2f, view.selPaint);
+            view.textPaint.setColor(view.theme.keyword);
+            canvas.drawText(badgeText,
+                    badge.left + 5 * density,
+                    badge.centerY() - (view.textPaint.ascent() + view.textPaint.descent()) / 2f,
+                    view.textPaint);
+        }
+
+        // ── Bande documentation : paramètre ACTIF en tête (label en
+        // accent sur la première ligne si le wrap ne l'a pas coupé),
+        // puis la javadoc (sections @ en couleur de mot-clé).
+        if (!sigDocLines.isEmpty()) {
             float docTop = anchorY + rowsToShow * rowH;
-            // Divider + fond légèrement teinté.
             view.caretPaint.setStyle(Paint.Style.STROKE);
             view.caretPaint.setStrokeWidth(1f);
             view.caretPaint.setColor(view.theme.glassBorder);
@@ -243,16 +379,30 @@ public class EditorAssistPopupPainter {
                     view.caretPaint);
             view.selPaint.setColor(view.theme.selection);
             canvas.drawRect(anchorX, docTop, anchorX + width,
-                    anchorY + popupH, view.selPaint);
+                    anchorY + l[SIG_POPUP_H], view.selPaint);
             view.textPaint.setTextSize(view.metrics.getTextSize() * 0.75f);
-            for (int i = 0; i < docLines.size(); i++) {
-                String l = docLines.get(i);
-                boolean isTag = !l.isEmpty() && l.charAt(0) == '@';
-                view.textPaint.setColor(isTag
-                        ? view.theme.keyword : view.theme.textColor);
+            float docRowH = view.metrics.getTextSize() * 0.75f * 1.3f;
+            float labelW = sigParamDocLabel.isEmpty()
+                    ? 0 : view.textPaint.measureText(sigParamDocLabel);
+            for (int i = 0; i < sigDocLines.size(); i++) {
+                String line = sigDocLines.get(i);
                 float baseline = docTop + 4 * density + i * docRowH
                         + docRowH * 0.75f;
-                canvas.drawText(l, anchorX + padX, baseline, view.textPaint);
+                boolean accentHead = i == 0 && !sigParamDocLabel.isEmpty()
+                        && line.startsWith(sigParamDocLabel)
+                        && labelW < view.textPaint.measureText(line);
+                if (accentHead) {
+                    view.textPaint.setColor(view.theme.func);
+                    canvas.drawText(sigParamDocLabel, anchorX + padX, baseline, view.textPaint);
+                    view.textPaint.setColor(view.theme.textColor);
+                    canvas.drawText(line.substring(sigParamDocLabel.length()),
+                            anchorX + padX + labelW, baseline, view.textPaint);
+                } else {
+                    boolean isTag = !line.isEmpty() && line.charAt(0) == '@';
+                    view.textPaint.setColor(isTag
+                            ? view.theme.keyword : view.theme.textColor);
+                    canvas.drawText(line, anchorX + padX, baseline, view.textPaint);
+                }
             }
         }
         canvas.restore();
@@ -260,6 +410,95 @@ public class EditorAssistPopupPainter {
         view.textPaint.setTypeface(view.metrics.getTypeface());
         view.textPaint.setTextSize(view.metrics.getTextSize());
     }
+
+    /**
+     * Dessine une rangée de signature en trois segments : pré et post
+     * en couleur de texte, paramètre actif en gras + couleur de
+     * fonction.
+     */
+    private void drawSignatureRowText(Canvas canvas, float x, float baseline,
+            String pre, String param, String post) {
+        if (!pre.isEmpty()) {
+            view.textPaint.setColor(view.theme.textColor);
+            view.textPaint.setTypeface(view.metrics.getTypeface());
+            canvas.drawText(pre, x, baseline, view.textPaint);
+            x += view.textPaint.measureText(pre);
+        }
+        if (!param.isEmpty()) {
+            view.textPaint.setColor(view.theme.func);
+            android.graphics.Typeface bold = android.graphics.Typeface.create(
+                view.metrics.getTypeface(), android.graphics.Typeface.BOLD);
+            view.textPaint.setTypeface(bold);
+            canvas.drawText(param, x, baseline, view.textPaint);
+            x += view.textPaint.measureText(param);
+        }
+        if (!post.isEmpty()) {
+            view.textPaint.setColor(view.theme.textColor);
+            view.textPaint.setTypeface(view.metrics.getTypeface());
+            canvas.drawText(post, x, baseline, view.textPaint);
+        }
+        view.textPaint.setTypeface(view.metrics.getTypeface());
+    }
+
+    /**
+     * Ellipse une rangée de signature AUTOUR du paramètre actif : le
+     * paramètre est garanti visible, le PRÉFIXE est sacrifié en
+     * premier (ellipse de tête — la fin du préfixe, immédiatement
+     * avant le paramètre, est la partie la moins informative une fois
+     * coupée), puis le suffixe (ellipse de queue). Ultime recours : le
+     * paramètre lui-même est rogné à droite.
+     */
+    static String[] ellipsizeAroundActive(String pre, String param, String post,
+            float availW, Paint paint) {
+        final String ell = "…";
+        float ellW = paint.measureText(ell);
+        if (paint.measureText(pre) + paint.measureText(param)
+                + paint.measureText(post) <= availW) {
+            return new String[]{pre, param, post};
+        }
+        // Le paramètre SEUL ne tient pas : rogné à droite, pré/post vides.
+        if (paint.measureText(param) + ellW > availW) {
+            return new String[]{"", truncateTail(param,
+                    Math.max(0, availW - ellW), paint), ""};
+        }
+        // Paramètre garanti entier : le suffixe cède d'abord, puis le
+        // préfixe — chacun avec son ellipse si l'autre côté survit.
+        float rest = availW - paint.measureText(param);
+        String post2 = truncateTail(post, rest - (pre.isEmpty() ? 0 : ellW), paint);
+        float post2W = post2.isEmpty() ? 0 : paint.measureText(post2);
+        String pre2 = truncateHead(pre, rest - post2W - (post2.isEmpty() ? 0 : ellW), paint);
+        return new String[]{pre2, param, post2};
+    }
+
+    /** Coupe {@code s} par la DROITE avec ellipse pour tenir dans maxW. */
+    private static String truncateTail(String s, float maxW, Paint paint) {
+        if (s == null) return "";
+        if (s.isEmpty() || paint.measureText(s) <= maxW) return s;
+        final String ell = "…";
+        float ellW = paint.measureText(ell);
+        if (maxW <= ellW) return "";
+        int end = s.length();
+        while (end > 0 && paint.measureText(s.substring(0, end)) + ellW > maxW) {
+            end--;
+        }
+        return end <= 0 ? "" : s.substring(0, end) + ell;
+    }
+
+    /** Coupe {@code s} par la GAUCHE avec ellipse pour tenir dans maxW. */
+    private static String truncateHead(String s, float maxW, Paint paint) {
+        if (s == null) return "";
+        if (s.isEmpty() || paint.measureText(s) <= maxW) return s;
+        final String ell = "…";
+        float ellW = paint.measureText(ell);
+        if (maxW <= ellW) return "";
+        int start = 0;
+        while (start < s.length()
+                && paint.measureText(ell + s.substring(start)) > maxW) {
+            start++;
+        }
+        return start >= s.length() ? "" : ell + s.substring(start);
+    }
+
 
     /**
      * Au mieux : trouve la plage [start, end) du paramètre actif dans un

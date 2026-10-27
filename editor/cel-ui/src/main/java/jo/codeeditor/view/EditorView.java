@@ -4330,6 +4330,19 @@ public class EditorView extends View {
         return renderer.quickDocMetrics();
     }
 
+    /**
+     * 4.8.0 — géométrie du badge de surcharges « n/m » du popup d'aide
+     * de signature : {left, top, right, bottom} en px écran, ou null
+     * (popup absent ou surcharge unique). Source unique rendu (peintre)
+     * / hit-test (tap resolver) : le tap qui vise le badge fait défiler
+     * les surcharges — l'équivalent tactile des flèches Haut/Bas du
+     * clavier, autrement inaccessibles au doigt.
+     */
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public float[] signatureHelpBadgeMetrics() {
+        return renderer.signatureHelpBadgeMetrics();
+    }
+
     // ════════════════════════════════════════════════════════════════
     // Mode éditeur par blocs + EditorOverlayLayers
     // ════════════════════════════════════════════════════════════════

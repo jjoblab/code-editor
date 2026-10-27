@@ -94,6 +94,15 @@ public class StickyStyledRenderTest {
         view.measure(1080, 1920);
         view.layout(0, 0, 1080, 1920);
         injectMetrics(view, LINE_H, CHAR_W);
+        // 4.8.0 : la passe asynchrone (langue posée avant la session)
+        // est ATTENDUE explicitement — sous charge (suite complète),
+        // le worker peut livrer APRÈS le draw et le test devenait une
+        // course. awaitPendingRestyle est l'API prévue pour ça.
+        try {
+            session.awaitPendingRestyle();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
         // Les lignes 0-1 (sticky) passent au-dessus du padding haut :
         // la ligne 0 n'est plus rendue que par la passe sticky.
         view.scroll.vOffset = 8f * LINE_H;

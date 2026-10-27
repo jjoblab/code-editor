@@ -224,13 +224,26 @@ public class EditorTapResolver {
         // invisible : il retombe dans la cascade normale (caret).
 
         // ★ B8 (retour terrain n°5) : l'aide de signature est une bannière
-        // PASSIVE (aucune rangée interactive — la navigation des
-        // surcharges est clavier) flottant au-dessus de la ligne du
-        // caret. Un tap quelconque la referme : le geste appartient au
-        // texte derrière (placement du caret), la cascade continue.
-        // Elle revient à la prochaine édition si le caret est encore
-        // dans un appel (refreshSignatureHelp, chemin onTextChanged).
+        // PASSIVE flottant au-dessus de la ligne du caret. Un tap
+        // quelconque la referme : le geste appartient au texte derrière
+        // (placement du caret), la cascade continue. Elle revient à la
+        // prochaine édition si le caret est encore dans un appel
+        // (refreshSignatureHelp, chemin onTextChanged).
+        //
+        // ★ 4.8.0 — nuance : le badge de surcharges « n/m » (coin haut
+        // droit, présent seulement s'il y a un choix) est la SEULE
+        // surface interactive du popup — le tap qui le vise fait DÉFILER
+        // les surcharges (l'équivalent tactile des flèches Haut/Bas du
+        // clavier, autrement inaccessibles au doigt). Marge de 8 px
+        // autour du badge pour le doigt.
         if (view.signatureHelpVisible) {
+            float[] badge = view.signatureHelpBadgeMetrics();
+            if (badge != null
+                    && x >= badge[0] - 8 && x <= badge[2] + 8
+                    && y >= badge[1] - 8 && y <= badge[3] + 8) {
+                view.cycleSignatureHelp(1);
+                return;
+            }
             view.dismissSignatureHelp();
         }
 

@@ -72,4 +72,8 @@
     <!-- A-05 (audit 3.69.0) : derniers libellés en dur des popups -->
     <string name="cel_goto_line_title">Go to line</string>
     <string name="cel_rename_title">Rename \"%1$s\"</string>
+
+    <!-- 4.8.0 : repli synthétique de l'aide de signature (sans
+         résolveur) — numéro du paramètre actif, 1-based -->
+    <string name="cel_signature_active_param">Parameter %1$d</string>
 </resources>
