@@ -314,7 +314,7 @@ et les barres d'habillage dans `view/chrome/`.
 |----------------|------|---------|-------------|
 | LspLanguage (adaptateur Language) | ✅ | `lsp/LspLanguage.java` | Orchestration des providers |
 | Fournisseurs LSP (14) | ✅ | `lsp/Lsp*Provider.java` | Completion (4.3.0 : drapeau « liste tronquée » `isIncomplete` transporté, champs riches `labelDetails`/`documentation` → container et documentation), Diagnostics, Hover, Definition, TypeDefinition, Implementations, SuperDefinition, References, Rename, CodeActions, Symbol, SignatureHelp, InlayHint, DocumentHighlight |
-| LspEditor | ✅ | `lsp/LspEditor.java` + `LspDocumentSynchronizer`, `LspDiagnosticsManager`, `LspSemanticTokensPuller`, `LspFoldPuller`, `LspWorkspaceEditApplier` | Cycle de vie document ↔ serveur ; 3.74.0 (ADR-003) : `disconnect()` restaure `EmptyLanguage` (toutes capacités fermées), jeton de génération anti-course, garde commune des providers, annulation des tâches différées ; 4.4.0 : le puller lit le 5ᵉ élément du quintuplet et résout les modificateurs PAR NOM via la légende `tokenModifiers` (masque canonique `MOD_DEPRECATED`/`MOD_STATIC`/`MOD_ABSTRACT` — sans légende, rien n'est deviné) ; capacité cliente `textDocument.semanticTokens` annoncée |
+| LspEditor | ✅ | `lsp/LspEditor.java` + `LspDocumentSynchronizer`, `LspDiagnosticsManager`, `LspSemanticTokensPuller`, `LspFoldPuller`, `LspWorkspaceEditApplier` | Cycle de vie document ↔ serveur ; 3.74.0 (ADR-003) : `disconnect()` restaure `EmptyLanguage` (toutes capacités fermées), jeton de génération anti-course, garde commune des providers, annulation des tâches différées ; 4.4.0 : le puller lit le 5ᵉ élément du quintuplet et résout les modificateurs PAR NOM via la légende `tokenModifiers` (masque canonique `MOD_DEPRECATED`/`MOD_STATIC`/`MOD_ABSTRACT` — sans légende, rien n'est deviné) ; capacité cliente `textDocument.semanticTokens` annoncée ; 4.9.0 : tir sémantique sur TROIS signaux indépendants (pose du langage à la connexion, chaque didChange envoyé, publication de diagnostics — throttle 700 ms + génération dédupliquant), purge des jetons à la déconnexion (symétrie diagnostics), `connected` posé AVANT la pose du langage sous moniteur → le premier tir de plis à la connexion devient effectif |
 | LspProject | ✅ | `lsp/LspProject.java`, `lsp/LanguageServerWrapper.java`, `lsp/LanguageServerDefinition.java` | Gestion multi-serveurs, shutdown borné 2 s |
 | Formateur / analyzer no-op | ✅ | `lsp/LspFormatter.java`, `lsp/LspNoopAnalyzer.java` | textDocument/formatting ; 3.74.0 : options (tabSize, insertSpaces — hôte → détection → 4 espaces), rangeFormatting quand le serveur l'annonce, refus propre sinon ; éditions validées (bornes, chevauchements) et échecs journalisés sans fuite du document |
 | Providers de connexion (5) | ✅ | `lsp/connection/` | Stream, InProcess, LocalSocket, ProcessBuilder, Socket |
@@ -391,9 +391,9 @@ parallèle.
 | Indicateur | Valeur |
 |------------|--------|
 | Fichiers source | 305 (`:cel-core` 88 · `:cel-lsp-api` 41 · `:cel-lsp` 45 · `:cel-ui` 102 · `:cel-textmate` 12 · `demo` 17) |
-| Fichiers de test | 354 |
-| Lignes de code (main) | ≈ 79 700 (bibliothèques ≈ 72 100 · démo ≈ 7 700) |
-| Tests unitaires | 2 935 (`:cel-core` 1 495 · `:cel-lsp-api` 32 · `:cel-lsp` 235 · `:cel-ui` 971 · `:cel-textmate` 96 · `demo` 106) |
+| Fichiers de test | 355 |
+| Lignes de code (main) | ≈ 79 800 (bibliothèques ≈ 72 100 · démo ≈ 7 700) |
+| Tests unitaires | 2 938 (`:cel-core` 1 495 · `:cel-lsp-api` 32 · `:cel-lsp` 238 · `:cel-ui` 971 · `:cel-textmate` 96 · `demo` 106) |
 | Langages colorés intégrés | 29 |
 | Tokéniseurs intégrés | 14 (+ utilitaires SpanUtils, KeywordTables) |
 | Grammaires embarquées | 23 (`:cel-textmate` : c, cpp, csharp, css, dockerfile, go, html, java, javascript, json, kotlin, lua, markdown, php, python, ruby, rust, shell, sql, toml, typescript, xml, yaml) |

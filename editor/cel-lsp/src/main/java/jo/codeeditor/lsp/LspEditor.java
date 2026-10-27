@@ -180,6 +180,32 @@ public class LspEditor {
             synchronizer.sendDidOpen();
             log(logSink, "connect: didOpen sent");
             language = new LspLanguage(LspEditor.this, wrapper);
+            // ★ 4.9.0 : connecté AVANT la pose du langage. Avant, le
+            // drapeau était posé APRÈS le bloc hôte : sur hôte non
+            // attaché (pose INLINE) il l'était APRÈS applyLanguage, sur
+            // hôte attaché (pose POSTÉE) il l'était en course avec elle —
+            // dans les deux cas, les tirs clients déclenchés à la pose
+            // (foldingRange, désormais semanticTokens) voyaient
+            // isConnected() FAUX et se vidaient : le premier tir de plis
+            // à la connexion était perdant (invisible : publishDiagnostics
+            // le re-déclencherait) et le premier tir sémantique aurait
+            // subi le même sort. Le bloc synchronisé rend le
+            // test-then-set inattaquable face à disconnect() (qui tient
+            // le même moniteur) : pas de fenêtre où connected repasserait
+            // à true après une déconnexion.
+            synchronized (this) {
+                if (generation != connectionGeneration.get()) {
+                    // Déconnecté entre didOpen et ici : didOpen est parti,
+                    // disconnect() a envoyé son didClose — ne rien poser,
+                    // ne pas non plus rebrancher le langage sur l'hôte du
+                    // nouvel onglet.
+                    log(logSink, "connect: complétée après déconnexion — connexion ignorée");
+                    return;
+                }
+                connected = true;
+            }
+            log(logSink, "connect: SUCCESS — server ready, version="
+                    + synchronizer.getDocumentVersion());
             if (host != null) {
                 // Exécute setLanguage sur le thread UI — l'hôte expose une
                 // vue : modifier ses resolvers depuis un thread de fond
@@ -237,16 +263,19 @@ public class LspEditor {
                     // languageApplied).
                     languageApplied = true;
                     scheduleFoldPull();
+                    // ★ 4.9.0 (écart n°2) : premier tir SÉMANTIQUE à la
+                    // connexion lui aussi — un serveur qui annonce
+                    // semanticTokensProvider mais ne publie jamais de
+                    // diagnostics (analyseur silencieux, serveur de
+                    // coloration seul) doit quand même colorer le
+                    // document. publishDiagnostics reste un déclencheur
+                    // à part entière (LspDiagnosticsManager) ; le tir
+                    // ci-dessous ne dépend plus de lui.
+                    scheduleSemanticTokensPull();
                     log(logSink, "connect: setLanguage done, didChange forwarder wired");
                 };
                 runOnHostThread(h, applyLanguage,
                         "connect: setLanguage done inline (host not attached)");
-            }
-            if (generation == connectionGeneration.get()) {
-                connected = true;
-                log(logSink, "connect: SUCCESS — server ready, version=" + synchronizer.getDocumentVersion());
-            } else {
-                log(logSink, "connect: complétée après déconnexion — connexion ignorée");
             }
         }).exceptionally(throwable -> {
             closed = true;
@@ -370,6 +399,17 @@ public class LspEditor {
                 if (closed && h.session() != null) {
                     h.session().setDiagnostics(new java.util.ArrayList<>());
                     h.notifyDiagnosticsChanged();
+                    // ★ 4.9.0 : les jetons sémantiques sont des données
+                    // DÉRIVÉES du serveur au même titre que les
+                    // diagnostics — ils ne doivent pas survivre à la
+                    // fenêtre EmptyLanguage (les plis, eux, portent un
+                    // état utilisateur — collapsedByDefault consommé une
+                    // fois — et restent donc). Rendu nécessaire par le
+                    // tir indépendant : un serveur sans publication de
+                    // diagnostics laisse désormais des jetons en session
+                    // qui, sans purge, coloreraient l'onglet suivant.
+                    h.session().setSemanticTokens(new java.util.ArrayList<>());
+                    h.invalidate();
                 }
             };
             runOnHostThread(h, purge, null);

@@ -1020,3 +1020,51 @@ public Builder callSyntax(boolean value)
 3. Échantillon Markdown : une parenthèse dans la prose n'ouvre plus
    la bannière ; `mot.if` + Entrée sur du texte brut ne déclenche
    plus le postfix.
+
+## 4.9.0
+
+### 1. État de publication
+
+Tag `v4.9.0`, coordonnées Maven `jo.codeeditor:<module>:4.9.0`
+(GitHub Packages).
+
+### 2. Compatibilité (l'application vient de 4.8.x)
+
+**Recompilation obligatoire ? Non** — aucune API ajoutée, retirée ni
+déplacée : le changement est entièrement interne au pont LSP
+(`cel-lsp`). Une application qui compile contre 4.8.0 recompile sans
+toucher une ligne.
+
+### 3. Changements de comportement notables
+
+- **Surlignage sémantique sans diagnostics** : un serveur qui annonce
+  `semanticTokensProvider` mais ne publie jamais de diagnostics
+  colorait le document jusqu'à 4.8.0 incluse (le tir n'avait pour
+  seul déclencheur que `publishDiagnostics`). Désormais le tir part à
+  la pose du langage (connexion), après chaque didChange envoyé et à
+  chaque publication — le serveur Java de la démo publie, donc le
+  comportement visuel y est inchangé, mais un serveur minimal
+  « coloration seule » devient utilisable.
+- **Jetons purgés à la déconnexion** : à `disconnect()`, les jetons
+  sémantiques posés par le serveur sont retirés de la session comme
+  les diagnostics (symétrie 3.74.0). Si l'application posait ses
+  PROPRES jetons pendant une connexion LSP active, elle doit les
+  reposer après la déconnexion (ou poser son langage après
+  `disconnect()`, ce que le coordinateur d'onglets fait déjà).
+- **Premier tir de plis à la connexion effectif** : correction interne
+  — `connected` est posé avant la pose du langage (sous moniteur), le
+  premier `foldingRange` part donc réellement à la connexion au lieu
+  d'attendre la première publication de diagnostics. Les plis
+  apparaissent un peu plus tôt ; aucun autre effet visible.
+
+### 4. Scénarios de vérification sur appareil
+
+1. Onglet Java connecté : la coloration sémantique apparaît dès la
+   connexion (sans attendre la première frappe) ; les plis serveur
+   aussi.
+2. Frapper du code : les couleurs suivent l'édition (re-tir après
+   didChange, throttlé 700 ms — pas de rafale).
+3. Changer d'onglet puis revenir : aucune couleur du fichier fermé
+   ne bave sur le nouvel onglet (purge à la déconnexion).
+4. Mode gros fichiers (`setLargeFileMode(ON)` ou auto) : aucun tir
+   sémantique ne part (vérifiable au récepteur de journal si branché).

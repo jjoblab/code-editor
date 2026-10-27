@@ -36,6 +36,16 @@ class LspSemanticTokensPuller {
      * Programme un tir {@code textDocument/semanticTokens/full} throttlé.
      * No-op total si le serveur connecté n'annonce PAS de provider
      * (capabilities nulles pendant l'init, serveurs tiers sans support).
+     *
+     * <p><b>Déclencheurs (4.9.0, écart n°2)</b> — le tir est indépendant
+     * de la publication de diagnostics : (1) à la pose du langage à la
+     * connexion ({@code LspEditor.connect}), (2) après chaque didChange
+     * envoyé ({@code LspDocumentSynchronizer}), (3) à chaque publication
+     * de diagnostics ({@code LspDiagnosticsManager}, le signal
+     * historique). Le throttle ci-dessous ({@link #SEMANTIC_MIN_INTERVAL_MS},
+     * un seul re-tir en fin de fenêtre) déduplique les signaux
+     * concurrents ; la génération garantit que la réponse la plus
+     * récente gagne.</p>
      */
     void scheduleSemanticTokensPull() {
         if (!editor.isConnected()) return;

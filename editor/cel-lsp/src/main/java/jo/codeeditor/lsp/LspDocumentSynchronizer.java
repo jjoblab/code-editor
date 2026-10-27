@@ -312,6 +312,17 @@ class LspDocumentSynchronizer {
                                 ? " événement(s), " : " plein, ")
                         + docState.length() + " ch)");
             }
+            // ★ 4.9.0 (écart n°2) : rafraîchissement sémantique piloté
+            // par l'ÉDITION, indépendant de publishDiagnostics — un
+            // serveur sans publication ne laisse plus les couleurs
+            // périmées. La requête semanticTokens/full est enfilée dans
+            // la même file LSP4J FIFO APRÈS ce didChange : le serveur
+            // répond avec le texte FRAIS. Quand le serveur publie AUSSI
+            // des diagnostics, le tir qu'ils déclenchent est dédupliqué
+            // par le throttle (un seul re-tir en fin de fenêtre 700 ms,
+            // génération anti-obsolescence : la réponse la plus récente
+            // gagne). No-op complet sans provider sémantique annoncé.
+            editor.scheduleSemanticTokensPull();
         } catch (Exception e) {
             jo.codeeditor.util.EditorLog.error("LspEditor", "didChange FAILED: " + e.getMessage(), e);
             final LspLogSink sink = editor.getProject().getLogSink();

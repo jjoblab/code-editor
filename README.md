@@ -13,12 +13,13 @@ Ce que c'est — et ce que ce n'est pas :
   réellement embarquées (LSP4J, Gson) et les grammaires tierces du
   module optionnel sont attribuées dans [`NOTICE`](NOTICE).
 - **Publication** : coordonnées Maven `jo.codeeditor:<module>` —
-  version courante : `4.8.0` (le local ne se perd plus : plancher de
-  complétion fusionné — brancher un serveur ne retire plus les
-  mots-clés/snippets du profil —, aide de signature redessinée —
-  largeur adaptative, badge de surcharges tactile, documentation du
-  paramètre actif —, session vierge neutre `text`, drapeau
-  `callSyntax` des profils ; sur la 4.7.0 de la résolution à la
+  version courante : `4.9.0` (le tir sémantique indépendant : les
+  couleurs ne dépendent plus des publications de diagnostics — tir à
+  la connexion, re-tir après chaque didChange, purge à la
+  déconnexion, premier tir de plis à la connexion effectif ; sur la
+  4.8.0 du local qui ne se perd plus : plancher de complétion
+  fusionné, aide de signature redessinée, session vierge neutre
+  `text`, drapeau `callSyntax` des profils ; sur la 4.7.0 de la résolution à la
   demande : la documentation des candidats arrive au
   `completionItem/resolve` — dwell 200 ms du popup, ancre stable,
   cache client ; sur la 4.6.0 de la consolidation : l'apprentissage
@@ -77,7 +78,7 @@ optionnels et s'ajoutent selon les besoins.
 
 Les artefacts sont publiés sur `maven.pkg.github.com` avec les
 coordonnées `jo.codeeditor:<module>:<version>` (version courante :
-`4.4.0`).
+`4.9.0`).
 
 1. Créez un jeton d'accès personnel GitHub avec le droit `read:packages`.
 2. Renseignez vos identifiants dans `~/.gradle/gradle.properties` :
@@ -334,8 +335,8 @@ interface `EditorPreviewHost`) figure dans
 
 ```bash
 ./gradlew test
-# 2 935 tests, 0 failure :
-#   cel-core 1 495 · cel-lsp-api 32 · cel-lsp 235 · cel-ui 971 · cel-textmate 96 · demo 106
+# 2 938 tests, 0 failure :
+#   cel-core 1 495 · cel-lsp-api 32 · cel-lsp 238 · cel-ui 971 · cel-textmate 96 · demo 106
 # (contrôle d'écart : scripts/check-doc-figures.sh, exécuté en CI)
 ```
 

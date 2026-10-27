@@ -34,14 +34,14 @@ dependencyResolutionManagement {
 // app/build.gradle.kts
 dependencies {
     // Le module UI embarque transitivement cel-core et cel-lsp-api.
-    implementation("jo.codeeditor:cel-ui:4.8.0")
+    implementation("jo.codeeditor:cel-ui:4.9.0")
 
     // Optionnel — intégration Language Server Protocol (LSP4J).
-    implementation("jo.codeeditor:cel-lsp:4.8.0")
+    implementation("jo.codeeditor:cel-lsp:4.9.0")
 
     // Optionnel — voie grammaires (ADR-002 C3) : coloration par
     // grammaires TextMate-like + grammaires embarquées (C#).
-    implementation("jo.codeeditor:cel-textmate:4.8.0")
+    implementation("jo.codeeditor:cel-textmate:4.9.0")
 }
 ```
 
@@ -53,7 +53,7 @@ maven { url = uri("https://jitpack.io") }
 
 // app/build.gradle.kts
 dependencies {
-    implementation("com.github.jjoblab.code-editor:cel-ui:v4.8.0")
+    implementation("com.github.jjoblab.code-editor:cel-ui:v4.9.0")
 }
 ```
 
@@ -1157,6 +1157,27 @@ editor.disconnect();       // didClose + EmptyLanguage restaurée sur la vue :
   resterait inoffensif mais redondant).
 - De retour sur l'onglet `.java` : un nouveau `connect()` rétablit tout
   (les débounceurs didChange/didSave renaissent à chaque connexion).
+
+### Surlignage sémantique automatique (4.9.0)
+
+Quand le serveur annonce `semanticTokensProvider`, la bibliothèque tire
+`textDocument/semanticTokens/full` toute seule sur TROIS signaux
+indépendants : à la pose du langage (connexion), après chaque didChange
+envoyé (la requête part APRÈS le didChange dans la même file — le
+serveur répond sur le texte frais), et à chaque publication de
+diagnostics (le signal historique). Un serveur qui ne publie jamais de
+diagnostics colorait donc le document avant 4.9.0 : ce n'est plus le
+cas. Le throttle du puller (700 ms, un seul re-tir en fin de fenêtre)
+déduplique les signaux concurrents ; un serveur sans provider annoncé
+ne reçoit jamais la moindre requête, et le régime gros fichiers coupe
+tout tir.
+
+À la déconnexion, les jetons posés par le serveur sont purgés de la
+session, exactement comme les diagnostics (3.74.0) : l'onglet suivant
+n'hérite d'aucune couleur du fichier fermé. Une application qui pose
+ses PROPRES jetons (ci-dessous) pendant une connexion LSP active doit
+savoir qu'ils partiront avec elle — posez-les après `disconnect()`, ou
+reposez-les à chaque changement de langage.
 
 ### Formatage : disponibilité, options, sélection (3.74.0)
 

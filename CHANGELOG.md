@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Les sections antérieures à la période courante sont archivées dans
 [`docs/archive/CHANGELOG-archive.md`](docs/archive/CHANGELOG-archive.md) (A-08, audit 3.69.0).
 
+## [4.9.0] — 2026-10-28 — Tir sémantique indépendant : les couleurs ne dépendent plus des diagnostics
+
+Un serveur qui annonce `semanticTokensProvider` mais ne publie jamais
+de diagnostics ne colorait JAMAIS le document sémantiquement — le tir
+`textDocument/semanticTokens/full` n'avait qu'un seul déclencheur, la
+publication de diagnostics. Désormais trois signaux indépendants tirent,
+et le throttle du puller déduplique.
+
+### Ajouté
+
+- **Tir sémantique à la connexion** — la pose du langage (didOpen
+  parti, SPI posé sur l'hôte) tire immédiatement : premier rendu
+  sémantique sans attendre une publication qui n'arrivera peut-être
+  jamais. No-op complet si le serveur n'annonce pas le provider ou si
+  le régime gros fichiers est actif.
+- **Tir sémantique après chaque didChange** — l'édition re-tire : la
+  requête est enfilée APRÈS le didChange dans la même file LSP4J, le
+  serveur répond avec le texte frais. Les serveurs silencieux (aucune
+  publication) ne laissent plus les couleurs périmées. Quand le serveur
+  publie AUSSI des diagnostics, le tir qu'ils déclenchent est
+  dédupliqué par le throttle (un seul re-tir en fin de fenêtre 700 ms,
+  génération anti-obsolescence : la réponse la plus récente gagne).
+- **Purge des jetons à la déconnexion** — les jetons sémantiques sont
+  des données dérivées du serveur au même titre que les diagnostics :
+  ils ne survivent plus à la fenêtre EmptyLanguage (les plis, qui
+  portent un état utilisateur, restent). Symétrique de la purge des
+  diagnostics 3.74.0.
+
+### Corrections
+
+- **Premier tir de plis à la connexion effectif** — `connect()` posait
+  `connected = true` APRÈS la pose du langage : sur hôte non attaché
+  (pose inline) le drapeau arrivait APRÈS le tir, sur hôte attaché
+  (pose postée) il était en course avec lui — dans les deux cas le
+  `scheduleFoldPull()` de la pose voyait `isConnected()` faux et se
+  vidait, le premier pli ne venait que via publishDiagnostics. Le
+  drapeau est désormais posé AVANT la pose, sous le moniteur de
+  l'éditeur (test-then-set inattaquable face à `disconnect()` qui tient
+  le même moniteur) ; la continuation ignore proprement une
+  déconnexion survenue entre didOpen et la pose, sans poster de pose
+  condamnée.
+
 ## [4.8.0] — 2026-10-28 — Le local ne se perd plus : plancher de complétion fusionné, aide de signature redessinée, session vierge neutre
 
 Trois chantiers nés d'une question d'architecture : « que reste-t-il

@@ -124,10 +124,13 @@ class LspDiagnosticsManager {
             // l'attachement : une publication serveur ne doit pas rester
             // pendante.
             if (host.isAttachedToWindow()) host.post(push); else push.run();
-            // ★ R3 : chaque publication de diagnostics est
-            // le signal naturel pour rafraîchir les couleurs sémantiques —
-            // un seul déclencheur, déjà cadencé par le debounce didChange,
-            // capacité vérifiée (les serveurs sans provider sont ignorés).
+            // ★ R3 : chaque publication de diagnostics reste UN signal
+            // de rafraîchissement des couleurs sémantiques — cadencé par
+            // le debounce didChange, capacité vérifiée (les serveurs sans
+            // provider sont ignorés). ★ 4.9.0 (écart n°2) : il n'est
+            // plus le SEUL — la connexion (LspEditor.connect) et chaque
+            // didChange envoyé (LspDocumentSynchronizer) tirent aussi,
+            // le throttle du puller déduplique.
             editor.scheduleSemanticTokensPull();
             // Même signal pour le FOLDING — tir
             // textDocument/foldingRange throttlé, appliqué via

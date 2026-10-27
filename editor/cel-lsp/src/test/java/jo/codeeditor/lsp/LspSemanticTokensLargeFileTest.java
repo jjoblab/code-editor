@@ -54,6 +54,15 @@ class LspSemanticTokensLargeFileTest {
     }
 
     private void connecter() throws Exception {
+        connecter(false);
+    }
+
+    /**
+     * 4.9.0 : le tir sémantique part dès la connexion (écart n°2) — le
+     * régime gros fichiers doit donc être réglable AVANT connect() pour
+     * couper AUSSI ce premier tir.
+     */
+    private void connecter(boolean largeInitial) throws Exception {
         InProcessStreamConnectionProvider provider =
                 new InProcessStreamConnectionProvider(() -> server);
         LanguageServerDefinition definition = new LanguageServerDefinition("java", "factice") {
@@ -65,6 +74,7 @@ class LspSemanticTokensLargeFileTest {
         project.addServerDefinition(definition);
         editor = project.createEditor(URI);
         host = new HoteGrosFichier(DOC);
+        host.large = largeInitial;
         editor.setHost(host);
         editor.connect().get(10, TimeUnit.SECONDS);
         assertNotNull(editor.currentWrapper());
@@ -89,9 +99,11 @@ class LspSemanticTokensLargeFileTest {
     @Test
     void hôteGrosFichier_aucuneRequêteSémantique() throws Exception {
         server.data = List.of(1, 15, 5, 6, 0);
-        connecter();
-        // Le régime est lu À CHAQUE tir (pas à l'initialisation) — le
-        // forçage posé après connexion coupe le tir suivant.
+        // 4.9.0 : régime posé AVANT la connexion — le premier tir (à la
+        // pose du langage) doit être coupé lui aussi. Le régime reste lu
+        // à CHAQUE programmation de tir : le forçage coupe le tir de
+        // connexion, celui du didChange et celui des diagnostics.
+        connecter(true);
         host.large = true;
         publier();
         // Laisse le pipeline s'exprimer — AUCUNE requête ne doit partir.
