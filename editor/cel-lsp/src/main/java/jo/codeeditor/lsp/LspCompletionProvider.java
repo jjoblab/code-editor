@@ -30,6 +30,24 @@ class LspCompletionProvider implements CompletionProvider {
     private final LspEditor editor;
     private final LspLogSink logSink;
 
+    /**
+     * Dernier lot servi, par libellé — la cible de
+     * {@code completionItem/resolve} (le champ {@code data} du protocole
+     * doit faire l'aller-retour TEL QUEL : c'est l'item ORIGINAL qu'on
+     * renvoie au serveur, jamais une reconstruction). Vidé à chaque lot.
+     */
+    private final java.util.Map<String, org.eclipse.lsp4j.CompletionItem> lastBatchByLabel =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
+    /**
+     * Documentations déjà résolues, par libellé — un lot re-servi (re-
+     * requête du même token) les affiche IMMÉDIATEMENT sans nouvelle
+     * requête de résolution. Borné par la taille des lots (le drapeau
+     * « liste tronquée » plafonne déjà la base côté serveur).
+     */
+    private final java.util.Map<String, String> resolvedDocumentation =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
     LspCompletionProvider(LanguageServerWrapper wrapper, LspEditor editor, LspLogSink logSink) {
         this.wrapper = wrapper;
         this.editor = editor;
@@ -113,6 +131,14 @@ class LspCompletionProvider implements CompletionProvider {
             log("completion: got " + count + " items"
                     + (listIncomplete ? " (liste incomplète)" : ""), null);
             if (items != null) {
+                // La cible du resolve : le lot ORIGINAL par libellé — le
+                // champ data du protocole fait l'aller-retour tel quel.
+                lastBatchByLabel.clear();
+                for (org.eclipse.lsp4j.CompletionItem lspItem : items) {
+                    if (lspItem.getLabel() != null) {
+                        lastBatchByLabel.put(lspItem.getLabel(), lspItem);
+                    }
+                }
                 // Préserve l'ordre classement du serveur.
                 // Le client regroupe par qualité de match (exact /
                 // préfixe / flou) mais garde l'ordre d'insertion DANS
@@ -127,6 +153,15 @@ class LspCompletionProvider implements CompletionProvider {
                     jo.codeeditor.lang.model.CompletionItem out = convertItem(
                             lspItem, Math.max(1, rank--),
                             pos -> editorRef.positionToOffset(pos), caret, docLen);
+                    // Documentation déjà résolue pour ce libellé (lot
+                    // re-servi) : pré-remplie — le popup n'attend plus le
+                    // séjour de sélection, le panneau est immédiat.
+                    if (out.documentation == null) {
+                        String cached = resolvedDocumentation.get(out.label);
+                        if (cached != null) {
+                            out = withDocumentation(out, cached);
+                        }
+                    }
                     // Auto-import — transporte les
                     // additionalTextEdits (insertion de l'instruction
                     // import) vers l'éditeur via un hook post-accept.
@@ -179,6 +214,110 @@ class LspCompletionProvider implements CompletionProvider {
             return wrapper.getCapabilities().getCompletionProvider().getTriggerCharacters();
         }
         return Collections.emptyList();
+    }
+
+    /**
+     * Le serveur annonce-t-il {@code resolveProvider} ? — la porte de
+     * la résolution différée : sans elle, AUCUNE requête
+     * {@code completionItem/resolve} n'est émise (le protocole
+     * l'interdit, la discipline des inlay hints appliquée à la
+     * complétion).
+     */
+    private boolean resolveSupported() {
+        return wrapper.getCapabilities() != null
+            && wrapper.getCapabilities().getCompletionProvider() != null
+            && Boolean.TRUE.equals(
+                wrapper.getCapabilities().getCompletionProvider().getResolveProvider());
+    }
+
+    /**
+     * ★ 4.7.0 — Résolution PARESSEUSE de la documentation d'un candidat
+     * du dernier lot ({@code completionItem/resolve}). Le contrat du
+     * SPI est respecté à la lettre : jamais bloquant pour l'appelant
+     * (la requête part en asynchrone sur les threads du pont), callback
+     * depuis n'importe quel thread, {@code null} quand il n'y a rien à
+     * résoudre.
+     *
+     * <p>Garde-fous :</p>
+     * <ul>
+     *   <li>porte capacité {@code resolveProvider} — sans annonce,
+     *       callback null immédiat, zéro requête ;</li>
+     *   <li>le libellé doit être CONNU du dernier lot (c'est l'item
+     *       ORIGINAL qui voyage au serveur — son champ {@code data}
+     *       fait l'aller-retour) ; un libellé inconnu est ignoré sans
+     *       requête ;</li>
+     *   <li>cache : une documentation déjà résolue est resservie sans
+     *       nouvelle requête (et pré-remplit les lots suivants) ;</li>
+     *   <li>timeout {@code completionResolveMs} (3 s par défaut) — un
+     *       serveur silencieux rend la main, callback null ;</li>
+     *   <li>erreur/annulation : callback null, jamais d'exception vers
+     *       l'appelant.</li>
+     * </ul>
+     */
+    @Override
+    public void resolveDocumentation(String label,
+                                     java.util.function.Consumer<String> callback) {
+        if (label == null) {
+            callback.accept(null);
+            return;
+        }
+        // Cache d'abord : une documentation déjà résolue ne re-requête
+        // JAMAIS le serveur.
+        String cached = resolvedDocumentation.get(label);
+        if (cached != null) {
+            callback.accept(cached);
+            return;
+        }
+        LanguageServer server = editor.readyServer(wrapper);
+        if (server == null || !resolveSupported()) {
+            callback.accept(null);
+            return;
+        }
+        org.eclipse.lsp4j.CompletionItem original = lastBatchByLabel.get(label);
+        if (original == null) {
+            // Libellé inconnu du dernier lot (requête périmée, item
+            // reconstruit par l'appelant) : sans le champ data de
+            // l'original, le serveur ne peut rien résoudre — ignoré.
+            callback.accept(null);
+            return;
+        }
+        log("completion/resolve: requesting doc for \"" + label + "\"", null);
+        final long timeoutMs = wrapper.requestTimeouts().completionResolveMs();
+        server.getTextDocumentService().resolveCompletionItem(original)
+            .orTimeout(timeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS)
+            .whenComplete((resolved, err) -> {
+                String doc = null;
+                if (err == null && resolved != null) {
+                    doc = documentationOf(resolved);
+                } else if (err != null) {
+                    log("completion/resolve: " + label + " — " + err.getClass().getSimpleName(), null);
+                }
+                if (doc != null) {
+                    resolvedDocumentation.put(label, doc);
+                }
+                // Le callback peut venir d'ICI de n'importe quel thread
+                // — le consommateur marshalle vers le sien (contrat SPI).
+                try {
+                    callback.accept(doc);
+                } catch (Exception t) {
+                    // Un consommateur mort ne doit pas tuer le thread du pont.
+                    jo.codeeditor.util.EditorLog.warn("LspCompletion",
+                        "callback resolve échoué", t);
+                }
+            });
+    }
+
+    /** Copie d'un item SPI avec la documentation posée (champs finaux). */
+    private static jo.codeeditor.lang.model.CompletionItem withDocumentation(
+            jo.codeeditor.lang.model.CompletionItem item, String documentation) {
+        jo.codeeditor.lang.model.CompletionItem copy =
+            new jo.codeeditor.lang.model.CompletionItem(
+                item.label, item.detail, item.insertText, item.kind, item.kindCode,
+                item.kindTag, item.sortPriority, item.isSnippet, item.filterText,
+                item.sortText, item.replaceStart, item.replaceEnd, item.container,
+                documentation);
+        copy.postApplyAction = item.postApplyAction;
+        return copy;
     }
 
     // ── Conversion LSP → SPI (L1/D-01) ────────────────────────────

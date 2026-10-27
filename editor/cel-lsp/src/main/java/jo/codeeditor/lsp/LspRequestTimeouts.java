@@ -32,6 +32,7 @@ public final class LspRequestTimeouts {
     private volatile long renameMs = 10_000;
     private volatile long inlayHintsMs = 5_000;
     private volatile long inlayResolveMs = 3_000;
+    private volatile long completionResolveMs = 3_000;
     private volatile long documentHighlightMs = 10_000;
     private volatile long symbolMs = 3_000;
     private volatile long formattingMs = 5_000;
@@ -62,6 +63,8 @@ public final class LspRequestTimeouts {
     public long inlayHintsMs() { return inlayHintsMs; }
     /** inlayHint/resolve. */
     public long inlayResolveMs() { return inlayResolveMs; }
+    /** completionItem/resolve (résolution paresseuse de la documentation). */
+    public long completionResolveMs() { return completionResolveMs; }
     /** textDocument/documentHighlight. */
     public long documentHighlightMs() { return documentHighlightMs; }
     /** textDocument/documentSymbol. */
@@ -82,6 +85,7 @@ public final class LspRequestTimeouts {
     public LspRequestTimeouts setRename(long ms) { this.renameMs = saneMs(ms); return this; }
     public LspRequestTimeouts setInlayHints(long ms) { this.inlayHintsMs = saneMs(ms); return this; }
     public LspRequestTimeouts setInlayResolve(long ms) { this.inlayResolveMs = saneMs(ms); return this; }
+    public LspRequestTimeouts setCompletionResolve(long ms) { this.completionResolveMs = saneMs(ms); return this; }
     public LspRequestTimeouts setDocumentHighlight(long ms) { this.documentHighlightMs = saneMs(ms); return this; }
     public LspRequestTimeouts setSymbol(long ms) { this.symbolMs = saneMs(ms); return this; }
     public LspRequestTimeouts setFormatting(long ms) { this.formattingMs = saneMs(ms); return this; }

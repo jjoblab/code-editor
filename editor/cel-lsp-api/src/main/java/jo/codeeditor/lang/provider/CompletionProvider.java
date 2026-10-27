@@ -67,4 +67,43 @@ public interface CompletionProvider {
      * une liste vide si l'auto-déclenchement est désactivé.
      */
     List<String> getTriggerCharacters();
+
+    /**
+     * Résout PARESSEUSEMENT la documentation d'un candidat déjà servi —
+     * le chemin {@code completionItem/resolve} pour les moteurs qui
+     * économisent la documentation dans la liste initiale et ne la
+     * servent qu'à la demande.
+     *
+     * <p>Contrat :</p>
+     * <ul>
+     *   <li>appelé par le popup après un court séjour de la sélection
+     *       sur un candidat SANS documentation — jamais au rendu, jamais
+     *       à la demande de liste (le même discipline que la résolution
+     *       des indications en ligne) ;</li>
+     *   <li>l'implémentation NE DOIT PAS BLOQUER l'appelant (thread UI
+     *       côté éditeur) : la requête au moteur part en asynchrone ;</li>
+     *   <li>le callback peut être invoqué depuis N'IMPORTE QUEL thread —
+     *       le consommateur marshalle vers le sien ;</li>
+     *   <li>{@code null} (ou absence d'appel après documentation absente)
+     *       signifie « pas de documentation résolue » — le popup n'en
+     *       fait rien ;</li>
+     *   <li>une documentation résolue PEUT être mise en cache par
+     *       l'implémentation pour resservir les lots suivants sans
+     *       nouvelle requête.</li>
+     * </ul>
+     *
+     * <p>Implémentation par défaut : aucun candidat n'est résoluble —
+     * le callback reçoit {@code null} immédiatement (les fournisseurs
+     * existants ne changent pas).</p>
+     *
+     * @param label    le libellé du candidat (la clé d'appariement côté
+     *                 fournisseur)
+     * @param callback reçoit la documentation résolue (texte brut ou
+     *                 Markdown, telle quelle), ou {@code null}
+     * @since 4.7.0
+     */
+    default void resolveDocumentation(String label,
+                                      java.util.function.Consumer<String> callback) {
+        callback.accept(null);
+    }
 }

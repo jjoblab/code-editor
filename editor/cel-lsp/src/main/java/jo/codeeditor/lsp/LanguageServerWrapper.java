@@ -139,6 +139,17 @@ public class LanguageServerWrapper {
         org.eclipse.lsp4j.CompletionCapabilities completionCaps =
             new org.eclipse.lsp4j.CompletionCapabilities();
         completionCaps.setContextSupport(Boolean.TRUE);
+        // Résolution différée des candidats (4.7.0) : le client consomme
+        // « documentation » et « detail » au completionItem/resolve — la
+        // négociation ouvre la voie aux serveurs qui économisent la
+        // documentation dans la liste initiale (le popup ne résout
+        // qu'après un séjour de la sélection, jamais au rendu).
+        org.eclipse.lsp4j.CompletionItemCapabilities completionItemCaps =
+            new org.eclipse.lsp4j.CompletionItemCapabilities();
+        completionItemCaps.setResolveSupport(
+            new org.eclipse.lsp4j.CompletionItemResolveSupportCapabilities(
+                java.util.Arrays.asList("documentation", "detail")));
+        completionCaps.setCompletionItem(completionItemCaps);
         tdCaps.setCompletion(completionCaps);
         // Hover : markdown pris en charge.
         org.eclipse.lsp4j.HoverCapabilities hoverCaps =
