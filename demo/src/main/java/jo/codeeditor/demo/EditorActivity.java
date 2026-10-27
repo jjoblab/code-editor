@@ -326,6 +326,9 @@ public class EditorActivity extends AppCompatActivity {
                 showAbout();
             }
         }, id -> textMate != null && textMate.hasEmbeddedGrammar(id),
+                // 4.8.0 : le badge LSP couvre tout échantillon de
+                // langage java (menu + reconnexion collente ALIGNÉS).
+                id -> "java".equals(editorLanguageIdFor(id)),
                 this::isSampleOpen);
         drawer.addDrawerListener(new DrawerLayout.SimpleDrawerListener() {
             @Override
@@ -350,6 +353,21 @@ public class EditorActivity extends AppCompatActivity {
 
     // ── Gestion des fichiers ouverts ────────────────────────────────
 
+    /**
+     * Langage ÉDITEUR d'un échantillon — mapping partagé (ouverture
+     * d'onglet + sonde LSP du tiroir). Les échantillons de charge
+     * (plan 11) sont du JAVA généré ; le banc postfix vit aussi sur
+     * le profil java (le postfix est une donnée du PROFIL, pas de
+     * l'analyseur) ; l'échantillon XML lié sur xml.
+     */
+    static String editorLanguageIdFor(String id) {
+        return "minified-js".equals(id) ? "javascript"
+                : id.startsWith("load-") ? "java"
+                : "postfix-java".equals(id) ? "java"
+                : "xml-linked".equals(id) ? "xml"
+                : id;
+    }
+
     /** Ouvre l'échantillon (nouvel onglet ou sélection de l'existant). */
     void openSample(String label, String id) {
         for (int i = 0; i < files.size(); i++) {
@@ -362,15 +380,7 @@ public class EditorActivity extends AppCompatActivity {
             closeFile(oldestNonCurrentIndex());
         }
         String sample = DemoSamples.sampleFor(id);
-        // Les échantillons de charge (plan 11) sont du JAVA généré : le
-        // langage éditeur est java (bascule grammaires et pliage actives).
-        // 4.5.1 : l'échantillon de banc postfix vit aussi sur le profil
-        // java (le postfix est une donnée du PROFIL, pas de l'analyseur).
-        String editorLanguageId = "minified-js".equals(id) ? "javascript"
-                : id.startsWith("load-") ? "java"
-                : "postfix-java".equals(id) ? "java"
-                : "xml-linked".equals(id) ? "xml"
-                : id;
+        String editorLanguageId = editorLanguageIdFor(id);
         EditorSession newSession = new EditorSession(EditorDocument.of(sample));
         // Rafraîchissement différé des panneaux après édition (les deux
         // moteurs débouncent leur recalcul — 700 ms couvre l'analyzer

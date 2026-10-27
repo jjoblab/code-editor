@@ -75,6 +75,8 @@ public final class SampleDrawer {
     private final Context context;
     private final Listener listener;
     private final Predicate<String> grammarProbe;
+    /** 4.8.0 : sonde LSP — l'échantillon accepte-t-il le mini serveur ? */
+    private final Predicate<String> lspProbe;
     private final Predicate<String> openProbe;
 
     private final LinearLayout root;
@@ -86,10 +88,12 @@ public final class SampleDrawer {
     private String filterText = "";
 
     public SampleDrawer(Context context, Listener listener,
-            Predicate<String> grammarProbe, Predicate<String> openProbe) {
+            Predicate<String> grammarProbe, Predicate<String> lspProbe,
+            Predicate<String> openProbe) {
         this.context = context;
         this.listener = listener;
         this.grammarProbe = grammarProbe;
+        this.lspProbe = lspProbe;
         this.openProbe = openProbe;
         for (Map.Entry<String, String> e : DemoSamples.LANGUAGES.entrySet()) {
             labels.add(e.getKey());
@@ -397,7 +401,11 @@ public final class SampleDrawer {
         if (grammar) {
             row.addView(chip("TM", AMBER_400, R.string.drawer_badge_textmate));
         }
-        if ("java".equals(sampleId)) {
+        // 4.8.0 : la sonde LSP vient de l'activité (elle seule connaît
+        // le mapping id → langage éditeur) — le badge couvre TOUS les
+        // échantillons java (java, charge 100k/480k, banc postfix),
+        // pas seulement l'échantillon « java » historique.
+        if (lspProbe.test(sampleId)) {
             row.addView(chip("LSP", SKY_400, R.string.drawer_badge_lsp));
         }
         return row;

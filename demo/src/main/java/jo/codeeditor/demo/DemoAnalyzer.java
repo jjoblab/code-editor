@@ -541,6 +541,11 @@ final class DemoAnalyzer {
     // ── Aide de signature ─────────────────────────────────────────
 
     private SignatureHelp signatureHelp(String text, int caret) {
+        // 4.8.0 : borné aux langages à syntaxe d'appel — le résolveur
+        // factice ne raconte plus « Signature de démonstration » sur
+        // une parenthèse de prose Markdown ou de texte brut.
+        LanguageProfile profile = LanguageRegistry.forName(language);
+        if (profile == null || !profile.callSyntax) return null;
         int open = -1;
         int depth = 0;
         for (int i = caret - 1; i >= 0; i--) {

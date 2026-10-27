@@ -61,7 +61,7 @@ public class SampleDrawerTest {
 
             @Override
             public void onAbout() { }
-        }, id -> "java".equals(id) || "csharp".equals(id), id -> false);
+        }, id -> "java".equals(id) || "csharp".equals(id), id -> false, id -> false);
 
         LinearLayout sections = drawer.sectionsForTest();
         // Sans filtre : 5 en-têtes de famille + 35 échantillons
@@ -127,7 +127,7 @@ public class SampleDrawerTest {
 
             @Override
             public void onAbout() { }
-        }, id -> "csharp".equals(id), id -> true);
+        }, id -> "csharp".equals(id), id -> false, id -> true);
 
         // Simule le tap sur la rangée « C# » : la sélection remonte
         // avec le couple libellé/identifiant exact.
@@ -149,5 +149,52 @@ public class SampleDrawerTest {
         sections.getChildAt(csharpRow).performClick();
         assertEquals("C#", picked[0]);
         assertEquals("csharp", picked[1]);
+    }
+
+    // ── 4.8.0 : badge LSP étendu à tous les échantillons Java ──────
+
+    @Test
+    public void leBadgeLspCouvreTousLesEchantillonsJava() {
+        // Avant 4.8.0, le badge « LSP » ne marquait que l'échantillon
+        // « java » — les échantillons de charge (100k/480k) et le banc
+        // postfix acceptent pourtant le mini serveur (menu visible +
+        // reconnexion collante). La sonde vient de l'activité, qui
+        // seule connaît le mapping id → langage éditeur : ici on
+        // réplique sa définition exacte.
+        Application app = RuntimeEnvironment.getApplication();
+        SampleDrawer drawer = new SampleDrawer(app, new SampleDrawer.Listener() {
+            @Override
+            public void onSampleSelected(String label, String sampleId) { }
+
+            @Override
+            public void onSettings() { }
+
+            @Override
+            public void onAbout() { }
+        }, id -> false,
+                id -> "java".equals(id) || id.startsWith("load-")
+                        || "postfix-java".equals(id),
+                id -> false);
+
+        LinearLayout sections = drawer.sectionsForTest();
+        int lspChips = 0;
+        for (int i = 0; i < sections.getChildCount(); i++) {
+            android.view.View child = sections.getChildAt(i);
+            if (!"sample".equals(child.getTag())
+                    || !(child instanceof android.view.ViewGroup)) {
+                continue;
+            }
+            android.view.ViewGroup row = (android.view.ViewGroup) child;
+            for (int c = 0; c < row.getChildCount(); c++) {
+                android.view.View v = row.getChildAt(c);
+                if (v instanceof android.widget.TextView
+                        && "LSP".equals(((android.widget.TextView) v).getText())) {
+                    lspChips++;
+                }
+            }
+        }
+        // java + charge 100k + charge 480k + banc postfix = 4 badges.
+        assertEquals("le badge LSP couvre tous les échantillons java",
+                4, lspChips);
     }
 }
