@@ -40,7 +40,12 @@ public class EditorSession {
     // Moteur de tokenization (styledLines, tampons de révision par ligne,
     // restyle synchrone/asynchrone) — détenu par RestyleEngine.
     private final RestyleEngine restyle;
-    String language = "java";
+    // 4.8.0 — une session VIERGE est neutre : « text » (profil intégré
+    // sans mot-clé ni snippet). Historiquement « java », un hôte qui
+    // n'appelait jamais setLanguage obtenait mots-clés Java, coloration
+    // C-like Java et postfix éligible sur n'importe quel fichier — un
+    // .txt compris. Les hôtes qui veulent un langage le déclarent.
+    String language = "text";
     // Bascule de commentaires (surcharge de syntaxe + bascule ligne/bloc) —
     // détenue par CommentToggler.
     private final CommentToggler comments = new CommentToggler(this);

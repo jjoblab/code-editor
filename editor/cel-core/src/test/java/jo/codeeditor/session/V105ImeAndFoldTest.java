@@ -273,6 +273,7 @@ class V105ImeAndFoldTest {
     @Test
     void typeChar_smartEditDivergenceTriggersRestartInput() {
         EditorSession s = new EditorSession(EditorDocument.of(""));
+        s.setLanguage("java"); // 4.8.0 : ces tests exercent les traits C-like (défaut historique)
         RecordingImeListener l = new RecordingImeListener();
         s.setImeListener(l);
         // Taper '(' : l'insertion intelligente doit auto-fermer en '()'

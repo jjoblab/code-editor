@@ -106,6 +106,13 @@ final class PostfixCompletion {
         // qui déclare sa propre table (l'extension appartient à l'hôte).
         LanguageProfile profile = LanguageRegistry.forName(language);
         if (profile == null) return null;
+        // 4.8.0 : borné aux langages de code — le profil « text » est
+        // C_LIKE pour le routage du tokenizer mais n'a pas de syntaxe
+        // d'appel : « mot.if » n'a pas de sens sur du texte brut.
+        // Une table EXPLICITEMENT déclarée par l'hôte court-circuite
+        // la porte (contrat 4.5.0 : « un langage hors de ces familles
+        // qui déclare une table bénéficie des postfixes aussi »).
+        if (!profile.callSyntax && profile.postfixTemplates.isEmpty()) return null;
         boolean isCLike = profile.family == SyntaxFamily.C_LIKE;
         boolean isPython = profile.family == SyntaxFamily.PYTHON;
         if (!isCLike && !isPython && profile.postfixTemplates.isEmpty()) return null;

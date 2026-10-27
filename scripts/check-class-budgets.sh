@@ -244,7 +244,12 @@ budget editor/cel-ui/src/main/java/jo/codeeditor/view/EditorView.java 4480 180 3
 # isXmlLinkedEditLanguage (privée). Mesuré : 1689 l. / 11 champs /
 # 106 méthodes. Le relèvement ne dispense pas de la décomposition
 # du plan 01.
-budget editor/cel-core/src/main/java/jo/codeeditor/session/EditorSession.java 1690 15 106
+# Écart au ratchet (4.8.0, session vierge neutre) : plafond LIGNES
+# 1690 → 1700 relevé pour le commentaire documentant le défaut
+# « text » (l'ancien « java » silencieux envoyait mots-clés Java et
+# postfix sur n'importe quel fichier). Aucune méthode ajoutée —
+# mesuré 1694 l. / 11 champs / 106 méthodes.
+budget editor/cel-core/src/main/java/jo/codeeditor/session/EditorSession.java 1700 15 106
 
 # ── Règle de paquet (plan 03, §5) : le client LSP ne référence jamais
 # la vue. cel-lsp programme contre EditorHost (cel-lsp-api) ;

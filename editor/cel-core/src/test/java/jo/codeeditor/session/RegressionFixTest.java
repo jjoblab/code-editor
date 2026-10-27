@@ -55,6 +55,7 @@ class RegressionFixTest {
     @Test
     void typeChar_autoCloseParen_setsCaretBetweenPair() {
         EditorSession s = new EditorSession(EditorDocument.of("hello"));
+        s.setLanguage("java"); // 4.8.0 : ces tests exercent les traits C-like (défaut historique)
         s.setSelection(5);
         s.typeChar('(');
 
@@ -70,6 +71,7 @@ class RegressionFixTest {
         // allCommented doit être TRUE (les lignes vides sont ignorées), donc
         // l'appel doit DÉCOMMENTER et non re-commenter.
         EditorSession s = new EditorSession(EditorDocument.of("// a\n\n// c"));
+        s.setLanguage("java"); // 4.8.0 : ces tests exercent les traits C-like (défaut historique)
         s.setSelection(Selection.range(0, 8));
 
         s.toggleLineComment();
@@ -84,6 +86,7 @@ class RegressionFixTest {
         // Aucune ligne n'est encore commentée — le toggle doit tout
         // commenter (y compris les vides).
         EditorSession s = new EditorSession(EditorDocument.of("a\n\nb"));
+        s.setLanguage("java"); // 4.8.0 : ces tests exercent les traits C-like (défaut historique)
         s.setSelection(Selection.range(0, 4));
 
         s.toggleLineComment();
@@ -94,6 +97,7 @@ class RegressionFixTest {
     @Test
     void toggleLineComment_undoRoundTrip() {
         EditorSession s = new EditorSession(EditorDocument.of("a\nb\nc"));
+        s.setLanguage("java"); // 4.8.0 : ces tests exercent les traits C-like (défaut historique)
         s.setSelection(Selection.range(0, 5));
 
         s.toggleLineComment();
@@ -109,6 +113,7 @@ class RegressionFixTest {
     @Test
     void toggleBlockComment_isSingleUndoStep() {
         EditorSession s = new EditorSession(EditorDocument.of("hello world"));
+        s.setLanguage("java"); // 4.8.0 : ces tests exercent les traits C-like (défaut historique)
         s.setSelection(Selection.range(0, 5));      // sélectionner "hello"
 
         s.toggleBlockComment();                      // ajouter /* */ autour
@@ -130,6 +135,7 @@ class RegressionFixTest {
         // après "/*" et end=7 juste avant "*/" — c'est ce que l'impl
         // détecte.
         EditorSession s = new EditorSession(EditorDocument.of("/*hello*/ world"));
+        s.setLanguage("java"); // 4.8.0 : ces tests exercent les traits C-like (défaut historique)
         s.setSelection(Selection.range(2, 7));      // dans "hello"
 
         s.toggleBlockComment();

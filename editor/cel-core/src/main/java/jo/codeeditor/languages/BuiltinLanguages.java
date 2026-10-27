@@ -487,6 +487,11 @@ final class BuiltinLanguages {
         LanguageRegistry.put(LanguageProfile.builder("text")
                 .family(SyntaxFamily.C_LIKE).alias("plaintext")
                 .extension("txt")
+                // 4.8.0 : la famille C_LIKE ne sert qu'au ROUTAGE du
+                // tokenizer (aucun mot-clé enregistré → rien de coloré).
+                // Ce n'est pas un langage de code : pas de repli
+                // synthétique d'aide de signature, pas de postfix.
+                .callSyntax(false)
                 .commentSyntax(CommentSyntax.NONE).build());
     }
 }

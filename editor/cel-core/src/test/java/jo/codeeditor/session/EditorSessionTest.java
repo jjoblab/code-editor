@@ -119,6 +119,7 @@ class EditorSessionTest {
     @Test
     void typeChar_autoCloseParen() {
         EditorSession s = new SessionBuilder("").build();
+        s.setLanguage("java"); // 4.8.0 : ces tests exercent les traits C-like (défaut historique)
         s.typeChar('(');
         assertEquals("()", s.getText());
         assertEquals(1, s.getSelection().start); // curseur entre les parenthèses
@@ -127,6 +128,7 @@ class EditorSessionTest {
     @Test
     void typeChar_autoCloseBrace() {
         EditorSession s = new SessionBuilder("").build();
+        s.setLanguage("java"); // 4.8.0 : ces tests exercent les traits C-like (défaut historique)
         s.typeChar('{');
         assertEquals("{}", s.getText());
         assertEquals(1, s.getSelection().start);
@@ -135,6 +137,7 @@ class EditorSessionTest {
     @Test
     void typeChar_autoCloseBracket() {
         EditorSession s = new SessionBuilder("").build();
+        s.setLanguage("java"); // 4.8.0 : ces tests exercent les traits C-like (défaut historique)
         s.typeChar('[');
         assertEquals("[]", s.getText());
         assertEquals(1, s.getSelection().start);
@@ -252,6 +255,7 @@ class EditorSessionTest {
     @Test
     void toggleLineComment_addsComment() {
         EditorSession s = new SessionBuilder("hello").build();
+        s.setLanguage("java"); // 4.8.0 : ces tests exercent les traits C-like (défaut historique)
         s.setSelection(0);
         s.toggleLineComment();
         assertEquals("// hello", s.getText());
@@ -260,6 +264,7 @@ class EditorSessionTest {
     @Test
     void toggleLineComment_removesComment() {
         EditorSession s = new SessionBuilder("// hello").build();
+        s.setLanguage("java"); // 4.8.0 : ces tests exercent les traits C-like (défaut historique)
         s.setSelection(0);
         s.toggleLineComment();
         assertEquals("hello", s.getText());
@@ -268,6 +273,7 @@ class EditorSessionTest {
     @Test
     void toggleLineComment_multiLine() {
         EditorSession s = new SessionBuilder("aaa\nbbb\nccc").build();
+        s.setLanguage("java"); // 4.8.0 : ces tests exercent les traits C-like (défaut historique)
         s.setSelection(Selection.range(0, 11));
         s.toggleLineComment();
         assertEquals("// aaa\n// bbb\n// ccc", s.getText());
@@ -276,6 +282,7 @@ class EditorSessionTest {
     @Test
     void toggleLineComment_uncommentsAll() {
         EditorSession s = new SessionBuilder("// aaa\n// bbb\n// ccc").build();
+        s.setLanguage("java"); // 4.8.0 : ces tests exercent les traits C-like (défaut historique)
         s.setSelection(Selection.range(0, 20));
         s.toggleLineComment();
         assertEquals("aaa\nbbb\nccc", s.getText());

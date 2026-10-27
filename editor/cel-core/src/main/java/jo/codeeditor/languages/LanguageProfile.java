@@ -148,6 +148,22 @@ public final class LanguageProfile {
      */
     public final List<String> postfixTemplates;
     /**
+     * 4.8.0 — ce langage a-t-il une syntaxe d'appel entre
+     * parenthèses ({@code f(a, b)}) ?
+     *
+     * <p>Pilote deux portes : le repli synthétique d'aide de
+     * signature (sans résolveur, la vue fabrique une signature à
+     * partir de l'appel vivant — inutile et bruyant sur du texte
+     * brut, du XML ou de la prose) et l'éligibilité postfix
+     * ({@code mot.if} n'a pas de sens hors langage de code). Le
+     * défaut est calculé dans {@code build()} depuis la famille —
+     * vrai pour C_LIKE, PYTHON, LUA et SQL, faux ailleurs — et
+     * surchargeable via {@link Builder#callSyntax(boolean)} (le
+     * profil « text » est C_LIKE pour le routage du tokenizer
+     * mais n'est pas un langage de code).</p>
+     */
+    public final boolean callSyntax;
+    /**
      * Stratégie de saut de ligne intelligent (ADR-002, C1 — étape 3).
      * Jamais null. Défaut calculé depuis la famille : XML →
      * {@link NewlineStrategy#XML} (indentation structurelle), toutes
@@ -208,7 +224,8 @@ public final class LanguageProfile {
             NewlineStrategy newlineStrategy, List<NewlineTrigger> newlineTriggers,
             Set<Character> stringQuotes, String docCommentStart, String docCommentEnd,
             String blockCommentContinuation,
-            List<String> snippetTemplates, List<String> postfixTemplates) {
+            List<String> snippetTemplates, List<String> postfixTemplates,
+            boolean callSyntax) {
         this.name = name;
         this.family = family;
         this.aliases = aliases;
@@ -223,6 +240,7 @@ public final class LanguageProfile {
         this.snippets = snippets;
         this.snippetTemplates = snippetTemplates;
         this.postfixTemplates = postfixTemplates;
+        this.callSyntax = callSyntax;
         this.newlineStrategy = newlineStrategy;
         this.newlineTriggers = newlineTriggers;
         this.stringQuotes = stringQuotes;
@@ -330,6 +348,9 @@ public final class LanguageProfile {
         // 4.5.0 : table postfix « nom=gabarit » — complète et surcharge
         // les défauts de la famille.
         private final List<String> postfixTemplates = new ArrayList<>();
+        // 4.8.0 : syntaxe d'appel — null = défaut par famille (voir
+        // build()), sinon la valeur explicite du builder.
+        private Boolean callSyntax;
         // ADR-002 (C1-é3) : stratégie de saut de ligne + déclencheurs
         // d'indentation — données par langage, défauts calculés dans
         // build() depuis la famille.
@@ -528,6 +549,20 @@ public final class LanguageProfile {
         }
 
         /**
+         * 4.8.0 — syntaxe d'appel entre parenthèses. Si non appelé,
+         * le défaut dépend de la famille : C_LIKE, PYTHON, LUA et
+         * SQL → vrai (langages de code avec appels) ; toutes les
+         * autres familles (XML, JSON, YAML, MARKDOWN, LOG…) → faux.
+         * Le profil intégré « text » passe explicitement faux — il
+         * est C_LIKE pour le ROUTAGE du tokenizer mais n'est pas un
+         * langage de code.
+         */
+        public Builder callSyntax(boolean value) {
+            this.callSyntax = value;
+            return this;
+        }
+
+        /**
          * ADR-002 (C1-é3) : stratégie de saut de ligne pour CE
          * langage. Si non appelé, la valeur par défaut dépend de la
          * famille : XML → {@link NewlineStrategy#XML} (indentation
@@ -608,6 +643,9 @@ public final class LanguageProfile {
                     ? autoCloseBrackets : defaultBrackets(family);
             FoldStrategy finalFold = foldStrategy != null
                     ? foldStrategy : defaultFoldStrategy(family);
+            // 4.8.0 : syntaxe d'appel — défaut par famille.
+            boolean finalCallSyntax = callSyntax != null
+                    ? callSyntax : defaultCallSyntax(family);
             CompletionGate finalGate = completionGate != null
                     ? completionGate : defaultCompletionGate(family);
             List<String> finalSnippets = Collections.unmodifiableList(
@@ -648,7 +686,8 @@ public final class LanguageProfile {
                     finalDocEnd,
                     finalContinuation,
                     Collections.unmodifiableList(new ArrayList<>(snippetTemplates)),
-                    Collections.unmodifiableList(new ArrayList<>(postfixTemplates)));
+                    Collections.unmodifiableList(new ArrayList<>(postfixTemplates)),
+                    finalCallSyntax);
         }
 
         /** Valeurs par défaut pour autoCloseQuotes selon la famille. */
@@ -711,6 +750,24 @@ public final class LanguageProfile {
                     break;
             }
             return s;
+        }
+
+        /**
+         * 4.8.0 — syntaxe d'appel selon la famille : vrai pour les
+         * familles de code (C_LIKE, PYTHON, LUA, SQL), faux pour
+         * les données, le balisage et la prose. Surchargeable via
+         * {@link #callSyntax(boolean)}.
+         */
+        private static boolean defaultCallSyntax(SyntaxFamily family) {
+            switch (family) {
+                case C_LIKE:
+                case PYTHON:
+                case LUA:
+                case SQL:
+                    return true;
+                default:
+                    return false;
+            }
         }
 
         /** Valeurs par défaut pour foldStrategy selon la famille. */

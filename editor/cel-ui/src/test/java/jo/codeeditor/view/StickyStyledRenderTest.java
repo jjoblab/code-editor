@@ -85,8 +85,12 @@ public class StickyStyledRenderTest {
         Context ctx = RuntimeEnvironment.getApplication();
         EditorView view = new EditorView(ctx);
         EditorSession session = new EditorSession(EditorDocument.of(text));
-        view.setSession(session);
+        // 4.8.0 : AVANT setSession — l'init bornée synchrone style les
+        // lignes de tête (les sticky) dès la pose de la session ; avec le
+        // défaut « text », une langue posée après ne colore les lignes
+        // sticky qu'au retour du worker asynchrone.
         session.setLanguage("java");
+        view.setSession(session);
         view.measure(1080, 1920);
         view.layout(0, 0, 1080, 1920);
         injectMetrics(view, LINE_H, CHAR_W);
