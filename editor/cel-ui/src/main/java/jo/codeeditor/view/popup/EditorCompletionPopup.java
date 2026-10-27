@@ -672,6 +672,20 @@ public class EditorCompletionPopup {
                                     prefix, triggerCharacter);
                     result = completionResult != null ? completionResult.items : null;
                     resultIncomplete = completionResult != null && completionResult.isIncomplete;
+                    // 4.8.0 — PLANCHER LOCAL FUSIONNÉ : brancher un
+                    // fournisseur ne RETIRE plus les mots-clés et
+                    // snippets du profil. Une réponse NON VIDE est
+                    // complétée par la base intégrée (déduplication par
+                    // libellé — le candidat serveur, plus riche :
+                    // documentation, détail, container, gagne le
+                    // conflit). Une réponse VIDE est respectée : pas de
+                    // plancher sur un « rien ici » délibéré (après un
+                    // point, une arobase, un import). Bascule publique
+                    // setMergeBuiltinCompletionsEnabled (défaut vrai).
+                    if (result != null && !result.isEmpty()
+                            && view.isMergeBuiltinCompletionsEnabled()) {
+                        result = mergeBuiltinFloor(result, langName, prefix);
+                    }
                 } else {
                     result = builtinKeywordCompletions(langName, prefix);
                 }
@@ -1023,6 +1037,34 @@ public class EditorCompletionPopup {
         out.add(new jo.codeeditor.completion.CompletionSession.Item(
                 label, detail != null ? detail : "gabarit", body, "s", 15, 0,
                 false, true, null));
+    }
+
+    /**
+     * 4.8.0 — fusionne le plancher local (mots-clés + snippets du
+     * profil, filtrés par le préfixe comme la voie intégrée) avec la
+     * réponse du fournisseur. Déduplication par libellé EXACT : le
+     * candidat serveur gagne (plus riche — documentation, détail,
+     * container) ; le classement commun (paliers, groupes,
+     * apprentissage) ordonne l'ensemble.
+     */
+    private static java.util.List<jo.codeeditor.completion.CompletionSession.Item> mergeBuiltinFloor(
+            java.util.List<jo.codeeditor.completion.CompletionSession.Item> serverItems,
+            String language, String prefix) {
+        java.util.List<jo.codeeditor.completion.CompletionSession.Item> floor =
+                builtinKeywordCompletions(language, prefix);
+        if (floor.isEmpty()) return serverItems;
+        java.util.HashSet<String> seen = new java.util.HashSet<>();
+        for (jo.codeeditor.completion.CompletionSession.Item item : serverItems) {
+            seen.add(item.label);
+        }
+        java.util.List<jo.codeeditor.completion.CompletionSession.Item> merged =
+                new java.util.ArrayList<>(serverItems);
+        for (jo.codeeditor.completion.CompletionSession.Item item : floor) {
+            if (seen.add(item.label)) {
+                merged.add(item);
+            }
+        }
+        return merged;
     }
 
     private static List<jo.codeeditor.completion.CompletionSession.Item> builtinKeywordCompletions(

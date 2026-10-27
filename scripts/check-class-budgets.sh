@@ -225,7 +225,13 @@ budget() {
 # peintre/hit-test sur le modèle quickDocMetrics ; le layout du popup
 # et les ellipses vivent dans EditorAssistPopupPainter. Mesuré :
 # 4487 l. / 179 champs / 306 méthodes.
-budget editor/cel-ui/src/main/java/jo/codeeditor/view/EditorView.java 4520 180 307
+# Écart au ratchet (4.8.0, plancher local de complétion) : plafonds
+# LIGNES 4520 → 4550 et MÉTHODES 307 → 310 relevés pour la bascule
+# publique setMergeBuiltinCompletionsEnabled/isMerge… (+2 méthodes,
+# 308/310) — la fusion vit dans EditorCompletionPopup
+# (mergeBuiltinFloor), la vue ne garde que le drapeau et les 2
+# accesseurs. Mesuré : 4522 l. / 180 champs / 308 méthodes.
+budget editor/cel-ui/src/main/java/jo/codeeditor/view/EditorView.java 4550 180 310
 # Écart au ratchet : plafonds LIGNES 1600 → 1610 et MÉTHODES 100 → 102
 # (R2 du plan 09, IME) : +1 méthode publique (imeSelectedText — la voie
 # IME bornée au plafond Binder, distincte de selectedText interne) et

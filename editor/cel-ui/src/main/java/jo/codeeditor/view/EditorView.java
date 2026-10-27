@@ -188,6 +188,14 @@ public class EditorView extends View {
             new jo.codeeditor.view.state.CompletionState();
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
     public CompletionProvider completionProvider;
+    /**
+     * 4.8.0 — plancher local fusionné à la réponse du fournisseur
+     * (mots-clés + snippets du profil, dédupliqués par libellé — le
+     * candidat serveur gagne le conflit). Vrai par défaut ; une
+     * réponse serveur VIDE est respectée (pas de plancher).
+     * Volatile : posé par l'hôte, lu par la lane de complétion.
+     */
+    private volatile boolean mergeBuiltinCompletions = true;
 
     // ── Apprentissage du classement (4.5.0) ────────────────────────
     // Historique d'acceptations par (langage, identifiant de tête),
@@ -3677,6 +3685,33 @@ public class EditorView extends View {
 
     public void setCompletionProvider(CompletionProvider provider) {
         this.completionProvider = provider;
+    }
+
+    /**
+     * Fusionne la base intégrée du langage (mots-clés + snippets du
+     * profil) avec la réponse du fournisseur de complétion (défaut :
+     * vrai, 4.8.0).
+     *
+     * <p>Historiquement, brancher un fournisseur — hôte ou LSP —
+     * REMPLAÇAIT la base intégrée : les mots-clés et snippets du
+     * profil disparaissaient, et un serveur pauvre faisait régresser
+     * la complétion par rapport au mode sans serveur. Avec la fusion,
+     * une réponse NON VIDE est complétée par le plancher local
+     * (déduplication par libellé — le candidat serveur, plus riche :
+     * documentation, détail, container, gagne le conflit). Une
+     * réponse VIDE est respectée : pas de plancher sur un « rien ici »
+     * délibéré (après un point, une arobase, un import).</p>
+     *
+     * @param merge vrai pour fusionner le plancher local (défaut)
+     * @since 4.8.0
+     */
+    public void setMergeBuiltinCompletionsEnabled(boolean merge) {
+        this.mergeBuiltinCompletions = merge;
+    }
+
+    /** L'état courant de la bascule « plancher local fusionné ». */
+    public boolean isMergeBuiltinCompletionsEnabled() {
+        return mergeBuiltinCompletions;
     }
 
     /**
