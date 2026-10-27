@@ -1,5 +1,10 @@
 package jo.codeeditor.demo.lsp;
 
+import org.eclipse.lsp4j.CompletionItem;
+import org.eclipse.lsp4j.CompletionItemKind;
+import org.eclipse.lsp4j.CompletionList;
+import org.eclipse.lsp4j.CompletionOptions;
+import org.eclipse.lsp4j.CompletionParams;
 import org.eclipse.lsp4j.Diagnostic;
 import org.eclipse.lsp4j.DiagnosticSeverity;
 import org.eclipse.lsp4j.DidChangeTextDocumentParams;
@@ -13,6 +18,7 @@ import org.eclipse.lsp4j.PublishDiagnosticsParams;
 import org.eclipse.lsp4j.Range;
 import org.eclipse.lsp4j.ServerCapabilities;
 import org.eclipse.lsp4j.TextDocumentSyncKind;
+import org.eclipse.lsp4j.jsonrpc.messages.Either;
 import org.eclipse.lsp4j.services.LanguageClient;
 import org.eclipse.lsp4j.services.LanguageServer;
 import org.eclipse.lsp4j.services.TextDocumentService;
@@ -25,13 +31,14 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Mini serveur de langage Java de la démo — <b>diagnostics uniquement</b>.
+ * Mini serveur de langage Java de la démo — <b>diagnostics et complétion
+ * à résolution différée</b>.
  *
  * <p>C'est la vitrine du module {@code :cel-lsp} : un VRAI serveur LSP
  * (protocole JSON-RPC via LSP4J, poignée de main {@code initialize},
  * notifications {@code didOpen}/{@code didChange}/{@code didClose},
  * publication {@code textDocument/publishDiagnostics}), implémenté en
- * ~200 lignes. Il tourne <b>in-process</b> derrière un
+ * ~250 lignes. Il tourne <b>in-process</b> derrière un
  * {@code InProcessStreamConnectionProvider} : le trafic traverse le
  * cadre LSP de la bibliothèque exactement comme avec un serveur externe
  * (sous-processus, socket), seul le transport change.</p>
@@ -39,11 +46,17 @@ import java.util.concurrent.ConcurrentHashMap;
  * <p><b>Capacités annoncées :</b> {@code textDocumentSync = Full} — le
  * client renvoie le texte complet à chaque changement, le plus simple
  * et le plus robuste pour un mini serveur (le synchroniseur de
- * {@code cel-lsp} gère nativement ce mode). Aucune autre capacité :
- * pas de complétion, pas de hover — la démontre le contrat
- * « le serveur ne fait QUE des diagnostics », et les popups de
- * l'éditeur (complétion synthétique du moteur maison) restent
- * disponibles en basculant le moteur.</p>
+ * {@code cel-lsp} gère nativement ce mode) — et depuis la 4.7.0
+ * {@code completionProvider} avec {@code resolveProvider = true} :
+ * la liste initiale est SERVIE SANS documentation pour les méthodes
+ * d'ajout ({@code add}, {@code addAll}) — la documentation ne vient
+ * qu'au {@code completionItem/resolve}, le comportement standard des
+ * serveurs réels qui économisent la bande passante de la liste. Le
+ * panneau de documentation du popup se remplit donc APRÈS un séjour
+ * de la sélection sur le candidat (dwell 200 ms) : c'est le banc
+ * observable de la résolution différée, journal à l'appui (les lignes
+ * {@code completion:} et {@code completion/resolve:} du panneau
+ * Journal).</p>
  *
  * <p><b>Connexion du client :</b> la méthode publique
  * {@link #connect(LanguageClient)} est invoquée par réflexion par le
@@ -77,6 +90,13 @@ public class MiniJavaLanguageServer implements LanguageServer {
         // didChange — l'analyse repart toujours de la source exacte.
         caps.setTextDocumentSync(org.eclipse.lsp4j.jsonrpc.messages.Either.forLeft(
                 TextDocumentSyncKind.Full));
+        // 4.7.0 — complétion à résolution différée : la liste est servie
+        // SANS documentation pour add/addAll (elle ne vient qu'au
+        // completionItem/resolve, data à l'appui), DIRECTE pour les
+        // autres — le banc observable du dwell du popup.
+        CompletionOptions completion = new CompletionOptions();
+        completion.setResolveProvider(true);
+        caps.setCompletionProvider(completion);
         return CompletableFuture.completedFuture(new InitializeResult(caps));
     }
 
@@ -126,9 +146,58 @@ public class MiniJavaLanguageServer implements LanguageServer {
             public void didSave(DidSaveTextDocumentParams params) {
                 // Rien : l'analyse est déjà relancée à chaque didChange.
             }
-            // Les autres requêtes (completion, hover, definition…)
-            // héritent des implémentations par défaut de LSP4J : ce
-            // serveur n'annonce aucune capacité correspondante.
+
+            // ── Complétion (4.7.0) ────────────────────────────────
+
+            @Override
+            public CompletableFuture<Either<List<CompletionItem>, CompletionList>> completion(
+                    CompletionParams position) {
+                // Le filtre par préfixe vit côté CLIENT (matcher
+                // unifié) : le serveur sert sa base fixe, comme un
+                // serveur réel qui répond à la position sans
+                // re-filtrer ce que le client re-filtrera.
+                List<CompletionItem> items = new ArrayList<>();
+                items.add(méthode("toString",
+                        "La représentation textuelle de l'élément", null));
+                items.add(méthode("size",
+                        "Le nombre d'éléments de la liste", null));
+                // Les deux candidats PARESSEUX : aucune documentation
+                // dans la liste — le champ data fait l'aller-retour du
+                // resolve (la clé du banc).
+                items.add(méthode("add", null, "add"));
+                items.add(méthode("addAll", null, "addAll"));
+                return CompletableFuture.completedFuture(
+                        Either.forRight(new CompletionList(false, items)));
+            }
+
+            @Override
+            public CompletableFuture<CompletionItem> resolveCompletionItem(
+                    CompletionItem item) {
+                // La documentation ne vit QUE ici — un serveur réel
+                // l'économise dans la liste pour épargner la bande
+                // passante.
+                String label = item.getLabel();
+                String doc;
+                if ("add".equals(label)) {
+                    doc = "Ajoute un élément à la fin de la liste. La capacité "
+                            + "interne est doublée si nécessaire. "
+                            + "@param x l'élément à ajouter "
+                            + "@return vrai si la liste a changé";
+                } else if ("addAll".equals(label)) {
+                    doc = "Ajoute tous les éléments de la collection donnée à "
+                            + "la fin de la liste, dans l'ordre de son itérateur. "
+                            + "@param c la collection à ajouter "
+                            + "@return vrai si la liste a changé";
+                } else {
+                    doc = "Aucune documentation supplémentaire pour " + label;
+                }
+                CompletionItem resolved = new CompletionItem();
+                resolved.setLabel(label);
+                // Le champ data fait l'aller-retour TEL QUEL.
+                resolved.setData(item.getData());
+                resolved.setDocumentation(doc);
+                return CompletableFuture.completedFuture(resolved);
+            }
         };
     }
 
@@ -185,5 +254,22 @@ public class MiniJavaLanguageServer implements LanguageServer {
         if (c != null) {
             c.publishDiagnostics(new PublishDiagnosticsParams(uri, diagnostics));
         }
+    }
+
+    /** Un candidat de complétion : méthode, documentation directe ou
+     *  paresseuse (data à l'aller-retour du resolve). */
+    private static CompletionItem méthode(String label, String documentation,
+                                           Object data) {
+        CompletionItem item = new CompletionItem();
+        item.setLabel(label);
+        item.setKind(CompletionItemKind.Method);
+        item.setDetail("java.util.List");
+        if (documentation != null) {
+            item.setDocumentation(documentation);
+        }
+        if (data != null) {
+            item.setData(data);
+        }
+        return item;
     }
 }
