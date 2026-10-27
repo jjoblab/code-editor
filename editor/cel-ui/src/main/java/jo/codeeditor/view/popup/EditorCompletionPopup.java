@@ -35,6 +35,9 @@ public class EditorCompletionPopup {
     void setCompletionItems(List<jo.codeeditor.completion.CompletionSession.Item> items,
                             int tokenStart, String prefix) {
         view.completion.reset(items, tokenStart, prefix);
+        // 4.7.0 : le lot explicite de l'hôte peut porter un candidat sans
+        // documentation — le séjour de résolution démarre.
+        scheduleCompletionDocResolve();
         view.invalidate();
     }
 
@@ -45,6 +48,9 @@ public class EditorCompletionPopup {
         // réponse périmée pouvait rouvrir le popup juste après un Échap.
         completionGeneration.incrementAndGet();
         cancelPendingFetch();
+        // 4.7.0 : le séjour de résolution et sa livraison en vol partent
+        // avec le popup.
+        cancelPendingDocResolve();
         if (view.completion.visible) {
             // B7 : photographie le popup AVANT de nettoyer son état — le
             // fantôme s'efface en 110 ms par-dessus le contenu.
@@ -164,12 +170,155 @@ public class EditorCompletionPopup {
         // (exclusion mutuelle — le tooltip est refermé quand la complétion
         // s'ouvre, et le hover est refusé tant qu'elle est ouverte).
         if (view.quickDocVisible) popups.dismissQuickDoc();
+        // 4.7.0 : le lot affiché (et sa sélection préservée) peut porter
+        // un candidat sans documentation — le séjour de résolution part
+        // de zéro.
+        scheduleCompletionDocResolve();
         view.invalidate();
+    }
+
+    // ── Résolution paresseuse de la documentation (4.7.0) ────────
+
+    /** Séjour de sélection (ms) avant de résoudre la documentation du candidat. */
+    private static final long DOC_RESOLVE_DWELL_MS = 200;
+
+    /**
+     * Génération du séjour — bumpée à chaque mouvement de sélection,
+     * frappe et dismiss : la requête partie pour un candidat parti est
+     * jetée à la livraison (le même jeton que le pipeline de frappe,
+     * séparé car son cycle de vie est le SÉJOUR, pas la frappe).
+     */
+    private int docResolveGeneration = 0;
+
+    /** Le séjour en attente (retiré au rescheduling et au dismiss). */
+    private Runnable pendingDocResolve;
+
+    /**
+     * ★ 4.7.0 — Programme la résolution de la documentation du candidat
+     * SÉLECTIONNÉ s'il en est dépourvu : après un séjour de
+     * {@value #DOC_RESOLVE_DWELL_MS} ms sans mouvement, UNE requête part
+     * au fournisseur de langage (SPI
+     * {@code CompletionProvider.resolveDocumentation} — le chemin
+     * {@code completionItem/resolve} du client LSP).
+     *
+     * <p>Discipline (la même que la résolution des inlay hints) :</p>
+     * <ul>
+     *   <li>JAMAIS au rendu, JAMAIS pendant le mouvement : chaque
+     *       mouvement (flèche, drag, frappe) RESET le séjour — la
+     *       requête part là où la sélection s'ARRÊTE ;</li>
+     *   <li>les candidats déjà documentés (documentation directe du
+     *       lot, ou résolue puis re-servie du cache fournisseur) ne
+     *       déclenchent RIEN ;</li>
+     *   <li>la livraison est gardée par génération + libellé : une
+     *       réponse périmée (sélection bougée, popup refermé, lot
+     *       remplacé) est jetée sans toucher à l'état.</li>
+     * </ul>
+     */
+    void scheduleCompletionDocResolve() {
+        cancelPendingDocResolve();
+        if (!view.completion.visible) return;
+        // Résolution = capacité de MOTEUR DE LANGAGE : le provider SPI du
+        // langage posé sur la vue (le chemin LSP complet) — le
+        // fournisseur interne historique n'en a pas besoin.
+        if (view.language == null) return;
+        final jo.codeeditor.lang.provider.CompletionProvider spi =
+                view.language.getCompletionProvider();
+        if (spi == null) return;
+        int sel = view.completion.selected;
+        if (sel < 0 || sel >= view.completion.items.size()) return;
+        final jo.codeeditor.completion.CompletionSession.Item item =
+                view.completion.items.get(sel);
+        if (item.documentation != null && !item.documentation.isEmpty()) return;
+        final int generation = docResolveGeneration;
+        final String label = item.label;
+        Runnable dwell = () -> launchDocResolve(spi, generation, label);
+        android.os.Handler h = view.getHandler();
+        if (h != null) {
+            pendingDocResolve = dwell;
+            h.postDelayed(dwell, DOC_RESOLVE_DWELL_MS);
+        } else {
+            // Harnais sans fenêtre : exécution immédiate (la même
+            // discipline que le debounce complétion).
+            dwell.run();
+        }
+    }
+
+    /** Le séjour a expiré : la requête part si le candidat est toujours là. */
+    private void launchDocResolve(jo.codeeditor.lang.provider.CompletionProvider spi,
+                                  int generation, String label) {
+        if (generation != docResolveGeneration) return;
+        if (!view.completion.visible) return;
+        int cur = view.completion.selected;
+        if (cur < 0 || cur >= view.completion.items.size()) return;
+        if (!label.equals(view.completion.items.get(cur).label)) return;
+        try {
+            spi.resolveDocumentation(label, documentation ->
+                    deliverResolvedDocumentation(generation, label, documentation));
+        } catch (Exception e) {
+            // Un fournisseur défaillant ne doit jamais interrompre la frappe.
+            jo.codeeditor.util.EditorLog.warn("EditorCompletion",
+                "résolution de la documentation échouée", e);
+        }
+    }
+
+    /**
+     * Livre la documentation résolue au candidat TOUJOURS sélectionné :
+     * remplacement en place (les champs sont finaux), fenêtre de scroll
+     * resserrée sur la sélection (le panneau déduit des rangées),
+     * repaint. L'ANCRE ne bouge pas : elle vit à la ligne du caret, le
+     * popup grandit/rétrécit AUTOUR — la garde « ne jamais recouvrir la
+     * bande du caret » tient par construction (completionRowsVisible
+     * recompute).
+     */
+    private void deliverResolvedDocumentation(int generation, String label,
+                                              String documentation) {
+        Runnable deliver = () -> {
+            if (generation != docResolveGeneration) return;
+            if (!view.completion.visible) return;
+            if (documentation == null || documentation.isEmpty()) return;
+            int idx = view.completion.selected;
+            if (idx < 0 || idx >= view.completion.items.size()) return;
+            jo.codeeditor.completion.CompletionSession.Item courant =
+                    view.completion.items.get(idx);
+            if (!label.equals(courant.label)) return;
+            view.completion.items.set(idx, withDocumentation(courant, documentation));
+            view.completion.followSelection(completionRowsVisible());
+            view.invalidate();
+        };
+        android.os.Handler h = view.getHandler();
+        if (h != null) {
+            h.post(deliver);
+        } else {
+            deliver.run();
+        }
+    }
+
+    /** Annule le séjour en attente + invalide toute livraison en vol. */
+    private void cancelPendingDocResolve() {
+        docResolveGeneration++;
+        if (pendingDocResolve != null) {
+            android.os.Handler h = view.getHandler();
+            if (h != null) h.removeCallbacks(pendingDocResolve);
+            pendingDocResolve = null;
+        }
+    }
+
+    /** Copie d'un item de session avec la documentation posée (champs finaux). */
+    private static jo.codeeditor.completion.CompletionSession.Item withDocumentation(
+            jo.codeeditor.completion.CompletionSession.Item item, String documentation) {
+        return new jo.codeeditor.completion.CompletionSession.Item(
+                item.label, item.detail, item.insertText, item.icon, item.kind,
+                item.sortScore, item.isKeyword, item.isSnippet, item.kindTag,
+                item.filterText, item.sortText, item.replaceStart, item.replaceEnd,
+                item.attachment, item.container, documentation);
     }
 
     boolean completionSelectUp() {
         if (!view.completion.visible) return false;
         if (view.completion.select(-1, completionRowsVisible())) {
+            // 4.7.0 : la sélection a bougé — le séjour de résolution
+            // repart de zéro (dwell).
+            scheduleCompletionDocResolve();
             view.invalidate();
         }
         return true;
@@ -178,6 +327,7 @@ public class EditorCompletionPopup {
     boolean completionSelectDown() {
         if (!view.completion.visible) return false;
         if (view.completion.select(1, completionRowsVisible())) {
+            scheduleCompletionDocResolve();
             view.invalidate();
         }
         return true;

@@ -595,6 +595,11 @@ public class EditorInputHandler {
                         if (view.completion.scrollBy(rowDelta,
                                 view.popupManager.completionRowsVisible())) {
                             view.invalidate();
+                            // 4.7.0 : le drag déplace la sélection — le
+                            // séjour de résolution repart de zéro (dwell) :
+                            // la documentation se résout là où le doigt
+                            // s'ARRÊTE, jamais pendant le mouvement.
+                            view.popupManager.scheduleCompletionDocResolve();
                         }
                         lastTouchY = y;
                     }

@@ -138,6 +138,15 @@ public class EditorPopupManager {
 
     public int completionRowsVisible() { return completion.completionRowsVisible(); }
 
+    /**
+     * 4.7.0 — programme la résolution de la documentation du candidat
+     * sélectionné après séjour (dwell) — appelé par le pipeline popup
+     * et par le drag de liste de l'input handler.
+     */
+    public void scheduleCompletionDocResolve() {
+        completion.scheduleCompletionDocResolve();
+    }
+
     public float[] completionPopupAnchor() { return completion.completionPopupAnchor(); }
 
     /** Réglage du popup : honorer le drapeau « liste tronquée ». */
