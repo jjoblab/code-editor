@@ -1068,3 +1068,55 @@ toucher une ligne.
    ne bave sur le nouvel onglet (purge à la déconnexion).
 4. Mode gros fichiers (`setLargeFileMode(ON)` ou auto) : aucun tir
    sémantique ne part (vérifiable au récepteur de journal si branché).
+
+## 4.9.1
+
+### 1. État de publication
+
+Tag `v4.9.1`, coordonnées Maven `jo.codeeditor:<module>:4.9.1`
+(GitHub Packages).
+
+### 2. Compatibilité (l'application vient de 4.9.0)
+
+**Recompilation obligatoire ? Non** — aucune API ajoutée, retirée ni
+déplacée. Deux changements internes : le rendu des rangées du popup de
+complétion (`cel-ui`), et l'intégration des jars joni/jcodings dans le
+module `cel-textmate`. Point d'attention Maven : le POM publié de
+`cel-textmate` ne déclare plus les coordonnées
+`org.jruby.joni:joni` / `org.jruby.jcodings:jcodings` — les jars sont
+EMBARQUÉS dans l'AAR (AGP agrège les jars locaux). Un hôte qui
+déclarait ces coordonnées lui-même peut les conserver sans conflit ;
+un hôte qui comptait sur la dépendance transitive n'a rien à faire.
+
+### 3. Changements de comportement notables
+
+- **Popup de complétion : rangées deux lignes** — l'identité qualifiée
+  (FQCN d'un type — ex. `android.widget.Button` pour le candidat
+  `Button` — ou signature d'un membre) vit désormais SOUS le nom, en
+  atténué, sur toute la largeur restante ; le nom court ne cède plus
+  de place au nom long. L'origine (chip) reste à droite de la ligne du
+  nom. La rangée passe de 28 à 40 dp : le popup montre moins de
+  rangées à hauteur égale (plafond inchangé à 8, réduction par
+  viewport inchangée — le popup ne recouvre jamais la ligne de
+  frappe).
+- **Glyphe ⓘ de documentation** (vue étroite) : réserve dédiée en fin
+  de ligne du nom — le libellé ne peut plus le recouvrir.
+- **Build `cel-textmate` autonome pour son moteur regex** — la
+  publication joni 2.2.8 du 2026-10-27 n'était pas propagée sur tous
+  les miroirs publics de Maven Central : toute construction résolvant
+  la coordonnée depuis un miroir non à jour échouait (canaux de build
+  tiers inclus). Les jars (sommes SHA-256 dans NOTICE, textes MIT
+  reproduits dans `cel-textmate/libs/`) sont intégrés au dépôt : le
+  module se construit sans réseau pour ces artefacts.
+
+### 4. Scénarios de vérification sur appareil
+
+1. Onglet Java connecté : taper `But` — le candidat `Button` affiche
+   son nom sur la première ligne et `android.widget.Button` en
+   dessous, jamais aligné à droite contre le nom.
+2. Un FQCN très long (plus large que le popup) est ellipsé proprement
+   en seconde ligne — le nom reste entier.
+3. Vue étroite + candidat documenté : le glyphe ⓘ reste visible en
+   fin de ligne du nom, jamais recouvert par le libellé.
+4. Le popup ne recouvre jamais la ligne de frappe (rangée 40 dp
+   compensée par la réduction du nombre de rangées visibles).

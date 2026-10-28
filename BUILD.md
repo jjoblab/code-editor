@@ -103,17 +103,17 @@ un jar de sources :
 
 | Module | Coordonnées |
 |--------|-------------|
-| `:cel-core` | `jo.codeeditor:cel-core:4.9.0` |
-| `:cel-lsp-api` | `jo.codeeditor:cel-lsp-api:4.9.0` |
-| `:cel-lsp` | `jo.codeeditor:cel-lsp:4.9.0` |
-| `:cel-ui` | `jo.codeeditor:cel-ui:4.9.0` |
-| `:cel-textmate` | `jo.codeeditor:cel-textmate:4.9.0` |
+| `:cel-core` | `jo.codeeditor:cel-core:4.9.1` |
+| `:cel-lsp-api` | `jo.codeeditor:cel-lsp-api:4.9.1` |
+| `:cel-lsp` | `jo.codeeditor:cel-lsp:4.9.1` |
+| `:cel-ui` | `jo.codeeditor:cel-ui:4.9.1` |
+| `:cel-textmate` | `jo.codeeditor:cel-textmate:4.9.1` |
 
 ### Publication locale (validation)
 
 ```bash
 ./gradlew publishToMavenLocal
-# → ~/.m2/repository/jo/codeeditor/<module>/4.9.0/ (AAR + sources + POM)
+# → ~/.m2/repository/jo/codeeditor/<module>/4.9.1/ (AAR + sources + POM)
 ```
 
 ### Publication sur GitHub Packages (méthode principale)

@@ -7,6 +7,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Les sections antérieures à la période courante sont archivées dans
 [`docs/archive/CHANGELOG-archive.md`](docs/archive/CHANGELOG-archive.md) (A-08, audit 3.69.0).
 
+## [4.9.1] — 2026-10-28 — Popup de complétion deux lignes : l'identité qualifiée sous le nom
+
+Le FQCN d'un type (« android.widget.Button » pour le candidat
+« Button ») et la signature d'un membre se disputaient la MÊME ligne
+que le libellé : le nom long aligné à droite rognait le nom court, le
+chip d'origine compressait le reste. Désormais la rangée empile : le
+nom sur la première ligne (runs de match en accent + gras), l'identité
+qualifiée SOUS le nom — même colonne, atténuée, ellipsée à la largeur
+restante. L'origine (chip) reste à droite de la ligne du nom ; la
+rangée passe de 28 à 40 dp, le badge de type est plafonné et le glyphe
+ⓘ de documentation a sa réserve dédiée.
+
+### Corrections
+
+- **L'identité qualifiée vit sous le nom, plus contre lui** — le
+  detail (FQCN, signature) descend en seconde ligne à la même colonne
+  que le nom : le nom court retrouve toute la première ligne (moins le
+  chip d'origine), le nom long hérite de toute la seconde ligne avec
+  ellipse propre.
+- **Glyphe ⓘ de documentation : le libellé ne le recouvre plus** — le
+  glyphe dispose d'une réserve en fin de ligne du nom ; le libellé
+  s'arrête avant (il pouvait courir jusqu'au bord et passer dessous).
+
+### Changements de comportement ⚠️
+
+- **Rangées de complétion de 28 → 40 dp** (deux lignes, badge
+  plafonné à 20 dp centré sur la rangée) : le popup affiche moins de
+  rangées à hauteur égale — plafond inchangé (8), la géométrie
+  d'ancrage réduit les rangées visibles selon le viewport comme
+  auparavant (le popup ne recouvre jamais la ligne de frappe).
+- **`cel-textmate` : POM sans joni/jcodings** — les jars sont
+  embarqués DANS l'AAR (AGP agrège les jars locaux) : les
+  consommateurs ne résolvent plus ces coordonnées ; un hôte qui les
+  déclarait lui-même peut conserver sa déclaration sans conflit.
+
+### Ajouté
+
+- **Couture de layout pure `computeCompletionRowLayout`** — la
+  géométrie de rangée (deux lignes, badge, chip d'origine, glyphe)
+  est calculée sans Canvas ni mesure de paint (les largeurs mesurées
+  entrent en paramètre) : testée directement, 7 tests de géométrie
+  (CompletionRowLayoutTest).
+
+### Build
+
+- **joni 2.2.8 + jcodings 1.0.64 intégrés au dépôt**
+  (`cel-textmate/libs/`, sommes SHA-256 épinglées dans NOTICE, textes
+  MIT reproduits à côté des jars) : la publication joni 2.2.8 du
+  2026-10-27 n'était pas propagée sur tous les miroirs publics de
+  Maven Central, ce qui cassait toute construction résolvant la
+  coordonnée depuis un miroir non à jour (canaux de build tiers
+  inclus). Le module se construit désormais sans réseau pour ces
+  artefacts.
+
 ## [4.9.0] — 2026-10-28 — Tir sémantique indépendant : les couleurs ne dépendent plus des diagnostics
 
 Un serveur qui annonce `semanticTokensProvider` mais ne publie jamais
