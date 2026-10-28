@@ -1,5 +1,68 @@
 # Changelog
 
+## 4.11.0 — 2026-10-28 — L'aide de signature montre la VRAIE méthode, branche par branche
+
+### Ajouté
+
+- **Paramètres en TROIS PALIERS dans le popup d'aide de signature** :
+  la ligne de signature devient sa propre barre de progression — les
+  paramètres DÉJÀ FRAPPÉS s'allument en accent (chaque branche déjà
+  écrite de l'appel ressort au fur et à mesure de la frappe), le
+  paramètre ACTIF est en accent GRAS, ceux À VENIR restent en atténué
+  (la virgule et la parenthèse fermante qui suivent l'actif
+  s'atténuent avec eux). La complémentarité des popups est
+  affirmée : signature AU-DESSUS de la ligne du curseur, complétion
+  EN DESSOUS — les deux cohabitent pendant la frappe d'un argument.
+- **Aide de signature RÉELLE dans la démo** (`MiniJavaSignatures`,
+  pur JVM, partagé par les deux chemins) :
+  - le mini serveur LSP Java annonce et sert
+    `textDocument/signatureHelp` (déclencheurs `(` et `,`) avec le
+    paramètre actif PAR SIGNATURE (LSP 3.16) et la documentation des
+    paramètres ;
+  - bibliothèque embarquée : surcharges d'impression
+    (`System.out.println` × 8, `print` × 5), maths (`Math.max/min/
+    abs/pow/sqrt/round/floor/ceil/random`), chaînes (`substring`,
+    `charAt`, `indexOf`, `replace`, `split`…), bâtisseur
+    (`StringBuilder.append/insert/delete…`), collections
+    (`List.add/get/set/remove…`, `Map.put/get/getOrDefault…`),
+    `Objects.requireNonNull/equals/hash` ;
+  - méthodes DÉCLARÉES dans le fichier : la signature réelle du
+    buffer (types et noms des paramètres), avec la javadoc `@param`
+    de l'auteur servie dans la bande doc du popup — appels nus,
+    qualifiés par une variable (`voiture.démarrer(`), par une classe
+    (`Voiture.créer(`) ou par `this` ;
+  - résolution par récepteur : les variables typées du buffer
+    (`String nom = …; nom.substring(`) servent la table de leur type,
+    y compris les classes déclarées dans le fichier ;
+  - repli par nom : un appel nu inconnu du buffer cherche dans la
+    bibliothèque (`append(` trouve le bâtisseur) ; une méthode
+    réellement inconnue ne fabrique RIEN (le repli local de la vue
+    reste maître de l'affichage).
+- `LspSignatureHelpProvider` : le paramètre actif PAR SIGNATURE
+  (champ LSP 3.16) l'emporte sur le champ global de la réponse — un
+  serveur qui règle chaque surcharge indépendamment est respecté ; la
+  documentation des PARAMÈTRES (String ou MarkupContent) est lue et
+  servie à la bande doc du popup.
+
+### Changements visibles
+
+- Pendant la frappe d'un appel (`System.out.println("salut", `), le
+  popup du haut montre `println(String x, …)` avec la progression :
+  branches déjà écrites allumées, branche en cours en gras, restant
+  atténué — et la complétion reste disponible EN DESSOUS de la ligne.
+- Le résolveur factice de la démo (« Signature de démonstration »)
+  disparaît : les deux chemins (LSP branché ou moteur maison) servent
+  les mêmes signatures réelles.
+
+### Pour l'hôte
+
+- Aucune action obligatoire (aucune API publique changée ; le rendu
+  trois paliers et la lecture LSP 3.16 sont internes).
+- Le budget du peintre des popups (`EditorAssistPopupPainter`) est
+  relevé de 1 620 à 1 660 lignes (rendu trois paliers, décision du
+  propriétaire) — la couture `findParameterRangesInLabel` reste PURE
+  et testée sans Canvas.
+
 ## 4.10.0 — 2026-10-28 — L'aide de signature ne se tait plus
 
 ### Ajouté

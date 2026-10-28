@@ -34,14 +34,14 @@ dependencyResolutionManagement {
 // app/build.gradle.kts
 dependencies {
     // Le module UI embarque transitivement cel-core et cel-lsp-api.
-    implementation("jo.codeeditor:cel-ui:4.10.0")
+    implementation("jo.codeeditor:cel-ui:4.11.0")
 
     // Optionnel — intégration Language Server Protocol (LSP4J).
-    implementation("jo.codeeditor:cel-lsp:4.10.0")
+    implementation("jo.codeeditor:cel-lsp:4.11.0")
 
     // Optionnel — voie grammaires (ADR-002 C3) : coloration par
     // grammaires TextMate-like + grammaires embarquées (C#).
-    implementation("jo.codeeditor:cel-textmate:4.10.0")
+    implementation("jo.codeeditor:cel-textmate:4.11.0")
 }
 ```
 
@@ -53,7 +53,7 @@ maven { url = uri("https://jitpack.io") }
 
 // app/build.gradle.kts
 dependencies {
-    implementation("com.github.jjoblab.code-editor:cel-ui:v4.10.0")
+    implementation("com.github.jjoblab.code-editor:cel-ui:v4.11.0")
 }
 ```
 
@@ -430,6 +430,20 @@ une arobase ou un import.
 // sienne (comportement historique exclusif) :
 view.setMergeBuiltinCompletionsEnabled(false);
 ```
+
+### Aide de signature : trois paliers, la vraie méthode (4.11.0)
+
+La bannière AU-DESSUS de la ligne du curseur (la complétion vit
+EN DESSOUS — les deux cohabitent pendant la frappe d'un argument)
+montre la signature avec ses paramètres en **TROIS PALIERS** : les
+paramètres DÉJÀ FRAPPÉS s'allument en accent (la progression de
+l'appel, branche par branche), le paramètre ACTIF est en accent
+GRAS, ceux À VENIR restent en atténué — la virgule et la parenthèse
+fermante qui suivent l'actif s'atténuent avec eux. Côté serveur, le
+paramètre actif PAR SIGNATURE (champ LSP 3.16
+`SignatureInformation.activeParameter`) l'emporte sur le champ global
+de la réponse, et la documentation des paramètres (String ou
+MarkupContent) alimente la bande doc du popup.
 
 ### Aide de signature : une surcharge à la fois (4.10.0)
 

@@ -17,6 +17,10 @@ import org.eclipse.lsp4j.Position;
 import org.eclipse.lsp4j.PublishDiagnosticsParams;
 import org.eclipse.lsp4j.Range;
 import org.eclipse.lsp4j.ServerCapabilities;
+import org.eclipse.lsp4j.SignatureHelp;
+import org.eclipse.lsp4j.SignatureHelpOptions;
+import org.eclipse.lsp4j.SignatureHelpParams;
+import org.eclipse.lsp4j.SignatureInformation;
 import org.eclipse.lsp4j.TextDocumentSyncKind;
 import org.eclipse.lsp4j.jsonrpc.messages.Either;
 import org.eclipse.lsp4j.services.LanguageClient;
@@ -46,7 +50,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * <p><b>Capacités annoncées :</b> {@code textDocumentSync = Full} — le
  * client renvoie le texte complet à chaque changement, le plus simple
  * et le plus robuste pour un mini serveur (le synchroniseur de
- * {@code cel-lsp} gère nativement ce mode) — et depuis la 4.7.0
+ * {@code cel-lsp} gère nativement ce mode) — depuis la 4.7.0
  * {@code completionProvider} avec {@code resolveProvider = true} :
  * la liste initiale est SERVIE SANS documentation pour les méthodes
  * d'ajout ({@code add}, {@code addAll}) — la documentation ne vient
@@ -57,6 +61,17 @@ import java.util.concurrent.ConcurrentHashMap;
  * observable de la résolution différée, journal à l'appui (les lignes
  * {@code completion:} et {@code completion/resolve:} du panneau
  * Journal).</p>
+ *
+ * <p><b>4.11.0 — aide de signature réelle :</b>
+ * {@code signatureHelpProvider} (déclencheurs {@code (} et {@code ,})
+ * servi par {@link MiniJavaSignatures} — les VRAIES signatures des
+ * méthodes appelées : surcharges d'impression pour
+ * {@code System.out.println(…)}, maths pour {@code Math.max(…)},
+ * chaînes/bâtisseur/collections pour les variables typées du buffer,
+ * et les méthodes DÉCLARÉES dans le fichier (javadoc {@code @param}
+ * comprise) pour les appels nus ou qualifiés. Le paramètre actif est
+ * calculé à la position du caret — le popup éditorial suit la frappe
+ * virgule par virgule.</p>
  *
  * <p><b>Connexion du client :</b> la méthode publique
  * {@link #connect(LanguageClient)} est invoquée par réflexion par le
@@ -97,6 +112,11 @@ public class MiniJavaLanguageServer implements LanguageServer {
         CompletionOptions completion = new CompletionOptions();
         completion.setResolveProvider(true);
         caps.setCompletionProvider(completion);
+        // 4.11.0 — l'aide de signature RÉELLE : les surcharges de la
+        // méthode appelée (bibliothèque embarquée + méthodes déclarées
+        // dans le fichier), déclenchée par la frappe de '(' et ','.
+        caps.setSignatureHelpProvider(new SignatureHelpOptions(
+                java.util.Arrays.asList("(", ",")));
         return CompletableFuture.completedFuture(new InitializeResult(caps));
     }
 
@@ -168,6 +188,59 @@ public class MiniJavaLanguageServer implements LanguageServer {
                 items.add(méthode("addAll", null, "addAll"));
                 return CompletableFuture.completedFuture(
                         Either.forRight(new CompletionList(false, items)));
+            }
+
+            // ── Aide de signature (4.11.0) ──────────────────────
+
+            @Override
+            public CompletableFuture<SignatureHelp> signatureHelp(
+                    SignatureHelpParams params) {
+                String uri = params.getTextDocument().getUri();
+                String text = openDocuments.get(uri);
+                // Le document inconnu n'a pas de call-site : réponse
+                // vide (le client garde son repli local).
+                if (text == null) {
+                    return CompletableFuture.completedFuture(new SignatureHelp());
+                }
+                int caret = positionVersOffset(text, params.getPosition());
+                MiniJavaSignatures.Result r = MiniJavaSignatures.resolve(text, caret);
+                SignatureHelp out = new SignatureHelp();
+                if (r == null) {
+                    return CompletableFuture.completedFuture(out);
+                }
+                List<SignatureInformation> signatures = new ArrayList<>();
+                for (MiniJavaSignatures.Entry e : r.signatures) {
+                    SignatureInformation info = new SignatureInformation();
+                    info.setLabel(e.label);
+                    if (!e.documentation.isEmpty()) {
+                        info.setDocumentation(
+                                org.eclipse.lsp4j.jsonrpc.messages.Either.forLeft(
+                                        e.documentation));
+                    }
+                    List<org.eclipse.lsp4j.ParameterInformation> pis =
+                            new ArrayList<>();
+                    for (int i = 0; i < e.params.size(); i++) {
+                        org.eclipse.lsp4j.ParameterInformation pi =
+                                new org.eclipse.lsp4j.ParameterInformation();
+                        pi.setLabel(org.eclipse.lsp4j.jsonrpc.messages.Either
+                                .forLeft(e.params.get(i)));
+                        if (i < e.paramDocs.size() && !e.paramDocs.get(i).isEmpty()) {
+                            pi.setDocumentation(
+                                    org.eclipse.lsp4j.jsonrpc.messages.Either.forLeft(
+                                            e.paramDocs.get(i)));
+                        }
+                        pis.add(pi);
+                    }
+                    info.setParameters(pis);
+                    // Le paramètre actif par signature (LSP 3.16) — le
+                    // popup éditorial surligne le paramètre en cours.
+                    info.setActiveParameter(r.activeParameter);
+                    signatures.add(info);
+                }
+                out.setSignatures(signatures);
+                out.setActiveSignature(0);
+                out.setActiveParameter(r.activeParameter);
+                return CompletableFuture.completedFuture(out);
             }
 
             @Override
@@ -271,5 +344,38 @@ public class MiniJavaLanguageServer implements LanguageServer {
             item.setData(data);
         }
         return item;
+    }
+
+    /**
+     * Convertit une position LSP (ligne, caractère — unités UTF-16,
+     * comme les chaînes Java) en offset du texte — la réciproque
+     * exacte de l'offsetToPosition du client.
+     */
+    static int positionVersOffset(String text, Position position) {
+        int ligne = Math.max(0, position.getLine());
+        int car = Math.max(0, position.getCharacter());
+        int offset = 0;
+        int lignesVues = 0;
+        while (lignesVues < ligne && offset < text.length()) {
+            char c = text.charAt(offset);
+            // \r\n compte pour un seul séparateur.
+            if (c == '\r') {
+                if (offset + 1 < text.length() && text.charAt(offset + 1) == '\n') {
+                    offset++;
+                }
+                lignesVues++;
+            } else if (c == '\n') {
+                lignesVues++;
+            }
+            offset++;
+        }
+        // Dernier segment : jusqu'au caractère demandé ou à la fin de
+        // ligne, auquel cas la position désigne la fin de la ligne.
+        int fin = offset;
+        while (fin < text.length() && text.charAt(fin) != '\n'
+                && text.charAt(fin) != '\r') {
+            fin++;
+        }
+        return Math.min(offset + car, fin);
     }
 }

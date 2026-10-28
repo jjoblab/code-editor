@@ -540,61 +540,41 @@ final class DemoAnalyzer {
 
     // ── Aide de signature ─────────────────────────────────────────
 
+    /**
+     * L'aide de signature RÉELLE du moteur mini Java (4.11.0) — les
+     * surcharges de la méthode APPELÉE, pas une carte de
+     * démonstration : bibliothèque embarquée pour les récepteurs
+     * connus ({@code System.out.println(…)}, {@code Math.max(…)},
+     * variables typées du buffer) et méthodes DÉCLARÉES dans le
+     * fichier pour les appels nus ou qualifiés. Le paramètre actif
+     * suit les virgules frappées — le popup éditorial met en valeur
+     * la progression de l'appel paramètre par paramètre.
+     *
+     * <p>Ce résolveur sert le chemin SANS LSP ; quand le mini serveur
+     * est branché, le même moteur répond côté
+     * {@code textDocument/signatureHelp} — les deux chemins servent
+     * les mêmes signatures.</p>
+     */
     private SignatureHelp signatureHelp(String text, int caret) {
-        // 4.8.0 : borné aux langages à syntaxe d'appel — le résolveur
-        // factice ne raconte plus « Signature de démonstration » sur
-        // une parenthèse de prose Markdown ou de texte brut.
+        // Borné aux langages à syntaxe d'appel — pas d'aide de
+        // signature sur une parenthèse de prose Markdown ou de texte
+        // brut.
         LanguageProfile profile = LanguageRegistry.forName(language);
         if (profile == null || !profile.callSyntax) return null;
-        int open = -1;
-        int depth = 0;
-        for (int i = caret - 1; i >= 0; i--) {
-            char c = text.charAt(i);
-            if (c == ')') depth++;
-            else if (c == '(') {
-                if (depth > 0) depth--;
-                else {
-                    open = i;
-                    break;
-                }
-            }
-        }
-        if (open < 0) return null;
-
-        // Identifiant juste avant la parenthèse ouvrante.
-        int idEnd = open;
-        while (idEnd > 0 && Character.isWhitespace(text.charAt(idEnd - 1))) idEnd--;
-        int idStart = idEnd;
-        while (idStart > 0 && Character.isJavaIdentifierPart(text.charAt(idStart - 1))) idStart--;
-        if (idStart == idEnd) return null;
-        String name = text.substring(idStart, idEnd);
-
-        // Paramètre actif = nombre de virgules de profondeur 0 avant le caret.
-        int active = 0;
-        depth = 0;
-        for (int i = open + 1; i < caret && i < text.length(); i++) {
-            char c = text.charAt(i);
-            if (c == '(' || c == '[') depth++;
-            else if (c == ')' || c == ']') depth--;
-            else if (c == ',' && depth == 0) active++;
-        }
-
-        List<Parameter> params = new ArrayList<>();
-        params.add(new Parameter("premier", "premier argument (factice)"));
-        params.add(new Parameter("deuxieme", "deuxième argument (factice)"));
-        params.add(new Parameter("options", "options facultatives (factice)"));
-
+        jo.codeeditor.demo.lsp.MiniJavaSignatures.Result résultat =
+                jo.codeeditor.demo.lsp.MiniJavaSignatures.resolve(text, caret);
+        if (résultat == null) return null;
         List<Signature> signatures = new ArrayList<>();
-        signatures.add(new Signature(
-                name + "(premier, deuxieme, options)",
-                "Signature de démonstration n°1 — générée par l'analyseur factice.",
-                params, active));
-        signatures.add(new Signature(
-                name + "(premier)",
-                "Surcharge minimale de démonstration.",
-                Collections.singletonList(params.get(0)), active));
-
-        return new SignatureHelp(signatures, 0, active);
+        for (jo.codeeditor.demo.lsp.MiniJavaSignatures.Entry e : résultat.signatures) {
+            List<Parameter> params = new ArrayList<>();
+            for (int i = 0; i < e.params.size(); i++) {
+                params.add(new Parameter(e.params.get(i),
+                        i < e.paramDocs.size() ? e.paramDocs.get(i) : ""));
+            }
+            signatures.add(new Signature(e.label, e.documentation, params,
+                    résultat.activeParameter));
+        }
+        return new SignatureHelp(signatures, 0, résultat.activeParameter);
     }
 
     // ── Quick doc ─────────────────────────────────────────────────

@@ -1182,3 +1182,64 @@ un hôte qui comptait sur la dépendance transitive n'a rien à faire.
   tap → retour à la signature fenêtrée.
 - Complétion `Button` : ligne 1 = `Button`, ligne 2 =
   `android.widget` à gauche et le type à droite.
+
+## 4.11.0
+
+### 1. État de publication
+
+- Tag `v4.11.0`, coordonnées Maven `jo.codeeditor:<module>:4.11.0`
+  (publication par le workflow `publish.yml` : les cinq AAR
+  `cel-core`, `cel-lsp-api`, `cel-lsp`, `cel-ui`, `cel-textmate`).
+- CI verte attendue sur `main` (validation locale : `test` —
+  2 976 tests, 0 échec ; garde-fous `check-class-budgets`,
+  `check-doc-figures`, `check-external-refs` verts).
+
+### 2. Compatibilité (l'application vient de 4.10.0)
+
+- **Aucune action obligatoire** — aucune API publique retirée ni
+  changée ; le rendu trois paliers, la lecture LSP 3.16 (paramètre
+  actif par signature) et l'aide de signature réelle de la démo sont
+  internes.
+- Budget interne relevé avec l'accord du propriétaire :
+  `EditorAssistPopupPainter` 1 620 → 1 660 lignes (rendu trois
+  paliers) — la couture `findParameterRangesInLabel` reste pure et
+  testée sans Canvas.
+
+### 3. Changements de comportement notables
+
+- **Aide de signature — TROIS PALIERS** : pendant la frappe d'un
+  appel, la ligne de signature du popup (toujours AU-DESSUS de la
+  ligne du curseur, la complétion restant EN DESSOUS) devient sa
+  propre barre de progression — paramètres déjà frappés en accent,
+  paramètre actif en accent gras, paramètres à venir en atténué. La
+  structure (virgules, parenthèse fermante) qui suit l'actif
+  s'atténue avec le restant.
+- **Paramètre actif par signature (LSP 3.16)** : quand le serveur
+  remplit `SignatureInformation.activeParameter`, il l'emporte sur le
+  champ global de la réponse — chaque surcharge peut être réglée
+  indépendamment. La documentation des paramètres (String ou
+  MarkupContent) alimente la bande doc du popup.
+- **Démo — signatures réelles** : le mini serveur LSP Java sert
+  `textDocument/signatureHelp` (déclencheurs `(` et `,`) et le
+  résolveur maison utilise le MÊME moteur : surcharges réelles du JDK
+  (impression, maths, chaînes, bâtisseur, collections, Objects) et
+  méthodes déclarées dans le fichier (javadoc `@param` servie dans la
+  bande doc). Une méthode inconnue ne fabrique plus de « Signature de
+  démonstration » : le repli local de la vue (l'appel vivant) reste
+  maître de l'affichage.
+
+### 4. Scénarios de vérification sur appareil
+
+- Taper `System.out.println("salut", ` : le popup du haut montre
+  `println(String x, …)` — « salut » n'est pas un paramètre de la
+  chaîne mais l'argument 0 est fait ; la virgule frappée passe
+  l'actif au paramètre 1 (gras) et atténue le restant ; la
+  complétion reste disponible EN DESSOUS pendant la frappe.
+- Déclarer `double calculerTotal(double base, double taux)` (avec
+  javadoc `@param base`/`@param taux`) puis taper `calculerTotal(` :
+  la signature réelle du buffer s'affiche, la doc du paramètre actif
+  vient de la javadoc.
+- Taper `Math.max(1, ` : stepper 1/2 (int/double), actif = paramètre
+  1 en gras.
+- Une variable `List<String> items = …` puis `items.add(` : les deux
+  surcharges `add(E e)` / `add(int index, E e)` sont proposées.

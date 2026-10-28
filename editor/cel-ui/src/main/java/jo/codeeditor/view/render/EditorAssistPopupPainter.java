@@ -22,7 +22,9 @@ import java.util.List;
  * Popups d'assistance flottants de l'éditeur : popup de complétion
  * (liste + badges de type + runs de match, rangées deux lignes —
  * l'identité qualifiée sous le nom), popup d'aide de signature
- * (surcharges + documentation de la signature active), popup de
+ * (une surcharge à la fois, paramètres en TROIS PALIERS — déjà
+ * frappés en accent, actif en gras + accent, à venir en atténué —
+ * surcharges + documentation de la signature active), popup de
  * documentation rapide (quick doc), ampoules de code actions dans la
  * bande de plis + leur popup, et popup d'aller-au-symbole.
  *
@@ -406,17 +408,22 @@ public class EditorAssistPopupPainter {
     }
     /**
      * Dessine le popup d'aide de signature (4.10.0 — une surcharge à la
-     * fois). Ancré AU-DESSUS de la ligne du curseur (contrairement au
-     * popup de complétion, qui est EN DESSOUS) ; s'il n'y a pas de place
-     * au-dessus, bascule en dessous. Structure :
+     * fois ; 4.11.0 — paramètres en trois paliers). Ancré AU-DESSUS de
+     * la ligne du curseur (contrairement au popup de complétion, qui
+     * est EN DESSOUS) ; s'il n'y a pas de place au-dessus, bascule en
+     * dessous. Structure :
      * <ul>
      *   <li>ligne de STEPPER « ‹ i/n › » (seulement s'il y a un choix) —
      *       flèches en accent quand actives, atténuées aux bornes ;</li>
      *   <li>signature UNIQUE, fenêtrée autour du paramètre actif
-     *       (±1 au-delà de 5 paramètres, « … » pour les tronqués) ; le
-     *       paramètre actif est en gras + accent et garanti VISIBLE
-     *       (ellipsé autour de lui) ; l'appui long (peek) révèle la
-     *       signature COMPLÈTE en multi-lignes ;</li>
+     *       (±1 au-delà de 5 paramètres, « … » pour les tronqués) ;
+     *       les paramètres DÉJÀ FRAPPÉS s'allument en accent (le
+     *       parcours visible de l'appel — chaque branche déjà écrite
+     *       ressort au fur et à mesure de la frappe), le paramètre
+     *       ACTIF est en gras + accent et garanti VISIBLE (ellipsé
+     *       autour de lui), ceux À VENIR restent en atténué ; l'appui
+     *       long (peek) révèle la signature COMPLÈTE en
+     *       multi-lignes ;</li>
      *   <li>bande de documentation : paramètre ACTIF (label en accent)
      *       puis javadoc, séparée par un filet en vue peek.</li>
      * </ul>
@@ -481,9 +488,11 @@ public class EditorAssistPopupPainter {
         }
 
         // ── Signature unique : fenêtrée hors peek (sigLines = 1 ligne),
-        // complète wrappée en peek. Paramètre actif en gras + accent,
-        // garanti visible (ellipsizeAroundActive) — sauf en peek où la
-        // signature est entière par construction.
+        // complète wrappée en peek. TROIS PALIERS (4.11.0) : paramètres
+        // déjà frappés en ACCENT, actif en accent GRAS, à venir en
+        // ATTÉNUÉ — la frappe allume la signature branche par branche.
+        // L'actif reste garanti visible (ellipsizeAroundActive) et le
+        // peek montre la signature entière par construction.
         view.textPaint.setTypeface(view.metrics.getTypeface());
         view.textPaint.setTextSize(view.metrics.getTextSize() * 0.85f);
         jo.codeeditor.completion.SignatureHelpController.Signature activeSig =
@@ -495,23 +504,8 @@ public class EditorAssistPopupPainter {
         for (int i = 0; i < sigLines.size(); i++) {
             String line = sigLines.get(i);
             float baseline = sigTop + i * rowH + rowH * 0.7f;
-            int[] paramRange = findParameterRangeInLabel(line, displayActiveParam);
-            if (paramRange == null) {
-                String[] parts = peeked
-                        ? new String[]{"", "", line}
-                        : ellipsizeAroundActive("", "", line, availW, view.textPaint);
-                drawSignatureRowText(canvas, anchorX + padX, baseline,
-                        parts[0], parts[1], parts[2]);
-            } else {
-                String pre = line.substring(0, paramRange[0]);
-                String param = line.substring(paramRange[0], paramRange[1]);
-                String post = line.substring(paramRange[1]);
-                String[] parts = peeked
-                        ? new String[]{pre, param, post}
-                        : ellipsizeAroundActive(pre, param, post, availW, view.textPaint);
-                drawSignatureRowText(canvas, anchorX + padX, baseline,
-                        parts[0], parts[1], parts[2]);
-            }
+            drawSignatureLine(canvas, line, anchorX + padX, baseline,
+                    displayActiveParam, availW, peeked);
         }
 
         // ── Bande documentation : paramètre ACTIF en tête (label en
@@ -572,12 +566,101 @@ public class EditorAssistPopupPainter {
     }
 
     /**
-     * Dessine une rangée de signature en trois segments : pré et post
-     * en couleur de texte, paramètre actif en gras + couleur de
-     * fonction.
+     * Dessine UNE ligne de signature en TROIS PALIERS quand sa
+     * structure paramétrable est lisible et qu'elle tient : les
+     * paramètres DÉJÀ FRAPPÉS en accent (le parcours visible de
+     * l'appel — chaque branche déjà écrite s'allume à mesure que la
+     * frappe avance), le paramètre ACTIF en accent GRAS, ceux À VENIR
+     * en atténué (la structure qui suit l'actif — virgules, parenthèse
+     * fermante — s'atténue avec eux). Dégradé honnête : structure
+     * introuvable (pas de couple de parenthèses sur la ligne wrappée)
+     * ou ligne trop large (ellipse) → trois zones pré/actif/post,
+     * l'actif restant seul en gras + accent et la queue atténuée.
+     */
+    private void drawSignatureLine(Canvas canvas, String line, float x,
+            float baseline, int activeParam, float availW, boolean peeked) {
+        int[][] ranges = findParameterRangesInLabel(line);
+        if (ranges != null && ranges.length > 0
+                && (peeked || view.textPaint.measureText(line) <= availW)) {
+            drawSignatureTiers(canvas, line, x, baseline, ranges, activeParam);
+            return;
+        }
+        int[] paramRange = findParameterRangeInLabel(line, activeParam);
+        String pre, param, post;
+        if (paramRange == null) {
+            pre = "";
+            param = "";
+            post = line;
+        } else {
+            pre = line.substring(0, paramRange[0]);
+            param = line.substring(paramRange[0], paramRange[1]);
+            post = line.substring(paramRange[1]);
+        }
+        if (!peeked) {
+            String[] parts = ellipsizeAroundActive(pre, param, post,
+                    availW, view.textPaint);
+            pre = parts[0];
+            param = parts[1];
+            post = parts[2];
+        }
+        // La queue (virgules, paramètres restants, fermente) est la
+        // part À VENIR de l'appel — atténuée comme les paliers complets.
+        drawSignatureRowText(canvas, x, baseline, pre, param, post,
+                paramRange != null);
+    }
+
+    /**
+     * Rendu TROIS PALIERS d'une ligne de signature paramétrable :
+     * paramètres déjà frappés en ACCENT (le déjà-écrit de l'appel),
+     * paramètre ACTIF en accent GRAS, paramètres à venir en ATTÉNUÉ.
+     * La structure (nom, parenthèses, virgules) reste en couleur de
+     * texte jusqu'à l'actif, puis s'atténue avec les paramètres
+     * restants — la ligne devient sa propre barre de progression.
+     */
+    private void drawSignatureTiers(Canvas canvas, String line, float x,
+            float baseline, int[][] ranges, int activeParam) {
+        int act = Math.max(0, Math.min(activeParam, ranges.length - 1));
+        int cursor = 0;
+        for (int p = 0; p < ranges.length; p++) {
+            int start = ranges[p][0];
+            if (start > cursor) {
+                x = drawSignatureSegment(canvas,
+                        line.substring(cursor, start), x, baseline,
+                        p <= act ? view.theme.textColor : view.theme.gutterText,
+                        false);
+            }
+            boolean actif = p == act;
+            x = drawSignatureSegment(canvas,
+                    line.substring(start, ranges[p][1]), x, baseline,
+                    p <= act ? view.theme.func : view.theme.gutterText, actif);
+            cursor = ranges[p][1];
+        }
+        if (cursor < line.length()) {
+            drawSignatureSegment(canvas, line.substring(cursor), x, baseline,
+                    view.theme.gutterText, false);
+        }
+    }
+
+    /** Un segment typé de la ligne de signature — renvoie le X suivant. */
+    private float drawSignatureSegment(Canvas canvas, String s, float x,
+            float baseline, int color, boolean gras) {
+        if (s == null || s.isEmpty()) return x;
+        view.textPaint.setColor(color);
+        view.textPaint.setTypeface(gras
+                ? android.graphics.Typeface.create(view.metrics.getTypeface(),
+                        android.graphics.Typeface.BOLD)
+                : view.metrics.getTypeface());
+        canvas.drawText(s, x, baseline, view.textPaint);
+        return x + view.textPaint.measureText(s);
+    }
+
+    /**
+     * Dessine une rangée de signature en trois segments dégradés : pré
+     * et post en couleur de texte (post atténué au besoin), paramètre
+     * actif en gras + couleur de fonction.
      */
     private void drawSignatureRowText(Canvas canvas, float x, float baseline,
-            String pre, String param, String post) {
+            String pre, String param, String post, boolean postAttenué) {
         if (!pre.isEmpty()) {
             view.textPaint.setColor(view.theme.textColor);
             view.textPaint.setTypeface(view.metrics.getTypeface());
@@ -593,7 +676,8 @@ public class EditorAssistPopupPainter {
             x += view.textPaint.measureText(param);
         }
         if (!post.isEmpty()) {
-            view.textPaint.setColor(view.theme.textColor);
+            view.textPaint.setColor(postAttenué
+                    ? view.theme.gutterText : view.theme.textColor);
             view.textPaint.setTypeface(view.metrics.getTypeface());
             canvas.drawText(post, x, baseline, view.textPaint);
         }
@@ -666,30 +750,54 @@ public class EditorAssistPopupPainter {
      * de le rendre en couleur d'accent. Renvoie null si introuvable.
      */
     private static int[] findParameterRangeInLabel(String label, int activeParam) {
+        int[][] all = findParameterRangesInLabel(label);
+        if (all == null || all.length == 0) return null;
+        int act = Math.max(0, Math.min(activeParam, all.length - 1));
+        return all[act];
+    }
+
+    /**
+     * TOUTES les plages de paramètres [start, end) d'un libellé de
+     * signature ({@code "foo(int x, String y)"} → deux plages),
+     * séparées par les virgules de profondeur 0 entre les
+     * parenthèses. Base du rendu TROIS PALIERS (4.11.0) : chaque
+     * plage reçoit son palier (frappé / actif / à venir). Null si la
+     * ligne n'expose pas de couple de parenthèses (lignes wrappées
+     * de la vue peek).
+     */
+    static int[][] findParameterRangesInLabel(String label) {
+        if (label == null) return null;
         int openIdx = label.indexOf('(');
         if (openIdx < 0) return null;
         int closeIdx = label.lastIndexOf(')');
         if (closeIdx <= openIdx) return null;
+        List<int[]> ranges = new ArrayList<>();
         int depth = 0;
         int paramStart = openIdx + 1;
-        int paramIdx = 0;
         for (int i = openIdx + 1; i < closeIdx; i++) {
             char c = label.charAt(i);
             if (c == '(' || c == '[' || c == '{') depth++;
             else if (c == ')' || c == ']' || c == '}') depth--;
             else if (c == ',' && depth == 0) {
-                if (paramIdx == activeParam) {
-                    return new int[]{paramStart, i};
-                }
+                ajouterPlage(ranges, label, paramStart, i);
                 paramStart = i + 1;
-                paramIdx++;
             }
         }
-        // Dernier paramètre
-        if (paramIdx == activeParam && paramStart < closeIdx) {
-            return new int[]{paramStart, closeIdx};
-        }
-        return null;
+        ajouterPlage(ranges, label, paramStart, closeIdx);
+        return ranges.toArray(new int[0][]);
+    }
+
+    /**
+     * Ajoute la plage [start, end) SANS ses espaces de bord — la
+     * structure (virgules, espaces de formatage) garde sa couleur
+     * propre, le paramètre commence à son premier caractère
+     * significatif. Une plage blanche est ignorée.
+     */
+    private static void ajouterPlage(List<int[]> ranges, String label,
+            int start, int end) {
+        while (start < end && Character.isWhitespace(label.charAt(start))) start++;
+        while (end > start && Character.isWhitespace(label.charAt(end - 1))) end--;
+        if (start < end) ranges.add(new int[]{start, end});
     }
 
     // ════════════════════════════════════════════════════════════════

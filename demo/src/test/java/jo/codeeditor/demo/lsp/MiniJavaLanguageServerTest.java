@@ -152,4 +152,111 @@ public class MiniJavaLanguageServerTest {
         assertEquals(1, client.published.size());
         assertTrue(client.published.get(0).getDiagnostics().isEmpty());
     }
+
+    // ════════════════════════════════════════════════════════════════
+    // 4.11.0 — Aide de signature réelle
+    // ════════════════════════════════════════════════════════════════
+
+    @Test
+    public void initialize_annonceLaideDeSignature() throws Exception {
+        RecordingClient client = new RecordingClient();
+        MiniJavaLanguageServer server = serveurConnecté(client);
+        InitializeResult result = server.initialize(new InitializeParams()).get();
+        assertNotNull(result.getCapabilities().getSignatureHelpProvider());
+        assertTrue("déclencheurs ( et ,",
+                result.getCapabilities().getSignatureHelpProvider()
+                        .getTriggerCharacters().contains("("));
+        assertTrue(result.getCapabilities().getSignatureHelpProvider()
+                        .getTriggerCharacters().contains(","));
+    }
+
+    @Test
+    public void signatureHelp_sertLesVraiesSurchargesAvecParamètreActif()
+            throws Exception {
+        RecordingClient client = new RecordingClient();
+        MiniJavaLanguageServer server = serveurConnecté(client);
+        // Ligne 1 (base 0), le caret vit après la virgule frappée :
+        // System.out.println("salut", → paramètre actif = 1.
+        String code = "class A {\n    void t() {\n        System.out.println(\"salut\",\n    }\n}\n";
+        didOpen(server, code);
+        org.eclipse.lsp4j.SignatureHelp help = server.getTextDocumentService()
+                .signatureHelp(paramsSignature(2, 35)).get();
+        assertNotNull(help);
+        assertTrue("les vraies surcharges d'impression",
+                help.getSignatures().size() >= 7);
+        assertEquals("println()", help.getSignatures().get(0).getLabel());
+        assertEquals("println(String x)", help.getSignatures().get(1).getLabel());
+        // Le paramètre actif suit la virgule : global ET par signature.
+        assertEquals(1, help.getActiveParameter().intValue());
+        assertEquals(1, help.getSignatures().get(1).getActiveParameter().intValue());
+        // La documentation du paramètre alimente la bande doc du popup.
+        org.eclipse.lsp4j.ParameterInformation p = help.getSignatures().get(1)
+                .getParameters().get(0);
+        assertEquals("String x", p.getLabel().getLeft());
+        assertEquals("le texte à imprimer", p.getDocumentation().getLeft());
+    }
+
+    @Test
+    public void signatureHelp_méthodeDéclaréeDansLeBuffer() throws Exception {
+        RecordingClient client = new RecordingClient();
+        MiniJavaLanguageServer server = serveurConnecté(client);
+        String code = "class Atelier {\n"
+                + "    double calculerTotal(double base, double taux) {\n"
+                + "        return base * taux;\n"
+                + "    }\n"
+                + "    void t() { calculerTotal(\n"
+                + "}\n";
+        didOpen(server, code);
+        org.eclipse.lsp4j.SignatureHelp help = server.getTextDocumentService()
+                .signatureHelp(paramsSignature(4, 29)).get();
+        assertNotNull(help);
+        assertEquals(1, help.getSignatures().size());
+        assertEquals("calculerTotal(double base, double taux)",
+                help.getSignatures().get(0).getLabel());
+        assertEquals(0, help.getActiveParameter().intValue());
+    }
+
+    @Test
+    public void signatureHelp_horsAppel_réponseVide() throws Exception {
+        RecordingClient client = new RecordingClient();
+        MiniJavaLanguageServer server = serveurConnecté(client);
+        didOpen(server, "class A {\n    int x = 5;\n}\n");
+        org.eclipse.lsp4j.SignatureHelp help = server.getTextDocumentService()
+                .signatureHelp(paramsSignature(1, 4)).get();
+        assertNotNull(help);
+        assertTrue("hors appel : aucune signature (le client garde son repli)",
+                help.getSignatures().isEmpty());
+    }
+
+    @Test
+    public void positionVersOffset_réciproqueExacte() {
+        String code = "class A {\n    void t() {\n        g(1, 2);\n    }\n}";
+        // Toutes les positions (ligne, colonne) de toutes les lignes
+        // bornées à la fin de ligne → l'offset retombe sur ligne+décalage.
+        int offset = 0;
+        String[] lignes = code.split("\n", -1);
+        for (int l = 0; l < lignes.length; l++) {
+            for (int c = 0; c <= lignes[l].length(); c++) {
+                assertEquals("ligne " + l + " colonne " + c,
+                        offset + c,
+                        MiniJavaLanguageServer.positionVersOffset(
+                                code, new org.eclipse.lsp4j.Position(l, c)));
+            }
+            offset += lignes[l].length() + 1;
+        }
+        // Position au-delà de la dernière ligne : bornée à la fin du
+        // texte, jamais d'explosion.
+        assertEquals(code.length(),
+                MiniJavaLanguageServer.positionVersOffset(
+                        code, new org.eclipse.lsp4j.Position(99, 99)));
+    }
+
+    private static org.eclipse.lsp4j.SignatureHelpParams paramsSignature(
+            int ligne, int caractère) {
+        org.eclipse.lsp4j.SignatureHelpParams params =
+                new org.eclipse.lsp4j.SignatureHelpParams();
+        params.setTextDocument(new org.eclipse.lsp4j.TextDocumentIdentifier(URI));
+        params.setPosition(new org.eclipse.lsp4j.Position(ligne, caractère));
+        return params;
+    }
 }

@@ -55,7 +55,17 @@ class LspSignatureHelpProvider implements SignatureHelpProvider {
                 if (info.getParameters() != null) {
                     info.getParameters().forEach(p -> {
                         String label = p.getLabel().getLeft() != null ? p.getLabel().getLeft() : "";
-                        params2.add(new jo.codeeditor.lang.model.Parameter(label, ""));
+                        String doc = "";
+                        // La documentation du paramètre (String ou
+                        // MarkupContent) alimente la bande doc du popup.
+                        if (p.getDocumentation() != null) {
+                            if (p.getDocumentation().getRight() != null) {
+                                doc = p.getDocumentation().getRight().getValue();
+                            } else if (p.getDocumentation().getLeft() != null) {
+                                doc = p.getDocumentation().getLeft();
+                            }
+                        }
+                        params2.add(new jo.codeeditor.lang.model.Parameter(label, doc));
                     });
                 }
                 // La documentation arrive en String (Left) OU en
@@ -69,8 +79,15 @@ class LspSignatureHelpProvider implements SignatureHelpProvider {
                         doc = info.getDocumentation().getLeft();
                     }
                 }
+                // Paramètre actif PAR SIGNATURE (LSP 3.16) quand le
+                // serveur le donne — un serveur qui règle chaque
+                // surcharge indépendamment l'emporte sur le champ
+                // global de la réponse.
+                Integer perSignature = info.getActiveParameter();
+                int activeParam = perSignature != null ? perSignature
+                        : (help.getActiveParameter() != null ? help.getActiveParameter() : 0);
                 sigs.add(new jo.codeeditor.lang.model.Signature(info.getLabel(), doc, params2,
-                    help.getActiveParameter() != null ? help.getActiveParameter() : 0));
+                    activeParam));
             }
             return new SignatureHelp(sigs,
                 help.getActiveSignature() != null ? help.getActiveSignature() : 0,

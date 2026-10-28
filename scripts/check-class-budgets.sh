@@ -241,15 +241,19 @@ budget() {
 # 4533 l. / 180 champs / 309 méthodes.
 budget editor/cel-ui/src/main/java/jo/codeeditor/view/EditorView.java 4550 180 315
 
-# Écart au ratchet (4.10.0, popups signature + complétion redessinés) :
-# NOUVEAU budget pour le peintre des popups d'assistance — il porte la
-# refonte « une surcharge à la fois » (stepper, fenêtrage ±1, peek
-# multi-lignes, filet de séparation) et la rangée de complétion à trois
-# axes (libellé seul / container à gauche / détail à droite, badge 6 dp,
-# coins 14 dp). La couture computeCompletionRowLayout reste PURE
-# (testée sans Canvas), windowSignature est statique et publique
-# (testée seule). Mesuré : 1544 l. / 9 champs / 2 méthodes publiques.
-budget editor/cel-ui/src/main/java/jo/codeeditor/view/render/EditorAssistPopupPainter.java 1620 10 3
+# Écart au ratchet (4.11.0, signature en trois paliers) : le peintre
+# porte le rendu TROIS PALIERS des paramètres (déjà frappés en accent /
+# actif en gras + accent / à venir en atténué — la frappe allume la
+# signature branche par branche) : drawSignatureLine choisit le rendu
+# complet quand la structure paramétrable tient, drawSignatureTiers /
+# drawSignatureSegment dessinent les paliers, le dégradé pré/actif/post
+# garde l'actif visible en pire cas. Relèvement LIGNES 1620 → 1660
+# décidé par le propriétaire (session 4.11.0 — « augmenter le budget de
+# certains fichiers si nécessaire »). La couture reste PURE :
+# findParameterRangesInLabel est statique et testée sans Canvas, comme
+# computeCompletionRowLayout et windowSignature. Mesuré : 1639 l. /
+# 9 champs / 2 méthodes publiques.
+budget editor/cel-ui/src/main/java/jo/codeeditor/view/render/EditorAssistPopupPainter.java 1660 10 3
 
 # Écart au ratchet (4.10.0, repli local sur réponse vide) : NOUVEAU
 # budget pour le contrôleur du popup d'aide de signature — le repli
