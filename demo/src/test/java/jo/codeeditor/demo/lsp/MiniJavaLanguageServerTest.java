@@ -251,6 +251,244 @@ public class MiniJavaLanguageServerTest {
                         code, new org.eclipse.lsp4j.Position(99, 99)));
     }
 
+    // ════════════════════════════════════════════════════════════════
+    // 4.12.0 — Complétion contextuelle + membres manquants
+    // ════════════════════════════════════════════════════════════════
+
+    @Test
+    public void initialize_annonceDéclencheursEtActionsDeCode() throws Exception {
+        RecordingClient client = new RecordingClient();
+        MiniJavaLanguageServer server = serveurConnecté(client);
+        InitializeResult result = server.initialize(new InitializeParams()).get();
+        assertNotNull(result.getCapabilities().getCompletionProvider());
+        assertTrue("les déclencheurs incluent le point",
+                result.getCapabilities().getCompletionProvider()
+                        .getTriggerCharacters().contains("."));
+        assertTrue("… la parenthèse ouvrante",
+                result.getCapabilities().getCompletionProvider()
+                        .getTriggerCharacters().contains("("));
+        assertNotNull("la capability codeActionProvider est annoncée",
+                result.getCapabilities().getCodeActionProvider());
+    }
+
+    @Test
+    public void completion_sertLesConstantesDEnumPuisLaBase() throws Exception {
+        RecordingClient client = new RecordingClient();
+        MiniJavaLanguageServer server = serveurConnecté(client);
+        String code = "class Atelier {\n"
+                + "    enum Couleur { ROUGE, VERT, BLEU }\n"
+                + "    void t() { Couleur.";
+        didOpen(server, code);
+        List<org.eclipse.lsp4j.CompletionItem> items = server.getTextDocumentService()
+                .completion(paramsComplétion(2, 23)).get().getRight().getItems();
+        // Les constantes d'enum d'abord, kind EnumMember.
+        org.eclipse.lsp4j.CompletionItem rouge = chercher(items, "ROUGE");
+        assertNotNull("la constante ROUGE est servie", rouge);
+        assertEquals(org.eclipse.lsp4j.CompletionItemKind.EnumMember,
+                rouge.getKind());
+        // La base historique suit TOUJOURS (le banc de la résolution
+        // différée reste observable en toute position).
+        assertNotNull(chercher(items, "toString"));
+        assertNotNull(chercher(items, "add"));
+        assertNotNull(chercher(items, "addAll"));
+        assertTrue("les constantes précèdent la base",
+                items.indexOf(rouge) < items.indexOf(chercher(items, "add")));
+    }
+
+    @Test
+    public void completion_sertLesAttributsDAnnotation() throws Exception {
+        RecordingClient client = new RecordingClient();
+        MiniJavaLanguageServer server = serveurConnecté(client);
+        String code = "class Atelier {\n"
+                + "    @interface Trace {\n"
+                + "        String nom();\n"
+                + "        boolean verbose() default false;\n"
+                + "    }\n"
+                + "    @Trace(";
+        didOpen(server, code);
+        List<org.eclipse.lsp4j.CompletionItem> items = server.getTextDocumentService()
+                .completion(paramsComplétion(5, 11)).get().getRight().getItems();
+        org.eclipse.lsp4j.CompletionItem nom = chercher(items, "nom");
+        assertNotNull(nom);
+        assertEquals("l'insertion pose nom=", "nom=", nom.getInsertText());
+        assertNotNull(chercher(items, "verbose"));
+    }
+
+    @Test
+    public void completion_sertLesArgumentsNommés() throws Exception {
+        RecordingClient client = new RecordingClient();
+        MiniJavaLanguageServer server = serveurConnecté(client);
+        String code = "class Atelier {\n"
+                + "    double calculerTotal(double base, double taux) {\n"
+                + "        return base * taux;\n"
+                + "    }\n"
+                + "    void t() { calculerTotal(";
+        didOpen(server, code);
+        List<org.eclipse.lsp4j.CompletionItem> items = server.getTextDocumentService()
+                .completion(paramsComplétion(4, 29)).get().getRight().getItems();
+        org.eclipse.lsp4j.CompletionItem base = chercher(items, "base");
+        assertNotNull("l'argument nommé base= est servi", base);
+        assertEquals("base=", base.getInsertText());
+        assertEquals("le champ data transporte le raffinement parameter",
+                "parameter", base.getData());
+        // Le paramètre servi suit la POSITION (le même moteur que
+        // l'aide de signature) : à l'ouverture, seul le premier.
+        assertTrue("taux n'est pas servi à la position 0",
+                chercher(items, "taux") == null);
+    }
+
+    @Test
+    public void finDeDocument_laBaseResteSeule() throws Exception {
+        RecordingClient client = new RecordingClient();
+        MiniJavaLanguageServer server = serveurConnecté(client);
+        String code = "class A {\n    void f() {\n        g();\n    }\n}\n";
+        didOpen(server, code);
+        List<org.eclipse.lsp4j.CompletionItem> items = server.getTextDocumentService()
+                .completion(paramsComplétion(4, 1)).get().getRight().getItems();
+        // Hors contexte : la base fixe, RIEN de plus.
+        assertEquals(4, items.size());
+    }
+
+    @Test
+    public void didOpen_avecMembresManquants_pousseLeDiagnosticSémantique() {
+        RecordingClient client = new RecordingClient();
+        MiniJavaLanguageServer server = serveurConnecté(client);
+        String code = "interface Véhicule {\n"
+                + "    void démarrer(String clé);\n"
+                + "}\n"
+                + "class Voiture implements Véhicule {\n"
+                + "}\n";
+        didOpen(server, code);
+        org.eclipse.lsp4j.Diagnostic diag = chercherCode(client.published.get(0)
+                .getDiagnostics(), "unimplemented-members");
+        assertNotNull("le diagnostic sémantique est publié", diag);
+        assertEquals("il vit sur le nom de la classe incomplète",
+                "Voiture", code.substring(
+                        MiniJavaLanguageServer.positionVersOffset(code,
+                                diag.getRange().getStart()),
+                        MiniJavaLanguageServer.positionVersOffset(code,
+                                diag.getRange().getEnd())));
+        assertTrue(diag.getMessage().contains("démarrer"));
+    }
+
+    @Test
+    public void codeAction_surLeNomDeClasse_sertLeQuickfixPréféré() throws Exception {
+        RecordingClient client = new RecordingClient();
+        MiniJavaLanguageServer server = serveurConnecté(client);
+        String code = "interface Véhicule {\n"
+                + "    void démarrer(String clé);\n"
+                + "}\n"
+                + "class Voiture implements Véhicule {\n"
+                + "}\n";
+        didOpen(server, code);
+        // La plage demandée couvre la ligne du nom « Voiture ».
+        org.eclipse.lsp4j.CodeActionParams params =
+                new org.eclipse.lsp4j.CodeActionParams();
+        params.setTextDocument(new org.eclipse.lsp4j.TextDocumentIdentifier(URI));
+        params.setRange(new org.eclipse.lsp4j.Range(
+                new org.eclipse.lsp4j.Position(3, 0),
+                new org.eclipse.lsp4j.Position(3, 33)));
+        List<org.eclipse.lsp4j.jsonrpc.messages.Either<
+                org.eclipse.lsp4j.Command, org.eclipse.lsp4j.CodeAction>> actions =
+                server.getTextDocumentService().codeAction(params).get();
+        assertEquals("une action : le quickfix", 1, actions.size());
+        org.eclipse.lsp4j.CodeAction action = actions.get(0).getRight();
+        assertNotNull(action);
+        assertTrue(action.getTitle().contains("Implémenter les membres manquants"));
+        assertEquals(org.eclipse.lsp4j.CodeActionKind.QuickFix, action.getKind());
+        assertEquals("l'action est PRÉFÉRÉE (tête du menu client)",
+                Boolean.TRUE, action.getIsPreferred());
+        assertNotNull(action.getEdit());
+        List<org.eclipse.lsp4j.TextEdit> edits = action.getEdit().getChanges().get(URI);
+        assertEquals(1, edits.size());
+        assertTrue("le stub porte @Override",
+                edits.get(0).getNewText().contains("@Override"));
+        assertTrue("… et la signature du membre manquant",
+                edits.get(0).getNewText().contains("démarrer(String clé)"));
+    }
+
+    @Test
+    public void codeAction_aprèsLeQuickfix_leDiagnosticDisparaît() throws Exception {
+        RecordingClient client = new RecordingClient();
+        MiniJavaLanguageServer server = serveurConnecté(client);
+        String code = "interface Véhicule {\n"
+                + "    void démarrer(String clé);\n"
+                + "}\n"
+                + "class Voiture implements Véhicule {\n"
+                + "}\n";
+        didOpen(server, code);
+        org.eclipse.lsp4j.CodeActionParams params =
+                new org.eclipse.lsp4j.CodeActionParams();
+        params.setTextDocument(new org.eclipse.lsp4j.TextDocumentIdentifier(URI));
+        params.setRange(new org.eclipse.lsp4j.Range(
+                new org.eclipse.lsp4j.Position(3, 0),
+                new org.eclipse.lsp4j.Position(3, 33)));
+        org.eclipse.lsp4j.TextEdit edit = server.getTextDocumentService()
+                .codeAction(params).get().get(0).getRight().getEdit()
+                .getChanges().get(URI).get(0);
+        // Le client appliquerait l'édition : on SIMULE en insérant le
+        // newText à la position de l'édit puis didChange du texte réparé.
+        int at = MiniJavaLanguageServer.positionVersOffset(code,
+                edit.getRange().getStart());
+        String réparé = code.substring(0, at) + edit.getNewText()
+                + code.substring(at);
+        didChange(server, réparé);
+        assertTrue("le diagnostic sémantique disparaît",
+                chercherCode(client.published.get(1).getDiagnostics(),
+                        "unimplemented-members") == null);
+        // Et le quickfix ne se propose plus.
+        List<org.eclipse.lsp4j.jsonrpc.messages.Either<
+                org.eclipse.lsp4j.Command, org.eclipse.lsp4j.CodeAction>> vide =
+                server.getTextDocumentService().codeAction(params).get();
+        assertTrue(vide.isEmpty());
+    }
+
+    @Test
+    public void codeAction_horsNomDeClasse_aucuneAction() throws Exception {
+        RecordingClient client = new RecordingClient();
+        MiniJavaLanguageServer server = serveurConnecté(client);
+        String code = "interface Véhicule {\n"
+                + "    void démarrer(String clé);\n"
+                + "}\n"
+                + "class Voiture implements Véhicule {\n"
+                + "}\n";
+        didOpen(server, code);
+        org.eclipse.lsp4j.CodeActionParams params =
+                new org.eclipse.lsp4j.CodeActionParams();
+        params.setTextDocument(new org.eclipse.lsp4j.TextDocumentIdentifier(URI));
+        // La plage vise l'INTERFACE, pas la classe incomplète.
+        params.setRange(new org.eclipse.lsp4j.Range(
+                new org.eclipse.lsp4j.Position(0, 0),
+                new org.eclipse.lsp4j.Position(0, 20)));
+        assertTrue(server.getTextDocumentService().codeAction(params).get()
+                .isEmpty());
+    }
+
+    private static org.eclipse.lsp4j.CompletionParams paramsComplétion(
+            int ligne, int caractère) {
+        org.eclipse.lsp4j.CompletionParams params =
+                new org.eclipse.lsp4j.CompletionParams();
+        params.setTextDocument(new org.eclipse.lsp4j.TextDocumentIdentifier(URI));
+        params.setPosition(new org.eclipse.lsp4j.Position(ligne, caractère));
+        return params;
+    }
+
+    private static org.eclipse.lsp4j.CompletionItem chercher(
+            List<org.eclipse.lsp4j.CompletionItem> items, String label) {
+        for (org.eclipse.lsp4j.CompletionItem i : items) {
+            if (label.equals(i.getLabel())) return i;
+        }
+        return null;
+    }
+
+    private static org.eclipse.lsp4j.Diagnostic chercherCode(
+            List<org.eclipse.lsp4j.Diagnostic> diags, String code) {
+        for (org.eclipse.lsp4j.Diagnostic d : diags) {
+            if (code.equals(d.getCode().getLeft())) return d;
+        }
+        return null;
+    }
+
     private static org.eclipse.lsp4j.SignatureHelpParams paramsSignature(
             int ligne, int caractère) {
         org.eclipse.lsp4j.SignatureHelpParams params =

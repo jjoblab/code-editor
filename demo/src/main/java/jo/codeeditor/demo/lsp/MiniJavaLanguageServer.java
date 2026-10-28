@@ -62,6 +62,18 @@ import java.util.concurrent.ConcurrentHashMap;
  * {@code completion:} et {@code completion/resolve:} du panneau
  * Journal).</p>
  *
+ * <p><b>4.12.0 — complétion contextuelle :</b> les déclencheurs
+ * {@code .}, {@code (} et {@code ,} sont annoncés et la liste est
+ * enrichie par {@link MiniJavaCompletion} AVANT la base fixe : les
+ * CONSTANTES D'ENUM après {@code Couleur.} (kind EnumMember, badge
+ * « # »), les ATTRIBUTS D'ANNOTATION dans {@code @Trace(} (insertion
+ * {@code nom=}, type et défaut au détail) et les ARGUMENTS NOMMÉS à
+ * une position d'argument d'appel ({@code calculer(} sert
+ * {@code base=} — la surcharge résolue par le moteur d'aide de
+ * signature, paramètre actif compris). La base historique suit TOUJOURS
+ * les candidats contextuels — le banc de la résolution différée
+ * (toString/add/addAll) reste observable en toute position.</p>
+ *
  * <p><b>4.11.0 — aide de signature réelle :</b>
  * {@code signatureHelpProvider} (déclencheurs {@code (} et {@code ,})
  * servi par {@link MiniJavaSignatures} — les VRAIES signatures des
@@ -109,14 +121,23 @@ public class MiniJavaLanguageServer implements LanguageServer {
         // SANS documentation pour add/addAll (elle ne vient qu'au
         // completionItem/resolve, data à l'appui), DIRECTE pour les
         // autres — le banc observable du dwell du popup.
+        // 4.12.0 — les déclencheurs . ( et , : le popup s'ouvre à
+        // PRÉFIXE VIDE juste après eux (membres d'enum après « . »,
+        // arguments nommés et attributs d'annotation après « ( » et
+        // « , ») — le client relaie le caractère au contexte LSP et la
+        // requête part IMMÉDIATEMENT (pas de debounce).
         CompletionOptions completion = new CompletionOptions();
         completion.setResolveProvider(true);
+        completion.setTriggerCharacters(java.util.Arrays.asList(".", "(", ","));
         caps.setCompletionProvider(completion);
         // 4.11.0 — l'aide de signature RÉELLE : les surcharges de la
         // méthode appelée (bibliothèque embarquée + méthodes déclarées
         // dans le fichier), déclenchée par la frappe de '(' et ','.
         caps.setSignatureHelpProvider(new SignatureHelpOptions(
                 java.util.Arrays.asList("(", ",")));
+        // 4.12.0 — les actions de code : le quickfix « implémenter les
+        // membres manquants » sur le diagnostic unimplemented-members.
+        caps.setCodeActionProvider(Either.forLeft(Boolean.TRUE));
         return CompletableFuture.completedFuture(new InitializeResult(caps));
     }
 
@@ -167,16 +188,27 @@ public class MiniJavaLanguageServer implements LanguageServer {
                 // Rien : l'analyse est déjà relancée à chaque didChange.
             }
 
-            // ── Complétion (4.7.0) ────────────────────────────────
+            // ── Complétion (4.7.0, contextuelle 4.12.0) ────────────
 
             @Override
             public CompletableFuture<Either<List<CompletionItem>, CompletionList>> completion(
                     CompletionParams position) {
-                // Le filtre par préfixe vit côté CLIENT (matcher
-                // unifié) : le serveur sert sa base fixe, comme un
-                // serveur réel qui répond à la position sans
-                // re-filtrer ce que le client re-filtrera.
+                // Les candidats CONTEXTUELS d'abord — l'ordre du serveur
+                // est l'ordre d'affichage (constantes d'enum avant leurs
+                // méthodes, attributs restants, arguments nommés de la
+                // surcharge résolue) — puis la base fixe, TOUJOURS : le
+                // filtre par préfixe vit côté CLIENT (matcher unifié),
+                // le serveur sert sa base comme un serveur réel.
                 List<CompletionItem> items = new ArrayList<>();
+                String text = openDocuments.get(
+                        position.getTextDocument().getUri());
+                if (text != null) {
+                    int caret = positionVersOffset(text, position.getPosition());
+                    for (MiniJavaCompletion.Candidate c
+                            : MiniJavaCompletion.candidates(text, caret)) {
+                        items.add(candidatContextuel(c));
+                    }
+                }
                 items.add(méthode("toString",
                         "La représentation textuelle de l'élément", null));
                 items.add(méthode("size",
@@ -243,6 +275,56 @@ public class MiniJavaLanguageServer implements LanguageServer {
                 return CompletableFuture.completedFuture(out);
             }
 
+            // ── Actions de code (4.12.0) ──────────────────────
+
+            /**
+             * Le quickfix « implémenter les membres manquants » : la
+             * plage demandée intersecte le NOM d'une classe incomplète
+             * → une action quickfix PRÉFÉRÉE (elle remonte en tête du
+             * menu du client) dont l'édition insère les stubs
+             * {@code @Override} avant la fermante de la classe. La
+             * détection est REFAITE sur le texte courant — le contexte
+             * de diagnostics du client n'est qu'un indice, jamais une
+             * vérité (une requête périmée ne doit pas générer des
+             * stubs faux).
+             */
+            @Override
+            public CompletableFuture<List<Either<org.eclipse.lsp4j.Command, org.eclipse.lsp4j.CodeAction>>> codeAction(
+                    org.eclipse.lsp4j.CodeActionParams params) {
+                List<Either<org.eclipse.lsp4j.Command, org.eclipse.lsp4j.CodeAction>> out =
+                        new ArrayList<>();
+                String text = openDocuments.get(
+                        params.getTextDocument().getUri());
+                if (text == null) {
+                    return CompletableFuture.completedFuture(out);
+                }
+                int[] plage = offsetsDePlage(text, params.getRange());
+                for (MiniJavaMembers.Manquant m : MiniJavaMembers.manquants(text)) {
+                    // Le nom de la classe incomplète intersecte la plage
+                    // visée (le diagnostic vit sur le nom).
+                    if (m.nomEnd <= plage[0] || m.nomStart >= plage[1]) {
+                        continue;
+                    }
+                    org.eclipse.lsp4j.CodeAction action =
+                            new org.eclipse.lsp4j.CodeAction();
+                    action.setTitle("Implémenter les membres manquants ("
+                            + m.manquants.size() + ")");
+                    action.setKind(org.eclipse.lsp4j.CodeActionKind.QuickFix);
+                    action.setIsPreferred(true);
+                    org.eclipse.lsp4j.TextEdit edit = new org.eclipse.lsp4j.TextEdit(
+                            new Range(offsetVersPosition(text, m.insertion),
+                                    offsetVersPosition(text, m.insertion)),
+                            MiniJavaMembers.gabarit(m));
+                    org.eclipse.lsp4j.WorkspaceEdit we =
+                            new org.eclipse.lsp4j.WorkspaceEdit(java.util.Collections
+                                    .singletonMap(params.getTextDocument().getUri(),
+                                            java.util.Collections.singletonList(edit)));
+                    action.setEdit(we);
+                    out.add(Either.forRight(action));
+                }
+                return CompletableFuture.completedFuture(out);
+            }
+
             @Override
             public CompletableFuture<CompletionItem> resolveCompletionItem(
                     CompletionItem item) {
@@ -303,6 +385,13 @@ public class MiniJavaLanguageServer implements LanguageServer {
      * la publication voyage par JSON-RPC et remonte au
      * {@code LspDiagnosticsManager} qui, lui, marshalle vers le thread
      * UI de l'hôte.</p>
+     *
+     * <p><b>4.12.0 :</b> aux règles syntaxiques du
+     * {@link MiniJavaParser} s'ajoute la règle SÉMANTIQUE des membres
+     * manquants ({@link MiniJavaMembers}) — une classe concrète du
+     * buffer qui n'implémente pas les membres abstraits de ses
+     * parents déclarés dans le fichier est signalée sur SON NOM : le
+     * quickfix correspondant vit dans le handler codeAction.</p>
      */
     private void analyzeAndPublish(String uri) {
         String text = openDocuments.get(uri);
@@ -319,6 +408,20 @@ public class MiniJavaLanguageServer implements LanguageServer {
             diag.setMessage(issue.message);
             diagnostics.add(diag);
         }
+        for (MiniJavaMembers.Manquant m : MiniJavaMembers.manquants(text)) {
+            Diagnostic diag = new Diagnostic();
+            diag.setRange(new Range(
+                    offsetVersPosition(text, m.nomStart),
+                    offsetVersPosition(text, m.nomEnd)));
+            diag.setSeverity(DiagnosticSeverity.Error);
+            diag.setSource(SOURCE);
+            diag.setCode(m.code());
+            diag.setMessage(m.message());
+            diagnostics.add(diag);
+        }
+        diagnostics.sort(java.util.Comparator.comparingInt(d ->
+                d.getRange().getStart().getLine() * 100000
+                        + d.getRange().getStart().getCharacter()));
         publish(uri, diagnostics);
     }
 
@@ -342,6 +445,31 @@ public class MiniJavaLanguageServer implements LanguageServer {
         }
         if (data != null) {
             item.setData(data);
+        }
+        return item;
+    }
+
+    /**
+     * Un candidat CONTEXTUEL de {@link MiniJavaCompletion} vers le
+     * protocole : le kind NUMÉRIQUE voyage tel quel (le badge du
+     * popup le décode — « # » pour EnumMember), l'insertion peut
+     * différer du libellé ({@code nom=}) et le champ data transporte
+     * le raffinement de kind (« parameter » pour un argument nommé).
+     */
+    private static CompletionItem candidatContextuel(
+            MiniJavaCompletion.Candidate c) {
+        CompletionItem item = new CompletionItem();
+        item.setLabel(c.label);
+        item.setKind(CompletionItemKind.forValue(c.kind));
+        item.setDetail(c.detail);
+        if (c.insertText != null && !c.insertText.equals(c.label)) {
+            item.setInsertText(c.insertText);
+        }
+        if (c.documentation != null) {
+            item.setDocumentation(c.documentation);
+        }
+        if (c.tag != null) {
+            item.setData(c.tag);
         }
         return item;
     }
@@ -377,5 +505,43 @@ public class MiniJavaLanguageServer implements LanguageServer {
             fin++;
         }
         return Math.min(offset + car, fin);
+    }
+
+    /**
+     * Convertit un offset en position LSP (ligne, caractère — unités
+     * UTF-16) : la réciproque exacte de {@link #positionVersOffset},
+     * même convention \r\n (un seul séparateur).
+     */
+    static Position offsetVersPosition(String text, int offset) {
+        int borne = Math.max(0, Math.min(offset, text.length()));
+        int ligne = 0;
+        int débutLigne = 0;
+        for (int i = 0; i < borne; i++) {
+            char c = text.charAt(i);
+            if (c == '\r') {
+                if (i + 1 < borne && text.charAt(i + 1) == '\n') {
+                    i++;
+                }
+                ligne++;
+                débutLigne = i + 1;
+            } else if (c == '\n') {
+                ligne++;
+                débutLigne = i + 1;
+            }
+        }
+        return new Position(ligne, borne - débutLigne);
+    }
+
+    /**
+     * Les offsets [début, fin) d'une plage LSP du texte — chaque
+     * borne convertie par {@link #positionVersOffset}.
+     */
+    static int[] offsetsDePlage(String text, Range plage) {
+        if (plage == null || plage.getStart() == null || plage.getEnd() == null) {
+            return new int[]{0, 0};
+        }
+        return new int[]{
+                positionVersOffset(text, plage.getStart()),
+                positionVersOffset(text, plage.getEnd())};
     }
 }

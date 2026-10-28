@@ -96,6 +96,21 @@ public final class DemoSamples {
                 private final List<String> history = new java.util.ArrayList<>();
                 private static final double TAX_RATE = 0.20;
 
+                /** Couleurs de l'atelier — taper « Couleur. » pour les constantes. */
+                public enum Couleur {
+                    ROUGE, VERT, BLEU;
+
+                    public String hexa() {
+                        return "#ff0000";
+                    }
+                }
+
+                /** Annotation de l'atelier — taper « @Trace( » pour les attributs. */
+                public @interface Trace {
+                    String nom();
+                    boolean verbose() default false;
+                }
+
                 // region Opérations (région nommée pliable — B14)
                 public int add(int a, int b) {
                     history.add(a + " + " + b + " = " + (a + b));
@@ -105,6 +120,11 @@ public final class DemoSamples {
                 /** Applique la taxe et arrondit au centime. */
                 public double withTax(double amount) {
                     return Math.round(amount * (1 + TAX_RATE) * 100) / 100.0;
+                }
+
+                /** Étiquette une opération — taper « label( » pour l'argument nommé. */
+                public String label(String étiquette, int valeur) {
+                    return étiquette + " -> " + valeur;
                 }
                 // endregion
 

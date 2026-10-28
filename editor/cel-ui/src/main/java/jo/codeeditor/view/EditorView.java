@@ -189,6 +189,15 @@ public class EditorView extends View {
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
     public CompletionProvider completionProvider;
     /**
+     * 4.12.0 — caractères déclencheurs de complétion posés par l'HÔTE
+     * (moteur maison sans langage LSP branché) : consultés par le
+     * popup quand {@code language} est absent — la voie LSP reste
+     * prioritaire (capacités du serveur). Permet l'ouverture du popup
+     * à PRÉFIXE VIDE après « . », « ( » ou « , » sans serveur.
+     * Volatile : posé au thread UI, lu par la lane de complétion.
+     */
+    private volatile List<String> completionTriggerCharacters = java.util.Collections.emptyList();
+    /**
      * 4.8.0 — plancher local fusionné à la réponse du fournisseur
      * (mots-clés + snippets du profil, dédupliqués par libellé — le
      * candidat serveur gagne le conflit). Vrai par défaut ; une
@@ -3685,6 +3694,32 @@ public class EditorView extends View {
 
     public void setCompletionProvider(CompletionProvider provider) {
         this.completionProvider = provider;
+    }
+
+    /**
+     * Caractères déclencheurs de complétion de l'HÔTE (4.12.0) — la
+     * voie sans langage LSP : le popup s'ouvre à PRÉFIXE VIDE juste
+     * après la frappe d'un de ces caractères (ex. « . », « ( », « , »
+     * — membres, arguments). Sans cet appel (ou avec une liste vide),
+     * seul un langage branché peut annoncer ses déclencheurs — le
+     * comportement historique du moteur maison est conservé.
+     *
+     * @param chars les caractères déclencheurs (null = aucun)
+     */
+    public void setCompletionTriggerCharacters(List<String> chars) {
+        this.completionTriggerCharacters = chars != null
+                ? java.util.Collections.unmodifiableList(
+                        new java.util.ArrayList<>(chars))
+                : java.util.Collections.emptyList();
+    }
+
+    /**
+     * Les caractères déclencheurs de l'hôte (lecture lane de
+     * complétion) — vide quand l'hôte n'en pose pas.
+     */
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public List<String> hostCompletionTriggerCharacters() {
+        return completionTriggerCharacters;
     }
 
     /**

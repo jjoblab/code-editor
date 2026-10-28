@@ -1243,3 +1243,71 @@ un hôte qui comptait sur la dépendance transitive n'a rien à faire.
   1 en gras.
 - Une variable `List<String> items = …` puis `items.add(` : les deux
   surcharges `add(E e)` / `add(int index, E e)` sont proposées.
+
+## 4.12.0
+
+### 1. État de publication
+
+- Tag `v4.12.0`, coordonnées Maven `jo.codeeditor:<module>:4.12.0`
+  (publication par le workflow `publish.yml` : les cinq AAR
+  `cel-core`, `cel-lsp-api`, `cel-lsp`, `cel-ui`, `cel-textmate`).
+- CI verte attendue sur `main` (validation locale : `test` —
+  3 024 tests, 0 échec ; garde-fous `check-class-budgets`,
+  `check-doc-figures`, `check-external-refs` verts).
+
+### 2. Compatibilité (l'application vient de 4.11.0)
+
+- **Aucune action obligatoire** — aucune API publique retirée ni
+  changée de comportement pour un hôte qui ne fait rien.
+- **API nouvelle, optionnelle** :
+  `EditorView.setCompletionTriggerCharacters(List<String>)` — les
+  caractères déclencheurs de complétion de la voie hôte (consultés
+  quand AUCUN langage n'est branché ; la voie LSP reste prioritaire).
+  Sans appel (ou avec null), le comportement historique est conservé.
+
+### 3. Changements de comportement notables
+
+- **Complétion contextuelle de la démo (P1-B)** : le mini serveur LSP
+  Java annonce les déclencheurs `.`, `(`, `,` et sert trois familles
+  de candidats AVANT sa base fixe — constantes d'enum après
+  `Couleur.` (kind EnumMember, badge « # », + méthodes de l'enum et
+  `values()`/`valueOf`), attributs d'annotation dans `@Trace(`
+  (insertion `nom=`, attributs déjà posés exclus), arguments nommés à
+  une position d'argument (`calculerTotal(` sert `base=` — le
+  paramètre ACTIF de la surcharge résolue, la même résolution que
+  l'aide de signature). Le moteur maison de la démo sert les mêmes
+  candidats et annonce les mêmes déclencheurs par la nouvelle API.
+- **« Implémenter les membres manquants » (P1-C)** : une classe
+  concrète du buffer qui n'implémente pas les membres abstraits de ses
+  parents DÉCLARÉS DANS LE FICHIER reçoit le diagnostic
+  `unimplemented-members` (erreur, sur le nom de la classe) et une
+  action quickfix PRÉFÉRÉE qui génère les stubs `@Override` avant la
+  fermante (retours par défaut par type — le code généré compile).
+  Servi par le mini serveur LSP (`codeActionProvider`) ET le moteur
+  maison de la démo.
+- **Aide de signature — l'appel INTERNE** : dans
+  `System.out.println(Math.max(1, ` la signature et les arguments
+  nommés regardent désormais `max` (l'appel en cours de frappe), pas
+  `println` ; un appel interne fermé rend la place à l'appel externe,
+  comme avant.
+
+### 4. Scénarios de vérification sur appareil
+
+- Onglet Java de l'atelier : taper `Couleur.` → le popup s'ouvre
+  immédiatement avec `ROUGE`, `VERT`, `BLEU` (badge « # ») puis
+  `hexa`, `values`, `valueOf`.
+- Taper `@Trace(` → le popup propose `nom=` et `verbose=` (insertion
+  avec le « = ») ; poser `nom = "x"` puis une virgule ne re-propose
+  que `verbose=`.
+- Taper `label(` → le popup propose `étiquette=` ; après la virgule,
+  `valeur=`.
+- Coller à la fin de l'échantillon :
+  `interface Véhicule { void démarrer(String clé); int vitesseMax(); }`
+  puis `class Voiture implements Véhicule { }` → le nom `Voiture` est
+  souligné en erreur ; l'action « Implémenter les membres manquants
+  (2) » (menu contextuel / raccourci actions) insère les deux stubs
+  `@Override` et le soulignement disparaît.
+- Vérifier le banc inchangé : à la fin du fichier (caret après la
+  dernière accolade), la complétion sert la base fixe
+  (toString/size/add/addAll) et `add` reçoit sa documentation après un
+  séjour de la sélection (dwell 200 ms).

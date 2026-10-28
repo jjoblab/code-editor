@@ -243,29 +243,31 @@ public final class MiniJavaSignatures {
     }
 
     /**
-     * Trouve la '(' non appariée de l'appel englobant le caret — scan
-     * avant avec chaînes et commentaires masqués, frontières
-     * d'instruction ({@code ;} {@code {}) réinitialisant la pile.
+     * Trouve la '(' non appariée de l'appel englobant le caret — la
+     * PLUS INTERNE des parenthèses encore ouvertes (l'appel EN COURS
+     * DE FRAPPE : dans {@code println(max(1, } c'est {@code max} qui
+     * vit sous le caret, pas {@code println}), avec une PILE dont
+     * chaque fermante dépile — les appels déjà fermés
+     * ({@code println(max(1, 2), } laissent la place à l'appel
+     * externe), et chaînes et commentaires masqués ; les frontières
+     * d'instruction ({@code ;} {@code {}) vident la pile.
      */
     static int trouverOuvrante(String text, int caret) {
         boolean[] masque = masquer(text, caret);
-        int depth = 0;
-        int open = -1;
+        int[] pile = new int[64];
+        int sommet = 0;
         for (int i = 0; i < caret; i++) {
             if (masque[i]) continue;
             char c = text.charAt(i);
             if (c == ';' || c == '{') {
-                depth = 0;
-                open = -1;
+                sommet = 0; // frontière d'instruction
             } else if (c == '(') {
-                if (depth == 0) open = i;
-                depth++;
+                if (sommet < pile.length) pile[sommet++] = i;
             } else if (c == ')') {
-                depth--;
-                if (depth == 0) open = -1;
+                if (sommet > 0) sommet--;
             }
         }
-        return open;
+        return sommet > 0 ? pile[sommet - 1] : -1;
     }
 
     /**

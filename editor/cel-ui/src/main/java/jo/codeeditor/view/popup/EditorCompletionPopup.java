@@ -132,7 +132,12 @@ public class EditorCompletionPopup {
         completionDebounceTask = null;
     }
 
-    /** Offsets des chars déclencheurs annoncés par le fournisseur LSP. */
+    /**
+     * Les caractères déclencheurs annoncés par le fournisseur LSP
+     * branché (capacités du serveur) — ou, à défaut de langage, ceux
+     * posés par l'HÔTE ({@code setCompletionTriggerCharacters}, la
+     * voie du moteur maison, 4.12.0).
+     */
     private java.util.List<String> triggerCharacters() {
         try {
             if (view.language != null && view.language.getCompletionProvider() != null) {
@@ -144,7 +149,7 @@ public class EditorCompletionPopup {
             jo.codeeditor.util.EditorLog.warn("EditorCompletion",
                 "lecture des caractères déclencheurs échouée", e);
         }
-        return java.util.Collections.emptyList();
+        return view.hostCompletionTriggerCharacters();
     }
 
     private static int tokenStartAt(CharSequence text, int caret) {

@@ -34,14 +34,14 @@ dependencyResolutionManagement {
 // app/build.gradle.kts
 dependencies {
     // Le module UI embarque transitivement cel-core et cel-lsp-api.
-    implementation("jo.codeeditor:cel-ui:4.11.0")
+    implementation("jo.codeeditor:cel-ui:4.12.0")
 
     // Optionnel — intégration Language Server Protocol (LSP4J).
-    implementation("jo.codeeditor:cel-lsp:4.11.0")
+    implementation("jo.codeeditor:cel-lsp:4.12.0")
 
     // Optionnel — voie grammaires (ADR-002 C3) : coloration par
     // grammaires TextMate-like + grammaires embarquées (C#).
-    implementation("jo.codeeditor:cel-textmate:4.11.0")
+    implementation("jo.codeeditor:cel-textmate:4.12.0")
 }
 ```
 
@@ -53,7 +53,7 @@ maven { url = uri("https://jitpack.io") }
 
 // app/build.gradle.kts
 dependencies {
-    implementation("com.github.jjoblab.code-editor:cel-ui:v4.11.0")
+    implementation("com.github.jjoblab.code-editor:cel-ui:v4.12.0")
 }
 ```
 
@@ -429,6 +429,22 @@ une arobase ou un import.
 // Défaut : fusion ACTIVE. Pour servir une liste strictement
 // sienne (comportement historique exclusif) :
 view.setMergeBuiltinCompletionsEnabled(false);
+```
+
+### Déclencheurs de complétion de la voie hôte (4.12.0)
+
+Le popup ne s'ouvre à PRÉFIXE VIDE qu'après un caractère déclencheur
+ANNONCÉ — historiquement, seule la voie LSP pouvait l'annoncer
+(capacités du serveur). Un hôte avec son PROPRE moteur (complétion
+posée par `setCompletionProvider`, sans langage branché) dispose
+désormais de la même porte :
+
+```java
+// Le popup s'ouvre immédiatement après « . », « ( » et « , »
+// (membres, arguments) — la voie LSP reste prioritaire quand
+// un langage est branché.
+view.setCompletionTriggerCharacters(List.of(".", "(", ","));
+// null ou liste vide : retour au comportement historique.
 ```
 
 ### Aide de signature : trois paliers, la vraie méthode (4.11.0)

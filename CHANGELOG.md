@@ -1,5 +1,117 @@
 # Changelog
 
+## 4.12.0 — 2026-10-29 — Complétion contextuelle (P1-B) et implémentation des membres manquants (P1-C)
+
+### Ajouté
+
+- **Complétion CONTEXTUELLE dans la démo** (`MiniJavaCompletion`, pur
+  JVM, partagé par les deux chemins) — trois familles que la base
+  fixe ne pouvait pas produire, servies AVANT la base (l'ordre du
+  serveur est l'ordre d'affichage) :
+  - **Constantes d'enum** — `Couleur.` sert les constantes déclarées
+    (`ROUGE`, `VERT`, `BLEU`… — kind LSP EnumMember, badge « # » du
+    popup), les méthodes propres de l'enum déclarées dans le fichier,
+    puis les deux méthodes de protocole `values()` et
+    `valueOf(String)`. Le récepteur peut être le nom de l'enum OU une
+    variable de ce type (`Couleur c = …; c.`) ;
+  - **Attributs d'annotation** — le caret dans les parenthèses d'une
+    annotation déclarée dans le buffer (`@interface Trace { … }`)
+    sert ses attributs avec le texte d'insertion `nom=` (type et
+    valeur par défaut au détail) ; les attributs DÉJÀ POSÉS avant le
+    caret (`@Trace(nom = "x", ` ne re-propose pas `nom=`) sont
+    exclus, et une petite table couvre les annotations du JDK à
+    attribut (`value` de `@SuppressWarnings`) ;
+  - **Arguments nommés** — le caret à une position d'argument d'appel
+    (`calculerTotal(`) sert le nom du paramètre ACTIF de la surcharge
+    résolue, insertion `base=` : la résolution réutilise
+    `MiniJavaSignatures` (bibliothèque embarquée + méthodes déclarées
+    + javadoc `@param`), les arguments nommés et l'aide de signature
+    racontent la MÊME histoire, paramètre actif compris — le candidat
+    suit la POSITION (après la virgule, c'est le tour du paramètre
+    suivant). Les noms déjà posés sont exclus, les parenthèses de
+    DÉCLARATION (`void f(`), les têtes de contrôle (`if (`, `for (`)
+    et les positions de valeur (`foo(a = `) ne déclenchent rien ;
+  - les déclencheurs `.`, `(` et `,` sont annoncés par le mini
+    serveur : le popup s'ouvre à PRÉFIXE VIDE juste après leur frappe
+    (voie IMMÉDIATE, sans debounce) et le caractère voyage au contexte
+    LSP (`TriggerCharacter`).
+- **La voie MAISON sert les mêmes candidats** : `DemoAnalyzer`
+  convertit les candidats du moteur (badge par kind numérique, tag
+  `parameter`, insertion `nom=`) et les pose DEVANT sa base de démo —
+  et la vue expose
+  `setCompletionTriggerCharacters(List<String>)` : l'hôte sans langage
+  LSP annonce ses propres déclencheurs (consultés quand aucun langage
+  n'est branché, la voie LSP reste prioritaire). Sans cet appel, le
+  comportement historique est conservé.
+- **« Implémenter les membres manquants »** (P1-C, `MiniJavaMembers`,
+  pur JVM, partagé par les deux chemins) :
+  - la DÉTECTION : chaque classe concrète du buffer qui étend ou
+    implémente un type DÉCLARÉ DANS LE FICHIER est comparée aux
+    membres abstraits de ses parents (toutes les méthodes d'une
+    `interface` sans corps, les méthodes sans corps d'une classe
+    abstraite) — un membre est rempli quand la classe déclare une
+    méthode de MÊME NOM ET MÊME ARITÉ avec un corps ; les parents
+    transitifs (interface qui étend interface) comptent, les méthodes
+    `default`/`static` d'interface ne sont pas dues, une classe
+    `abstract` est excusée, les parents EXTERNES au fichier sont
+    ignorés (contrat zéro faux positif), les types IMBRIQUÉS vivent
+    leur vie ;
+  - le DIAGNOSTIC `unimplemented-members` (sévérité erreur) vit sur
+    le NOM de la classe incomplète : « La classe Voiture
+    n'implémente pas les 2 membres hérités de Véhicule : void
+    démarrer(String clé), int vitesseMax() » — publié par le mini
+    serveur à chaque didChange, et par le moteur maison de la démo ;
+  - le QUICKFIX : le mini serveur annonce `codeActionProvider` et
+    sert une action quickfix PRÉFÉRÉE (`isPreferred` — tête du menu
+    du client) dont l'édition insère les stubs `@Override` avant la
+    fermante de la classe, à l'indentation de ses membres, avec la
+    valeur de retour par défaut par type (`return 0;`, `return
+    false;`, `return null;`, rien pour `void`) — le code généré
+    compile et le diagnostic disparaît au didChange suivant. Le
+    moteur maison de la démo sert la même action au même endroit.
+- **L'aide de signature regarde l'appel INTERNE** : `trouverOuvrante`
+  tient une PILE de parenthèses — dans `println(max(1, ` c'est
+  désormais `max` qui vit sous le caret (l'appel en cours de frappe),
+  pas `println` ; les appels déjà fermés (`println(max(1, 2), `)
+  rendent la place à l'appel externe, comme avant.
+
+### Changements visibles
+
+- Sur l'onglet Java de l'atelier : taper `Couleur.` ouvre le popup
+  avec les constantes (badge « # ») ; `@Trace(` propose `nom=` et
+  `verbose=` ; `label(` propose `étiquette=` (les identifiants Unicode
+  sont des noms de paramètre légitimes) ; coller une classe
+  `implements` incomplète souligne son NOM en erreur et l'action
+  « Implémenter les membres manquants (N) » génère les stubs.
+- La base fixe du mini serveur (toString/size/add/addAll) reste
+  servie en TOUTE position APRÈS les candidats contextuels — le banc
+  de la résolution différée (documentation au dwell 200 ms) reste
+  observable où que soit le caret.
+- L'échantillon Java de la démo accueille un enum `Couleur`, une
+  annotation `@interface Trace` et une méthode `label(String, int)`
+  pour rendre les trois familles découvrables.
+
+### Pour l'hôte
+
+- Nouvelle API publique `EditorView
+  .setCompletionTriggerCharacters(List<String>)` (4.12.0) : les
+  déclencheurs de complétion de la voie hôte, consultés quand aucun
+  langage n'est branché. Optionnelle — sans appel, rien ne change.
+- Aucune autre action obligatoire (les kinds LSP voyageaient déjà
+  jusqu'au badge du popup, `EnumMember`/`parameter` compris).
+- Budget interne relevé (autorisation propriétaire « augmenter le
+  budget si nécessaire ») : `EditorView` 4 550 → 4 580 lignes et
+  180 → 182 champs (l'API des déclencheurs, champ volatile + javadoc)
+  — le reste de la complétion contextuelle vit dans les moteurs purs
+  de la démo, non plafonnés.
+
+### Documentation
+
+- Compteurs resynchronisés : **3 024 tests** (cel-core 1 495, cel-ui
+  996, cel-lsp 238, démo 167, cel-textmate 96, cel-lsp-api 32 ; +48 :
+  complétion contextuelle 20, membres manquants 14, serveur mini Java
+  9, déclencheurs hôtes 5).
+
 ## 4.11.0 — 2026-10-28 — L'aide de signature montre la VRAIE méthode, branche par branche
 
 ### Ajouté

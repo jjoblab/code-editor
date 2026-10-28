@@ -237,9 +237,13 @@ budget() {
 # solde +1) et du rectangle du popup (signatureHelpPopupMetrics, +1 —
 # partagé rendu/geste pour l'appui long « peek »). Le layout, le
 # fenêtrage et le peek vivent dans EditorAssistPopupPainter, l'état
-# peek dans SignatureHelpController (cel-core, non plafonné). Mesuré :
-# 4533 l. / 180 champs / 309 méthodes.
-budget editor/cel-ui/src/main/java/jo/codeeditor/view/EditorView.java 4550 180 315
+# peek dans SignatureHelpController (cel-core, non plafonné).
+# 4.12.0 (P1-B, autorisation propriétaire « augmenter le budget si
+# nécessaire ») : plafonds LIGNES 4550 → 4580 et CHAMPS 180 → 182
+# pour l'API publique des caractères déclencheurs de complétion de la
+# voie hôte (setCompletionTriggerCharacters + lecture lane, champ
+# volatile + javadoc). Mesuré : 4568 l. / 181 champs / 311 méthodes.
+budget editor/cel-ui/src/main/java/jo/codeeditor/view/EditorView.java 4580 182 315
 
 # Écart au ratchet (4.11.0, signature en trois paliers) : le peintre
 # porte le rendu TROIS PALIERS des paramètres (déjà frappés en accent /

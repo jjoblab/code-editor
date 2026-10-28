@@ -50,6 +50,17 @@ import jo.codeeditor.view.EditorView;
  * fréquents du fichier sont marqués déprécié/statique/abstrait par
  * injection directe de jetons — sans serveur, la vitrine du rendu
  * barré/gras/italique du client.</p>
+ *
+ * <p>Complétion contextuelle et membres manquants (4.12.0) : le moteur
+ * maison sert les MÊMES candidats contextuels que le mini serveur LSP
+ * — {@link jo.codeeditor.demo.lsp.MiniJavaCompletion} (constantes
+ * d'enum après « . », attributs d'annotation, arguments nommés) DEVANT
+ * la base de démo, avec les déclencheurs « . », « ( », « , » posés sur
+ * la vue (ouverture du popup à préfixe vide) — et
+ * {@link jo.codeeditor.demo.lsp.MiniJavaMembers} publie le diagnostic
+ * des membres manquants avec son quickfix « Implémenter les membres
+ * manquants ». Les deux chemins — maison et LSP — racontent la même
+ * histoire, comme l'aide de signature depuis la 4.11.0.</p>
  */
 final class DemoAnalyzer {
 
@@ -150,6 +161,14 @@ final class DemoAnalyzer {
         view.setQuickDocResolver(this::quickDoc);
         view.setCodeActionsResolver(this::codeActions);
         view.setSymbolResolver(this::symbols);
+        // 4.12.0 — les déclencheurs de complétion de la voie maison :
+        // le popup s'ouvre à PRÉFIXE VIDE après « . », « ( » et « , »
+        // sur les langages à syntaxe d'appel (membres d'enum,
+        // attributs d'annotation, arguments nommés). Sans langage LSP
+        // branché, c'est la SEULE voie d'annonce des déclencheurs.
+        LanguageProfile profil = LanguageRegistry.forName(language);
+        view.setCompletionTriggerCharacters(profil != null && profil.callSyntax
+                ? List.of(".", "(", ",") : null);
         // L'écouteur est désenregistré par detach() : la coquille
         // multi-onglets attache/détache le même analyseur à chaque
         // sélection — sans retrait, les écouteurs s'accumuleraient.
@@ -166,6 +185,8 @@ final class DemoAnalyzer {
             session.removeOnTextEditListener(editListener);
             editListener = null;
         }
+        // Les déclencheurs de la voie maison partent avec elle (4.12.0).
+        view.setCompletionTriggerCharacters(null);
         session.setDiagnostics(Collections.emptyList());
         session.setInlayHints(Collections.emptyList());
     }
@@ -292,6 +313,17 @@ final class DemoAnalyzer {
             lineStart = lineEnd + 1;
             line++;
         }
+        // 4.12.0 — la règle SÉMANTIQUE des membres manquants : la même
+        // détection que le mini serveur LSP, signalée sur le NOM de la
+        // classe incomplète (sévérité erreur — c'en est une pour javac).
+        LanguageProfile profilMembres = LanguageRegistry.forName(language);
+        if (profilMembres != null && profilMembres.callSyntax) {
+            for (jo.codeeditor.demo.lsp.MiniJavaMembers.Manquant m
+                    : jo.codeeditor.demo.lsp.MiniJavaMembers.manquants(text)) {
+                out.add(new DiagnosticShift.Diagnostic(
+                        m.nomStart, m.nomEnd, 3, m.message()));
+            }
+        }
         return out;
     }
 
@@ -399,6 +431,24 @@ final class DemoAnalyzer {
     private List<CompletionSession.Item> completions(String text, int caret,
                                                      int tokenStart, String prefix) {
         List<CompletionSession.Item> out = new ArrayList<>();
+
+        // 0. Candidats CONTEXTUELS (4.12.0) — le MÊME moteur que le mini
+        //    serveur LSP : constantes d'enum après « . », attributs
+        //    d'annotation dans « @Anno( », arguments nommés à une
+        //    position d'argument d'appel. Score au-dessus de la base :
+        //    le contexte est plus précis que n'importe quel candidat
+        //    générique, et l'ordre d'insertion est l'ordre d'affichage.
+        LanguageProfile profil = LanguageRegistry.forName(language);
+        if (profil != null && profil.callSyntax) {
+            for (jo.codeeditor.demo.lsp.MiniJavaCompletion.Candidate c
+                    : jo.codeeditor.demo.lsp.MiniJavaCompletion.candidates(text, caret)) {
+                out.add(new CompletionSession.Item(
+                        c.label, c.detail, c.insertText, "v",
+                        c.kind, 80, false, false,
+                        c.tag, null, null, -1, -1, null,
+                        null, c.documentation));
+            }
+        }
 
         // 1. Snippets de démo (score le plus haut, badge snippet).
         String lineComment = lineCommentPrefix();
@@ -610,12 +660,31 @@ final class DemoAnalyzer {
         int nextStart = lineEnd < text.length() ? lineEnd + 1 : lineEnd;
         String content = text.substring(lineStart, lineEnd);
 
+        List<EditorView.CodeAction> actions = new ArrayList<>();
+
+        // 4.12.0 — le quickfix « Implémenter les membres manquants » :
+        // proposé sur la LIGNE du nom de chaque classe incomplète (le
+        // diagnostic vit sur le nom), le même gabarit @Override que le
+        // mini serveur LSP, inséré avant la fermante de la classe.
+        LanguageProfile profilMembres = LanguageRegistry.forName(language);
+        if (profilMembres != null && profilMembres.callSyntax) {
+            for (jo.codeeditor.demo.lsp.MiniJavaMembers.Manquant m
+                    : jo.codeeditor.demo.lsp.MiniJavaMembers.manquants(text)) {
+                if (m.nomStart >= nextStart || m.nomEnd <= lineStart) continue;
+                final jo.codeeditor.demo.lsp.MiniJavaMembers.Manquant fM = m;
+                actions.add(new EditorView.CodeAction(
+                        "Implémenter les membres manquants (" + m.manquants.size()
+                                + ")", "quickfix",
+                        () -> session.replaceRange(fM.insertion, fM.insertion,
+                                jo.codeeditor.demo.lsp.MiniJavaMembers.gabarit(fM))));
+            }
+        }
+
         // Ampoule uniquement là où il y a quelque chose à faire.
         boolean interessante = content.contains("TODO") || content.contains("FIXME")
                 || content.length() > 80 || content.trim().isEmpty();
-        if (!interessante) return Collections.emptyList();
+        if (!interessante && actions.isEmpty()) return Collections.emptyList();
 
-        List<EditorView.CodeAction> actions = new ArrayList<>();
         if (lineCommentPrefix() != null) {
             actions.add(new EditorView.CodeAction(
                     "Commenter / décommenter la ligne", "refactor", () -> {

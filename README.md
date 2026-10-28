@@ -13,7 +13,14 @@ Ce que c'est — et ce que ce n'est pas :
   réellement embarquées (LSP4J, Gson) et les grammaires tierces du
   module optionnel sont attribuées dans [`NOTICE`](NOTICE).
 - **Publication** : coordonnées Maven `jo.codeeditor:<module>` —
-  version courante : `4.11.0` (l'aide de signature montre la VRAIE
+  version courante : `4.12.0` (la complétion devient CONTEXTUELLE :
+  constantes d'enum après « . », attributs d'annotation dans
+  « @Anno( », arguments nommés à une position d'argument — la même
+  résolution que l'aide de signature, paramètre actif compris — et
+  le quickfix « Implémenter les membres manquants » : diagnostic
+  `unimplemented-members` sur le nom de la classe incomplète, stubs
+  `@Override` générés avant la fermante ; sur la 4.11.0 de l'aide de
+  signature qui montre la VRAIE
   méthode, branche par branche : paramètres en trois paliers — déjà
   frappés en accent, actif en gras, à venir en atténué —, signature
   au-dessus de la ligne quand la complétion vit en dessous, paramètre
@@ -88,7 +95,7 @@ optionnels et s'ajoutent selon les besoins.
 
 Les artefacts sont publiés sur `maven.pkg.github.com` avec les
 coordonnées `jo.codeeditor:<module>:<version>` (version courante :
-`4.9.1`).
+`4.12.0`).
 
 1. Créez un jeton d'accès personnel GitHub avec le droit `read:packages`.
 2. Renseignez vos identifiants dans `~/.gradle/gradle.properties` :
@@ -345,8 +352,8 @@ interface `EditorPreviewHost`) figure dans
 
 ```bash
 ./gradlew test
-# 2 976 tests, 0 failure :
-#   cel-core 1 495 · cel-lsp-api 32 · cel-lsp 238 · cel-ui 991 · cel-textmate 96 · demo 124
+# 3 024 tests, 0 failure :
+#   cel-core 1 495 · cel-lsp-api 32 · cel-lsp 238 · cel-ui 996 · cel-textmate 96 · demo 167
 # (contrôle d'écart : scripts/check-doc-figures.sh, exécuté en CI)
 ```
 
