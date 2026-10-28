@@ -1,5 +1,103 @@
 # Changelog
 
+## 4.14.0 — 2026-10-29 — Quick fixes wrap/cast/surround, références et renommage, auto-import
+
+### Ajouté
+
+- **Les REFACTORINGS DE SÉLECTION** (`MiniJavaActions`, pur JVM,
+  servi par le handler `codeAction`, genre `refactor.rewrite`) —
+  la nature de la plage visée tranche (le client envoie la
+  sélection active, sinon le mot sous le caret, sinon la ligne) :
+  - **Entourer** (six gabarits) — une plage de LIGNES COMPLÈTES
+    (sélection multi-lignes, ou couvrant la ligne entière du
+    premier au dernier caractère utile) est indentée d'un niveau et
+    enveloppée : `if (…)`, `if/else`, `for (…)`, `while (…)`,
+    `try/catch`, `try/finally` — les mots-clés portent
+    l'indentation de la première ligne, les gabarits offrent des
+    textes d'accueil lisibles (`condition`, `taille`, `e`) ;
+  - **Envelopper** (quatre) et **Transtyper** (trois) — une
+    sélection partielle devient l'argument de `String.valueOf(…)`,
+    `Objects.requireNonNull(…)`, `Math.abs(…)`, des parenthèses,
+    ou l'opérande d'un cast `(int)`, `(long)`, `(double)`.
+  Le menu du client place la famille après les corrections
+  (quickfix < refactor), l'édition vit dans l'action (un groupe
+  d'annulation), et une plage vide ou blanche ne sert rien.
+- **Les RÉFÉRENCES et le RENOMMAGE** (`MiniJavaSymboles`, pur JVM —
+  capabilities `referencesProvider` et `renameProvider` AVEC
+  `prepareProvider` annoncé : le popup de renommage pré-valide
+  AVANT d'ouvrir) — le symbole sous le caret est résolu par nature,
+  avec des PORTÉES honnêtes :
+  - **méthode** : les références sont les APPELS (le mot suivi de
+    « ( », jamais qualifié par une variable ; `this.` et les
+    appels statiques par le type du fichier comptent) ; le
+    renommage d'un nom SURCHARGÉ est REFUSÉ (un renommage aveugle
+    toucherait les deux surcharges — la prudence l'emporte) ;
+  - **local / paramètre** : les occurrences comptent DANS LA
+    MÉTHODE du caret seulement (le même nom dans une autre méthode
+    est un AUTRE symbole) — types primitifs compris ;
+  - **champ** : les occurrences comptent dans le corps du type
+    HORS des méthodes qui déclarent leur PROPRE local de ce nom
+    (l'ombre du local masque le champ, comme en Java) ;
+  - **type** : toutes les occurrences, la déclaration comprise au
+    renommage ;
+  - **constante d'enum** : les usages qualifiés par SON enum (ou
+    par une variable du type) et les étiquettes nues de `switch` ;
+    si un AUTRE enum du fichier déclare le même nom, TOUT est
+    refusé (l'ambiguïté n'admet pas de demi-mesure).
+  Chaînes et commentaires masqués, mots-clés exclus, symbole
+  introuvable : références VIDES et renommage refusé proprement.
+  `prepareRename` sert la plage du mot et son nom comme
+  placeholder ; `rename` remplace toutes les occurrences en une
+  seule édition groupée.
+- **L'AUTO-IMPORT** (`MiniJavaImports`, pur JVM, servi par
+  `codeAction` — quickfix « Importer java.time.LocalDate ») : le
+  nom simple CAPITALISÉ sous le caret, résolu au CLASSPATH par
+  réflexion (le vrai FQN du runtime — `java.time.LocalDate`,
+  `java.util.Scanner`…), NI un type déclaré dans le fichier, NI
+  déjà couvert par un import existant (nom explicite ou WILDCARD
+  du paquet résolu), NI une classe de `java.lang` (l'import serait
+  du bruit) — l'édition insère `import …;` après la DERNIÈRE
+  importation (sinon après le paquet, sinon en tête de fichier).
+  L'insertion vit AU-DESSUS du viewport : le client compense le
+  défilement (comptage des lignes insérées au-dessus de l'écran,
+  mécanisme générique du groupe d'éditions, livré en 4.5.0) — le
+  texte lu ne saute pas sous les yeux.
+
+### Corrigé
+
+- **Trois scans du mini moteur de symboles** corrigés pendant le
+  développement (trouvés par les tests, avant toute publication) :
+  la détection des méthodes rejetait les types de retour PRIMITIFS
+  (`int calculer(`, `void t(`), le pattern des variables ignorait
+  les déclarations `int total = …`, et `estEnum` échouait sur
+  « enum X » à espace simple.
+
+### Changements visibles
+
+- Le menu d'actions au caret s'enrichit : sur une sélection de
+  lignes, six enveloppements ; sur une sélection partielle, quatre
+  enveloppes et trois casts ; sur un nom du runtime non importé,
+  l'import en un geste.
+- La démo expose « Rechercher les références » et « Renommer » sur
+  les fichiers Java servis par le mini serveur (les ponts clients
+  existaient déjà — `LspReferencesProvider`, `LspRenameProvider`,
+  popup de renommage, navigation des usages).
+- L'échantillon Java accueille
+  `LocalDate horodatage = LocalDate.now();` DANS `imprimer()` : le
+  nom vit sans import, l'action « Importer java.time.LocalDate »
+  l'insère — la matière à tester au doigt.
+
+### Pour l'hôte
+
+- **Aucune action obligatoire** — aucune API publique touchée :
+  les trois fonctionnalités vivent dans le mini serveur de la démo.
+
+### Documentation
+
+- Compteurs resynchronisés : **3 114 tests** (cel-core 1 495,
+  cel-ui 996, démo 257, cel-lsp 238, cel-textmate 96, cel-lsp-api
+  32 ; +39 : symboles 14, imports 10, actions 9, serveur 6).
+
 ## 4.13.0 — 2026-10-29 — Documentation de classpath au survol et à la signature ; indices lambda
 
 ### Ajouté

@@ -129,9 +129,12 @@ public final class DemoSamples {
 
                 /** Imprime l'historique — « h » porte son type en indice
                  *  fantôme (interface Consumer<String> inférée de la
-                 *  déclaration de history). */
+                 *  déclaration de history) ; « LocalDate » vit SANS
+                 *  import : l'action « Importer java.time.LocalDate »
+                 *  insère la ligne en tête de fichier. */
                 public void imprimer() {
-                    history.forEach(h -> System.out.println(h));
+                    LocalDate horodatage = LocalDate.now();
+                    history.forEach(h -> System.out.println(horodatage + " " + h));
                 }
                 // endregion
 

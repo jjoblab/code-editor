@@ -1372,3 +1372,66 @@ un hôte qui comptait sur la dépendance transitive n'a rien à faire.
   `s.forEach(x -> System.out.println(x));` → l'indice `String`
   arrive aussi (signature `Consumer<? super E>` résolue par
   réflexion, `E` substitué par la déclaration).
+
+## 4.14.0
+
+### 1. État de publication
+
+- Tag `v4.14.0`, coordonnées Maven `jo.codeeditor:<module>:4.14.0`
+  (publication par le workflow `publish.yml` : les cinq AAR
+  `cel-core`, `cel-lsp-api`, `cel-lsp`, `cel-ui`, `cel-textmate`).
+- CI verte attendue sur `main` (validation locale : `test` —
+  3 114 tests, 0 échec ; garde-fous `check-class-budgets`,
+  `check-doc-figures`, `check-external-refs` verts).
+
+### 2. Compatibilité (l'application vient de 4.13.0)
+
+- **Aucune action obligatoire** — aucune API publique touchée : la
+  version entière vit dans le mini serveur LSP de la démo (moteurs
+  purs JVM `MiniJavaActions`, `MiniJavaSymboles`, `MiniJavaImports`).
+  Les ponts clients existaient déjà (`LspReferencesProvider`,
+  `LspRenameProvider`, popup de renommage, application des
+  WorkspaceEdit avec compensation du viewport).
+
+### 3. Changements de comportement notables
+
+- **Refactorings de sélection** (`codeAction`, genre
+  `refactor.rewrite`) : sélection de lignes complètes → six
+  enveloppements (`if`, `if/else`, `for`, `while`, `try/catch`,
+  `try/finally` — le corps est indenté d'un niveau) ; sélection
+  partielle → quatre enveloppes (`String.valueOf(…)`,
+  `Objects.requireNonNull(…)`, `Math.abs(…)`, parenthèses) et
+  trois casts (`(int)`, `(long)`, `(double)`). Le menu du client
+  les place APRÈS les corrections.
+- **Références et renommage** (`referencesProvider` +
+  `renameProvider` avec `prepareProvider`) : les usages du symbole
+  avec des PORTÉES honnêtes (locaux bornés à leur méthode, champs
+  masqués par leurs ombres, constantes qualifiées par leur enum) ;
+  le renommage d'un nom SURCHARGÉ ou ambigu entre enums est
+  REFUSÉ (le popup s'ouvre proprement refusé via prepareRename).
+- **Auto-import** (`codeAction`, quickfix) : le nom capitalisé du
+  caret résolu au CLASSPATH (le vrai FQN du runtime), pas encore
+  importé — l'édition insère la ligne d'import après la dernière
+  importation existante. L'insertion au-dessus du viewport est
+  COMPENSÉE par le mécanisme générique du client (4.5.0).
+
+### 4. Scénarios de vérification sur appareil
+
+- Onglet Java de l'atelier (moteur LSP connecté) : sélectionner les
+  deux lignes de `imprimer()` puis demander les actions →
+  « Entourer avec if (…) » et ses cinq sœurs ; le corps est
+  indenté, les mots-clés alignés sur la première ligne.
+- Sélectionner `horodatage + " " + h` puis actions → « Mettre
+  entre parenthèses », « Envelopper dans String.valueOf(…) »,
+  « Transtyper en int »…
+- Poser le caret sur `LocalDate` (sans import dans l'échantillon)
+  puis actions → « Importer java.time.LocalDate » : la ligne
+  s'insère en tête de fichier, l'écran ne saute pas (compensation
+  du viewport).
+- Caret sur `history` → rechercher les références : les usages dans
+  `add(…)`, `toString(…)` et `imprimer(…)`. Caret sur `add` →
+  renommer en `ajouter` : la déclaration et les appels suivent,
+  une seule étape d'annulation.
+- Renommer un paramètre `base` de `label(…)` : seules les
+  occurrences de `label` comptent — le même nom ailleurs ne bouge
+  pas.

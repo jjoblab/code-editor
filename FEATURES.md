@@ -391,10 +391,10 @@ parallèle.
 
 | Indicateur | Valeur |
 |------------|--------|
-| Fichiers source | 311 (`:cel-core` 88 · `:cel-lsp-api` 41 · `:cel-lsp` 45 · `:cel-ui` 102 · `:cel-textmate` 12 · `demo` 23) |
-| Fichiers de test | 373 |
-| Lignes de code (main) | ≈ 84 500 (bibliothèques ≈ 72 700 · démo ≈ 11 900) |
-| Tests unitaires | 3 075 (`:cel-core` 1 495 · `:cel-lsp-api` 32 · `:cel-lsp` 238 · `:cel-ui` 996 · `:cel-textmate` 96 · `demo` 218) |
+| Fichiers source | 314 (`:cel-core` 88 · `:cel-lsp-api` 41 · `:cel-lsp` 45 · `:cel-ui` 102 · `:cel-textmate` 12 · `demo` 26) |
+| Fichiers de test | 376 |
+| Lignes de code (main) | ≈ 86 000 (bibliothèques ≈ 72 700 · démo ≈ 13 300) |
+| Tests unitaires | 3 114 (`:cel-core` 1 495 · `:cel-lsp-api` 32 · `:cel-lsp` 238 · `:cel-ui` 996 · `:cel-textmate` 96 · `demo` 257) |
 | Langages colorés intégrés | 29 |
 | Tokéniseurs intégrés | 14 (+ utilitaires SpanUtils, KeywordTables) |
 | Grammaires embarquées | 23 (`:cel-textmate` : c, cpp, csharp, css, dockerfile, go, html, java, javascript, json, kotlin, lua, markdown, php, python, ruby, rust, shell, sql, toml, typescript, xml, yaml) |

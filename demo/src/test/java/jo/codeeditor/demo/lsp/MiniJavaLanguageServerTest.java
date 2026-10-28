@@ -2,6 +2,7 @@ package jo.codeeditor.demo.lsp;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import java.util.List;
@@ -19,6 +20,7 @@ import org.eclipse.lsp4j.PublishDiagnosticsParams;
 import org.eclipse.lsp4j.ShowMessageRequestParams;
 import org.eclipse.lsp4j.TextDocumentItem;
 import org.eclipse.lsp4j.VersionedTextDocumentIdentifier;
+import org.eclipse.lsp4j.jsonrpc.messages.Either;
 import org.eclipse.lsp4j.services.LanguageClient;
 import org.junit.Test;
 
@@ -388,11 +390,13 @@ public class MiniJavaLanguageServerTest {
         params.setRange(new org.eclipse.lsp4j.Range(
                 new org.eclipse.lsp4j.Position(3, 0),
                 new org.eclipse.lsp4j.Position(3, 33)));
-        List<org.eclipse.lsp4j.jsonrpc.messages.Either<
-                org.eclipse.lsp4j.Command, org.eclipse.lsp4j.CodeAction>> actions =
+        List<Either<org.eclipse.lsp4j.Command, org.eclipse.lsp4j.CodeAction>> actions =
                 server.getTextDocumentService().codeAction(params).get();
-        assertEquals("une action : le quickfix", 1, actions.size());
-        org.eclipse.lsp4j.CodeAction action = actions.get(0).getRight();
+        // 4.14.0 : la même plage porte AUSSI les refactorings de
+        // sélection — le QUICKFIX reste unique et en tête.
+        assertEquals("une action quickfix : implémenter", 1,
+                quickfixs(actions).size());
+        org.eclipse.lsp4j.CodeAction action = quickfixs(actions).get(0);
         assertNotNull(action);
         assertTrue(action.getTitle().contains("Implémenter les membres manquants"));
         assertEquals(org.eclipse.lsp4j.CodeActionKind.QuickFix, action.getKind());
@@ -436,15 +440,15 @@ public class MiniJavaLanguageServerTest {
         assertTrue("le diagnostic sémantique disparaît",
                 chercherCode(client.published.get(1).getDiagnostics(),
                         "unimplemented-members") == null);
-        // Et le quickfix ne se propose plus.
-        List<org.eclipse.lsp4j.jsonrpc.messages.Either<
-                org.eclipse.lsp4j.Command, org.eclipse.lsp4j.CodeAction>> vide =
+        // Et le quickfix ne se propose plus (les refactorings de
+        // sélection, eux, restent servis — 4.14.0).
+        List<Either<org.eclipse.lsp4j.Command, org.eclipse.lsp4j.CodeAction>> après =
                 server.getTextDocumentService().codeAction(params).get();
-        assertTrue(vide.isEmpty());
+        assertTrue(quickfixs(après).isEmpty());
     }
 
     @Test
-    public void codeAction_horsNomDeClasse_aucuneAction() throws Exception {
+    public void codeAction_horsNomDeClasse_aucunQuickfix() throws Exception {
         RecordingClient client = new RecordingClient();
         MiniJavaLanguageServer server = serveurConnecté(client);
         String code = "interface Véhicule {\n"
@@ -456,12 +460,30 @@ public class MiniJavaLanguageServerTest {
         org.eclipse.lsp4j.CodeActionParams params =
                 new org.eclipse.lsp4j.CodeActionParams();
         params.setTextDocument(new org.eclipse.lsp4j.TextDocumentIdentifier(URI));
-        // La plage vise l'INTERFACE, pas la classe incomplète.
+        // La plage vise l'INTERFACE, pas la classe incomplète — aucun
+        // quickfix sémantique (les refactorings de sélection restent
+        // servis : 4.14.0).
         params.setRange(new org.eclipse.lsp4j.Range(
                 new org.eclipse.lsp4j.Position(0, 0),
                 new org.eclipse.lsp4j.Position(0, 20)));
-        assertTrue(server.getTextDocumentService().codeAction(params).get()
-                .isEmpty());
+        assertTrue(quickfixs(server.getTextDocumentService()
+                .codeAction(params).get()).isEmpty());
+    }
+
+    /** Les actions de genre quickfix d'une réponse (les refactorings
+     *  et l'auto-import vivent à part). */
+    private static List<org.eclipse.lsp4j.CodeAction> quickfixs(
+            List<Either<org.eclipse.lsp4j.Command, org.eclipse.lsp4j.CodeAction>> actions) {
+        List<org.eclipse.lsp4j.CodeAction> out = new java.util.ArrayList<>();
+        for (Either<org.eclipse.lsp4j.Command, org.eclipse.lsp4j.CodeAction> e
+                : actions) {
+            if (e.isRight()
+                    && org.eclipse.lsp4j.CodeActionKind.QuickFix
+                            .equals(e.getRight().getKind())) {
+                out.add(e.getRight());
+            }
+        }
+        return out;
     }
 
     private static org.eclipse.lsp4j.CompletionParams paramsComplétion(
@@ -654,5 +676,193 @@ public class MiniJavaLanguageServerTest {
                 help.getSignatures().size() >= 2);
         assertTrue(help.getSignatures().get(0).getLabel()
                 .startsWith("parseInt("));
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    // 4.14.0 — Références, renommage, refactorings, auto-import
+    // ════════════════════════════════════════════════════════════════
+
+    @Test
+    public void initialize_annonceRéférencesEtRenommage() throws Exception {
+        RecordingClient client = new RecordingClient();
+        MiniJavaLanguageServer server = serveurConnecté(client);
+        org.eclipse.lsp4j.ServerCapabilities caps =
+                server.initialize(new InitializeParams()).get().getCapabilities();
+        assertNotNull("referencesProvider annoncé",
+                caps.getReferencesProvider());
+        assertNotNull("renameProvider annoncé", caps.getRenameProvider());
+        assertTrue("… avec prepareProvider",
+                caps.getRenameProvider().isRight());
+        assertEquals(Boolean.TRUE,
+                caps.getRenameProvider().getRight().getPrepareProvider());
+    }
+
+    @Test
+    public void references_serventLesAppelsSansLaDéclaration()
+            throws Exception {
+        RecordingClient client = new RecordingClient();
+        MiniJavaLanguageServer server = serveurConnecté(client);
+        String code = "class Atelier {\n"
+                + "    int calculer(int base) { return base; }\n"
+                + "    void t() { int x = calculer(2); }\n"
+                + "}\n";
+        didOpen(server, code);
+        List<? extends org.eclipse.lsp4j.Location> refs =
+                server.getTextDocumentService()
+                        .references(paramsRéférences(1, 9)).get();
+        assertEquals("l'appel, pas la déclaration", 1, refs.size());
+        assertEquals(2, refs.get(0).getRange().getStart().getLine());
+        assertTrue(refs.get(0).getUri().endsWith("Atelier.java"));
+    }
+
+    @Test
+    public void prepareRename_donneLePlaceholder() throws Exception {
+        RecordingClient client = new RecordingClient();
+        MiniJavaLanguageServer server = serveurConnecté(client);
+        String code = "class Atelier {\n"
+                + "    int calculer(int base) { return base; }\n"
+                + "}\n";
+        didOpen(server, code);
+        org.eclipse.lsp4j.jsonrpc.messages.Either3<
+                org.eclipse.lsp4j.Range, org.eclipse.lsp4j.PrepareRenameResult,
+                org.eclipse.lsp4j.PrepareRenameDefaultBehavior> préparation =
+                server.getTextDocumentService()
+                        .prepareRename(paramsRenommage(1, 9)).get();
+        assertNotNull(préparation);
+        assertTrue("placeholder servi", préparation.isSecond());
+        assertEquals("calculer", préparation.getSecond().getPlaceholder());
+    }
+
+    @Test
+    public void rename_remplaceDéclarationEtAppels() throws Exception {
+        RecordingClient client = new RecordingClient();
+        MiniJavaLanguageServer server = serveurConnecté(client);
+        String code = "class Atelier {\n"
+                + "    int calculer(int base) { return base; }\n"
+                + "    void t() { int x = calculer(2); }\n"
+                + "}\n";
+        didOpen(server, code);
+        org.eclipse.lsp4j.RenameParams params =
+                new org.eclipse.lsp4j.RenameParams();
+        params.setTextDocument(new org.eclipse.lsp4j.TextDocumentIdentifier(URI));
+        params.setPosition(new org.eclipse.lsp4j.Position(1, 9));
+        params.setNewName("évaluer");
+        org.eclipse.lsp4j.WorkspaceEdit édition = server.getTextDocumentService()
+                .rename(params).get();
+        assertNotNull(édition);
+        List<org.eclipse.lsp4j.TextEdit> éditions =
+                édition.getChanges().get(URI);
+        assertEquals("déclaration + appel", 2, éditions.size());
+        assertEquals("évaluer", éditions.get(0).getNewText());
+    }
+
+    @Test
+    public void rename_surchargé_refuseNet() throws Exception {
+        RecordingClient client = new RecordingClient();
+        MiniJavaLanguageServer server = serveurConnecté(client);
+        String code = "class Atelier {\n"
+                + "    int dessiner(int x) { return x; }\n"
+                + "    int dessiner(int x, int y) { return x + y; }\n"
+                + "}\n";
+        didOpen(server, code);
+        org.eclipse.lsp4j.RenameParams params =
+                new org.eclipse.lsp4j.RenameParams();
+        params.setTextDocument(new org.eclipse.lsp4j.TextDocumentIdentifier(URI));
+        params.setPosition(new org.eclipse.lsp4j.Position(1, 9));
+        params.setNewName("tracer");
+        assertNull("surchargé : AUCUNE édition",
+                server.getTextDocumentService().rename(params).get());
+    }
+
+    @Test
+    public void codeAction_sélectionMultiLignes_sertLesEnveloppements()
+            throws Exception {
+        RecordingClient client = new RecordingClient();
+        MiniJavaLanguageServer server = serveurConnecté(client);
+        String code = "class Atelier {\n"
+                + "    void t() {\n"
+                + "        int x = 1;\n"
+                + "        int y = 2;\n"
+                + "    }\n"
+                + "}\n";
+        didOpen(server, code);
+        // La sélection couvre les lignes 2-3 entières.
+        org.eclipse.lsp4j.CodeActionParams params =
+                new org.eclipse.lsp4j.CodeActionParams();
+        params.setTextDocument(new org.eclipse.lsp4j.TextDocumentIdentifier(URI));
+        params.setRange(new org.eclipse.lsp4j.Range(
+                new org.eclipse.lsp4j.Position(2, 8),
+                new org.eclipse.lsp4j.Position(3, 18)));
+        params.setContext(new org.eclipse.lsp4j.CodeActionContext());
+        List<Either<org.eclipse.lsp4j.Command, org.eclipse.lsp4j.CodeAction>> actions =
+                server.getTextDocumentService().codeAction(params).get();
+        assertTrue("les enveloppements sont servis",
+                actions.size() >= 6);
+        boolean avecSi = false;
+        for (Either<org.eclipse.lsp4j.Command, org.eclipse.lsp4j.CodeAction> e
+                : actions) {
+            if (e.isRight() && "Entourer avec if (…)"
+                    .equals(e.getRight().getTitle())) {
+                avecSi = true;
+            }
+        }
+        assertTrue(avecSi);
+    }
+
+    @Test
+    public void codeAction_nomClasspathNonImporté_sertLAutoImport()
+            throws Exception {
+        RecordingClient client = new RecordingClient();
+        MiniJavaLanguageServer server = serveurConnecté(client);
+        String code = "package demo;\n"
+                + "\n"
+                + "class Atelier {\n"
+                + "    void t() { LocalDate d = LocalDate.now(); }\n"
+                + "}\n";
+        didOpen(server, code);
+        org.eclipse.lsp4j.CodeActionParams params =
+                new org.eclipse.lsp4j.CodeActionParams();
+        params.setTextDocument(new org.eclipse.lsp4j.TextDocumentIdentifier(URI));
+        // Le mot sous le caret : « LocalDate » (ligne 3, colonne 17).
+        params.setRange(new org.eclipse.lsp4j.Range(
+                new org.eclipse.lsp4j.Position(3, 17),
+                new org.eclipse.lsp4j.Position(3, 26)));
+        params.setContext(new org.eclipse.lsp4j.CodeActionContext());
+        List<Either<org.eclipse.lsp4j.Command, org.eclipse.lsp4j.CodeAction>> actions =
+                server.getTextDocumentService().codeAction(params).get();
+        org.eclipse.lsp4j.CodeAction importation = null;
+        for (Either<org.eclipse.lsp4j.Command, org.eclipse.lsp4j.CodeAction> e
+                : actions) {
+            if (e.isRight() && e.getRight().getTitle()
+                    .equals("Importer java.time.LocalDate")) {
+                importation = e.getRight();
+            }
+        }
+        assertNotNull("l'auto-import est servi", importation);
+        org.eclipse.lsp4j.TextEdit édition =
+                importation.getEdit().getChanges().get(URI).get(0);
+        assertEquals("import java.time.LocalDate;\n", édition.getNewText());
+        // L'insertion suit le PAQUET (aucun import existant) : ligne 1.
+        assertEquals(1, édition.getRange().getStart().getLine());
+        assertEquals(0, édition.getRange().getStart().getCharacter());
+    }
+
+    private static org.eclipse.lsp4j.ReferenceParams paramsRéférences(
+            int ligne, int caractère) {
+        org.eclipse.lsp4j.ReferenceParams params =
+                new org.eclipse.lsp4j.ReferenceParams();
+        params.setTextDocument(new org.eclipse.lsp4j.TextDocumentIdentifier(URI));
+        params.setPosition(new org.eclipse.lsp4j.Position(ligne, caractère));
+        params.setContext(new org.eclipse.lsp4j.ReferenceContext(false));
+        return params;
+    }
+
+    private static org.eclipse.lsp4j.PrepareRenameParams paramsRenommage(
+            int ligne, int caractère) {
+        org.eclipse.lsp4j.PrepareRenameParams params =
+                new org.eclipse.lsp4j.PrepareRenameParams();
+        params.setTextDocument(new org.eclipse.lsp4j.TextDocumentIdentifier(URI));
+        params.setPosition(new org.eclipse.lsp4j.Position(ligne, caractère));
+        return params;
     }
 }

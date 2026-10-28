@@ -147,6 +147,17 @@ public class MiniJavaLanguageServer implements LanguageServer {
         // (le client demande la plage à l'écran — jamais tout le
         // document d'un coup).
         caps.setInlayHintProvider(Boolean.TRUE);
+        // 4.14.0 — les RÉFÉRENCES et le RENOMMAGE (MiniJavaSymboles) :
+        // les usages du symbole avec des PORTÉES honnêtes (locaux
+        // bornés à leur méthode, champs masqués par leurs ombres,
+        // constantes qualifiées), le renommage REFUSÉ en cas de
+        // surcharges ou d'ambiguïté — prepareProvider annoncé : le
+        // popup pré-valide AVANT d'ouvrir.
+        caps.setReferencesProvider(Boolean.TRUE);
+        org.eclipse.lsp4j.RenameOptions renommage =
+                new org.eclipse.lsp4j.RenameOptions();
+        renommage.setPrepareProvider(Boolean.TRUE);
+        caps.setRenameProvider(Either.forRight(renommage));
         return CompletableFuture.completedFuture(new InitializeResult(caps));
     }
 
@@ -331,6 +342,54 @@ public class MiniJavaLanguageServer implements LanguageServer {
                     action.setEdit(we);
                     out.add(Either.forRight(action));
                 }
+                // 4.14.0 — les REFACTORINGS de sélection (MiniJavaActions) :
+                // entourer les lignes complètes (if/for/while/try),
+                // envelopper et transtyper la sélection partielle —
+                // genre refactor.rewrite, l'édition vit dans l'action.
+                for (MiniJavaActions.Action a : MiniJavaActions.actions(
+                        text, plage[0], plage[1])) {
+                    org.eclipse.lsp4j.CodeAction action =
+                            new org.eclipse.lsp4j.CodeAction();
+                    action.setTitle(a.titre);
+                    action.setKind(a.genre);
+                    org.eclipse.lsp4j.TextEdit edit = new org.eclipse.lsp4j.TextEdit(
+                            new Range(offsetVersPosition(text, a.début),
+                                    offsetVersPosition(text, a.fin)),
+                            a.texte);
+                    org.eclipse.lsp4j.WorkspaceEdit we =
+                            new org.eclipse.lsp4j.WorkspaceEdit(
+                                    java.util.Collections.singletonMap(
+                                            params.getTextDocument().getUri(),
+                                            java.util.Collections.singletonList(edit)));
+                    action.setEdit(we);
+                    out.add(Either.forRight(action));
+                }
+                // 4.14.0 — l'AUTO-IMPORT (MiniJavaImports) : le nom
+                // simple capitalisé sous le caret, résolu au classpath,
+                // pas encore importé — l'insertion vit en tête de
+                // fichier, AU-DESSUS du viewport : le client compense
+                // le défilement (lignes insérées comptées).
+                MiniJavaImports.Importation importation = MiniJavaImports
+                        .importation(text, positionVersOffset(text,
+                                params.getRange().getStart()));
+                if (importation != null) {
+                    org.eclipse.lsp4j.CodeAction action =
+                            new org.eclipse.lsp4j.CodeAction();
+                    action.setTitle("Importer " + importation.fqn);
+                    action.setKind(org.eclipse.lsp4j.CodeActionKind.QuickFix);
+                    org.eclipse.lsp4j.TextEdit edit = new org.eclipse.lsp4j.TextEdit(
+                            new Range(
+                                    offsetVersPosition(text, importation.insertion),
+                                    offsetVersPosition(text, importation.insertion)),
+                            importation.ligne);
+                    org.eclipse.lsp4j.WorkspaceEdit we =
+                            new org.eclipse.lsp4j.WorkspaceEdit(
+                                    java.util.Collections.singletonMap(
+                                            params.getTextDocument().getUri(),
+                                            java.util.Collections.singletonList(edit)));
+                    action.setEdit(we);
+                    out.add(Either.forRight(action));
+                }
                 return CompletableFuture.completedFuture(out);
             }
 
@@ -399,6 +458,102 @@ public class MiniJavaLanguageServer implements LanguageServer {
                     out.add(hint);
                 }
                 return CompletableFuture.completedFuture(out);
+            }
+
+            // ── Références et renommage (4.14.0) ──────────────
+
+            /**
+             * Les RÉFÉRENCES du symbole sous le caret — les USAGES,
+             * la déclaration exclue (le contrat du client,
+             * {@code includeDeclaration = false} : la déclaration est
+             * le travail du go-to-definition). Les portées sont
+             * honnêtes : un local ne compte que dans SA méthode.
+             */
+            @Override
+            public CompletableFuture<List<? extends org.eclipse.lsp4j.Location>> references(
+                    org.eclipse.lsp4j.ReferenceParams params) {
+                List<org.eclipse.lsp4j.Location> out = new ArrayList<>();
+                String text = openDocuments.get(
+                        params.getTextDocument().getUri());
+                if (text == null) {
+                    return CompletableFuture.completedFuture(out);
+                }
+                int caret = positionVersOffset(text, params.getPosition());
+                for (int[] occurrence : MiniJavaSymboles.références(text, caret)) {
+                    out.add(new org.eclipse.lsp4j.Location(
+                            params.getTextDocument().getUri(),
+                            new Range(offsetVersPosition(text, occurrence[0]),
+                                    offsetVersPosition(text, occurrence[1]))));
+                }
+                return CompletableFuture.completedFuture(out);
+            }
+
+            /**
+             * La PRÉ-VALIDATION du renommage : la plage du mot et son
+             * nom comme placeholder du popup. Null quand le symbole
+             * n'est pas renommable — le popup refuse proprement à
+             * l'ouverture, sans requête de renommage inutile.
+             */
+            @Override
+            public CompletableFuture<org.eclipse.lsp4j.jsonrpc.messages.Either3<
+                    org.eclipse.lsp4j.Range, org.eclipse.lsp4j.PrepareRenameResult,
+                    org.eclipse.lsp4j.PrepareRenameDefaultBehavior>> prepareRename(
+                    org.eclipse.lsp4j.PrepareRenameParams params) {
+                String text = openDocuments.get(
+                        params.getTextDocument().getUri());
+                if (text == null) {
+                    return CompletableFuture.completedFuture(null);
+                }
+                int caret = positionVersOffset(text, params.getPosition());
+                int[] mot = MiniJavaSymboles.préparation(text, caret);
+                if (mot == null) {
+                    return CompletableFuture.completedFuture(null);
+                }
+                org.eclipse.lsp4j.PrepareRenameResult résultat =
+                        new org.eclipse.lsp4j.PrepareRenameResult(
+                                new Range(offsetVersPosition(text, mot[0]),
+                                        offsetVersPosition(text, mot[1])),
+                                text.substring(mot[0], mot[1]));
+                return CompletableFuture.completedFuture(
+                        org.eclipse.lsp4j.jsonrpc.messages.Either3
+                                .forSecond(résultat));
+            }
+
+            /**
+             * Le RENOMMAGE : toutes les occurrences — déclaration ET
+             * usages — remplacées en une seule édition groupée (un
+             * groupe d'annulation côté client). Null quand le symbole
+             * n'est pas renommable (introuvable, surchargé, ambigu) :
+             * le popup n'applique RIEN plutôt que de corriger mal.
+             */
+            @Override
+            public CompletableFuture<org.eclipse.lsp4j.WorkspaceEdit> rename(
+                    org.eclipse.lsp4j.RenameParams params) {
+                String text = openDocuments.get(
+                        params.getTextDocument().getUri());
+                if (text == null) {
+                    return CompletableFuture.completedFuture(null);
+                }
+                int caret = positionVersOffset(text, params.getPosition());
+                List<int[]> occurrences = MiniJavaSymboles.occurrencesDuRenommage(
+                        text, caret);
+                if (occurrences == null || occurrences.isEmpty()) {
+                    return CompletableFuture.completedFuture(null);
+                }
+                List<org.eclipse.lsp4j.TextEdit> éditions = new ArrayList<>();
+                for (int[] occurrence : occurrences) {
+                    éditions.add(new org.eclipse.lsp4j.TextEdit(
+                            new Range(
+                                    offsetVersPosition(text, occurrence[0]),
+                                    offsetVersPosition(text, occurrence[1])),
+                            params.getNewName()));
+                }
+                org.eclipse.lsp4j.WorkspaceEdit édition =
+                        new org.eclipse.lsp4j.WorkspaceEdit(
+                                java.util.Collections.singletonMap(
+                                        params.getTextDocument().getUri(),
+                                        éditions));
+                return CompletableFuture.completedFuture(édition);
             }
 
             @Override
