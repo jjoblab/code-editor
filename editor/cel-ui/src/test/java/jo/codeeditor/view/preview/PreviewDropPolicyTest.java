@@ -60,10 +60,11 @@ public class PreviewDropPolicyTest {
         + "</LinearLayout>\n";
 
     /** Document du scénario voile — miroir de PreviewDropVeilTest
-     *  (token ligne 0, caret descendu ligne 1 : la complétion vit HAUT,
-     *  le croisement avec la carte compactée est significatif). */
+     *  (token ligne 0 col 2 — 4.9.1, voir la justification là-bas —, caret
+     *  descendu ligne 1 : la complétion vit HAUT dans la colonne de la
+     *  carte, le croisement avec la carte compactée est significatif). */
     private static final String DOC_VOILE =
-        "            fffffff\n"  // 0 : 12 espaces + token col 12
+        "  ffffffff\n"          // 0 : 2 espaces + token col 2
         + "    <Button />\n"   // 1 : cible du caret
         + "</LinearLayout>\n";
 
@@ -118,7 +119,7 @@ public class PreviewDropPolicyTest {
             items.add(new CompletionSession.Item("f" + i, "variable",
                     "f" + i, "v", 0, 0, false, false));
         }
-        view.setCompletionItems(items, 12, "f");
+        view.setCompletionItems(items, 2, "f");
         assertTrue(view.isCompletionVisible());
         return view;
     }
@@ -269,7 +270,9 @@ public class PreviewDropPolicyTest {
         EditorView view = scenarioTaps();
         view.setPreviewDropPolicy(EditorView.PreviewDropPolicy.VARIANT_B);
 
-        tap(view, 150f, 425f);
+        // 4.9.1 : rangée 7 (y=500) — la carte compactée [422,6, 614] ne
+        // recouvre plus que les rangées 5–7 du popup 40 dp.
+        tap(view, 150f, 500f);
 
         assertFalse("la complétion gagne le tap (elle est au-dessus)",
                 view.isCompletionVisible());

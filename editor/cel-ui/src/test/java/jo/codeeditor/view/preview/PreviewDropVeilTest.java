@@ -52,9 +52,15 @@ import static org.junit.Assert.assertTrue;
 @RunWith(RobolectricTestRunner.class)
 public class PreviewDropVeilTest {
 
+    /** 4.9.1 : token en col 2. Aux rangées 40 dp, le popup s'étend et
+     *  la carte compactée fuit dans le creux du HAUT — token col 12, elle
+     *  n'y recouvrait plus que ~7 % de la complétion (sous le seuil de
+     *  voile, bande d'hystérésis stable) ; ancré dans la colonne de la
+     *  carte, le recouvrement redevient inévitable (~15 %) et le voile
+     *  s'engage. */
     private static final String DOC =
-        "            ffffffff\n"   // 0 : 12 espaces + token col 12
-        + "    <Button />\n"      // 1 : cible du caret
+        "  ffffffff\n"         // 0 : 2 espaces + token col 2
+        + "    <Button />\n"   // 1 : cible du caret
         + "</LinearLayout>\n";
 
     /** Hôte « goutte d'eau » minimal (prévisualise .xml, 2 onglets). */
@@ -107,14 +113,14 @@ public class PreviewDropVeilTest {
         view.getSession().setSelection(DOC.indexOf("<Button"));
     }
 
-    /** 8 items de complétion ancrés au token de la ligne 0 (col 12). */
+    /** 8 items de complétion ancrés au token de la ligne 0 (col 2). */
     private void showCompletion(EditorView view) {
         List<CompletionSession.Item> items = new ArrayList<>();
         for (int i = 0; i < 8; i++) {
             items.add(new CompletionSession.Item("f" + i, "variable",
                     "f" + i, "v", 0, 0, false, false));
         }
-        view.setCompletionItems(items, 12, "f");
+        view.setCompletionItems(items, 2, "f");
         assertTrue(view.isCompletionVisible());
     }
 
@@ -195,9 +201,9 @@ public class PreviewDropVeilTest {
 
     @Test
     public void complétionNonEsquivable_carteVoiléePuisDévoilée() {
-        // Petit écran (640×385), complétion vivante au milieu : aucun
-        // creux, pas de latéral — la carte se voile. La complétion
-        // refermée : la carte redevient opaque.
+        // Petit écran (640×385), complétion vivante dans la colonne de
+        // la carte : aucun creux, pas de latéral — la carte se voile. La
+        // complétion refermée : la carte redevient opaque.
         EditorView view = newView(640, 385, 60f, 6f);
         openCardCaretLine1(view);
         showCompletion(view);

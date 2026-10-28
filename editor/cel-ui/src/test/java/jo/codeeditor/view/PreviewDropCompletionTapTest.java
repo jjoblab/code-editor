@@ -97,11 +97,22 @@ public class PreviewDropCompletionTapTest {
     /**
      * Carte ouverte ancrée ligne 0, caret ligne 1 (fin du token),
      * complétion vivante (8 items ancrés au token ligne 1) — la carte
-     * compactée sous le bloc fusionné recouvre la dernière bande de
-     * rangées de complétion (intersection x [125, 178.6] × y [422.6,
-     * 428] — carte 330 dp, marges resserrées retour terrain).
+     * compactée sous le bloc fusionné recouvre les DERNIÈRES rangées de
+     * complétion (intersection x [125, 178.6] × y [422.6, 524] — carte
+     * 330 dp, marges resserrées retour terrain ; 4.9.1 : rangées 40 dp,
+     * le popup s'étend jusqu'à y=524).
      */
     private EditorView scenarioCarteSurComplétion() {
+        return scenarioCarteSurComplétion(8);
+    }
+
+    /**
+     * Variante paramétrée : 4.9.1 — 8 items étendent le popup 40 dp
+     * (8 rangées) jusqu'à y=524 et recouvrent le ✕ de la carte
+     * compactée ; 5 items (200 px) s'arrêtent AU-DESSUS de la carte et
+     * gardent le ✕ tapable.
+     */
+    private EditorView scenarioCarteSurComplétion(int itemCount) {
         EditorView view = newView();
         view.getSession().setSelection(0);
         view.openPreview(false);
@@ -110,7 +121,7 @@ public class PreviewDropCompletionTapTest {
         int tokenStart = DOC.indexOf("fffffff");
         view.getSession().setSelection(tokenStart + 7); // fin du token
         List<CompletionSession.Item> items = new ArrayList<>();
-        for (int i = 0; i < 8; i++) {
+        for (int i = 0; i < itemCount; i++) {
             items.add(new CompletionSession.Item("f" + i, "variable",
                     "f" + i, "v", 0, 0, false, false));
         }
@@ -145,11 +156,12 @@ public class PreviewDropCompletionTapTest {
         // Pré-condition : le point est DANS la carte ET dans une rangée
         // de complétion (le chevauchement existe vraiment — c'est le
         // retour terrain). Avant le correctif, hitTestDrop engloutissait
-        // ce tap : rien ne se passait.
+        // ce tap : rien ne se passait. (4.9.1 : rangée 7 — la carte ne
+        // recouvre plus que les rangées 5–7 du popup 40 dp.)
         assertTrue("pré-condition : le tap tombe dans la carte",
-                view.preview.hitTestDrop(150f, 425f));
+                view.preview.hitTestDrop(150f, 500f));
 
-        tap(view, 150f, 425f);
+        tap(view, 150f, 500f);
 
         assertFalse("la complétion est consommée (acceptée), pas ignorée",
                 view.isCompletionVisible());
@@ -183,7 +195,11 @@ public class PreviewDropCompletionTapTest {
 
     @Test
     public void tapSurLaFermeture_laCarteSeReferme() {
-        EditorView view = scenarioCarteSurComplétion();
+        // 4.9.1 : complétion de 5 items — le popup 40 dp à 8 rangées
+        // recouvrirait le ✕ (la complétion gagnerait le tap) ; à 5
+        // rangées (200 px) il s'arrête au-dessus de la carte compactée
+        // et le ✕ redevient tapable.
+        EditorView view = scenarioCarteSurComplétion(5);
 
         // Le ✕ vit en haut-droite locale de la carte compactée —
         // (170, 430) tombe dedans, hors des rangées de complétion.

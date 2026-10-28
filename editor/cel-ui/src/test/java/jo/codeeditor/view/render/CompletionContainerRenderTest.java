@@ -20,11 +20,11 @@ import static org.junit.Assert.*;
 
 /**
  * Rendu du popup avec les champs riches (4.3.0) : origine du symbole
- * ({@code container} alignée à droite, tronquée proprement à l'ellipse
- * au-delà de 40 % de la largeur) et documentation transportée — sans
- * empiéter sur le libellé ni déplacer le detail. Smoke tests sur un
- * Canvas réel : la chaîne complète ne doit jamais planter, quel que
- * soit le remplissage.
+ * ({@code container} en chip à droite de la ligne du libellé, tronquée
+ * proprement à l'ellipse au-delà de 40 % de la largeur) et documentation
+ * transportée — sans empiéter sur le libellé ni rétrécir la seconde
+ * ligne. Smoke tests sur un Canvas réel : la chaîne complète ne doit
+ * jamais planter, quel que soit le remplissage.
  */
 @RunWith(RobolectricTestRunner.class)
 public class CompletionContainerRenderTest {
@@ -85,10 +85,9 @@ public class CompletionContainerRenderTest {
     }
 
     @Test
-    public void dessine_sansContainer_dispositionHistorique() {
-        // container absent (tous les serveurs d'aujourd'hui) : la
-        // disposition reste exactement celle d'avant — badge, label,
-        // detail à droite.
+    public void dessine_sansContainer_dispositionDeuxLignes() {
+        // container absent (tous les serveurs d'aujourd'hui) : badge,
+        // label, et l'identité qualifiée sous le libellé.
         CompletionSession.Item item = new CompletionSession.Item(
                 "obj", "java.lang.Object", "obj", "v", 6, 10, false, false);
         drawPopup(viewWithItem(item)); // ne doit pas jeter

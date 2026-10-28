@@ -23,8 +23,9 @@ import static org.junit.Assert.*;
 /**
  * Smoke tests du RENDU du popup de complétion avec badges de type : la
  * chaîne complète — badge (glyphe + teinte), label avec runs de match du
- * préfixe, detail aligné à droite — ne doit pas planter sur un Canvas réel,
- * quel que soit le kind (LSP moderne, tag data, ou provider sans kind).
+ * préfixe, identité qualifiée SOUS le libellé — ne doit pas planter sur
+ * un Canvas réel, quel que soit le kind (LSP moderne, tag data, ou
+ * provider sans kind).
  *
  * @author jo@Dev
  */

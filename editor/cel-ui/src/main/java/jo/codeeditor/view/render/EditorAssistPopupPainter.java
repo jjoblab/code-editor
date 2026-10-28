@@ -20,7 +20,8 @@ import java.util.List;
 
 /**
  * Popups d'assistance flottants de l'éditeur : popup de complétion
- * (liste + badges de type + runs de match), popup d'aide de signature
+ * (liste + badges de type + runs de match, rangées deux lignes —
+ * l'identité qualifiée sous le nom), popup d'aide de signature
  * (surcharges + documentation de la signature active), popup de
  * documentation rapide (quick doc), ampoules de code actions dans la
  * bande de plis + leur popup, et popup d'aller-au-symbole.
@@ -1005,8 +1006,8 @@ public class EditorAssistPopupPainter {
      * « M » pour une méthode, « F » bleu pour un champ, « v » pour une
      * variable, « p » gris pour un package, « @ » pour une annotation…
      * Les caractères du label qui matchent le préfixe tapé sont mis en
-     * valeur (accent + gras), le detail (signature/package) passe aligné
-     * à droite.</p>
+     * valeur (accent + gras), l'identité qualifiée (signature, FQCN)
+     * passe SOUS le libellé, seconde ligne atténuée.</p>
      */
     void drawCompletionPopup(Canvas canvas) {
         if (!view.completion.visible || view.completion.items.isEmpty()) return;
@@ -1108,11 +1109,85 @@ public class EditorAssistPopupPainter {
         canvas.restore();
     }
 
+    // ── Layout d'une rangée de complétion (4.9.1) ─────────────────
+    // Rangée DEUX lignes : le libellé (runs de match en accent) sur
+    // la première ligne, l'identité qualifiée — FQCN d'un type,
+    // signature d'un membre — SOUS le libellé, en atténué, sur toute
+    // la largeur restante. L'origine (container) reste un chip à
+    // droite de la première ligne : le nom court vit à côté du chip,
+    // le nom long vit dessous — jamais l'un contre l'autre sur la
+    // même ligne. Calcul PUR (aucune mesure de paint n'y vit — les
+    // largeurs mesurées entrent en paramètre) : la géométrie se
+    // vérifie sans Canvas (CompletionRowLayoutTest).
+    /** Indices du tableau de layout rempli par computeCompletionRowLayout. */
+    static final int CR_BADGE_SIZE = 0, CR_BADGE_LEFT = 1, CR_BADGE_TOP = 2,
+            CR_LABEL_X = 3, CR_LABEL_BASE = 4, CR_LABEL_MAX_RIGHT = 5,
+            CR_CONTAINER_LEFT = 6, CR_CONTAINER_RIGHT = 7, CR_CONTAINER_BASE = 8,
+            CR_DETAIL_X = 9, CR_DETAIL_BASE = 10, CR_DETAIL_MAX_RIGHT = 11,
+            CR_GLYPH_CX = 12, CR_GLYPH_CY = 13, CR_GLYPH_SIZE = 14;
+    /** Badge au plus 20 dp (la rangée deux lignes en fait 40). */
+    static final float COMPLETION_BADGE_MAX_DP = 20f;
+    /** Glyphe ⓘ au plus 16 dp, et sa réserve en fin de première ligne. */
+    static final float COMPLETION_GLYPH_MAX_DP = 16f;
+    static final float COMPLETION_GLYPH_RESERVE_DP = 18f;
+    /** Tableau de layout de rangée réutilisé (mono-thread, onDraw). */
+    private final float[] completionRowScratch = new float[15];
+
     /**
-     * ★ Une ligne du popup : badge de type (carré arrondi teinté +
-     * glyphe) puis label (caractères matchés du préfixe en accent/gras) et
-     * detail aligné à droite (signature, package). Le label est clippé à
-     * la zone restante pour ne jamais recouvrir le detail.
+     * Calcule la géométrie d'une rangée du popup de complétion :
+     * positions et baselines des deux lignes, zone du badge, chip
+     * d'origine et réserve du glyphe ⓘ. Toutes les entrées sont des
+     * grandeurs déjà résolues (densité, hauteur de rangée, largeur
+     * MESURÉE du container) : la méthode est pure, remplissant le
+     * tableau fourni — aucun Canvas, aucune mesure, testable seule.
+     */
+    static void computeCompletionRowLayout(float[] m, float anchorX, float y,
+                                           float width, float rowH, float padX,
+                                           float density, float containerW,
+                                           boolean docGlyph) {
+        // Badge — plafonné, centré sur la rangée entière.
+        m[CR_BADGE_SIZE] = Math.min(rowH - 10 * density,
+                COMPLETION_BADGE_MAX_DP * density);
+        m[CR_BADGE_LEFT] = anchorX + padX;
+        m[CR_BADGE_TOP] = y + (rowH - m[CR_BADGE_SIZE]) * 0.5f;
+        // Première ligne : libellé, chip d'origine à droite.
+        m[CR_LABEL_X] = m[CR_BADGE_LEFT] + m[CR_BADGE_SIZE] + 6 * density;
+        m[CR_LABEL_BASE] = y + rowH * 0.45f;
+        m[CR_CONTAINER_RIGHT] = anchorX + width - padX;
+        m[CR_CONTAINER_LEFT] = containerW > 0f
+                ? m[CR_CONTAINER_RIGHT] - containerW
+                : m[CR_CONTAINER_RIGHT];
+        m[CR_CONTAINER_BASE] = m[CR_LABEL_BASE];
+        // Le libellé cède au chip ; sans chip, au glyphe s'il est
+        // montré (le glyphe ne vit qu'avec le container absent).
+        if (containerW > 0f) {
+            m[CR_LABEL_MAX_RIGHT] = m[CR_CONTAINER_LEFT] - 8 * density;
+        } else if (docGlyph) {
+            m[CR_LABEL_MAX_RIGHT] = m[CR_CONTAINER_RIGHT]
+                    - COMPLETION_GLYPH_RESERVE_DP * density;
+        } else {
+            m[CR_LABEL_MAX_RIGHT] = m[CR_CONTAINER_RIGHT];
+        }
+        // Seconde ligne : identité qualifiée sous le libellé, même
+        // colonne, toute la largeur jusqu'au bord.
+        m[CR_DETAIL_X] = m[CR_LABEL_X];
+        m[CR_DETAIL_BASE] = y + rowH * 0.85f;
+        m[CR_DETAIL_MAX_RIGHT] = m[CR_CONTAINER_RIGHT];
+        // Glyphe ⓘ — centré sur la première ligne, dans sa réserve.
+        m[CR_GLYPH_SIZE] = Math.min(rowH - 14 * density,
+                COMPLETION_GLYPH_MAX_DP * density);
+        m[CR_GLYPH_CX] = m[CR_CONTAINER_RIGHT] - m[CR_GLYPH_SIZE] * 0.5f - 2 * density;
+        m[CR_GLYPH_CY] = y + rowH * 0.33f;
+    }
+
+    /**
+     * ★ Une rangée du popup, DEUX lignes : badge de type (carré
+     * arrondi teinté + glyphe) puis le libellé — caractères matchés
+     * du préfixe en accent/gras — sur la première ligne, l'origine du
+     * symbole (container) en chip à droite de cette ligne, et
+     * l'identité qualifiée (FQCN d'un type, signature d'un membre)
+     * SOUS le libellé, en atténué, sur toute la largeur restante. Le
+     * nom court et le nom long ne se disputent plus la même ligne.
      *
      * <p>★ 4.4.0 : quand le panneau de documentation est masqué (vue
      * étroite) et que l'item PORTE une documentation, un petit glyphe
@@ -1128,14 +1203,28 @@ public class EditorAssistPopupPainter {
         boolean docGlyph = !panelShown && item.documentation != null
                 && !item.documentation.isEmpty();
 
-        // ── Badge de type ──
+        // ── Mesures préalables : le chip d'origine est ellipsé AVANT
+        // le layout — sa largeur mesurée entre dans le calcul des
+        // zones (paint partagé : taille posée puis restaurée). ──
+        String container = (item.container != null) ? item.container : "";
+        float containerW = 0f;
+        if (!container.isEmpty()) {
+            view.textPaint.setTextSize(view.metrics.getTextSize() * 0.7f);
+            container = ellipsizeTail(container, width * 0.4f);
+            containerW = view.textPaint.measureText(container);
+        }
+        float[] m = completionRowScratch;
+        computeCompletionRowLayout(m, anchorX, y, width, rowH, padX,
+                density, containerW, docGlyph);
+
+        // ── Badge de type (plafonné, centré sur la rangée) ──
         jo.codeeditor.completion.CompletionKindBadge.Meta badge =
                 jo.codeeditor.completion.CompletionKindBadge.meta(
                         item.kind, item.kindTag, item.icon, darkTheme,
                         view.theme.func);
-        float badgeSize = rowH - 10 * density;   // rangée 28 dp → badge 18 dp
-        float badgeLeft = anchorX + padX;
-        float badgeTop = y + (rowH - badgeSize) * 0.5f;
+        float badgeSize = m[CR_BADGE_SIZE];
+        float badgeLeft = m[CR_BADGE_LEFT];
+        float badgeTop = m[CR_BADGE_TOP];
         RectF badgeRect = scratchRect;
         badgeRect.set(badgeLeft, badgeTop, badgeLeft + badgeSize,
                 badgeTop + badgeSize);
@@ -1160,124 +1249,91 @@ public class EditorAssistPopupPainter {
         view.textPaint.setFakeBoldText(false);
         view.textPaint.setTextSize(view.metrics.getTextSize() * 0.9f);
 
-        // ── Zone droite : container (origine du symbole, 4.3.0) puis
-        // detail — mesurés AVANT la zone label ──
-        // Le container vit à l'extrême droite, tronqué proprement (40 %
-        // de la largeur du popup au plus) ; le detail garde sa place à
-        // gauche — sans container, la disposition est exactement celle
-        // d'avant. Toutes les mesures sont en dp converties via la
-        // densité, jamais de largeur codée en pixels.
-        String detail = (item.detail != null) ? item.detail : "";
-        view.textPaint.setTextSize(view.metrics.getTextSize() * 0.75f);
-        float detailW = detail.isEmpty() ? 0f : view.textPaint.measureText(detail);
-        String container = (item.container != null) ? item.container : "";
-        view.textPaint.setTextSize(view.metrics.getTextSize() * 0.7f);
-        if (!container.isEmpty()) {
-            container = ellipsizeTail(container, width * 0.4f);
-        }
-        float containerW = container.isEmpty() ? 0f : view.textPaint.measureText(container);
-        float containerRight = anchorX + width - padX;
-        float containerLeft = container.isEmpty() ? containerRight : containerRight - containerW;
-        float detailRight = container.isEmpty() ? containerRight : containerLeft - 6 * density;
-        float detailLeft = detail.isEmpty() ? detailRight : detailRight - detailW;
-        // Taille historique du libellé (celle du detail — la mesure du
-        // container l'avait abaissée).
-        view.textPaint.setTextSize(view.metrics.getTextSize() * 0.75f);
+        // ── Libellé (première ligne) : caractères matchés au préfixe en
+        // accent + gras, clippés à sa zone — le chip d'origine et la
+        // réserve du glyphe ne sont jamais recouverts. Popup trop
+        // étroit pour le nom : badge, chip et seconde ligne seuls. ──
+        float textX = m[CR_LABEL_X];
+        float labelMaxRight = m[CR_LABEL_MAX_RIGHT];
+        if (labelMaxRight > textX) {
+            String prefix = view.completion.prefix != null ? view.completion.prefix : "";
+            // La surbrillance s'appuie sur le MÊME texte de référence que
+            // celui qui a fait matcher le candidat (identifiant de tête ou
+            // filterText) — jamais une parenthèse de signature, jamais une
+            // lettre prise au fil d'un parcours glouton détaché du filtre.
+            java.util.List<Integer> matched = (prefix.isEmpty())
+                    ? java.util.Collections.emptyList()
+                    : jo.codeeditor.completion.CompletionMatcher.matchPositionsForItem(
+                            label, item.filterText, prefix);
 
-        // ── Label : caractères matchés au préfixe en accent + gras ──
-        float textX = badgeLeft + badgeSize + 6 * density;
-        float labelMaxRight = detail.isEmpty()
-                ? (container.isEmpty()
-                        ? (anchorX + width - padX)
-                        : (containerLeft - 6 * density))
-                : (detailLeft - 8 * density);
-        if (labelMaxRight <= textX) {
-            // Aucune place pour le label (popup trop étroit) — badge +
-            // zone droite seuls.
-            if (!detail.isEmpty()) {
-                view.textPaint.setTextSize(view.metrics.getTextSize() * 0.75f);
-                view.textPaint.setColor(view.theme.gutterText);
-                canvas.drawText(detail, detailLeft, y + rowH * 0.7f, view.textPaint);
-            }
-            if (!container.isEmpty()) {
-                view.textPaint.setTextSize(view.metrics.getTextSize() * 0.7f);
-                view.textPaint.setColor(view.theme.gutterText);
-                canvas.drawText(container, containerLeft, y + rowH * 0.7f, view.textPaint);
-            } else if (docGlyph) {
-                drawCompletionDocGlyph(canvas, anchorX + width - padX, y, rowH, density);
-            }
-            view.textPaint.setTextSize(view.metrics.getTextSize() * 0.9f);
-            return;
-        }
-
-        String prefix = view.completion.prefix != null ? view.completion.prefix : "";
-        // La surbrillance s'appuie sur le MÊME texte de référence que
-        // celui qui a fait matcher le candidat (identifiant de tête ou
-        // filterText) — jamais une parenthèse de signature, jamais une
-        // lettre prise au fil d'un parcours glouton détaché du filtre.
-        java.util.List<Integer> matched = (prefix.isEmpty())
-                ? java.util.Collections.emptyList()
-                : jo.codeeditor.completion.CompletionMatcher.matchPositionsForItem(
-                        label, item.filterText, prefix);
-
-        canvas.save();
-        canvas.clipRect(textX, y, labelMaxRight, y + rowH);
-        if (matched.isEmpty()) {
-            view.textPaint.setColor(view.theme.keyword);
-            canvas.drawText(label, textX, y + rowH * 0.7f, view.textPaint);
-        } else {
-            // Runs contigus : matché (accent + gras) / non-matché (normal).
-            float x = textX;
-            int n = label.length();
-            int k = 0;
-            while (k < n) {
-                boolean isMatch = matched.contains(k);
-                int runEnd = k;
-                while (runEnd + 1 < n
-                        && matched.contains(runEnd + 1) == isMatch) {
-                    runEnd++;
+            canvas.save();
+            canvas.clipRect(textX, y, labelMaxRight, y + rowH);
+            if (matched.isEmpty()) {
+                view.textPaint.setColor(view.theme.keyword);
+                canvas.drawText(label, textX, m[CR_LABEL_BASE], view.textPaint);
+            } else {
+                // Runs contigus : matché (accent + gras) / non-matché (normal).
+                float x = textX;
+                int n = label.length();
+                int k = 0;
+                while (k < n) {
+                    boolean isMatch = matched.contains(k);
+                    int runEnd = k;
+                    while (runEnd + 1 < n
+                            && matched.contains(runEnd + 1) == isMatch) {
+                        runEnd++;
+                    }
+                    String seg = label.substring(k, runEnd + 1);
+                    view.textPaint.setColor(isMatch ? view.theme.func : view.theme.keyword);
+                    view.textPaint.setFakeBoldText(isMatch);
+                    canvas.drawText(seg, x, m[CR_LABEL_BASE], view.textPaint);
+                    view.textPaint.setFakeBoldText(false);
+                    x += view.textPaint.measureText(seg);
+                    k = runEnd + 1;
                 }
-                String seg = label.substring(k, runEnd + 1);
-                view.textPaint.setColor(isMatch ? view.theme.func : view.theme.keyword);
-                view.textPaint.setFakeBoldText(isMatch);
-                canvas.drawText(seg, x, y + rowH * 0.7f, view.textPaint);
-                view.textPaint.setFakeBoldText(false);
-                x += view.textPaint.measureText(seg);
-                k = runEnd + 1;
             }
+            canvas.restore();
         }
-        canvas.restore();
 
-        // ── Zone droite (couleur atténuée) : detail puis container ──
-        if (!detail.isEmpty()) {
-            view.textPaint.setTextSize(view.metrics.getTextSize() * 0.75f);
-            view.textPaint.setColor(view.theme.gutterText);
-            canvas.drawText(detail, detailLeft, y + rowH * 0.7f, view.textPaint);
-        }
+        // ── Chip d'origine à droite de la ligne du libellé — sinon
+        // glyphe ⓘ de documentation (le glyphe ne vit qu'avec le
+        // container absent) ──
         if (!container.isEmpty()) {
             view.textPaint.setTextSize(view.metrics.getTextSize() * 0.7f);
             view.textPaint.setColor(view.theme.gutterText);
-            canvas.drawText(container, containerLeft, y + rowH * 0.7f, view.textPaint);
+            canvas.drawText(container, m[CR_CONTAINER_LEFT],
+                    m[CR_CONTAINER_BASE], view.textPaint);
         } else if (docGlyph) {
             // 4.4.0 : la documentation se réduit à une icône quand le
             // panneau ne tient pas (vue étroite) et que le container
             // laisse la place libre.
-            drawCompletionDocGlyph(canvas, containerRight, y, rowH, density);
+            drawCompletionDocGlyph(canvas, m[CR_GLYPH_CX], m[CR_GLYPH_CY],
+                    m[CR_GLYPH_SIZE]);
+        }
+
+        // ── Identité qualifiée (seconde ligne) SOUS le libellé : FQCN
+        // d'un type, signature d'un membre — atténuée, ellipsée à la
+        // largeur restante. Le nom court et le nom long ne se
+        // disputent plus la même ligne. ──
+        String detail = (item.detail != null) ? item.detail : "";
+        if (!detail.isEmpty()) {
+            view.textPaint.setTextSize(view.metrics.getTextSize() * 0.75f);
+            detail = ellipsizeTail(detail, m[CR_DETAIL_MAX_RIGHT] - m[CR_DETAIL_X]);
+            view.textPaint.setColor(view.theme.gutterText);
+            canvas.drawText(detail, m[CR_DETAIL_X], m[CR_DETAIL_BASE], view.textPaint);
         }
         view.textPaint.setTextSize(view.metrics.getTextSize() * 0.9f);
     }
 
     /**
      * ★ 4.4.0 — Petit glyphe ⓘ de documentation de rangée : cercle
-     * atténué + « i » italique, aligné à droite de la rangée (place du
-     * container). Le paint partagé est restauré (style du caretPaint,
-     * taille du textPaint).
+     * atténué + « i » italique. La position et la taille viennent du
+     * layout partagé — première ligne, réserve dédiée (4.9.1). Le
+     * paint partagé est restauré (style du caretPaint, taille du
+     * textPaint).
      */
-    private void drawCompletionDocGlyph(Canvas canvas, float rightX, float y,
-                                        float rowH, float density) {
-        float size = rowH - 14 * density;   // rangée 28 dp → glyphe 14 dp
-        float cx = rightX - size * 0.5f;
-        float cy = y + rowH * 0.5f;
+    private void drawCompletionDocGlyph(Canvas canvas, float cx, float cy,
+                                        float size) {
         android.graphics.Paint.Style savedStyle = view.caretPaint.getStyle();
         float savedStroke = view.caretPaint.getStrokeWidth();
         view.caretPaint.setStyle(android.graphics.Paint.Style.STROKE);

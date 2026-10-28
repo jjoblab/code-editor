@@ -38,8 +38,14 @@ public final class CompletionState {
     // ── Constantes de géométrie du popup (ex-EditorView) ─────────
     /** Nombre maximal de rangées affichées avant scroll interne. */
     public static final int MAX_ROWS = 8;
-    /** Hauteur d'une rangée en dp. */
-    public static final float ROW_HEIGHT_DP = 28f;
+    /**
+     * Hauteur d'une rangée en dp. Rangée deux lignes : le nom (runs de
+     * match) sur la première ligne, l'identité qualifiée — FQCN d'un
+     * type, signature d'un membre — en dessous ; 40 dp logent deux
+     * lignes de texte code sans serrer (28 dp historiques, une seule
+     * ligne).
+     */
+    public static final float ROW_HEIGHT_DP = 40f;
     /** Largeur du popup en dp. */
     public static final float WIDTH_DP = 280f;
 
