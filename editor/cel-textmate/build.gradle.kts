@@ -60,8 +60,16 @@ dependencies {
     // dialecte des grammaires TextMate — dépendance unique du module,
     // consommée exclusivement par la couture jo.codeeditor.textmate.regex
     // (règle d'or 1 du plan 10 : confinement vérifié par test).
-    implementation(libs.joni)
-    implementation(libs.jcodings)
+    // 4.9.1 : les jars sont intégrés au dépôt (libs/) — la publication
+    // joni 2.2.8 du 2026-10-27 n'était pas encore propagée sur tous les
+    // miroirs publics de Maven Central, ce qui cassait toute construction
+    // résolvant la coordonnée depuis un miroir non à jour (canaux de build
+    // tiers inclus). Intégrés, le module se construit partout sans réseau
+    // pour ces artefacts, et l'AAR publié les embarque (AGP agrège les
+    // jars locaux). Sommes SHA-256 épinglées dans NOTICE, textes de
+    // licence MIT reproduits dans libs/.
+    implementation(files("libs/joni-2.2.8.jar"))
+    implementation(files("libs/jcodings-1.0.64.jar"))
 
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.platform.launcher)

@@ -13,16 +13,24 @@ Le module `:cel-textmate` (refonte 4.0, plan 10 — voir
 dépendance directe unique le moteur d'expressions rationnelles du
 dialecte des grammaires TextMate :
 
-- `org.jruby.joni:joni:2.2.8` — licence **MIT** — somme SHA-256 de
-  l'artefact : `663e0af644b3b6c323e556a20ce748b98bf4b13b1c8b57720a26d7b9c756f767`
-- `org.jruby.jcodings:jcodings:1.0.64` — licence **MIT** — somme
-  SHA-256 de l'artefact :
+- `joni-2.2.8.jar` (coordonnée amont `org.jruby.joni:joni:2.2.8`) —
+  licence **MIT** — somme SHA-256 :
+  `663e0af644b3b6c323e556a20ce748b98bf4b13b1c8b57720a26d7b9c756f767`
+- `jcodings-1.0.64.jar` (coordonnée amont
+  `org.jruby.jcodings:jcodings:1.0.64`) — licence **MIT** — somme
+  SHA-256 :
   `0b4d0b0c1e2f1bdf17f4c30ecf5261bf62763af6f18b0fd1e743226c994ccf96`
 
-Ces artefacts sont consommés par la couture interne
-`jo.codeeditor.textmate.regex` (uniquement) ; leur embarquement suit
-la même discipline que LSP4J/Gson : coordonnées d'artefacts, jamais
-d'URL de dépôt tiers. Conformément au MIT, cette notice tient lieu
+Depuis la 4.9.1, ces artefacts sont INTÉGRÉS au dépôt
+(`editor/cel-textmate/libs/`) : la publication joni 2.2.8 du 2026-10-27
+n'était pas encore propagée sur tous les miroirs publics de Maven
+Central, ce qui cassait toute construction résolvant la coordonnée
+depuis un miroir non à jour. Intégrés, le module se construit sans
+réseau pour ces artefacts, et l'AAR publié les embarque (AGP agrège
+les jars locaux). Les textes MIT sont reproduits dans
+`libs/LICENSE-joni.txt` et `libs/LICENSE-jcodings.txt`. Ils restent
+consommés par la couture interne `jo.codeeditor.textmate.regex`
+(uniquement). Conformément au MIT, cette notice tient lieu
 d'attribution ; le texte complet est disponible à
 https://opensource.org/licenses/MIT
 
