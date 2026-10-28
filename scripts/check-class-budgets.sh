@@ -231,7 +231,32 @@ budget() {
 # 308/310) — la fusion vit dans EditorCompletionPopup
 # (mergeBuiltinFloor), la vue ne garde que le drapeau et les 2
 # accesseurs. Mesuré : 4522 l. / 180 champs / 308 méthodes.
-budget editor/cel-ui/src/main/java/jo/codeeditor/view/EditorView.java 4550 180 310
+# Écart au ratchet (4.10.0, popup de signature une-surcharge-à-la-fois) :
+# plafond MÉTHODES 310 → 315 relevé pour les relais publics du stepper
+# ‹ i/n › (signatureHelpStepperMetrics remplace signatureHelpBadgeMetrics,
+# solde +1) et du rectangle du popup (signatureHelpPopupMetrics, +1 —
+# partagé rendu/geste pour l'appui long « peek »). Le layout, le
+# fenêtrage et le peek vivent dans EditorAssistPopupPainter, l'état
+# peek dans SignatureHelpController (cel-core, non plafonné). Mesuré :
+# 4533 l. / 180 champs / 309 méthodes.
+budget editor/cel-ui/src/main/java/jo/codeeditor/view/EditorView.java 4550 180 315
+
+# Écart au ratchet (4.10.0, popups signature + complétion redessinés) :
+# NOUVEAU budget pour le peintre des popups d'assistance — il porte la
+# refonte « une surcharge à la fois » (stepper, fenêtrage ±1, peek
+# multi-lignes, filet de séparation) et la rangée de complétion à trois
+# axes (libellé seul / container à gauche / détail à droite, badge 6 dp,
+# coins 14 dp). La couture computeCompletionRowLayout reste PURE
+# (testée sans Canvas), windowSignature est statique et publique
+# (testée seule). Mesuré : 1544 l. / 9 champs / 2 méthodes publiques.
+budget editor/cel-ui/src/main/java/jo/codeeditor/view/render/EditorAssistPopupPainter.java 1620 10 3
+
+# Écart au ratchet (4.10.0, repli local sur réponse vide) : NOUVEAU
+# budget pour le contrôleur du popup d'aide de signature — le repli
+# synthétique (appliquerRepliSynthetique) est isolé pour servir DEUX
+# chemins (sans résolveur, et résolveur branché qui répond VIDE). Mesuré :
+# 302 l. / 1 champ / 3 méthodes publiques.
+budget editor/cel-ui/src/main/java/jo/codeeditor/view/popup/EditorSignaturePopup.java 340 3 5
 # Écart au ratchet : plafonds LIGNES 1600 → 1610 et MÉTHODES 100 → 102
 # (R2 du plan 09, IME) : +1 méthode publique (imeSelectedText — la voie
 # IME bornée au plafond Binder, distincte de selectedText interne) et
