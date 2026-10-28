@@ -1120,3 +1120,65 @@ un hôte qui comptait sur la dépendance transitive n'a rien à faire.
    fin de ligne du nom, jamais recouvert par le libellé.
 4. Le popup ne recouvre jamais la ligne de frappe (rangée 40 dp
    compensée par la réduction du nombre de rangées visibles).
+
+## 4.10.0
+
+### 1. État de publication
+
+- Tag `v4.10.0`, coordonnées Maven `jo.codeeditor:<module>:4.10.0`
+  (publication par le workflow `publish.yml` : les cinq AAR
+  `cel-core`, `cel-lsp-api`, `cel-lsp`, `cel-ui`, `cel-textmate`).
+- CI verte attendue sur `main` (validation locale : `clean
+  assembleDebug test lint` — 2 951 tests, 0 échec ; garde-fous
+  `check-class-budgets`, `check-doc-figures`, `check-external-refs`
+  verts).
+
+### 2. Compatibilité (l'application vient de 4.9.1)
+
+- **Aucune action obligatoire** — aucune API publique retirée, aucune
+  signature changée. Les nouveaux points d'entrée sont additifs :
+  `SignatureHelpController.isPeeked()/setPeeked(boolean)` (état de la
+  vue étendue), relais `EditorView.signatureHelpStepperMetrics()` /
+  `signatureHelpPopupMetrics()` (l'ancien
+  `signatureHelpBadgeMetrics()` est REMPLACÉ par le premier —
+  recompilez si vous l'appeliez directement).
+- Recommandé : monter `codeide-lsp` en **1.16.0** (voir
+  `repos/codeide-lsp/docs/MISE-A-JOUR-CODEIDE.md` § 1.16.0) — l'aide
+  de signature survit au texte vivant cassé et la complétion devient
+  contextuelle (filtres extends/implements/throws/catch/new/@anno,
+  stubs d'override en corps de classe, suggestions de noms en
+  déclaration, constantes d'enum dans les case, attributs
+  d'annotation).
+
+### 3. Changements de comportement notables
+
+- **Aide de signature — une surcharge à la fois** : le popup ne liste
+  plus toutes les surcharges ; il montre la signature active, un
+  stepper « ‹ i/n › » au-dessus (flèches tactiles, grisées et inertes
+  aux bornes — le clavier Haut/Bas continue de CYCLER en boucle) et
+  fenêtre les longues signatures (au-delà de 5 paramètres : actif ± 1,
+  « … » pour les tronqués). L'APPUI LONG sur le popup étend la
+  signature en vue complète (peek) ; un tap referme le peek sans
+  fermer le popup.
+- **Réponse VIDE du résolveur = repli local** : un résolveur branché
+  (hôte ou LSP) ne reste maître que d'une réponse NON VIDE — une
+  réponse vide affiche désormais l'appel vivant du buffer (repli
+  synthétique, borné aux langages `callSyntax`) au lieu de rien.
+- **Popup de complétion — rangées à trois axes** : le libellé occupe
+  seul la première ligne ; la seconde porte le container (paquet ou
+  classe déclarante) à GAUCHE et le détail (FQCN, type de retour)
+  ALIGNÉ À DROITE. Les quatre coins sont arrondis (14 dp) et le badge
+  de type gagne en rondeur (6 dp).
+
+### 4. Scénarios de vérification sur appareil
+
+- Taper `sb.append(` sans refermer, puis `sb.append("abc` : le popup
+  de surcharges reste vivant pendant toute la frappe (avec
+  codeide-lsp 1.16.0 ; sans serveur, l'appel vivant s'affiche).
+- Taper `new StringBuilder(` : les QUATRE constructeurs sont proposés
+  (stepper 1/4).
+- Avec plusieurs surcharges : flèches ‹ › du stepper — grisées aux
+  extrémités ; appui long sur le popup → signature complète + doc,
+  tap → retour à la signature fenêtrée.
+- Complétion `Button` : ligne 1 = `Button`, ligne 2 =
+  `android.widget` à gauche et le type à droite.

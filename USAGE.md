@@ -34,14 +34,14 @@ dependencyResolutionManagement {
 // app/build.gradle.kts
 dependencies {
     // Le module UI embarque transitivement cel-core et cel-lsp-api.
-    implementation("jo.codeeditor:cel-ui:4.9.1")
+    implementation("jo.codeeditor:cel-ui:4.10.0")
 
     // Optionnel — intégration Language Server Protocol (LSP4J).
-    implementation("jo.codeeditor:cel-lsp:4.9.1")
+    implementation("jo.codeeditor:cel-lsp:4.10.0")
 
     // Optionnel — voie grammaires (ADR-002 C3) : coloration par
     // grammaires TextMate-like + grammaires embarquées (C#).
-    implementation("jo.codeeditor:cel-textmate:4.9.1")
+    implementation("jo.codeeditor:cel-textmate:4.10.0")
 }
 ```
 
@@ -53,7 +53,7 @@ maven { url = uri("https://jitpack.io") }
 
 // app/build.gradle.kts
 dependencies {
-    implementation("com.github.jjoblab.code-editor:cel-ui:v4.9.1")
+    implementation("com.github.jjoblab.code-editor:cel-ui:v4.10.0")
 }
 ```
 
@@ -431,22 +431,28 @@ une arobase ou un import.
 view.setMergeBuiltinCompletionsEnabled(false);
 ```
 
-### Aide de signature redessinée (4.8.0)
+### Aide de signature : une surcharge à la fois (4.10.0)
 
-La bannière au-dessus du caret gagne une largeur adaptative (contenu
-mesuré, borné [200, 320] dp), un paramètre actif garanti visible (les
-libellés longs sont ellipsés AUTOUR de lui) et un badge de surcharges
-« n/m » — la seule surface tactile du popup : le tap qui le vise fait
-défiler les surcharges (l'équivalent tactile des flèches Haut/Bas du
-clavier), tout autre tap referme la bannière comme avant. La bande de
-documentation ouvre sur le paramètre ACTIF (libellé en couleur de
-fonction), puis la javadoc de la signature.
+La bannière au-dessus du caret montre UNE surcharge à la fois, en
+trois étages : une ligne de **stepper `‹ i/n ›`** (seulement s'il y a
+un choix) — chaque flèche est sa propre zone tactile, grisée et inerte
+aux bornes (le clavier Haut/Bas, lui, boucle) — ; la **signature
+fenêtrée** (au-delà de 5 paramètres, seuls l'actif ± 1 restent, les
+tronqués en « … », l'actif en gras + accent et garanti visible) ; la
+**bande de documentation** du paramètre actif puis la javadoc.
+L'**appui long** sur le popup étend la signature fenêtrée en signature
+complète multi-lignes (**peek**), un tap la referme sans fermer le
+popup. Largeur adaptative bornée [200, 320] dp, quatre coins arrondis
+14 dp.
 
-Sans résolveur, le repli synthétique affiche l'appel VIVANT du buffer
-(vos arguments, l'actif en surbrillance) et le numéro du paramètre —
-chaîne `cel_signature_active_param`, surchargeable dans vos ressources
-pour la localiser. Ce repli est borné aux langages à syntaxe d'appel :
-le drapeau `callSyntax` du profil (défaut calculé depuis la famille —
+**Un résolveur branché ne reste maître que d'une réponse NON VIDE** :
+une réponse vide (serveur muet, analyse pas encore prête) retombe sur
+le repli synthétique local au lieu d'un silence total. Ce repli
+affiche l'appel VIVANT du buffer (vos arguments, l'actif en
+surbrillance) et le numéro du paramètre — chaîne
+`cel_signature_active_param`, surchargeable dans vos ressources pour
+la localiser. Il est borné aux langages à syntaxe d'appel : le
+drapeau `callSyntax` du profil (défaut calculé depuis la famille —
 vrai pour C_LIKE, PYTHON, LUA, SQL ; faux ailleurs) le coupe sur le
 texte brut, le XML ou la prose, et borne aussi l'éligibilité postfix.
 

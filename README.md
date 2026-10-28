@@ -13,11 +13,13 @@ Ce que c'est — et ce que ce n'est pas :
   réellement embarquées (LSP4J, Gson) et les grammaires tierces du
   module optionnel sont attribuées dans [`NOTICE`](NOTICE).
 - **Publication** : coordonnées Maven `jo.codeeditor:<module>` —
-  version courante : `4.9.1` (le popup de complétion deux lignes :
-  l'identité qualifiée — FQCN d'un type, signature d'un membre — vit
-  SOUS le nom, plus jamais contre lui ; rangées 40 dp, badge de type
-  plafonné, glyphe ⓘ avec réserve dédiée, jars du moteur regex
-  intégrés au dépôt ; sur la 4.9.0 du tir sémantique indépendant : les
+  version courante : `4.10.0` (l'aide de signature ne se tait plus :
+  une surcharge à la fois — stepper ‹ i/n › tactile borné, fenêtrage
+  ±1 des longues signatures, peek complet par appui long —, repli
+  local sur réponse VIDE du résolveur, rangées de complétion à trois
+  axes (libellé seul, container à gauche, détail à droite), coins
+  arrondis 14 dp ; sur la 4.9.1 du popup deux lignes : l'identité
+  qualifiée vit sous le nom, jars du moteur regex intégrés au dépôt ; sur la 4.9.0 du tir sémantique indépendant : les
   couleurs ne dépendent plus des publications de diagnostics — tir à
   la connexion, re-tir après chaque didChange, purge à la
   déconnexion, premier tir de plis à la connexion effectif ; sur la
@@ -339,8 +341,8 @@ interface `EditorPreviewHost`) figure dans
 
 ```bash
 ./gradlew test
-# 2 945 tests, 0 failure :
-#   cel-core 1 495 · cel-lsp-api 32 · cel-lsp 238 · cel-ui 978 · cel-textmate 96 · demo 106
+# 2 951 tests, 0 failure :
+#   cel-core 1 495 · cel-lsp-api 32 · cel-lsp 238 · cel-ui 984 · cel-textmate 96 · demo 106
 # (contrôle d'écart : scripts/check-doc-figures.sh, exécuté en CI)
 ```
 

@@ -1,5 +1,55 @@
 # Changelog
 
+## 4.10.0 — 2026-10-28 — L'aide de signature ne se tait plus
+
+### Ajouté
+
+- **Repli local sur réponse VIDE du résolveur** : un résolveur branché
+  (hôte ou LSP) ne reste plus maître que d'une réponse NON VIDE — une
+  réponse vide (serveur muet, analyse pas encore prête, texte vivant
+  hors d'atteinte) retombe sur le repli synthétique local (l'appel
+  vivant du buffer) au lieu d'un silence total. La porte `callSyntax`
+  borne ce repli dans TOUS les cas : texte brut, XML et Markdown
+  restent muets.
+- **Popup d'aide de signature « une surcharge à la fois »** :
+  - ligne de **stepper `‹ i/n ›`** au-dessus de la signature (seulement
+    s'il y a un choix) — chaque flèche est sa propre zone tactile,
+    grisée et inerte aux bornes (le clavier Haut/Bas, lui, boucle) ;
+  - **fenêtrage** des longues signatures : au-delà de 5 paramètres,
+    seuls l'actif ± 1 restent affichés, les tronqués en « … » ;
+  - **peek par appui long** : la signature fenêtrée s'étend en
+    signature complète multi-lignes + documentation (filet
+    séparateur) ; un tap referme le peek sans fermer le popup.
+- **Rangées de complétion à trois axes** : le libellé occupe SEUL la
+  première ligne ; la seconde porte le container (paquet ou classe
+  déclarante) à GAUCHE et le détail (FQCN, type de retour) ALIGNÉ À
+  DROITE — le nom court ne cède plus sa droite à l'origine du symbole.
+
+### Changements visibles
+
+- Le popup de complétion arrondit ses QUATRE coins (14 dp, la base
+  carrée des « coins hauts seuls » tranchait avec la carte de verre) ;
+  le badge de type passe de 4 à 6 dp de rayon.
+- Le popup d'aide de signature arrondit aussi ses quatre coins
+  (14 dp).
+
+### Corrections
+
+- `new Foo(` côté serveur : l'énumération des surcharges de
+  CONSTRUCTEUR (avec codeide-lsp 1.16.0 — les serveurs qui ne
+  remplissent pas les surcharges restent servis par le repli local).
+
+### Pour l'hôte
+
+- Aucune action obligatoire (nouvelles API internes seulement :
+  `SignatureHelpController.isPeeked/setPeeked`, relais
+  `signatureHelpStepperMetrics`/`signatureHelpPopupMetrics`).
+- Recommandé : monter codeide-lsp en 1.16.0 (aide de signature robuste
+  sur texte vivant + complétion contextuelle — filtres grammaticaux
+  extends/implements/throws/catch/new/@anno, stubs d'override en corps
+  de classe, suggestions de noms en déclaration, constantes d'enum
+  dans les case).
+
 All notable changes to **code-editor-lib** are documented in this file.
 
 Le format suit la convention [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
