@@ -230,18 +230,40 @@ public class EditorTapResolver {
         // prochaine édition si le caret est encore dans un appel
         // (refreshSignatureHelp, chemin onTextChanged).
         //
-        // ★ 4.8.0 — nuance : le badge de surcharges « n/m » (coin haut
-        // droit, présent seulement s'il y a un choix) est la SEULE
-        // surface interactive du popup — le tap qui le vise fait DÉFILER
-        // les surcharges (l'équivalent tactile des flèches Haut/Bas du
-        // clavier, autrement inaccessibles au doigt). Marge de 8 px
-        // autour du badge pour le doigt.
+        // ★ 4.8.0 — le badge de surcharges « n/m » est la SEULE surface
+        // interactive du popup. ★ 4.10.0 — le badge devient un STEPPER
+        // « ‹ i/n › » (ligne au-dessus de la signature) : chaque flèche
+        // est sa propre zone tactile (‹ = surcharge précédente,
+        // › = suivante, l'équivalent tactile des flèches Haut/Bas du
+        // clavier) — aux BORNES la flèche grisée ne cycle PAS (le
+        // clavier, lui, boucle : deux contrat cohérents, geste borné).
+        // Un tap ailleurs sur le popup referme la vue PEEK si elle est
+        // ouverte (l'appui long l'ouvre), sinon referme le popup (B8).
         if (view.signatureHelpVisible) {
-            float[] badge = view.signatureHelpBadgeMetrics();
-            if (badge != null
-                    && x >= badge[0] - 8 && x <= badge[2] + 8
-                    && y >= badge[1] - 8 && y <= badge[3] + 8) {
-                view.cycleSignatureHelp(1);
+            float[] stepper = view.signatureHelpStepperMetrics();
+            if (stepper != null) {
+                boolean hitLeft = x >= stepper[0] - 8 && x <= stepper[2] + 8
+                        && y >= stepper[1] - 8 && y <= stepper[3] + 8;
+                boolean hitRight = x >= stepper[4] - 8 && x <= stepper[6] + 8
+                        && y >= stepper[5] - 8 && y <= stepper[7] + 8;
+                if (hitLeft || hitRight) {
+                    int active = view.getEffectiveActiveSignature();
+                    int total = view.signatureHelpData != null
+                            && view.signatureHelpData.signatures != null
+                            ? view.signatureHelpData.signatures.size() : 0;
+                    if (hitLeft && active > 0) {
+                        view.cycleSignatureHelp(-1);
+                    } else if (hitRight && active < total - 1) {
+                        view.cycleSignatureHelp(1);
+                    }
+                    return;
+                }
+            }
+            if (view.signatureHelpController != null
+                    && view.signatureHelpController.isPeeked()) {
+                // Peek ouvert : le tap le referme (sans fermer le popup).
+                view.signatureHelpController.setPeeked(false);
+                view.invalidate();
                 return;
             }
             view.dismissSignatureHelp();

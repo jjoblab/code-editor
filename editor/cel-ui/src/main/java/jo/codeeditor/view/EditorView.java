@@ -4367,15 +4367,26 @@ public class EditorView extends View {
 
     /**
      * 4.8.0 — géométrie du badge de surcharges « n/m » du popup d'aide
-     * de signature : {left, top, right, bottom} en px écran, ou null
-     * (popup absent ou surcharge unique). Source unique rendu (peintre)
-     * / hit-test (tap resolver) : le tap qui vise le badge fait défiler
-     * les surcharges — l'équivalent tactile des flèches Haut/Bas du
-     * clavier, autrement inaccessibles au doigt.
+     * de signature (4.10.0 — stepper « ‹ i/n › ») : {left, top, right,
+     * bottom} de la flèche GAUCHE puis de la flèche DROITE en px écran,
+     * ou null (popup absent ou surcharge unique). Source unique rendu
+     * (peintre) / hit-test (tap resolver) : le tap qui vise une flèche
+     * fait défiler les surcharges dans SA direction — aux bornes, la
+     * flèche grisée ne cycle pas.
      */
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
-    public float[] signatureHelpBadgeMetrics() {
-        return renderer.signatureHelpBadgeMetrics();
+    public float[] signatureHelpStepperMetrics() {
+        return renderer.signatureHelpStepperMetrics();
+    }
+
+    /**
+     * Rectangle du popup d'aide de signature en px écran, ou null —
+     * partagé entre le rendu (peintre) et l'appui long « peek » (le
+     * geste étend la signature fenêtrée en signature complète).
+     */
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public float[] signatureHelpPopupMetrics() {
+        return renderer.signatureHelpPopupMetrics();
     }
 
     // ════════════════════════════════════════════════════════════════

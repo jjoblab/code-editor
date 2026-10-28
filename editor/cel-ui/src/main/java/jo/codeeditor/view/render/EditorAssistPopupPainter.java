@@ -51,8 +51,9 @@ public class EditorAssistPopupPainter {
     // Rayon de bordure du popup de complétion (les constantes hauteur de
     // ligne / largeur / nombre max de lignes restent sur EditorView car le
     // code tactile / de hit-test en a aussi besoin).
-    // 12 dp — coins du HAUT seuls, plus visibles.
-    static final float COMPLETION_BORDER_RADIUS_DP = 12f;
+    // 4.10.0 : 14 dp — les QUATRE coins (le style à deux ailes
+    // « coins hauts seuls » laissait la base carrée).
+    static final float COMPLETION_BORDER_RADIUS_DP = 14f;
     // Popup d'aide de signature
     static final float SIGNATURE_HELP_ROW_HEIGHT_DP = 22f;
     // 4.8.0 : largeur ADAPTATIVE — le contenu est mesuré, la largeur
@@ -62,9 +63,13 @@ public class EditorAssistPopupPainter {
     // pouvait sortir de l'écran).
     static final float SIGNATURE_HELP_MIN_WIDTH_DP = 200f;
     static final float SIGNATURE_HELP_MAX_WIDTH_DP = 320f;
-    // 12 dp + bande de documentation sous la liste.
-    static final float SIGNATURE_HELP_RADIUS_DP = 12f;
-    static final int SIGNATURE_HELP_MAX_ROWS = 10;
+    // 4.10.0 : 14 dp — aligné sur le popup de complétion.
+    static final float SIGNATURE_HELP_RADIUS_DP = 14f;
+    /** 4.10.0 : fenêtrage — au-delà de 5 paramètres, seuls l'actif ± 1
+     *  sont montrés (les autres en « … ») ; la vue peek (appui long)
+     *  révèle la signature complète. */
+    static final int SIGNATURE_WINDOW_THRESHOLD = 5;
+    static final int SIGNATURE_WINDOW_RADIUS = 1;
     /** Lignes max de la bande doc (paramètre actif + javadoc). */
     static final int SIGNATURE_DOC_MAX_LINES = 6;
     // Popup de documentation rapide
@@ -96,23 +101,29 @@ public class EditorAssistPopupPainter {
     private final List<String> sigDocLines = new ArrayList<>();
     /** Libellé du paramètre actif (tête de la bande doc, en accent). */
     private String sigParamDocLabel = "";
+    /** Lignes affichées de la signature (1 hors peek, wrap en peek). */
+    private final List<String> sigLines = new ArrayList<>();
 
     /** Indices du tableau de layout retourné par computeSignatureLayout(). */
     private static final int SIG_ANCHOR_X = 0, SIG_ANCHOR_Y = 1, SIG_WIDTH = 2,
-            SIG_POPUP_H = 3, SIG_ROW_H = 4, SIG_ROWS = 5, SIG_ACTIVE = 6,
+            SIG_POPUP_H = 3, SIG_ROW_H = 4, SIG_STEPPER_H = 5, SIG_ACTIVE = 6,
             SIG_B_LEFT = 7, SIG_B_TOP = 8, SIG_B_RIGHT = 9, SIG_B_BOTTOM = 10,
-            SIG_HAS_BADGE = 11;
+            SIG_HAS_BADGE = 11, SIG_P_LEFT = 12, SIG_P_TOP = 13,
+            SIG_P_RIGHT = 14, SIG_P_BOTTOM = 15;
 
     /**
-     * Calcule le layout complet du popup d'aide de signature : largeur
-     * ADAPTATIVE (contenu mesuré, borné [min, max] et par l'écran),
-     * lignes de la bande doc (documentation du paramètre ACTIF en tête,
-     * puis javadoc de la signature), ancre au-dessus de la ligne du
-     * caret (bascule en dessous, clampée à la vue), et rectangle du
-     * badge de surcharges.
+     * Calcule le layout complet du popup d'aide de signature (4.10.0 —
+     * une surcharge à la fois) : ligne de STEPPER « ‹ i/n › » (seulement
+     * s'il y a un choix), ligne de signature UNIQUE fenêtrée autour du
+     * paramètre actif (±1 au-delà de 5 paramètres — la vue peek révèle
+     * la signature complète multi-lignes), bande de documentation du
+     * paramètre actif puis javadoc. Largeur ADAPTATIVE bornée [min, max]
+     * et par l'écran, ancre au-dessus de la ligne du caret (bascule en
+     * dessous, clampée à la vue), rectangles des flèches du stepper.
      *
      * @return le tableau de layout (indices SIG_*), ou null (popup
-     *         absent). Remplit sigDocLines/sigParamDocLabel.
+     *         absent). Remplit sigDocLines/sigParamDocLabel et
+     *         sigLines (wrap de la signature en vue peek).
      */
     private float[] computeSignatureLayout() {
         if (!view.signatureHelpVisible || view.signatureHelpData == null
@@ -123,8 +134,8 @@ public class EditorAssistPopupPainter {
         }
         float density = view.getResources().getDisplayMetrics().density;
         float rowH = SIGNATURE_HELP_ROW_HEIGHT_DP * density;
-        int rowsToShow = Math.min(SIGNATURE_HELP_MAX_ROWS,
-                view.signatureHelpData.signatures.size());
+        boolean peeked = view.signatureHelpController != null
+                && view.signatureHelpController.isPeeked();
 
         // ── Index actif : l'override clavier/tactile du contrôleur
         // d'abord, sinon le choix du serveur.
@@ -136,41 +147,64 @@ public class EditorAssistPopupPainter {
         jo.codeeditor.completion.SignatureHelpController.Signature activeSig =
                 view.signatureHelpData.signatures.get(activeIdx);
 
-        // ── Mesure des rangées : largeur naturelle du contenu.
+        // ── Libellé affiché : FENÊTRÉ autour du paramètre actif hors
+        // peek (±1 paramètre au-delà du seuil), COMPLET en peek.
+        String displayLabel;
+        int displayActiveParam;
+        if (peeked) {
+            displayLabel = activeSig.label;
+            displayActiveParam = activeSig.activeParameter;
+        } else {
+            int[] winActive = new int[1];
+            displayLabel = windowSignature(activeSig.label,
+                    activeSig.activeParameter, winActive);
+            displayActiveParam = winActive[0];
+        }
+
+        // ── Mesure de la ligne de signature (hors peek, une seule
+        // ligne ; en peek, wrap multi-lignes de la signature complète).
         view.textPaint.setTypeface(view.metrics.getTypeface());
         view.textPaint.setTextSize(view.metrics.getTextSize() * 0.85f);
         float padX = 8 * density;
-        float maxRowW = 0;
-        for (int i = 0; i < rowsToShow; i++) {
-            String label = view.signatureHelpData.signatures.get(i).label;
-            int[] range = findParameterRangeInLabel(label,
-                    view.signatureHelpData.signatures.get(i).activeParameter);
-            float w;
-            if (range == null) {
-                w = view.textPaint.measureText(label);
-            } else {
-                w = view.textPaint.measureText(label.substring(0, range[0]))
-                        + view.textPaint.measureText(label.substring(range[0], range[1]))
-                        + view.textPaint.measureText(label.substring(range[1]));
-            }
-            if (w > maxRowW) maxRowW = w;
+        sigLines.clear();
+        float sigTextH;
+        if (peeked) {
+            // La largeur de wrap dépend de la largeur du popup — deux
+            // passes : d'abord la largeur naturelle (une ligne) pour
+            // fixer la largeur, puis le wrap réel.
+            float natural = view.textPaint.measureText(displayLabel);
+            float viewW0 = view.getWidth();
+            float maxW0 = Math.min(SIGNATURE_HELP_MAX_WIDTH_DP * density,
+                    viewW0 - 8 * density);
+            float width0 = Math.max(Math.min(natural + 2 * padX, maxW0),
+                    Math.min(SIGNATURE_HELP_MIN_WIDTH_DP * density, maxW0));
+            sigLines.addAll(wrapText(displayLabel,
+                    width0 - 2 * padX, view.textPaint));
+            sigTextH = sigLines.size() * rowH;
+        } else {
+            sigLines.add(displayLabel);
+            sigTextH = rowH;
         }
 
-        // ── Badge de surcharges « n/m » : présent seulement s'il y a
-        // un choix à faire. Coin haut droit — la rangée 0 lui cède sa
-        // droite, les autres rangées gardent toute la largeur.
-        boolean hasBadge = view.signatureHelpData.signatures.size() > 1;
-        float badgeTextSize = view.metrics.getTextSize() * 0.7f;
-        view.textPaint.setTextSize(badgeTextSize);
-        float badgeW = hasBadge
-                ? view.textPaint.measureText((activeIdx + 1) + "/"
-                        + view.signatureHelpData.signatures.size()) + 10 * density
-                : 0;
-        float badgeH = hasBadge ? badgeTextSize * 1.6f : 0;
+        // ── Stepper de surcharges « ‹ i/n › » : présent seulement
+        // s'il y a un choix à faire — ligne AU-DESSUS de la signature.
+        int total = view.signatureHelpData.signatures.size();
+        boolean hasBadge = total > 1;
+        float stepperTextSize = view.metrics.getTextSize() * 0.7f;
+        view.textPaint.setTextSize(stepperTextSize);
+        String leftArrow = "\u2039";  // ‹
+        String rightArrow = "\u203A"; // ›
+        String countText = (activeIdx + 1) + "/" + total;
+        float arrowW = view.textPaint.measureText(leftArrow);
+        float countW = hasBadge ? view.textPaint.measureText(countText) : 0;
+        float arrowPad = 4 * density;
+        float stepperH = hasBadge ? rowH : 0;
 
         // ── Largeur finale : contenu borné [min, max] et par l'écran.
         float viewW = view.getWidth();
-        float contentW = maxRowW + 2 * padX + (hasBadge ? badgeW + 4 * density : 0);
+        float contentW = Math.max(naturalSigWidth(displayLabel, displayActiveParam),
+                hasBadge ? countW + 2 * (arrowW + 2 * arrowPad) : 0)
+                + 2 * padX;
         float maxW = Math.min(SIGNATURE_HELP_MAX_WIDTH_DP * density, viewW - 8 * density);
         float width = Math.max(Math.min(contentW, maxW),
                 Math.min(SIGNATURE_HELP_MIN_WIDTH_DP * density, maxW));
@@ -225,7 +259,10 @@ public class EditorAssistPopupPainter {
         float docRowH = view.metrics.getTextSize() * 0.75f * 1.3f;
         float docH = sigDocLines.isEmpty() ? 0
                 : sigDocLines.size() * docRowH + 8 * density;
-        float popupH = rowH * rowsToShow + docH;
+        // En peek, la bande doc vit sous un séparateur (elle fait
+        // partie de la vue étendue) ; hors peek elle est collée.
+        float sigDivH = peeked && docH > 0 ? 5 * density : 0;
+        float popupH = stepperH + sigTextH + sigDivH + docH;
 
         // ── Ancrage X = colonne du curseur, Y = au-dessus de la ligne
         // du curseur (bascule en dessous sinon, clampés à la vue).
@@ -247,49 +284,142 @@ public class EditorAssistPopupPainter {
             anchorX = Math.max(view.metrics.getGutterWidth(), viewW - width - 4);
         }
 
-        float[] out = new float[12];
+        // ── Flèches du stepper ‹ i/n › : centrées horizontalement sur
+        // la ligne du stepper, zones larges de flèche + marge (doigt).
+        float arrowH = stepperTextSize * 1.6f;
+        float stepperBase = anchorY + (rowH - arrowH) / 2f;
+        float countTotal = countW + 2 * (arrowW + 2 * arrowPad);
+        float leftCx = anchorX + (width - countTotal) / 2f + arrowPad;
+        float rightCx = anchorX + (width + countTotal) / 2f - arrowPad;
+
+        float[] out = new float[16];
         out[SIG_ANCHOR_X] = anchorX;
         out[SIG_ANCHOR_Y] = anchorY;
         out[SIG_WIDTH] = width;
         out[SIG_POPUP_H] = popupH;
         out[SIG_ROW_H] = rowH;
-        out[SIG_ROWS] = rowsToShow;
+        out[SIG_STEPPER_H] = stepperH;
         out[SIG_ACTIVE] = activeIdx;
-        out[SIG_B_LEFT] = anchorX + width - 6 * density - badgeW;
-        out[SIG_B_TOP] = anchorY + (rowH - badgeH) / 2f;
-        out[SIG_B_RIGHT] = anchorX + width - 6 * density;
-        out[SIG_B_BOTTOM] = out[SIG_B_TOP] + badgeH;
+        // Flèche GAUCHE (‹) — rect tactile.
+        out[SIG_B_LEFT] = leftCx - arrowW / 2f - arrowPad;
+        out[SIG_B_TOP] = stepperBase;
+        out[SIG_B_RIGHT] = leftCx + arrowW / 2f + arrowPad;
+        out[SIG_B_BOTTOM] = stepperBase + arrowH;
         out[SIG_HAS_BADGE] = hasBadge ? 1 : 0;
+        // Flèche DROITE (›) — rect tactile.
+        out[SIG_P_LEFT] = rightCx - arrowW / 2f - arrowPad;
+        out[SIG_P_TOP] = stepperBase;
+        out[SIG_P_RIGHT] = rightCx + arrowW / 2f + arrowPad;
+        out[SIG_P_BOTTOM] = stepperBase + arrowH;
         return out;
     }
 
     /**
-     * Géométrie du badge de surcharges du popup d'aide de signature —
-     * partagée avec le hit-test tactile (le tap sur le badge fait
-     * défiler les surcharges, l'équivalent tactile des flèches
-     * Haut/Bas du clavier).
-     *
-     * @return {left, top, right, bottom} en px écran, ou null (popup
-     *         absent ou surcharge unique — pas de badge).
+     * Géométrie du popup d'aide de signature pour le geste — partagée
+     * avec l'appui long « peek » : {left, top, right, bottom} du popup
+     * en px écran, ou null (popup absent).
      */
-    float[] signatureHelpBadgeMetrics() {
+    float[] signatureHelpPopupMetrics() {
         float[] layout = computeSignatureLayout();
-        if (layout == null || layout[SIG_HAS_BADGE] < 1) return null;
-        return new float[]{layout[SIG_B_LEFT], layout[SIG_B_TOP],
-                layout[SIG_B_RIGHT], layout[SIG_B_BOTTOM]};
+        if (layout == null) return null;
+        return new float[]{layout[SIG_ANCHOR_X], layout[SIG_ANCHOR_Y],
+                layout[SIG_ANCHOR_X] + layout[SIG_WIDTH],
+                layout[SIG_ANCHOR_Y] + layout[SIG_POPUP_H]};
     }
 
     /**
-     * Dessine le popup d'aide de signature. Ancré AU-DESSUS de la
-     * ligne du curseur (contrairement au popup de complétion, qui est
-     * EN DESSOUS) ; s'il n'y a pas de place au-dessus, bascule en
-     * dessous. Chaque signature tient sur une rangée ; le paramètre
-     * actif est surligné en gras + couleur d'accent et garanti
-     * VISIBLE — les débords sont ellipsés AUTOUR de lui (4.8.0 :
-     * auparavant coupés net, l'actif pouvait sortir de l'écran). Un
-     * badge « n/m » (coin haut droit) compte les surcharges et se
-     * tâte pour les faire défiler ; la bande de documentation ouvre
-     * sur le paramètre ACTIF (label en accent) puis la javadoc.
+     * Géométrie des flèches du stepper de surcharges — partagée avec
+     * le hit-test tactile : {left, top, right, bottom} de la flèche
+     * GAUCHE puis de la flèche DROITE (‹ puis ›), ou null (popup absent
+     * ou surcharge unique — pas de stepper).
+     */
+    float[] signatureHelpStepperMetrics() {
+        float[] layout = computeSignatureLayout();
+        if (layout == null || layout[SIG_HAS_BADGE] < 1) return null;
+        return new float[]{layout[SIG_B_LEFT], layout[SIG_B_TOP],
+                layout[SIG_B_RIGHT], layout[SIG_B_BOTTOM],
+                layout[SIG_P_LEFT], layout[SIG_P_TOP],
+                layout[SIG_P_RIGHT], layout[SIG_P_BOTTOM]};
+    }
+
+    /**
+     * Fenêtre une signature autour de son paramètre actif : au-delà de
+     * {@link #SIGNATURE_WINDOW_THRESHOLD} paramètres, seuls l'actif ±
+     * {@link #SIGNATURE_WINDOW_RADIUS} restent affichés, les tronqués
+     * remplacés par « … ». Le compte de l'actif est traduit dans le
+     * repère FENÊTRÉ (outActive[0]). Sous le seuil, libellé intact.
+     */
+    public static String windowSignature(String label, int activeParam, int[] outActive) {
+        outActive[0] = activeParam;
+        if (label == null) return "";
+        int openIdx = label.indexOf('(');
+        int closeIdx = label.lastIndexOf(')');
+        if (openIdx < 0 || closeIdx <= openIdx + 1) return label;
+        // Découpe des plages de paramètres (virgules de profondeur 0).
+        java.util.List<int[]> ranges = new ArrayList<>();
+        int depth = 0, start = openIdx + 1;
+        for (int i = openIdx + 1; i < closeIdx; i++) {
+            char c = label.charAt(i);
+            if (c == '(' || c == '[' || c == '{' || c == '<') depth++;
+            else if (c == ')' || c == ']' || c == '}' || c == '>') depth--;
+            else if (c == ',' && depth == 0) {
+                ranges.add(new int[]{start, i});
+                start = i + 1;
+            }
+        }
+        ranges.add(new int[]{start, closeIdx});
+        int n = ranges.size();
+        int act = Math.max(0, Math.min(activeParam, n - 1));
+        outActive[0] = act;
+        if (n <= SIGNATURE_WINDOW_THRESHOLD) return label;
+        int from = Math.max(0, act - SIGNATURE_WINDOW_RADIUS);
+        int to = Math.min(n - 1, act + SIGNATURE_WINDOW_RADIUS);
+        StringBuilder sb = new StringBuilder(label.substring(0, openIdx + 1));
+        boolean first = true;
+        for (int i = from; i <= to; i++) {
+            int[] r = ranges.get(i);
+            // Trim : la plage commence juste après la virgule — l'espace
+            // de formatage ne doit pas se propager au libellé fenêtré.
+            int st = r[0];
+            while (st < r[1] && Character.isWhitespace(label.charAt(st))) st++;
+            if (st >= r[1]) continue; // paramètre vide (recovery)
+            if (!first) sb.append(", ");
+            sb.append(label, st, r[1]);
+            first = false;
+        }
+        if (from > 0) sb.insert(openIdx + 1, "…, ");
+        if (to < n - 1) sb.append(", …");
+        sb.append(label.substring(closeIdx));
+        outActive[0] = act - from + (from > 0 ? 1 : 0);
+        return sb.toString();
+    }
+
+    /** Largeur naturelle d'un libellé de signature (paramètre actif en
+     *  gras — mesure approximée au poids normal, la largeur du gras
+     *  étant proche). */
+    private float naturalSigWidth(String label, int activeParam) {
+        int[] range = findParameterRangeInLabel(label, activeParam);
+        if (range == null) return view.textPaint.measureText(label);
+        return view.textPaint.measureText(label.substring(0, range[0]))
+                + view.textPaint.measureText(label.substring(range[0], range[1]))
+                + view.textPaint.measureText(label.substring(range[1]));
+    }
+    /**
+     * Dessine le popup d'aide de signature (4.10.0 — une surcharge à la
+     * fois). Ancré AU-DESSUS de la ligne du curseur (contrairement au
+     * popup de complétion, qui est EN DESSOUS) ; s'il n'y a pas de place
+     * au-dessus, bascule en dessous. Structure :
+     * <ul>
+     *   <li>ligne de STEPPER « ‹ i/n › » (seulement s'il y a un choix) —
+     *       flèches en accent quand actives, atténuées aux bornes ;</li>
+     *   <li>signature UNIQUE, fenêtrée autour du paramètre actif
+     *       (±1 au-delà de 5 paramètres, « … » pour les tronqués) ; le
+     *       paramètre actif est en gras + accent et garanti VISIBLE
+     *       (ellipsé autour de lui) ; l'appui long (peek) révèle la
+     *       signature COMPLÈTE en multi-lignes ;</li>
+     *   <li>bande de documentation : paramètre ACTIF (label en accent)
+     *       puis javadoc, séparée par un filet en vue peek.</li>
+     * </ul>
      */
     void drawSignatureHelpPopup(Canvas canvas) {
         float[] l = computeSignatureLayout();
@@ -298,12 +428,15 @@ public class EditorAssistPopupPainter {
         float rowH = l[SIG_ROW_H];
         float width = l[SIG_WIDTH];
         float radius = SIGNATURE_HELP_RADIUS_DP * density;
-        int rowsToShow = (int) l[SIG_ROWS];
         int activeIdx = (int) l[SIG_ACTIVE];
         float anchorX = l[SIG_ANCHOR_X];
         float anchorY = l[SIG_ANCHOR_Y];
-        boolean hasBadge = l[SIG_HAS_BADGE] >= 1;
+        boolean hasStepper = l[SIG_HAS_BADGE] >= 1;
+        float stepperH = l[SIG_STEPPER_H];
         float padX = 8 * density;
+        boolean peeked = view.signatureHelpController != null
+                && view.signatureHelpController.isPeeked();
+        int total = view.signatureHelpData.signatures.size();
 
         // Fond + bordure
         RectF rect = scratchRect;
@@ -315,69 +448,87 @@ public class EditorAssistPopupPainter {
         view.caretPaint.setColor(view.theme.glassBorder);
         canvas.drawRoundRect(rect, radius, radius, view.caretPaint);
 
-        // Rangées — clippées au rect ; le paramètre actif garanti
-        // visible par ellipsizeAroundActive.
         canvas.save();
         canvas.clipRect(rect);
-        view.textPaint.setTypeface(view.metrics.getTypeface());
-        view.textPaint.setTextSize(view.metrics.getTextSize() * 0.85f);
-        for (int i = 0; i < rowsToShow; i++) {
-            jo.codeeditor.completion.SignatureHelpController.Signature sig =
-                view.signatureHelpData.signatures.get(i);
-            float y = anchorY + i * rowH;
-            // Surligner la rangée de la signature active (sensible à
-            // l'override clavier/tactile du contrôleur).
-            if (i == activeIdx) {
-                view.selPaint.setColor(view.theme.selection);
-                canvas.drawRect(anchorX + 1, y, anchorX + width - 1, y + rowH, view.selPaint);
-            }
-            // La rangée 0 cède sa droite au badge (coin haut droit).
-            float availW = width - 2 * padX
-                    - (hasBadge && i == 0
-                        ? (l[SIG_B_RIGHT] - l[SIG_B_LEFT]) + 4 * density : 0);
-            String label = sig.label;
-            int[] paramRange = findParameterRangeInLabel(label, sig.activeParameter);
-            if (paramRange == null) {
-                String[] parts = ellipsizeAroundActive("", "", label, availW, view.textPaint);
-                drawSignatureRowText(canvas, anchorX + padX, y + rowH * 0.7f,
-                        parts[0], parts[1], parts[2]);
-            } else {
-                String pre = label.substring(0, paramRange[0]);
-                String param = label.substring(paramRange[0], paramRange[1]);
-                String post = label.substring(paramRange[1]);
-                String[] parts = ellipsizeAroundActive(pre, param, post, availW, view.textPaint);
-                drawSignatureRowText(canvas, anchorX + padX, y + rowH * 0.7f,
-                        parts[0], parts[1], parts[2]);
-            }
+
+        // ── Stepper « ‹ i/n › » : flèche gauche, compteur (atténué),
+        // flèche droite. Une flèche aux BORNES est atténuée (grisée) —
+        // le hit-test tactile la respecte (pas de cycle au-delà).
+        if (hasStepper) {
+            view.textPaint.setTypeface(view.metrics.getTypeface());
+            view.textPaint.setTextSize(view.metrics.getTextSize() * 0.7f);
+            float stepperBase = anchorY;
+            float cy = stepperBase + rowH * 0.5f
+                    - (view.textPaint.ascent() + view.textPaint.descent()) / 2f;
+            String leftArrow = "\u2039";
+            String rightArrow = "\u203A";
+            String countText = (activeIdx + 1) + "/" + total;
+            float arrowW = view.textPaint.measureText(leftArrow);
+            float countW = view.textPaint.measureText(countText);
+            float arrowPad = 4 * density;
+            float countTotal = countW + 2 * (arrowW + 2 * arrowPad);
+            float leftCx = anchorX + (width - countTotal) / 2f + arrowPad;
+            float rightCx = anchorX + (width + countTotal) / 2f - arrowPad;
+            view.textPaint.setColor(activeIdx > 0
+                    ? view.theme.func : view.theme.gutterText);
+            canvas.drawText(leftArrow, leftCx - arrowW / 2f, cy, view.textPaint);
+            view.textPaint.setColor(view.theme.gutterText);
+            canvas.drawText(countText, leftCx + arrowW / 2f + arrowPad, cy,
+                    view.textPaint);
+            view.textPaint.setColor(activeIdx < total - 1
+                    ? view.theme.func : view.theme.gutterText);
+            canvas.drawText(rightArrow, rightCx - arrowW / 2f, cy, view.textPaint);
         }
 
-        // ── Badge de surcharges (coin haut droit) : pill teintée,
-        // texte « n/m » — la SEULE surface tactile du popup.
-        if (hasBadge) {
-            view.textPaint.setTextSize(view.metrics.getTextSize() * 0.7f);
-            String badgeText = (activeIdx + 1) + "/"
-                    + view.signatureHelpData.signatures.size();
-            RectF badge = scratchRect;
-            badge.set(l[SIG_B_LEFT], l[SIG_B_TOP], l[SIG_B_RIGHT], l[SIG_B_BOTTOM]);
-            view.selPaint.setColor(view.theme.selection);
-            canvas.drawRoundRect(badge, badge.height() / 2f, badge.height() / 2f, view.selPaint);
-            view.textPaint.setColor(view.theme.keyword);
-            canvas.drawText(badgeText,
-                    badge.left + 5 * density,
-                    badge.centerY() - (view.textPaint.ascent() + view.textPaint.descent()) / 2f,
-                    view.textPaint);
+        // ── Signature unique : fenêtrée hors peek (sigLines = 1 ligne),
+        // complète wrappée en peek. Paramètre actif en gras + accent,
+        // garanti visible (ellipsizeAroundActive) — sauf en peek où la
+        // signature est entière par construction.
+        view.textPaint.setTypeface(view.metrics.getTypeface());
+        view.textPaint.setTextSize(view.metrics.getTextSize() * 0.85f);
+        jo.codeeditor.completion.SignatureHelpController.Signature activeSig =
+                view.signatureHelpData.signatures.get(activeIdx);
+        int displayActiveParam = peeked ? activeSig.activeParameter
+                : windowedActiveParam(activeSig);
+        float sigTop = anchorY + stepperH;
+        float availW = width - 2 * padX;
+        for (int i = 0; i < sigLines.size(); i++) {
+            String line = sigLines.get(i);
+            float baseline = sigTop + i * rowH + rowH * 0.7f;
+            int[] paramRange = findParameterRangeInLabel(line, displayActiveParam);
+            if (paramRange == null) {
+                String[] parts = peeked
+                        ? new String[]{"", "", line}
+                        : ellipsizeAroundActive("", "", line, availW, view.textPaint);
+                drawSignatureRowText(canvas, anchorX + padX, baseline,
+                        parts[0], parts[1], parts[2]);
+            } else {
+                String pre = line.substring(0, paramRange[0]);
+                String param = line.substring(paramRange[0], paramRange[1]);
+                String post = line.substring(paramRange[1]);
+                String[] parts = peeked
+                        ? new String[]{pre, param, post}
+                        : ellipsizeAroundActive(pre, param, post, availW, view.textPaint);
+                drawSignatureRowText(canvas, anchorX + padX, baseline,
+                        parts[0], parts[1], parts[2]);
+            }
         }
 
         // ── Bande documentation : paramètre ACTIF en tête (label en
         // accent sur la première ligne si le wrap ne l'a pas coupé),
-        // puis la javadoc (sections @ en couleur de mot-clé).
+        // puis la javadoc (sections @ en couleur de mot-clé). En peek,
+        // un filet sépare la signature complète de sa documentation.
         if (!sigDocLines.isEmpty()) {
-            float docTop = anchorY + rowsToShow * rowH;
-            view.caretPaint.setStyle(Paint.Style.STROKE);
-            view.caretPaint.setStrokeWidth(1f);
-            view.caretPaint.setColor(view.theme.glassBorder);
-            canvas.drawLine(anchorX, docTop, anchorX + width, docTop,
-                    view.caretPaint);
+            float sigTextH = sigLines.size() * rowH;
+            float docTop = sigTop + sigTextH + (peeked ? 5 * density : 0);
+            if (peeked) {
+                view.caretPaint.setStyle(Paint.Style.STROKE);
+                view.caretPaint.setStrokeWidth(1f);
+                view.caretPaint.setColor(view.theme.glassBorder);
+                canvas.drawLine(anchorX, docTop, anchorX + width, docTop,
+                        view.caretPaint);
+                docTop += 1;
+            }
             view.selPaint.setColor(view.theme.selection);
             canvas.drawRect(anchorX, docTop, anchorX + width,
                     anchorY + l[SIG_POPUP_H], view.selPaint);
@@ -410,6 +561,14 @@ public class EditorAssistPopupPainter {
         // Réinitialiser l'état du paint.
         view.textPaint.setTypeface(view.metrics.getTypeface());
         view.textPaint.setTextSize(view.metrics.getTextSize());
+    }
+
+    /** Index du paramètre actif dans le repère FENÊTRÉ du libellé affiché. */
+    private int windowedActiveParam(
+            jo.codeeditor.completion.SignatureHelpController.Signature sig) {
+        int[] win = new int[1];
+        windowSignature(sig.label, sig.activeParameter, win);
+        return win[0];
     }
 
     /**
@@ -1029,16 +1188,16 @@ public class EditorAssistPopupPainter {
         float anchorX = anchor[0];
         float anchorY = anchor[1];
 
-        // Fond + bordure — coins TOP-LEFT/TOP-RIGHT arrondis uniquement
-        // (le haut du popup « s'attache » à la ligne du curseur, motif
-        // bottom-docked de la diagnostic sheet inversé).
+        // Fond + bordure — les QUATRE coins arrondis (4.10.0 : la base
+        // carrée des « coins hauts seuls » tranchait avec la carte de
+        // verre flottante que le popup est censé être).
         RectF rect = scratchRect;
         rect.set(anchorX, anchorY, anchorX + width, anchorY + popupH);
         float[] radii = completionCornerRadii;
         radii[0] = radius; radii[1] = radius;   // haut-gauche
         radii[2] = radius; radii[3] = radius;   // haut-droite
-        radii[4] = 0f; radii[5] = 0f;           // bas-droite (droit)
-        radii[6] = 0f; radii[7] = 0f;           // bas-gauche (droit)
+        radii[4] = radius; radii[5] = radius;   // bas-droite
+        radii[6] = radius; radii[7] = radius;   // bas-gauche
         Path bg = scratchPath;
         bg.reset();
         bg.addRoundRect(rect, radii, Path.Direction.CW);
@@ -1127,6 +1286,8 @@ public class EditorAssistPopupPainter {
             CR_GLYPH_CX = 12, CR_GLYPH_CY = 13, CR_GLYPH_SIZE = 14;
     /** Badge au plus 20 dp (la rangée deux lignes en fait 40). */
     static final float COMPLETION_BADGE_MAX_DP = 20f;
+    /** Rayon du badge de type (4.10.0 : 4 → 6 dp, carré plus doux). */
+    static final float COMPLETION_BADGE_RADIUS_DP = 6f;
     /** Glyphe ⓘ au plus 16 dp, et sa réserve en fin de première ligne. */
     static final float COMPLETION_GLYPH_MAX_DP = 16f;
     static final float COMPLETION_GLYPH_RESERVE_DP = 18f;
@@ -1134,12 +1295,18 @@ public class EditorAssistPopupPainter {
     private final float[] completionRowScratch = new float[15];
 
     /**
-     * Calcule la géométrie d'une rangée du popup de complétion :
-     * positions et baselines des deux lignes, zone du badge, chip
-     * d'origine et réserve du glyphe ⓘ. Toutes les entrées sont des
-     * grandeurs déjà résolues (densité, hauteur de rangée, largeur
-     * MESURÉE du container) : la méthode est pure, remplissant le
-     * tableau fourni — aucun Canvas, aucune mesure, testable seule.
+     * Calcule la géométrie d'une rangée du popup de complétion
+     * (4.10.0 — la ligne du MILIEU gagne) : le libellé occupe SEUL la
+     * première ligne (toute la largeur, moins la réserve du glyphe) ;
+     * la seconde ligne porte le CONTAINER à GAUCHE (l'origine du
+     * symbole — paquet ou classe déclarante, ellipsé) et le DÉTAIL
+     * (FQCN d'un type, type de retour/signature d'un membre) ALIGNÉ À
+     * DROITE — la lecture devient « qui / d'où ça vient / ce que c'est »
+     * sur trois axes distincts au lieu de deux en compétition. Toutes
+     * les entrées sont des grandeurs déjà résolues (densité, hauteur de
+     * rangée, largeur MESURÉE du container) : la méthode est pure,
+     * remplissant le tableau fourni — aucun Canvas, aucune mesure,
+     * testable seule.
      */
     static void computeCompletionRowLayout(float[] m, float anchorX, float y,
                                            float width, float rowH, float padX,
@@ -1150,26 +1317,22 @@ public class EditorAssistPopupPainter {
                 COMPLETION_BADGE_MAX_DP * density);
         m[CR_BADGE_LEFT] = anchorX + padX;
         m[CR_BADGE_TOP] = y + (rowH - m[CR_BADGE_SIZE]) * 0.5f;
-        // Première ligne : libellé, chip d'origine à droite.
+        // Première ligne : le libellé SEUL — il ne dispute plus sa
+        // droite au chip d'origine (parti en seconde ligne) ; le glyphe
+        // ⓘ garde sa réserve en fin de ligne quand il est montré.
         m[CR_LABEL_X] = m[CR_BADGE_LEFT] + m[CR_BADGE_SIZE] + 6 * density;
         m[CR_LABEL_BASE] = y + rowH * 0.45f;
         m[CR_CONTAINER_RIGHT] = anchorX + width - padX;
-        m[CR_CONTAINER_LEFT] = containerW > 0f
-                ? m[CR_CONTAINER_RIGHT] - containerW
-                : m[CR_CONTAINER_RIGHT];
-        m[CR_CONTAINER_BASE] = m[CR_LABEL_BASE];
-        // Le libellé cède au chip ; sans chip, au glyphe s'il est
-        // montré (le glyphe ne vit qu'avec le container absent).
-        if (containerW > 0f) {
-            m[CR_LABEL_MAX_RIGHT] = m[CR_CONTAINER_LEFT] - 8 * density;
-        } else if (docGlyph) {
+        if (docGlyph) {
             m[CR_LABEL_MAX_RIGHT] = m[CR_CONTAINER_RIGHT]
                     - COMPLETION_GLYPH_RESERVE_DP * density;
         } else {
             m[CR_LABEL_MAX_RIGHT] = m[CR_CONTAINER_RIGHT];
         }
-        // Seconde ligne : identité qualifiée sous le libellé, même
-        // colonne, toute la largeur jusqu'au bord.
+        // Seconde ligne : container À GAUCHE (même colonne que le
+        // libellé), détail ALIGNÉ À DROITE — chacun dans sa moitié.
+        m[CR_CONTAINER_LEFT] = m[CR_LABEL_X];
+        m[CR_CONTAINER_BASE] = y + rowH * 0.85f;
         m[CR_DETAIL_X] = m[CR_LABEL_X];
         m[CR_DETAIL_BASE] = y + rowH * 0.85f;
         m[CR_DETAIL_MAX_RIGHT] = m[CR_CONTAINER_RIGHT];
@@ -1203,15 +1366,27 @@ public class EditorAssistPopupPainter {
         boolean docGlyph = !panelShown && item.documentation != null
                 && !item.documentation.isEmpty();
 
-        // ── Mesures préalables : le chip d'origine est ellipsé AVANT
-        // le layout — sa largeur mesurée entre dans le calcul des
-        // zones (paint partagé : taille posée puis restaurée). ──
+        // ── Mesures préalables : le container (seconde ligne, GAUCHE)
+        // et le détail (seconde ligne, DROITE) se partagent la largeur —
+        // chacun ellipsé À SA MOITIÉ AVANT le layout, la zone de l'un
+        // ne recouvre jamais celle de l'autre (paint partagé : taille
+        // posée puis restaurée). ──
         String container = (item.container != null) ? item.container : "";
+        String detail = (item.detail != null) ? item.detail : "";
+        float halfW = (width - 2 * padX - (width > 0 ? 8 * density : 0)) * 0.5f;
         float containerW = 0f;
         if (!container.isEmpty()) {
             view.textPaint.setTextSize(view.metrics.getTextSize() * 0.7f);
-            container = ellipsizeTail(container, width * 0.4f);
+            container = ellipsizeTail(container, halfW);
             containerW = view.textPaint.measureText(container);
+        }
+        float detailW = 0f;
+        if (!detail.isEmpty()) {
+            view.textPaint.setTextSize(view.metrics.getTextSize() * 0.75f);
+            float detailAvail = Math.max(0, width - 2 * padX - 8 * density
+                    - (containerW > 0 ? containerW + 8 * density : 0));
+            detail = ellipsizeTail(detail, detailAvail);
+            detailW = view.textPaint.measureText(detail);
         }
         float[] m = completionRowScratch;
         computeCompletionRowLayout(m, anchorX, y, width, rowH, padX,
@@ -1232,7 +1407,7 @@ public class EditorAssistPopupPainter {
         // Fond : teinte du kind à 20 % d'alpha.
         view.bgPaint.setColor((badge.color & 0x00FFFFFF)
                 | (0x33 << 24)); // alpha 51 ≈ 0.20
-        float badgeRadius = 4 * density;
+        float badgeRadius = COMPLETION_BADGE_RADIUS_DP * density;
         canvas.drawRoundRect(badgeRect, badgeRadius, badgeRadius, view.bgPaint);
 
         // Glyphe centré (police code, semi-gras — fake bold sur Canvas).
@@ -1295,32 +1470,28 @@ public class EditorAssistPopupPainter {
             canvas.restore();
         }
 
-        // ── Chip d'origine à droite de la ligne du libellé — sinon
-        // glyphe ⓘ de documentation (le glyphe ne vit qu'avec le
-        // container absent) ──
+        // ── Seconde ligne : container (l'ORIGINE du symbole — paquet ou
+        // classe déclarante) À GAUCHE, détail (FQCN d'un type, type de
+        // retour/signature d'un membre) ALIGNÉ À DROITE — deux axes de
+        // lecture distincts, atténués. Le glyphe ⓘ vit en fin de
+        // PREMIÈRE ligne (réserve dédiée). ──
         if (!container.isEmpty()) {
             view.textPaint.setTextSize(view.metrics.getTextSize() * 0.7f);
             view.textPaint.setColor(view.theme.gutterText);
             canvas.drawText(container, m[CR_CONTAINER_LEFT],
                     m[CR_CONTAINER_BASE], view.textPaint);
-        } else if (docGlyph) {
-            // 4.4.0 : la documentation se réduit à une icône quand le
-            // panneau ne tient pas (vue étroite) et que le container
-            // laisse la place libre.
-            drawCompletionDocGlyph(canvas, m[CR_GLYPH_CX], m[CR_GLYPH_CY],
-                    m[CR_GLYPH_SIZE]);
         }
-
-        // ── Identité qualifiée (seconde ligne) SOUS le libellé : FQCN
-        // d'un type, signature d'un membre — atténuée, ellipsée à la
-        // largeur restante. Le nom court et le nom long ne se
-        // disputent plus la même ligne. ──
-        String detail = (item.detail != null) ? item.detail : "";
         if (!detail.isEmpty()) {
             view.textPaint.setTextSize(view.metrics.getTextSize() * 0.75f);
-            detail = ellipsizeTail(detail, m[CR_DETAIL_MAX_RIGHT] - m[CR_DETAIL_X]);
             view.textPaint.setColor(view.theme.gutterText);
-            canvas.drawText(detail, m[CR_DETAIL_X], m[CR_DETAIL_BASE], view.textPaint);
+            canvas.drawText(detail, m[CR_DETAIL_MAX_RIGHT] - detailW,
+                    m[CR_DETAIL_BASE], view.textPaint);
+        }
+        if (docGlyph) {
+            // 4.4.0 : la documentation se réduit à une icône quand le
+            // panneau ne tient pas (vue étroite).
+            drawCompletionDocGlyph(canvas, m[CR_GLYPH_CX], m[CR_GLYPH_CY],
+                    m[CR_GLYPH_SIZE]);
         }
         view.textPaint.setTextSize(view.metrics.getTextSize() * 0.9f);
     }

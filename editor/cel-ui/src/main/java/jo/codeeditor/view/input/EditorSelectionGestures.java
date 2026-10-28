@@ -178,6 +178,30 @@ public class EditorSelectionGestures {
         if (view.blockDragCtl.isArmed()) {
             return;
         }
+        // ★ 4.10.0 — appui long SUR le popup d'aide de signature :
+        // bascule la vue PEEK (signature fenêtrée → signature complète
+        // multi-lignes + documentation, filet séparateur). Le geste est
+        // une INSPECTION du popup, pas une sélection du texte derrière —
+        // il est consommé ici, avant le garde popupOwnsTouch (le popup
+        // possède déjà son point, la garde le bloquerait sans effet).
+        if (view.signatureHelpVisible) {
+            float[] popup = view.signatureHelpPopupMetrics();
+            if (popup != null
+                    && x >= popup[0] && x <= popup[2]
+                    && y >= popup[1] && y <= popup[3]) {
+                if (view.signatureHelpController != null) {
+                    view.signatureHelpController.setPeeked(
+                            !view.signatureHelpController.isPeeked());
+                    view.invalidate();
+                }
+                // Le geste est consommé comme appui long : son UP ne
+                // doit PAS se résoudre en tap (le tap refermerait le
+                // peek qui vient de s'ouvrir — même trace que le
+                // dispatcher historique plus bas).
+                input.markLongPressTriggered();
+                return;
+            }
+        }
         // B7 (retour terrain n°4) : un popup qui possède le point (région
         // propre ou scrim modal) garde son appui long — l'appui long
         // « sélection pour drag » ne démarre PAS derrière un popup

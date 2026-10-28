@@ -978,7 +978,9 @@ public class EditorRenderer {
     public float[] quickDocMetrics() { return assist.quickDocMetrics(); }
 
     /** 4.8.0 — badge de surcharges du popup d'aide de signature (hit-test tactile). */
-    public float[] signatureHelpBadgeMetrics() { return assist.signatureHelpBadgeMetrics(); }
+    public float[] signatureHelpStepperMetrics() { return assist.signatureHelpStepperMetrics(); }
+
+    public float[] signatureHelpPopupMetrics() { return assist.signatureHelpPopupMetrics(); }
 
     /** Délègue à {@link EditorAssistPopupPainter} (smoke test du badge de complétion). */
     void drawCompletionPopup(Canvas canvas) { assist.drawCompletionPopup(canvas); }
