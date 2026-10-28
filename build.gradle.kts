@@ -10,7 +10,7 @@
 // c'est le build.gradle.kts du ROOT (CodeIDE/) qui s'applique, pas celui-ci.
 plugins {
     // AGP 9.0.0, aligné sur le wrapper Gradle 9.5.1.
-    id("com.android.library") version "9.0.0" apply false
+    id("com.android.library") version "9.4.1" apply false
     // Requis par le module :demo (application de démonstration).
     id("com.android.application") version "9.0.0" apply false
 }
