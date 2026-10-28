@@ -497,4 +497,162 @@ public class MiniJavaLanguageServerTest {
         params.setPosition(new org.eclipse.lsp4j.Position(ligne, caractère));
         return params;
     }
+
+    private static org.eclipse.lsp4j.HoverParams paramsSurvol(
+            int ligne, int caractère) {
+        org.eclipse.lsp4j.HoverParams params =
+                new org.eclipse.lsp4j.HoverParams();
+        params.setTextDocument(new org.eclipse.lsp4j.TextDocumentIdentifier(URI));
+        params.setPosition(new org.eclipse.lsp4j.Position(ligne, caractère));
+        return params;
+    }
+
+    private static org.eclipse.lsp4j.InlayHintParams paramsIndices(
+            int premièreLigne, int dernièreLigne) {
+        org.eclipse.lsp4j.InlayHintParams params =
+                new org.eclipse.lsp4j.InlayHintParams();
+        params.setTextDocument(new org.eclipse.lsp4j.TextDocumentIdentifier(URI));
+        params.setRange(new org.eclipse.lsp4j.Range(
+                new org.eclipse.lsp4j.Position(premièreLigne, 0),
+                new org.eclipse.lsp4j.Position(dernièreLigne, Integer.MAX_VALUE)));
+        return params;
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    // 4.13.0 — Survol documenté + indices lambda
+    // ════════════════════════════════════════════════════════════════
+
+    @Test
+    public void initialize_annonceSurvolEtIndicesLambda() throws Exception {
+        RecordingClient client = new RecordingClient();
+        MiniJavaLanguageServer server = serveurConnecté(client);
+        InitializeResult result = server.initialize(new InitializeParams()).get();
+        assertNotNull("la capability hoverProvider est annoncée",
+                result.getCapabilities().getHoverProvider());
+        assertNotNull("la capability inlayHintProvider est annoncée",
+                result.getCapabilities().getInlayHintProvider());
+    }
+
+    @Test
+    public void hover_sertLeMarkdownDocumenté() throws Exception {
+        RecordingClient client = new RecordingClient();
+        MiniJavaLanguageServer server = serveurConnecté(client);
+        // Ligne 2 : « int m = Math.max(1, 2); » — le survol de max
+        // sert la table embarquée (signature + @param).
+        String code = "class A {\n"
+                + "    void t() {\n"
+                + "        int m = Math.max(1, 2);\n"
+                + "    }\n"
+                + "}\n";
+        didOpen(server, code);
+        org.eclipse.lsp4j.Hover hover = server.getTextDocumentService()
+                .hover(paramsSurvol(2, 22)).get();
+        assertNotNull(hover);
+        assertNotNull(hover.getContents());
+        assertTrue("markdown servi",
+                hover.getContents().isRight());
+        String valeur = hover.getContents().getRight().getValue();
+        assertTrue(valeur.contains("```java"));
+        assertTrue(valeur.contains("max(int a, int b)"));
+        assertTrue(valeur.contains("@param a le premier entier"));
+    }
+
+    @Test
+    public void hover_classpath_sertLaSignatureRéelle() throws Exception {
+        RecordingClient client = new RecordingClient();
+        MiniJavaLanguageServer server = serveurConnecté(client);
+        String code = "class A {\n"
+                + "    void t() {\n"
+                + "        int n = Integer.parseInt(\"3\");\n"
+                + "    }\n"
+                + "}\n";
+        didOpen(server, code);
+        org.eclipse.lsp4j.Hover hover = server.getTextDocumentService()
+                .hover(paramsSurvol(2, 31)).get();
+        assertNotNull(hover);
+        String valeur = hover.getContents().getRight().getValue();
+        assertTrue(valeur.contains("parseInt("));
+        assertTrue(valeur.contains("java.lang.Integer"));
+    }
+
+    @Test
+    public void hover_symboleInconnu_réponseVide() throws Exception {
+        RecordingClient client = new RecordingClient();
+        MiniJavaLanguageServer server = serveurConnecté(client);
+        String code = "class A {\n    int zzq = 1;\n}\n";
+        didOpen(server, code);
+        org.eclipse.lsp4j.Hover hover = server.getTextDocumentService()
+                .hover(paramsSurvol(1, 8)).get();
+        // Réponse VIDE légitime : le client garde son repli local,
+        // jamais de documentation inventée.
+        assertNotNull(hover);
+        assertTrue(hover.getContents() == null
+                || (hover.getContents().isLeft()
+                        && hover.getContents().getLeft().isEmpty()));
+    }
+
+    @Test
+    public void inlayHint_sertLeTypeDesParamètresLambda() throws Exception {
+        RecordingClient client = new RecordingClient();
+        MiniJavaLanguageServer server = serveurConnecté(client);
+        String code = "class Atelier {\n"
+                + "    void t() {\n"
+                + "        List<String> noms = null;\n"
+                + "        noms.forEach(n -> System.out.println(n));\n"
+                + "    }\n"
+                + "}\n";
+        didOpen(server, code);
+        List<org.eclipse.lsp4j.InlayHint> hints = server.getTextDocumentService()
+                .inlayHint(paramsIndices(0, 5)).get();
+        assertEquals("un indice : le type de « n »", 1, hints.size());
+        org.eclipse.lsp4j.InlayHint h = hints.get(0);
+        assertEquals("String", h.getLabel().getLeft());
+        assertEquals(org.eclipse.lsp4j.InlayHintKind.Type, h.getKind());
+        assertEquals("le texte respire avant le nom",
+                Boolean.TRUE, h.getPaddingRight());
+        assertEquals("position ligne 3 (base 0)", 3,
+                h.getPosition().getLine());
+        assertEquals("colonne du paramètre « n »", 21,
+                h.getPosition().getCharacter());
+        assertTrue("tooltip au détail",
+                h.getTooltip().getLeft().contains("n : String"));
+    }
+
+    @Test
+    public void inlayHint_plageSansLambda_réponseVide() throws Exception {
+        RecordingClient client = new RecordingClient();
+        MiniJavaLanguageServer server = serveurConnecté(client);
+        String code = "class Atelier {\n"
+                + "    void t() {\n"
+                + "        List<String> noms = null;\n"
+                + "        noms.forEach(n -> System.out.println(n));\n"
+                + "    }\n"
+                + "}\n";
+        didOpen(server, code);
+        // La plage ne couvre QUE la ligne 2 : la flèche (ligne 3)
+        // n'y vit pas — rien à servir.
+        List<org.eclipse.lsp4j.InlayHint> hints = server.getTextDocumentService()
+                .inlayHint(paramsIndices(2, 2)).get();
+        assertTrue(hints.isEmpty());
+    }
+
+    @Test
+    public void signatureHelp_repliClasspath_sertIntegerParseInt()
+            throws Exception {
+        RecordingClient client = new RecordingClient();
+        MiniJavaLanguageServer server = serveurConnecté(client);
+        String code = "class A {\n"
+                + "    void t() {\n"
+                + "        int n = Integer.parseInt(\n"
+                + "    }\n"
+                + "}\n";
+        didOpen(server, code);
+        org.eclipse.lsp4j.SignatureHelp help = server.getTextDocumentService()
+                .signatureHelp(paramsSignature(2, 36)).get();
+        assertNotNull(help);
+        assertTrue("les vraies surcharges du classpath",
+                help.getSignatures().size() >= 2);
+        assertTrue(help.getSignatures().get(0).getLabel()
+                .startsWith("parseInt("));
+    }
 }

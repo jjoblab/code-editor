@@ -126,6 +126,13 @@ public final class DemoSamples {
                 public String label(String étiquette, int valeur) {
                     return étiquette + " -> " + valeur;
                 }
+
+                /** Imprime l'historique — « h » porte son type en indice
+                 *  fantôme (interface Consumer<String> inférée de la
+                 *  déclaration de history). */
+                public void imprimer() {
+                    history.forEach(h -> System.out.println(h));
+                }
                 // endregion
 
                 public record Operation(String label, int result) {

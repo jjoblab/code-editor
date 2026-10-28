@@ -13,7 +13,13 @@ Ce que c'est — et ce que ce n'est pas :
   réellement embarquées (LSP4J, Gson) et les grammaires tierces du
   module optionnel sont attribuées dans [`NOTICE`](NOTICE).
 - **Publication** : coordonnées Maven `jo.codeeditor:<module>` —
-  version courante : `4.12.0` (la complétion devient CONTEXTUELLE :
+  version courante : `4.13.0` (la documentation du CLASSPATH arrive
+  au survol et à la signature : les vraies surcharges du runtime par
+  réflexion (`Integer.parseInt(`…), la fiche du symbole sous le
+  caret — méthodes, variables, types, constantes —, et les INDICES
+  LAMBDA : le type fantôme des paramètres de lambda, inféré de
+  l'interface fonctionnelle ; sur la 4.12.0 de la complétion
+  CONTEXTUELLE :
   constantes d'enum après « . », attributs d'annotation dans
   « @Anno( », arguments nommés à une position d'argument — la même
   résolution que l'aide de signature, paramètre actif compris — et
@@ -95,7 +101,7 @@ optionnels et s'ajoutent selon les besoins.
 
 Les artefacts sont publiés sur `maven.pkg.github.com` avec les
 coordonnées `jo.codeeditor:<module>:<version>` (version courante :
-`4.12.0`).
+`4.13.0`).
 
 1. Créez un jeton d'accès personnel GitHub avec le droit `read:packages`.
 2. Renseignez vos identifiants dans `~/.gradle/gradle.properties` :
@@ -352,8 +358,8 @@ interface `EditorPreviewHost`) figure dans
 
 ```bash
 ./gradlew test
-# 3 024 tests, 0 failure :
-#   cel-core 1 495 · cel-lsp-api 32 · cel-lsp 238 · cel-ui 996 · cel-textmate 96 · demo 167
+# 3 075 tests, 0 failure :
+#   cel-core 1 495 · cel-lsp-api 32 · cel-lsp 238 · cel-ui 996 · cel-textmate 96 · demo 218
 # (contrôle d'écart : scripts/check-doc-figures.sh, exécuté en CI)
 ```
 

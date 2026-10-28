@@ -165,7 +165,11 @@ public final class MiniJavaSignatures {
         {"List", "contains", "contains(Object o)", "Vrai si la liste contient l'objet.", "l'objet cherché"},
         {"List", "indexOf", "indexOf(Object o)", "La position de la première occurrence, -1 sinon.", "l'objet cherché"},
         {"List", "clear", "clear()", "Supprime tous les éléments.", ""},
-        {"List", "sort", "sort(Comparator c)", "Trie la liste selon le comparateur.", "le comparateur du tri"},
+        {"List", "sort", "sort(Comparator<E> c)", "Trie la liste selon le comparateur.", "le comparateur du tri"},
+        {"List", "forEach", "forEach(Consumer<E> action)", "Applique l'action à chaque élément, dans l'ordre.", "l'action à appliquer"},
+        {"List", "removeIf", "removeIf(Predicate<E> filtre)", "Supprime chaque élément que le filtre accepte.", "le filtre de suppression"},
+        {"List", "replaceAll", "replaceAll(UnaryOperator<E> op)", "Remplace chaque élément par le résultat de l'opérateur.", "l'opérateur de remplacement"},
+        {"Map", "forEach", "forEach(BiConsumer<K, V> action)", "Applique l'action à chaque association clé-valeur.", "l'action à appliquer"},
         {"Map", "put", "put(K clé, V valeur)", "Associe la valeur à la clé, renvoie l'ancienne.", "la clé|la valeur à associer"},
         {"Map", "get", "get(Object clé)", "La valeur associée à la clé, null sinon.", "la clé cherchée"},
         {"Map", "getOrDefault", "getOrDefault(Object clé, V défaut)", "La valeur associée à la clé, ou la valeur par défaut.", "la clé cherchée|la valeur par défaut"},
@@ -194,11 +198,22 @@ public final class MiniJavaSignatures {
             int open = t[2].indexOf('(');
             int close = t[2].lastIndexOf(')');
             if (open >= 0 && close > open + 1) {
-                for (String p : t[2].substring(open + 1, close).split(",")) {
-                    String label = p.trim();
-                    if (!label.isEmpty()) {
-                        params.add(label);
-                        docs.add("");
+                // Découpe à la profondeur 0 des chevrons : un type
+                // générique peut porter SA virgule (BiConsumer<K, V>)
+                // sans couper le paramètre en deux.
+                String corps = t[2].substring(open + 1, close);
+                int prof = 0, début = 0;
+                for (int i = 0; i <= corps.length(); i++) {
+                    char c = i < corps.length() ? corps.charAt(i) : ',';
+                    if (c == '<') prof++;
+                    else if (c == '>') prof--;
+                    else if (c == ',' && prof == 0) {
+                        String label = corps.substring(début, i).trim();
+                        if (!label.isEmpty()) {
+                            params.add(label);
+                            docs.add("");
+                        }
+                        début = i + 1;
                     }
                 }
             }
@@ -332,8 +347,10 @@ public final class MiniJavaSignatures {
      * {@code System.out.println} — donne {@code ["System.out",
      * "println"]}, un appel nu {@code calculer} donne
      * {@code [null, "calculer"]}. Null si aucun identifiant.
+     * Package-privé : partagé avec les moteurs de survol et d'indices
+     * lambda (la MÊME lecture du récepteur pour tous).
      */
-    private static String[] récepteurEtNom(String text, int open) {
+    static String[] récepteurEtNom(String text, int open) {
         int end = open;
         while (end > 0 && Character.isWhitespace(text.charAt(end - 1))) end--;
         List<String> segments = new ArrayList<>();
@@ -380,7 +397,9 @@ public final class MiniJavaSignatures {
     // Candidats : bibliothèque, buffer, repli par nom
     // ════════════════════════════════════════════════════════════════
 
-    private static List<Entry> candidats(String text, String récepteur, String nom) {
+    // Package-privé : les moteurs frères (survol, indices lambda)
+    // résolvent les MÊMES candidats que l'aide de signature.
+    static List<Entry> candidats(String text, String récepteur, String nom) {
         if (récepteur != null) {
             // 1. Récepteur de la bibliothèque (System.out, Math, String…).
             Map<String, List<Entry>> table = PAR_RÉCEPTEUR.get(récepteur);
@@ -400,13 +419,32 @@ public final class MiniJavaSignatures {
                 // Type déclaré dans le fichier → ses méthodes propres.
                 List<Entry> propres = buffer.méthodesDe(type, nom);
                 if (!propres.isEmpty()) return propres;
+                // 4.13.0 — le type de la variable vit sur le CLASSPATH :
+                // les méthodes publiques réelles, par réflexion (le
+                // type déclaré dans le fichier a dit son dernier mot —
+                // jamais de repli pour lui).
+                if (!buffer.typesDéclarés.contains(type)) {
+                    List<Entry> cp = MiniJavaClasspath.méthodesRécepteur(type, nom);
+                    if (!cp.isEmpty()) return cp;
+                }
                 return new ArrayList<>();
             }
             // 3. Classe déclarée (appel statique) ou this.
             if ("this".equals(récepteur) && buffer.premièreClasse != null) {
                 return buffer.méthodesDe(buffer.premièreClasse, nom);
             }
-            return buffer.méthodesDe(récepteur, nom);
+            List<Entry> propres = buffer.méthodesDe(récepteur, nom);
+            if (!propres.isEmpty()) return propres;
+            // 4.13.0 — récepteur de CLASSPATH (Integer.parseInt,
+            // Arrays.toString…) : la classe est chargée par réflexion
+            // — mais JAMAIS quand le nom désigne un type DÉCLARÉ dans
+            // le fichier (sa table, c'est lui : le hors-fichier ne
+            // contredit pas le fichier).
+            if (!buffer.typesDéclarés.contains(récepteur)) {
+                List<Entry> cp = MiniJavaClasspath.méthodesRécepteur(récepteur, nom);
+                if (!cp.isEmpty()) return cp;
+            }
+            return new ArrayList<>();
         }
         // Appel nu : les méthodes déclarées du buffer d'abord, puis le
         // repli par nom dans la bibliothèque (println, append, max…).
@@ -458,9 +496,13 @@ public final class MiniJavaSignatures {
     }
 
     /** Vue légère du buffer : méthodes, variables, classes. */
-    private static final class Buffer {
+    static final class Buffer {
         final List<MéthodeBuffer> méthodes = new ArrayList<>();
         final Map<String, String> variables = new HashMap<>();
+        /** Les types DÉCLARÉS dans le fichier (class/interface/enum/
+         *  record) — leur existence coupe le repli classpath : le
+         *  fichier a préséance sur le runtime, toujours. */
+        final java.util.Set<String> typesDéclarés = new java.util.HashSet<>();
         final String premièreClasse;
 
         Buffer(String text) {
@@ -490,6 +532,7 @@ public final class MiniJavaSignatures {
                 if (mc.find()) {
                     classeCourante = mc.group(1);
                     if (première == null) première = classeCourante;
+                    typesDéclarés.add(classeCourante);
                 }
                 MéthodeBuffer m = méthodeDeLigne(grille, classeCourante, paramsEnAttente);
                 if (m != null) méthodes.add(m);

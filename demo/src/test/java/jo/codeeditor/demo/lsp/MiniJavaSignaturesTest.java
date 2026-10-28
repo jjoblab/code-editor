@@ -169,4 +169,86 @@ public class MiniJavaSignaturesTest {
         assertNotNull(r);
         assertEquals(0, r.activeParameter);
     }
+
+    // ── 4.13.0 — interfaces fonctionnelles de la table ─────────
+
+    @Test
+    public void forEach_deListe_sertLInterfaceFonctionnelle() {
+        String code = "class A { void t() { List<String> l = null; l.forEach(";
+        List<MiniJavaSignatures.Entry> sigs = résoudre(code, code.length());
+        assertNotNull(sigs);
+        assertEquals(1, sigs.size());
+        assertEquals("forEach(Consumer<E> action)", sigs.get(0).label);
+        assertEquals("l'action à appliquer", sigs.get(0).paramDocs.get(0));
+    }
+
+    @Test
+    public void forEach_deMap_parseLaVirguleDesGénériques() {
+        // « BiConsumer<K, V> » porte SA virgule dans les génériques :
+        // le paramètre ne doit PAS être coupé en deux.
+        String code = "class A { void t() { Map<String, Integer> m = null; m.forEach(";
+        List<MiniJavaSignatures.Entry> sigs = résoudre(code, code.length());
+        assertNotNull(sigs);
+        assertEquals(1, sigs.size());
+        assertEquals(1, sigs.get(0).params.size());
+        assertEquals("BiConsumer<K, V> action", sigs.get(0).params.get(0));
+    }
+
+    @Test
+    public void sort_porteSonGénérique() {
+        String code = "class A { void t() { List<String> l = null; l.sort(";
+        List<MiniJavaSignatures.Entry> sigs = résoudre(code, code.length());
+        assertNotNull(sigs);
+        assertEquals("sort(Comparator<E> c)", sigs.get(0).label);
+    }
+
+    // ── 4.13.0 — le repli classpath par réflexion ───────────────
+
+    @Test
+    public void récepteurClasspath_sertLesVraiesSurcharges() {
+        String code = "class A { void t() { int n = Integer.parseInt(";
+        List<MiniJavaSignatures.Entry> sigs = résoudre(code, code.length());
+        assertNotNull(sigs);
+        assertTrue(sigs.size() >= 2);
+        assertTrue(sigs.get(0).label.startsWith("parseInt("));
+        // La documentation dit la vérité : la classe porteuse.
+        assertTrue(sigs.get(0).documentation.contains("java.lang.Integer"));
+    }
+
+    @Test
+    public void variableDeTypeClasspath_sertLesVraiesSurcharges() {
+        String code = "class A { void t() { java.util.Scanner sc = null;"
+                + " sc.nextInt(";
+        List<MiniJavaSignatures.Entry> sigs = résoudre(code, code.length());
+        assertNotNull(sigs);
+        assertTrue(sigs.get(0).label.startsWith("nextInt("));
+        assertTrue(sigs.get(0).documentation.contains("java.util.Scanner"));
+    }
+
+    @Test
+    public void récepteurArrays_sertLesSurchargesRéelles() {
+        String code = "class A { void t() { int[] t = null; String s = Arrays.toString(";
+        List<MiniJavaSignatures.Entry> sigs = résoudre(code, code.length());
+        assertNotNull(sigs);
+        assertTrue(sigs.size() >= 2);
+        assertTrue(sigs.get(0).label.startsWith("toString("));
+    }
+
+    @Test
+    public void typeDéclaréDansLeFichier_neTombePasDansLeClasspath() {
+        // Un Timer DÉCLARÉ dans le buffer : java.util.Timer n'a pas
+        // son mot à dire — ses méthodes inconnues ne servent RIEN.
+        String code = "class Timer { void go() {} }"
+                + "class A { void t() { Timer.schedule(";
+        List<MiniJavaSignatures.Entry> sigs = résoudre(code, code.length());
+        assertNull(sigs);
+    }
+
+    @Test
+    public void appelNu_neTombePasDansLeClasspath() {
+        // Sans récepteur ni déclaration : le repli par nom reste
+        // borné à la bibliothèque embarquée — le classpath ne sert
+        // QUE les récepteurs explicites.
+        assertNull(MiniJavaSignatures.resolve("parseInt(", 9));
+    }
 }

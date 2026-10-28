@@ -1311,3 +1311,64 @@ un hôte qui comptait sur la dépendance transitive n'a rien à faire.
   dernière accolade), la complétion sert la base fixe
   (toString/size/add/addAll) et `add` reçoit sa documentation après un
   séjour de la sélection (dwell 200 ms).
+
+## 4.13.0
+
+### 1. État de publication
+
+- Tag `v4.13.0`, coordonnées Maven `jo.codeeditor:<module>:4.13.0`
+  (publication par le workflow `publish.yml` : les cinq AAR
+  `cel-core`, `cel-lsp-api`, `cel-lsp`, `cel-ui`, `cel-textmate`).
+- CI verte attendue sur `main` (validation locale : `test` —
+  3 075 tests, 0 échec ; garde-fous `check-class-budgets`,
+  `check-doc-figures`, `check-external-refs` verts).
+
+### 2. Compatibilité (l'application vient de 4.12.0)
+
+- **Aucune action obligatoire** — aucune API publique touchée : la
+  version entière vit dans le mini serveur LSP de la démo (moteurs
+  purs JVM `MiniJavaClasspath`, `MiniJavaDocs`, `MiniJavaLambdas`).
+  Les ponts clients (`LspHoverProvider`, `LspInlayHintProvider`)
+  existaient déjà pour les serveurs tiers.
+
+### 3. Changements de comportement notables
+
+- **Aide de signature — repli classpath** : un récepteur inconnu de
+  la bibliothèque embarquée (`Integer.parseInt(`, `Arrays.toString(`)
+  sert les VRAIES surcharges du runtime par réflexion — paramètres
+  nommés `arg0` (le JDK ne livre pas les noms réels), exceptions et
+  caractère statique au détail. Un récepteur qui nomme un type
+  DÉCLARÉ DANS LE FICHIER ne descend JAMAIS au classpath (le fichier
+  a préséance sur le runtime).
+- **Survol documenté** (`hoverProvider` annoncé) : la fiche du
+  symbole sous le caret — constante d'enum, attribut d'annotation,
+  méthode (surcharges + `@param`), variable, type déclaré ou du
+  runtime. Sur mobile sans souris, le quick doc au caret reste la
+  voie tactile ; le survol souris (desktop / DeX, dwell 500 ms) est
+  inchangé côté bibliothèque.
+- **Indices lambda** (`inlayHintProvider` annoncé) : le type des
+  paramètres de lambda non typés s'affiche en fantôme devant le nom,
+  inféré de l'interface fonctionnelle attendue — génériques de la
+  DÉCLARATION du récepteur compris (`List<String> noms` →
+  `noms.forEach(n -> …)` porte `String`). Un type inconnu ne sert
+  RIEN (zéro devinette).
+- **Correction serveur** : `positionVersOffset` débordait sur la
+  borne `(ligne, Integer.MAX_VALUE)` des plages inlayHint — la
+  comparaison est désormais en arithmétique longue.
+
+### 4. Scénarios de vérification sur appareil
+
+- Onglet Java de l'atelier (moteur LSP connecté) : poser le caret
+  sur `round` de `Math.round(…)` → la fiche des surcharges de
+  maths ; sur `history` → sa déclaration `List<String>` ; sur
+  `ROUGE` (usage `Couleur.ROUGE`) → « ordinal 0 ».
+- Taper `Integer.parseInt(` → l'aide de signature montre les vraies
+  surcharges du JDK (`parseInt(String arg0)` qui lève
+  `NumberFormatException`).
+- La méthode `imprimer()` de l'échantillon : `history.forEach(h ->
+  …)` — le `h` porte l'indice fantôme `String` (appui long sur
+  l'indice : le tooltip dit l'inférence).
+- Ajouter `Set<String> s = new java.util.HashSet<>();` puis
+  `s.forEach(x -> System.out.println(x));` → l'indice `String`
+  arrive aussi (signature `Consumer<? super E>` résolue par
+  réflexion, `E` substitué par la déclaration).

@@ -1,5 +1,111 @@
 # Changelog
 
+## 4.13.0 — 2026-10-29 — Documentation de classpath au survol et à la signature ; indices lambda
+
+### Ajouté
+
+- **La documentation du CLASSPATH (survol + signature)** — quatrième
+  source des moteurs de la démo, après le buffer, la base fixe et la
+  bibliothèque embarquée : la RÉFLEXION sur le runtime
+  (`MiniJavaClasspath`, pur JVM — chargement SANS initialisation,
+  jamais d'exécuteur statique, tout accès borné `try/catch(Throwable)`
+  : une classe absente d'un niveau d'API est un échec ordinaire, pas
+  un crash du serveur ; résolutions positives COMME négatives
+  mémoïsées) :
+  - **l'aide de signature étend son territoire** : un récepteur
+    inconnu de la table (`Integer.parseInt(`, `Arrays.toString(`,
+    `sc.nextInt(` sur un `Scanner`) sert désormais les VRAIES
+    surcharges publiques du runtime — types génériques compris
+    (`forEach(Consumer<? super E> arg0)`), paramètres nommés par la
+    réflexion (`arg0` — le JDK ne livre pas les noms réels, la
+    documentation le dit), exceptions levées et caractère statique au
+    détail, ordre de présentation déterministe (arité puis libellé —
+    `getMethods()` ne promet rien). Le repli ne s'applique JAMAIS à
+    un récepteur qui nomme un type DÉCLARÉ DANS LE FICHIER (sa table,
+    c'est lui : le hors-fichier ne contredit pas le fichier) ;
+  - **le SURVOL documenté** (`MiniJavaDocs`, servi par
+    `textDocument/hover` — capability `hoverProvider` annoncée, le
+    popup QuickDoc de l'hôte se remplit) : le symbole sous le caret
+    résolu par famille, du plus local au plus lointain — constante
+    d'enum (ordinal et liste des constantes), attribut d'annotation
+    (type et valeur par défaut), méthode (LES surcharges en fence
+    `java`, documentation, sections `@param` de la première
+    surcharge documentée — le même moteur que l'aide de signature,
+    les deux racontent la même histoire), variable (déclaration +
+    fiche de son type), type déclaré du buffer (déclaration,
+    constantes, attributs, méthodes comptées) puis fiche du classpath
+    (genre, qualifiants, interfaces, constantes d'enum, champs
+    publics). Chaînes et commentaires MASQUÉS (un `Math.max` dans un
+    commentaire n'est pas un symbole), mots-clés exclus, et un mot
+    inconnu ne montre RIEN — jamais de documentation inventée.
+- **Les INDICES LAMBDA** (`MiniJavaLambdas`, servi par
+  `textDocument/inlayHint` — capability `inlayHintProvider` annoncée,
+  borné aux lignes visibles : le client ne demande que la plage à
+  l'écran) : un lambda Java déclare ses paramètres sans type
+  (`noms.forEach(n -> …)`) — le type vit dans l'interface
+  fonctionnelle attendue par l'appel, le moteur le retrouve et le
+  sert en INDICE FANTÔME : `String` s'affiche en pâle DEVANT le `n`
+  (kind LSP Type, padding à droite, tooltip `n : String — paramètre
+  de lambda, type inféré de …` à l'appui long). La résolution est
+  CONSERVATRICE : le lambda doit être un ARGUMENT d'appel résoluble
+  (les flèches de `switch` sont repoussées par le token qui précède
+  l'introduisant), la signature vient du même moteur que l'aide de
+  signature (table enrichie `forEach`/`removeIf`/`replaceAll`/
+  `Map.forEach` — découpée à la profondeur des chevrons, la virgule
+  de `BiConsumer<K, V>` ne coupe plus le paramètre), le paramètre à
+  la position du lambda doit être une interface fonctionnelle CONNUE
+  (câblage `Consumer`→1, `Comparator`/`BinaryOperator`→2 du même
+  argument, `BiConsumer`/`BiFunction`→2, `Function`→1, `Runnable`→0)
+  et le type prend l'argument générique EXPLICITE du fonctionnel
+  s'il est concret, sinon le générique correspondant de la
+  DÉCLARATION du récepteur (`List<String> noms` → `E = String`) ;
+  sans l'un ni l'autre, PAS d'indice (zéro devinette). Le classpath
+  participe : `Set<String> s; s.forEach(x -> …)` sert `String` par
+  réflexion sur `java.util.Set`.
+- **La bibliothèque embarquée gagne les interfaces fonctionnelles** :
+  `List.forEach(Consumer<E>)`, `List.removeIf(Predicate<E>)`,
+  `List.replaceAll(UnaryOperator<E>)`, `Map.forEach(BiConsumer<K, V>)`
+  et `List.sort` porte enfin son générique (`Comparator<E>`) —
+  l'aide de signature montre les vraies têtes des méthodes à lambda.
+
+### Corrigé
+
+- **`positionVersOffset` débordait sur la borne de fin de plage** :
+  le mini serveur convertissait `(ligne, Integer.MAX_VALUE)` — la
+  borne de fin standard d'une requête inlayHint — par une addition
+  entière qui DÉBORDE en négatif, vidant la réponse (plage finale
+  inversée). La comparaison se fait désormais en arithmétique longue
+  — trouvé par le test serveur du handler inlayHint.
+
+### Changements visibles
+
+- L'échantillon Java de la démo accueille
+  `history.forEach(h -> System.out.println(h));` : le paramètre `h`
+  porte son indice `String` fantôme à l'écran (interface
+  `Consumer<String>` inférée de la déclaration de `history`).
+- Le survol (desktop / ChromeOS / DeX : souris immobile 500 ms ;
+  ailleurs : quick doc au caret) montre la fiche du symbole —
+  y compris pour les classes du runtime (`Integer`, `Arrays`…),
+  jusqu'ici muettes.
+
+### Pour l'hôte
+
+- **Aucune action obligatoire** — aucune API publique touchée : les
+  deux fonctionnalités vivent dans le mini serveur de la démo, côté
+  serveur LSP. Un hôte branché à un serveur tiers avec
+  `hoverProvider`/`inlayHintProvider` bénéficiait déjà des ponts
+  clients (`LspHoverProvider`, `LspInlayHintProvider`).
+
+### Documentation
+
+- Compteurs resynchronisés : **3 075 tests** (cel-core 1 495, cel-ui
+  996, cel-lsp 238, démo 218, cel-textmate 96, cel-lsp-api 32 ; +51 :
+  survol documenté 21, indices lambda 15, signatures classpath +
+  fonctionnelles 8, serveur hover/indices 7). Les deux tests
+  Magnifier SDK 27/28, bloqués au bac à sable depuis la 4.12.0 par
+  la limite de téléchargement des artefacts Robolectric, sont
+  revenus verts (artefacts servis par le miroir de secours).
+
 ## 4.12.0 — 2026-10-29 — Complétion contextuelle (P1-B) et implémentation des membres manquants (P1-C)
 
 ### Ajouté

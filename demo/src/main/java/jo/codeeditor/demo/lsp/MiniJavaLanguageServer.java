@@ -138,6 +138,15 @@ public class MiniJavaLanguageServer implements LanguageServer {
         // 4.12.0 — les actions de code : le quickfix « implémenter les
         // membres manquants » sur le diagnostic unimplemented-members.
         caps.setCodeActionProvider(Either.forLeft(Boolean.TRUE));
+        // 4.13.0 — le SURVOL documenté (MiniJavaDocs) : la fiche du
+        // symbole sous le caret, nourrie par le buffer, la bibliothèque
+        // embarquée et le CLASSPATH par réflexion.
+        caps.setHoverProvider(Boolean.TRUE);
+        // 4.13.0 — les INDICES LAMBDA (MiniJavaLambdas) : le type
+        // fantôme des paramètres de lambda, borné aux lignes visibles
+        // (le client demande la plage à l'écran — jamais tout le
+        // document d'un coup).
+        caps.setInlayHintProvider(Boolean.TRUE);
         return CompletableFuture.completedFuture(new InitializeResult(caps));
     }
 
@@ -325,6 +334,73 @@ public class MiniJavaLanguageServer implements LanguageServer {
                 return CompletableFuture.completedFuture(out);
             }
 
+            // ── Survol documenté (4.13.0) ──────────────────────
+
+            /**
+             * Le survol du symbole sous le caret : le markdown de
+             * {@link MiniJavaDocs} — fence signature, description,
+             * sections {@code @param} — les QUATRE sources du moteur
+             * (buffer, bibliothèque embarquée, classpath par réflexion,
+             * rien). Une réponse VIDE est légitime : le client garde
+             * son repli local, jamais d'invention.
+             */
+            @Override
+            public CompletableFuture<org.eclipse.lsp4j.Hover> hover(
+                    org.eclipse.lsp4j.HoverParams params) {
+                org.eclipse.lsp4j.Hover out = new org.eclipse.lsp4j.Hover();
+                String text = openDocuments.get(
+                        params.getTextDocument().getUri());
+                if (text == null) {
+                    return CompletableFuture.completedFuture(out);
+                }
+                int caret = positionVersOffset(text, params.getPosition());
+                String markdown = MiniJavaDocs.survol(text, caret);
+                if (markdown == null) {
+                    return CompletableFuture.completedFuture(out);
+                }
+                org.eclipse.lsp4j.MarkupContent contenu =
+                        new org.eclipse.lsp4j.MarkupContent();
+                contenu.setKind("markdown");
+                contenu.setValue(markdown);
+                out.setContents(org.eclipse.lsp4j.jsonrpc.messages.Either
+                        .forRight(contenu));
+                return CompletableFuture.completedFuture(out);
+            }
+
+            // ── Indices lambda (4.13.0) ──────────────────────
+
+            /**
+             * Les indices des paramètres lambda de la plage demandée
+             * (le client borne aux lignes visibles) : le type fantôme
+             * avant chaque nom, son tooltip au détail. Kind Type LSP,
+             * padding à droite — le texte tissé respire avant le nom.
+             */
+            @Override
+            public CompletableFuture<List<org.eclipse.lsp4j.InlayHint>> inlayHint(
+                    org.eclipse.lsp4j.InlayHintParams params) {
+                List<org.eclipse.lsp4j.InlayHint> out = new ArrayList<>();
+                String text = openDocuments.get(
+                        params.getTextDocument().getUri());
+                if (text == null) {
+                    return CompletableFuture.completedFuture(out);
+                }
+                int[] plage = offsetsDePlage(text, params.getRange());
+                for (MiniJavaLambdas.Indice i
+                        : MiniJavaLambdas.indices(text, plage[0], plage[1])) {
+                    org.eclipse.lsp4j.InlayHint hint =
+                            new org.eclipse.lsp4j.InlayHint();
+                    hint.setPosition(offsetVersPosition(text, i.offset));
+                    hint.setLabel(org.eclipse.lsp4j.jsonrpc.messages.Either
+                            .forLeft(i.type));
+                    hint.setKind(org.eclipse.lsp4j.InlayHintKind.Type);
+                    hint.setPaddingRight(Boolean.TRUE);
+                    hint.setTooltip(org.eclipse.lsp4j.jsonrpc.messages.Either
+                            .forLeft(i.info));
+                    out.add(hint);
+                }
+                return CompletableFuture.completedFuture(out);
+            }
+
             @Override
             public CompletableFuture<CompletionItem> resolveCompletionItem(
                     CompletionItem item) {
@@ -499,12 +575,16 @@ public class MiniJavaLanguageServer implements LanguageServer {
         }
         // Dernier segment : jusqu'au caractère demandé ou à la fin de
         // ligne, auquel cas la position désigne la fin de la ligne.
+        // Le caractère peut être Integer.MAX_VALUE (la borne de fin
+        // de plage d'une requête inlayHint) : l'addition déborderait —
+        // la comparaison se fait en long, jamais en dessous de zéro.
         int fin = offset;
         while (fin < text.length() && text.charAt(fin) != '\n'
                 && text.charAt(fin) != '\r') {
             fin++;
         }
-        return Math.min(offset + car, fin);
+        long cible = (long) offset + (long) Math.max(0, position.getCharacter());
+        return (int) Math.min(cible, fin);
     }
 
     /**
