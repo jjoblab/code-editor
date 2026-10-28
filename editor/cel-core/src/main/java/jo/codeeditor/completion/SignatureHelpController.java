@@ -104,6 +104,16 @@ public class SignatureHelpController {
     /** Compteur d'époque pour éviter les résultats périmés. */
     private long epoch = 0;
 
+    /**
+     * Vue « peek » du popup (4.10.0) : l'utilisateur a appuyé longuement
+     * sur le popup pour étendre la signature FENÊTRÉE en signature
+     * COMPLÈTE multi-lignes (+ documentation). Un tap la referme.
+     * Remis à false quand le popup est fermé ou que le caret passe à un
+     * autre appel — le peek est une inspection ponctuelle, jamais un
+     * état permanent.
+     */
+    private boolean peeked = false;
+
     /** Listener de résolution de l'aide de signature. */
     private Resolver listener;
 
@@ -138,6 +148,11 @@ public class SignatureHelpController {
     public SignatureHelp getHelp() { return help; }
     public boolean isDismissed() { return dismissed; }
     public long getEpoch() { return epoch; }
+    /** true si l'utilisateur a étendu le popup en vue complète (peek). */
+    public boolean isPeeked() { return peeked; }
+
+    /** Bascule la vue peek (appui long sur le popup). */
+    public void setPeeked(boolean peeked) { this.peeked = peeked; }
 
     public void setListener(Resolver listener) { this.listener = listener; }
 
@@ -238,6 +253,7 @@ public class SignatureHelpController {
     public void dismiss() {
         dismissed = true;
         help = null;
+        peeked = false;
     }
 
     /**
@@ -261,8 +277,10 @@ public class SignatureHelpController {
         if (callOpen < 0) {
             help = null;
             lastCallOpenPos = -1;
-            // Quitter complètement l'appel → réinitialise aussi l'override.
+            // Quitter complètement l'appel → réinitialise aussi l'override
+            // et le peek.
             userOverrideActiveSignature = -1;
+            peeked = false;
             return;
         }
 
@@ -271,8 +289,10 @@ public class SignatureHelpController {
         if (callOpen != lastCallOpenPos) {
             dismissed = false;
             lastCallOpenPos = callOpen;
-            // Nouvel appel → oublie le choix de surcharge précédent de l'utilisateur.
+            // Nouvel appel → oublie le choix de surcharge précédent de
+            // l'utilisateur ET la vue peek.
             userOverrideActiveSignature = -1;
+            peeked = false;
         }
 
         if (dismissed) return;
@@ -450,7 +470,8 @@ public class SignatureHelpController {
         dismissed = false;
         epoch = 0;
         lastCallOpenPos = -1;
-        // Efface aussi l'override de surcharge.
+        // Efface aussi l'override de surcharge et la vue peek.
         userOverrideActiveSignature = -1;
+        peeked = false;
     }
 }

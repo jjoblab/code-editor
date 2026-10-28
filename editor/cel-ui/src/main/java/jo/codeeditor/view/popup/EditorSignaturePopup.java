@@ -11,6 +11,11 @@ import jo.codeeditor.ui.R;
  * sur la lane « features » avec garde de génération), déclenchement
  * explicite et point d'entrée hôte. Corps déplacés d'EditorPopupManager
  * à l'identique (adaptation des accès délégués).
+ *
+ * <p>★ 4.10.0 — un résolveur branché ne reste maître que d'une réponse
+ * NON VIDE : une réponse vide (serveur muet, analyse pas prête, texte
+ * vivant hors d'atteinte) retombe sur le repli synthétique local
+ * (appel vivant du buffer) au lieu d'un silence total.</p>
  */
 @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
 public class EditorSignaturePopup {
@@ -35,6 +40,52 @@ public class EditorSignaturePopup {
         view.signatureHelpVisible = false;
         view.signatureHelpData = null;
         view.invalidate();
+    }
+
+    /**
+     * Applique le REMPLI SYNTHÉTIQUE local — l'appel VIVANT du buffer
+     * (libellé = nom + arguments réels, un paramètre par argument,
+     * documentation « Parameter N » sur l'actif). Isolé (4.10.0) pour
+     * servir DEUX chemins : sans résolveur branché (historique) ET
+     * quand un résolveur branché rend une réponse VIDE — le serveur
+     * muet (analyse pas prête, texte vivant trop cassé) ne condamne
+     * plus l'utilisateur au silence total.
+     *
+     * <p>La porte callSyntax du profil s'applique dans TOUS les cas :
+     * texte brut / XML / Markdown restent muets (jamais de « name(…)
+     * param N » générique dans la prose).</p>
+     */
+    private void appliquerRepliSynthetique(CharSequence liveText, int caret,
+            int callOpen) {
+        jo.codeeditor.languages.LanguageProfile profile =
+            jo.codeeditor.languages.LanguageRegistry.forName(
+                view.session.getLanguage());
+        if (profile == null || !profile.callSyntax) {
+            view.signatureHelpVisible = false;
+            view.signatureHelpData = null;
+            return;
+        }
+        int paramIdx = jo.codeeditor.completion.SignatureHelpController
+            .activeParameterIndex(liveText, callOpen, caret);
+        String name = extractFunctionName(liveText, callOpen);
+        // 4.8.0 — l'appel VIVANT remplace le « name(…) » muet :
+        // l'utilisateur voit ses propres arguments, celui du paramètre
+        // actif ressort en surbrillance (le peintre surligne la plage
+        // du paramètre actif du libellé — mêmes règles que les
+        // signatures servies par un résolveur). Un paramètre par
+        // argument FRAPPÉ : la bande de documentation du peintre indexe
+        // parameters[activeParameter].
+        String args = liveArgsSnippet(liveText, callOpen);
+        String label = name + "(" + args + ")";
+        java.util.List<jo.codeeditor.completion.SignatureHelpController.Parameter> params =
+            splitLiveArgs(args, paramIdx, view);
+        java.util.List<jo.codeeditor.completion.SignatureHelpController.Signature> sigs =
+            java.util.Collections.singletonList(
+                new jo.codeeditor.completion.SignatureHelpController.Signature(
+                    label, "", params, Math.min(paramIdx, params.size() - 1)));
+        view.signatureHelpData = new jo.codeeditor.completion.SignatureHelpController.SignatureHelp(
+            sigs, 0, Math.min(paramIdx, params.size() - 1));
+        view.signatureHelpVisible = true;
     }
 
     /** Génération de la résolution signature help (annulation). */
@@ -93,8 +144,33 @@ public class EditorSignaturePopup {
                 android.os.Handler h = view.getHandler();
                 Runnable apply = () -> {
                     if (gen != sigHelpGeneration || view.session == null) return;
-                    view.signatureHelpData = help;
-                    view.signatureHelpVisible = hasSig;
+                    if (hasSig) {
+                        // Réponse NON VIDE : le résolveur branché reste
+                        // maître — ses signatures remplacent tout.
+                        view.signatureHelpData = help;
+                        view.signatureHelpVisible = true;
+                    } else {
+                        // ★ 4.10.0 — réponse VIDE du résolveur : le repli
+                        // synthétique local prend le relais au lieu d'un
+                        // silence total. Un serveur muet (analyse pas
+                        // prête, texte vivant hors de son atteinte)
+                        // n'éclipse plus l'aide locale — le résolveur ne
+                        // reste maître que d'une réponse NON VIDE. Le
+                        // repli est recalculé sur le buffer COURANT (le
+                        // texte a pu bouger pendant la résolution).
+                        CharSequence live =
+                                view.session.getDocument().charSequence();
+                        int curCaret = view.session.getSelection().start;
+                        int curCallOpen = jo.codeeditor.completion
+                                .SignatureHelpController.findCallOpen(live, curCaret);
+                        if (curCallOpen < 0
+                                || view.signatureHelpController.isDismissed()) {
+                            view.signatureHelpData = null;
+                            view.signatureHelpVisible = false;
+                        } else {
+                            appliquerRepliSynthetique(live, curCaret, curCallOpen);
+                        }
+                    }
                     view.invalidate();
                 };
                 if (h != null) h.post(apply); else apply.run();
@@ -106,41 +182,11 @@ public class EditorSignaturePopup {
                 view.signatureHelpData = null;
             } else {
                 // 4.8.0 — le repli synthétique est BORNÉ aux langages de
-                // code (drapeau callSyntax du profil). Avant, « foo(bar »
-                // dans n'importe quel fichier — XML, Markdown, prose —
-                // affichait un « name(…) param N » générique. Un
-                // RÉSOLVEUR branché (hôte ou LSP) reste maître : la
-                // porte ne borne que la synthèse de la bibliothèque.
-                jo.codeeditor.languages.LanguageProfile profile =
-                    jo.codeeditor.languages.LanguageRegistry.forName(
-                        view.session.getLanguage());
-                if (profile == null || !profile.callSyntax) {
-                    view.signatureHelpVisible = false;
-                    view.signatureHelpData = null;
-                } else {
-                    int paramIdx = jo.codeeditor.completion.SignatureHelpController
-                        .activeParameterIndex(liveText, callOpen, caret);
-                    String name = extractFunctionName(liveText, callOpen);
-                    // 4.8.0 — l'appel VIVANT remplace le « name(…) »
-                    // muet : l'utilisateur voit ses propres arguments,
-                    // celui du paramètre actif ressort en surbrillance
-                    // (le peintre surligne la plage du paramètre actif
-                    // du libellé — mêmes règles que les signatures
-                    // servies par un résolveur). Un paramètre par
-                    // argument FRAPPÉ : la bande de documentation du
-                    // peintre indexe parameters[activeParameter].
-                    String args = liveArgsSnippet(liveText, callOpen);
-                    String label = name + "(" + args + ")";
-                    java.util.List<jo.codeeditor.completion.SignatureHelpController.Parameter> params =
-                        splitLiveArgs(args, paramIdx, view);
-                    java.util.List<jo.codeeditor.completion.SignatureHelpController.Signature> sigs =
-                        java.util.Collections.singletonList(
-                            new jo.codeeditor.completion.SignatureHelpController.Signature(
-                                label, "", params, Math.min(paramIdx, params.size() - 1)));
-                    view.signatureHelpData = new jo.codeeditor.completion.SignatureHelpController.SignatureHelp(
-                        sigs, 0, Math.min(paramIdx, params.size() - 1));
-                    view.signatureHelpVisible = true;
-                }
+                // code (drapeau callSyntax du profil, porte intégrée à
+                // appliquerRepliSynthetique). Avant, « foo(bar » dans
+                // n'importe quel fichier — XML, Markdown, prose —
+                // affichait un « name(…) param N » générique.
+                appliquerRepliSynthetique(liveText, caret, callOpen);
             }
         }
         view.invalidate();
