@@ -1,6 +1,8 @@
 package jo.codeeditor.view.render;
 
 import jo.codeeditor.view.EditorView;
+import jo.codeeditor.view.popup.kit.PopupCard;
+import jo.codeeditor.view.popup.kit.TextLayoutKit;
 import jo.codeeditor.view.state.CompletionState;
 
 import androidx.annotation.RestrictTo;
@@ -47,6 +49,11 @@ public class EditorAssistPopupPainter {
     // thread UI) ; chaque site fait set → draws immédiats séquentiels.
     private final RectF scratchRect = new RectF();
 
+    /** Carte de popup partagée (fond verre + bordure, filets, gras
+     * mémoïsé) — unifie les copies du motif dispersées dans ce painter
+     * et porte le cache du Typeface gras. */
+    private final PopupCard card;
+
     /** Rayons par coin du popup de complétion (réutilisé chaque frame). */
     private final float[] completionCornerRadii = new float[8];
 
@@ -87,6 +94,8 @@ public class EditorAssistPopupPainter {
 
     EditorAssistPopupPainter(EditorView view) {
         this.view = view;
+        // Initialisé ici : la capture de view exige qu'elle soit posée.
+        this.card = new PopupCard(view);
     }
 
     // ════════════════════════════════════════════════════════════════
@@ -445,15 +454,11 @@ public class EditorAssistPopupPainter {
                 && view.signatureHelpController.isPeeked();
         int total = view.signatureHelpData.signatures.size();
 
-        // Fond + bordure
+        // Fond + bordure — carte partagée du kit (même rendu que le
+        // motif historique : fond glassBg, bordure hairline glassBorder).
         RectF rect = scratchRect;
         rect.set(anchorX, anchorY, anchorX + width, anchorY + l[SIG_POPUP_H]);
-        view.bgPaint.setColor(view.theme.glassBg);
-        canvas.drawRoundRect(rect, radius, radius, view.bgPaint);
-        view.caretPaint.setStyle(Paint.Style.STROKE);
-        view.caretPaint.setStrokeWidth(1f);
-        view.caretPaint.setColor(view.theme.glassBorder);
-        canvas.drawRoundRect(rect, radius, radius, view.caretPaint);
+        card.drawSurface(canvas, rect, radius);
 
         canvas.save();
         canvas.clipRect(rect);
@@ -647,9 +652,7 @@ public class EditorAssistPopupPainter {
         if (s == null || s.isEmpty()) return x;
         view.textPaint.setColor(color);
         view.textPaint.setTypeface(gras
-                ? android.graphics.Typeface.create(view.metrics.getTypeface(),
-                        android.graphics.Typeface.BOLD)
-                : view.metrics.getTypeface());
+                ? card.grasMémoïsé() : view.metrics.getTypeface());
         canvas.drawText(s, x, baseline, view.textPaint);
         return x + view.textPaint.measureText(s);
     }
@@ -669,9 +672,7 @@ public class EditorAssistPopupPainter {
         }
         if (!param.isEmpty()) {
             view.textPaint.setColor(view.theme.func);
-            android.graphics.Typeface bold = android.graphics.Typeface.create(
-                view.metrics.getTypeface(), android.graphics.Typeface.BOLD);
-            view.textPaint.setTypeface(bold);
+            view.textPaint.setTypeface(card.grasMémoïsé());
             canvas.drawText(param, x, baseline, view.textPaint);
             x += view.textPaint.measureText(param);
         }
@@ -716,31 +717,14 @@ public class EditorAssistPopupPainter {
 
     /** Coupe {@code s} par la DROITE avec ellipse pour tenir dans maxW. */
     private static String truncateTail(String s, float maxW, Paint paint) {
-        if (s == null) return "";
-        if (s.isEmpty() || paint.measureText(s) <= maxW) return s;
-        final String ell = "…";
-        float ellW = paint.measureText(ell);
-        if (maxW <= ellW) return "";
-        int end = s.length();
-        while (end > 0 && paint.measureText(s.substring(0, end)) + ellW > maxW) {
-            end--;
-        }
-        return end <= 0 ? "" : s.substring(0, end) + ell;
+        return TextLayoutKit.ellipsize(s, maxW,
+                TextLayoutKit.Truncate.TAIL, t -> paint.measureText(t));
     }
 
     /** Coupe {@code s} par la GAUCHE avec ellipse pour tenir dans maxW. */
     private static String truncateHead(String s, float maxW, Paint paint) {
-        if (s == null) return "";
-        if (s.isEmpty() || paint.measureText(s) <= maxW) return s;
-        final String ell = "…";
-        float ellW = paint.measureText(ell);
-        if (maxW <= ellW) return "";
-        int start = 0;
-        while (start < s.length()
-                && paint.measureText(ell + s.substring(start)) > maxW) {
-            start++;
-        }
-        return start >= s.length() ? "" : ell + s.substring(start);
+        return TextLayoutKit.ellipsize(s, maxW,
+                TextLayoutKit.Truncate.HEAD, t -> paint.measureText(t));
     }
 
 
@@ -946,15 +930,10 @@ public class EditorAssistPopupPainter {
         view.textPaint.setTextSize(view.metrics.getTextSize() * 0.85f);
         List<DocRow> rows = buildQuickDocRows(popupW - 2 * padX, view.textPaint);
 
-        // Fond + bordure
+        // Fond + bordure — carte partagée du kit (rendu identique).
         RectF rect = scratchRect;
         rect.set(anchorX, anchorY, anchorX + popupW, anchorY + popupH);
-        view.bgPaint.setColor(view.theme.glassBg);
-        canvas.drawRoundRect(rect, radius, radius, view.bgPaint);
-        view.caretPaint.setStyle(Paint.Style.STROKE);
-        view.caretPaint.setStrokeWidth(1f);
-        view.caretPaint.setColor(view.theme.glassBorder);
-        canvas.drawRoundRect(rect, radius, radius, view.caretPaint);
+        card.drawSurface(canvas, rect, radius);
 
         // Corps scrollable, clippé au rect.
         canvas.save();
@@ -984,13 +963,9 @@ public class EditorAssistPopupPainter {
                         view.theme.textColor, view.theme.func);
             }
         }
-        // Séparateur sous la bande signature.
+        // Séparateur sous la bande signature — filet partagé du kit.
         if (sigBgBottom >= 0) {
-            view.caretPaint.setStyle(Paint.Style.STROKE);
-            view.caretPaint.setStrokeWidth(1f);
-            view.caretPaint.setColor(view.theme.glassBorder);
-            canvas.drawLine(anchorX, sigBgBottom, anchorX + popupW, sigBgBottom,
-                    view.caretPaint);
+            card.drawDivider(canvas, anchorX, anchorX + popupW, sigBgBottom);
         }
         // Scrollbar si le corps déborde.
         if (contentH > popupH) {
@@ -1042,35 +1017,12 @@ public class EditorAssistPopupPainter {
      * {@code maxWidth} (px). Visible du groupe : l'ancrage du popup de
      * complétion (contrôleur) mesure les lignes du panneau de
      * documentation avec le MÊME moteur que la bande doc de l'aide de
-     * signature (4.4.0).
+     * signature (4.4.0). Délègue au kit partagé : mesure MOT à MOT
+     * (l'ancien moteur mesurait après CHAQUE caractère) et coupe les
+     * mots plus larges que la ligne, qu'il laissait déborder.
      */
     public static List<String> wrapText(String text, float maxWidth, Paint paint) {
-        List<String> out = new ArrayList<>();
-        if (text == null || text.isEmpty()) return out;
-        String[] parts = text.split("\n");
-        for (String part : parts) {
-            if (part.isEmpty()) {
-                out.add("");
-                continue;
-            }
-            StringBuilder line = new StringBuilder();
-            for (int i = 0; i < part.length(); i++) {
-                line.append(part.charAt(i));
-                if (paint.measureText(line.toString()) > maxWidth) {
-                    // Revenir à la dernière espace.
-                    int lastSpace = line.lastIndexOf(" ");
-                    if (lastSpace > 0) {
-                        out.add(line.substring(0, lastSpace));
-                        line = new StringBuilder(line.substring(lastSpace + 1));
-                    } else {
-                        out.add(line.toString());
-                        line = new StringBuilder();
-                    }
-                }
-            }
-            if (line.length() > 0) out.add(line.toString());
-        }
-        return out;
+        return TextLayoutKit.wrap(text, maxWidth, t -> paint.measureText(t));
     }
 
     // ════════════════════════════════════════════════════════════════
@@ -1161,12 +1113,7 @@ public class EditorAssistPopupPainter {
         }
         RectF rect = scratchRect;
         rect.set(anchorX, anchorY, anchorX + width, anchorY + popupH);
-        view.bgPaint.setColor(view.theme.glassBg);
-        canvas.drawRoundRect(rect, radius, radius, view.bgPaint);
-        view.caretPaint.setStyle(Paint.Style.STROKE);
-        view.caretPaint.setStrokeWidth(1f);
-        view.caretPaint.setColor(view.theme.glassBorder);
-        canvas.drawRoundRect(rect, radius, radius, view.caretPaint);
+        card.drawSurface(canvas, rect, radius);
         view.textPaint.setTypeface(view.metrics.getTypeface());
         view.textPaint.setTextSize(view.metrics.getTextSize() * 0.9f);
         float padX = 8 * density;
@@ -1211,12 +1158,7 @@ public class EditorAssistPopupPainter {
         float anchorY = 8 * density;
         RectF rect = scratchRect;
         rect.set(anchorX, anchorY, anchorX + width, anchorY + popupH);
-        view.bgPaint.setColor(view.theme.glassBg);
-        canvas.drawRoundRect(rect, radius, radius, view.bgPaint);
-        view.caretPaint.setStyle(Paint.Style.STROKE);
-        view.caretPaint.setStrokeWidth(1f);
-        view.caretPaint.setColor(view.theme.glassBorder);
-        canvas.drawRoundRect(rect, radius, radius, view.caretPaint);
+        card.drawSurface(canvas, rect, radius);
         // Champ de filtre (seul le texte est rendu — la saisie est gérée par l'hôte).
         view.textPaint.setTypeface(view.metrics.getTypeface());
         view.textPaint.setTextSize(view.metrics.getTextSize() * 0.9f);
@@ -1637,16 +1579,12 @@ public class EditorAssistPopupPainter {
      * Tronque la FIN du texte avec une ellipse pour qu'il tienne dans
      * {@code maxW} (mesuré avec le paint courant) — un container trop
      * long (paquet profond) ne repousse jamais le detail ni le label.
+     * Délégation au kit : coupe DICHOTOMIQUE, l'ancienne boucle
+     * linéaire retraitait un caractère de trop par itération.
      */
     private String ellipsizeTail(String text, float maxW) {
-        if (view.textPaint.measureText(text) <= maxW) return text;
-        final String ellipsis = "…";
-        float ellipsisW = view.textPaint.measureText(ellipsis);
-        int end = text.length();
-        while (end > 0
-                && view.textPaint.measureText(text.substring(0, end)) + ellipsisW > maxW) {
-            end--;
-        }
-        return end <= 0 ? ellipsis : text.substring(0, end) + ellipsis;
+        return TextLayoutKit.ellipsize(text, maxW,
+                TextLayoutKit.Truncate.TAIL,
+                t -> view.textPaint.measureText(t));
     }
 }

@@ -1,6 +1,7 @@
 package jo.codeeditor.view.render;
 
 import jo.codeeditor.view.EditorView;
+import jo.codeeditor.view.popup.kit.TextLayoutKit;
 
 import androidx.annotation.RestrictTo;
 
@@ -40,6 +41,9 @@ public class EditorDiagnosticsPainter {
     private final Path scratchPath = new Path();
     private final RectF scratchRect = new RectF();
 
+    /** Mesure du paint de texte courant, déléguée au kit de layout. */
+    private final TextLayoutKit.Measurer mesureTexte;
+
     // Soulignement ondulé de diagnostic
     static final float SQUIGGLE_PERIOD = 6f;
     static final float SQUIGGLE_AMPLITUDE = 2f;
@@ -52,6 +56,8 @@ public class EditorDiagnosticsPainter {
 
     EditorDiagnosticsPainter(EditorView view) {
         this.view = view;
+        // Initialisés ici : la capture de view exige qu'elle soit posée.
+        this.mesureTexte = t -> view.textPaint.measureText(t);
     }
 
     // ════════════════════════════════════════════════════════════════
@@ -191,10 +197,13 @@ public class EditorDiagnosticsPainter {
             // Retrancher à l'identique de diagnosticChipMetrics (dimensionnement partagé).
             float avail = view.getWidth() - x - 4 * view.getResources().getDisplayMetrics().density
                 - padX * 2 - iconR * 2 - iconGap - (badgeD > 0 ? badgeD + badgeGap : 0f);
-            if (label.length() > 90) label = label.substring(0, 88) + "…";
-            while (label.length() > 1 && view.textPaint.measureText(label) > avail) {
-                label = label.substring(0, label.length() - 2) + "…";
-            }
+            // Coupe de sécurité par caractères (90) puis ellipse PAR
+            // LARGEur via le kit — la boucle historique à retrait de 2
+            // caractères mesurait après CHAQUE itération et perdait un
+            // caractère utile.
+            if (label.length() > 90) label = label.substring(0, 90);
+            label = TextLayoutKit.ellipsize(label, avail,
+                    TextLayoutKit.Truncate.TAIL, mesureTexte);
             float baseline = y + h * 0.5f
                 - (view.textPaint.ascent() + view.textPaint.descent()) * 0.5f;
             canvas.drawText(label, x + padX + iconR * 2 + iconGap, baseline, view.textPaint);
@@ -317,21 +326,14 @@ public class EditorDiagnosticsPainter {
         float msgY = panelTop + EditorView.DIAG_SHEET_HEADER_DP * density
             + EditorView.DIAG_SHEET_MSG_LINE_DP * density * 0.8f;
         float maxMsgW = width - padX * 2;
-        StringBuilder line = new StringBuilder();
-        int drawn = 1;
-        for (String word : msg.split("\\s+")) {
-            String test = line.length() == 0 ? word : line + " " + word;
-            if (view.textPaint.measureText(test) > maxMsgW && line.length() > 0) {
-                canvas.drawText(line.toString(), padX, msgY, view.textPaint);
-                msgY += EditorView.DIAG_SHEET_MSG_LINE_DP * density;
-                if (++drawn > EditorView.DIAG_SHEET_MAX_MSG_LINES) break;
-                line = new StringBuilder(word);
-            } else {
-                line = line.length() == 0 ? new StringBuilder(word) : line.append(" ").append(word);
-            }
-        }
-        if (line.length() > 0 && drawn <= EditorView.DIAG_SHEET_MAX_MSG_LINES) {
-            canvas.drawText(line.toString(), padX, msgY, view.textPaint);
+        // Wrap par le kit partagé (une mesure par mot, mot long coupé) —
+        // même plafond de lignes que la boucle historique.
+        java.util.List<String> msgLines = TextLayoutKit.wrap(
+                msg, maxMsgW, mesureTexte);
+        int maxLines = EditorView.DIAG_SHEET_MAX_MSG_LINES;
+        for (int i = 0; i < Math.min(msgLines.size(), maxLines); i++) {
+            canvas.drawText(msgLines.get(i), padX, msgY, view.textPaint);
+            msgY += EditorView.DIAG_SHEET_MSG_LINE_DP * density;
         }
 
         // 5. Quick fixes — divider + libellé + rangées.
@@ -504,9 +506,8 @@ public class EditorDiagnosticsPainter {
             view.textPaint.setColor(view.theme.textColor);
             String msg = d.message != null ? d.message : "";
             float avail = width - padX * 2 - 12 * density;
-            while (msg.length() > 1 && view.textPaint.measureText(msg) > avail) {
-                msg = msg.substring(0, msg.length() - 2) + "…";
-            }
+            msg = TextLayoutKit.ellipsize(msg, avail,
+                    TextLayoutKit.Truncate.TAIL, mesureTexte);
             canvas.drawText(msg, padX + 12 * density,
                     rowY + rowH * 0.5f + view.metrics.getTextSize() * 0.32f,
                     view.textPaint);
@@ -598,9 +599,8 @@ public class EditorDiagnosticsPainter {
             String msg = firstLine(d.message);
             float avail = m.w - 2 * jo.codeeditor.view.popup.EditorPopupAnchors
                     .SQUIGGLE_POPUP_PAD_X_DP * density - 12 * density;
-            while (msg.length() > 1 && view.textPaint.measureText(msg) > avail) {
-                msg = msg.substring(0, msg.length() - 2) + "…";
-            }
+            msg = TextLayoutKit.ellipsize(msg, avail,
+                    TextLayoutKit.Truncate.TAIL, mesureTexte);
             canvas.drawText(msg, textX,
                     rowY + m.rowH * 0.5f + view.metrics.getTextSize() * 0.32f,
                     view.textPaint);
@@ -641,31 +641,20 @@ public class EditorDiagnosticsPainter {
         float msgY = m.y + m.headerH
                 + jo.codeeditor.view.popup.EditorPopupAnchors.SQUIGGLE_POPUP_MSG_LINE_DP
                 * density * 0.8f;
-        StringBuilder line = new StringBuilder();
-        int drawn = 1;
-        for (String word : msg.split("\\s+")) {
-            String test = line.length() == 0 ? word : line + " " + word;
-            if (view.textPaint.measureText(test) > maxMsgW && line.length() > 0) {
-                canvas.drawText(line.toString(), m.contentLeft, msgY, view.textPaint);
-                msgY += jo.codeeditor.view.popup.EditorPopupAnchors.SQUIGGLE_POPUP_MSG_LINE_DP
-                        * density;
-                if (++drawn > m.msgLines) break;
-                line = new StringBuilder(word);
-            } else {
-                line = line.length() == 0 ? new StringBuilder(word)
-                        : line.append(" ").append(word);
+        // Wrap par le kit (une mesure par mot) ; la dernière ligne
+        // affichée est ellipsée PAR LARGEUR si le message déborde.
+        java.util.List<String> msgLines = TextLayoutKit.wrap(
+                msg, maxMsgW, mesureTexte);
+        int shown = Math.min(msgLines.size(), m.msgLines);
+        for (int i = 0; i < shown; i++) {
+            String ligne = msgLines.get(i);
+            if (i == shown - 1 && msgLines.size() > m.msgLines) {
+                ligne = TextLayoutKit.ellipsize(ligne, maxMsgW,
+                        TextLayoutKit.Truncate.TAIL, mesureTexte);
             }
-        }
-        // Ligne finale — tronquée avec « … » si le message déborde.
-        if (line.length() > 0 && drawn <= m.msgLines) {
-            String rest = line.toString();
-            if (drawn == m.msgLines && view.textPaint.measureText(rest) > maxMsgW) {
-                while (rest.length() > 1 && view.textPaint.measureText(rest + "…") > maxMsgW) {
-                    rest = rest.substring(0, rest.length() - 2);
-                }
-                rest += "…";
-            }
-            canvas.drawText(rest, m.contentLeft, msgY, view.textPaint);
+            canvas.drawText(ligne, m.contentLeft, msgY, view.textPaint);
+            msgY += jo.codeeditor.view.popup.EditorPopupAnchors.SQUIGGLE_POPUP_MSG_LINE_DP
+                    * density;
         }
 
         // Quick-fixes (résolus à l'ouverture — rendus dès publication).
@@ -690,9 +679,8 @@ public class EditorDiagnosticsPainter {
                 view.textPaint.setColor(view.theme.textColor);
                 String title = a.title != null ? a.title : "";
                 float avail = m.w - padX * 2 - 12 * density;
-                while (title.length() > 1 && view.textPaint.measureText(title) > avail) {
-                    title = title.substring(0, title.length() - 2) + "…";
-                }
+                title = TextLayoutKit.ellipsize(title, avail,
+                        TextLayoutKit.Truncate.TAIL, mesureTexte);
                 canvas.drawText(title, textX,
                         rowY + m.rowH * 0.5f + view.metrics.getTextSize() * 0.32f,
                         view.textPaint);

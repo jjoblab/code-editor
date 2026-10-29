@@ -1,6 +1,7 @@
 package jo.codeeditor.view.render;
 
 import jo.codeeditor.view.EditorView;
+import jo.codeeditor.view.popup.kit.TextLayoutKit;
 import jo.codeeditor.view.icons.EditorIcons;
 import jo.codeeditor.view.popup.EditorPopupAnchors;
 import jo.codeeditor.view.preview.EditorPreviewController;
@@ -815,18 +816,14 @@ public class EditorChromePainter {
             view.textPaint.setColor(contentColor);
             String label = navMenuRowLabel(row);
             if (label != null) {
-                // Ellipsise : coupe + « … » si le label déborde.
+                // Ellipsise par le kit partagé (coupe dichotomique —
+                // la boucle historique mesurait après CHAQUE caractère
+                // retiré).
                 float maxLabelW = w - 12 * density - 16 * density - 10 * density
                         - 12 * density;
-                String drawn = label;
-                if (view.textPaint.measureText(label) > maxLabelW) {
-                    StringBuilder sb = new StringBuilder(label);
-                    while (sb.length() > 1
-                            && view.textPaint.measureText(sb + "…") > maxLabelW) {
-                        sb.deleteCharAt(sb.length() - 1);
-                    }
-                    drawn = sb + "…";
-                }
+                String drawn = TextLayoutKit.ellipsize(label, maxLabelW,
+                        TextLayoutKit.Truncate.TAIL,
+                        t -> view.textPaint.measureText(t));
                 canvas.drawText(drawn, x + 12 * density + 16 * density + 10 * density,
                         rowTop + rowH * 0.5f + view.textPaint.measureText("A") * 0.32f,
                         view.textPaint);

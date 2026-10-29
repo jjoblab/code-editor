@@ -362,11 +362,12 @@ public final class EditorPopupAnchors {
         float avail = view.getWidth() - chipX - 4 * density
                 - padX * 2 - iconR * 2 - iconGap
                 - (badge ? badgeD + badgeGap : 0f);
-        String label = msg;
-        if (label.length() > 90) label = label.substring(0, 88) + "…";
-        while (label.length() > 1 && view.textPaint.measureText(label) > avail) {
-            label = label.substring(0, label.length() - 2) + "…";
-        }
+        // Coupe de sécurité par caractères (90) puis ellipse PAR
+        // LARGEUR via le kit — même moteur que les autres popups.
+        String label = msg.length() > 90 ? msg.substring(0, 90) : msg;
+        label = jo.codeeditor.view.popup.kit.TextLayoutKit.ellipsize(
+                label, avail, jo.codeeditor.view.popup.kit.TextLayoutKit.Truncate.TAIL,
+                t -> view.textPaint.measureText(t));
         view.textPaint.setFakeBoldText(false);
         float textW = view.textPaint.measureText(label);
         float pillW = padX + iconR * 2 + iconGap + textW
