@@ -103,11 +103,11 @@ un jar de sources :
 
 | Module | Coordonnées |
 |--------|-------------|
-| `:cel-core` | `jo.codeeditor:cel-core:4.14.0` |
-| `:cel-lsp-api` | `jo.codeeditor:cel-lsp-api:4.14.0` |
-| `:cel-lsp` | `jo.codeeditor:cel-lsp:4.14.0` |
-| `:cel-ui` | `jo.codeeditor:cel-ui:4.14.0` |
-| `:cel-textmate` | `jo.codeeditor:cel-textmate:4.14.0` |
+| `:cel-core` | `jo.codeeditor:cel-core:4.14.1` |
+| `:cel-lsp-api` | `jo.codeeditor:cel-lsp-api:4.14.1` |
+| `:cel-lsp` | `jo.codeeditor:cel-lsp:4.14.1` |
+| `:cel-ui` | `jo.codeeditor:cel-ui:4.14.1` |
+| `:cel-textmate` | `jo.codeeditor:cel-textmate:4.14.1` |
 
 ### Publication locale (validation)
 

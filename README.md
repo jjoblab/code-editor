@@ -13,7 +13,11 @@ Ce que c'est — et ce que ce n'est pas :
   réellement embarquées (LSP4J, Gson) et les grammaires tierces du
   module optionnel sont attribuées dans [`NOTICE`](NOTICE).
 - **Publication** : coordonnées Maven `jo.codeeditor:<module>` —
-  version courante : `4.14.0` (les quick fixes complémentaires —
+  version courante : `4.14.1` (le rendu des inlay hints réparé :
+  plus d'espaces fantômes — le hint vit à la taille du code sur la
+  même baseline, le padding LSP devient exactement un espace net,
+  et les ligatures cèdent au tissage au lieu d'écraser le code ;
+  sur la 4.14.0 des quick fixes complémentaires —
   entourer / envelopper / transtyper la sélection —, les RÉFÉRENCES
   et le RENOMMAGE au niveau du fichier avec des portées honnêtes, et
   l'AUTO-IMPORT servi par le classpath : le nom du runtime devient
@@ -104,7 +108,7 @@ optionnels et s'ajoutent selon les besoins.
 
 Les artefacts sont publiés sur `maven.pkg.github.com` avec les
 coordonnées `jo.codeeditor:<module>:<version>` (version courante :
-`4.14.0`).
+`4.14.1`).
 
 1. Créez un jeton d'accès personnel GitHub avec le droit `read:packages`.
 2. Renseignez vos identifiants dans `~/.gradle/gradle.properties` :
@@ -361,8 +365,8 @@ interface `EditorPreviewHost`) figure dans
 
 ```bash
 ./gradlew test
-# 3 114 tests, 0 failure :
-#   cel-core 1 495 · cel-lsp-api 32 · cel-lsp 238 · cel-ui 996 · cel-textmate 96 · demo 257
+# 3 117 tests, 0 failure :
+#   cel-core 1 495 · cel-lsp-api 32 · cel-lsp 238 · cel-ui 999 · cel-textmate 96 · demo 257
 # (contrôle d'écart : scripts/check-doc-figures.sh, exécuté en CI)
 ```
 

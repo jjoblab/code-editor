@@ -1435,3 +1435,58 @@ un hôte qui comptait sur la dépendance transitive n'a rien à faire.
 - Renommer un paramètre `base` de `label(…)` : seules les
   occurrences de `label` comptent — le même nom ailleurs ne bouge
   pas.
+
+## 4.14.1
+
+### 1. État de publication
+
+- Tag `v4.14.1`, coordonnées Maven `jo.codeeditor:<module>:4.14.1`
+  (publication par le workflow `publish.yml` : les cinq AAR
+  `cel-core`, `cel-lsp-api`, `cel-lsp`, `cel-ui`, `cel-textmate`).
+- CI verte attendue sur `main` (validation locale : `test` —
+  3 117 tests, 0 échec ; garde-fous `check-class-budgets`,
+  `check-doc-figures`, `check-external-refs` verts).
+
+### 2. Compatibilité (l'application vient de 4.14.0)
+
+- **Aucune action obligatoire** — aucune API publique touchée : tout
+  vit dans le peintre de texte (`EditorTextPainter`). Un simple
+  repull des coordonnées `4.14.1` suffit.
+
+### 3. Changements de comportement notables
+
+- **Rendu des inlay hints réparé** (rapport terrain : « espaces
+  fantômes et autres incohérences, consultez Android Studio ») :
+  - le hint vit à la TAILLE DU CODE sur la MÊME baseline — avant,
+    police à 85 % et baseline décalée laissaient ~1,8 cellule de vide
+    invisible entre le fantôme et le code (sur une grille monospace,
+    une police réduite réserve des cellules que son encre ne remplit
+    pas — Android Studio échappe au problème par sa largeur mesurée,
+    VS Code sur grille rend comme nous à taille du code) ; le côté
+    spectral passe par l'alpha (0,8 / 0,62) et l'italique ;
+  - le padding LSP devient exactement UN espace net : le code qui
+    suit le hint commence à `hintX + longueur × charWidth`, ni trou
+    ni chevauchement ; le nudge « +0,08 cellule » disparaît ;
+  - mode ligatures : les lignes portant un hint retombent sur le
+    chemin tissé — avant, le hint était dessiné PAR-DESSUS le code
+    non décalé (texte superposé). La loupe, même peintre, est
+    réparée du même coup ;
+  - les marqueurs non imprimables (· → ¬) ne se dessinent plus sous
+    les hints ancrés à leur colonne.
+- **Limite inchangée, désormais documentée** : en mode retour à la
+  ligne, les hints restent non tissés (géométrie des rangées brute) —
+  cohérent dessin/caret/hit-test, la javadoc de `drawWrappedLine` le
+  pose par écrit.
+
+### 4. Scénarios de vérification sur appareil
+
+- Onglet Java de l'atelier : la ligne `history.forEach(h -> …)` —
+  l'indice `String` du `h` est plus grand qu'avant, plus effacé,
+  posé sur la même ligne de pied que le code, et l'espace entre
+  l'indice et le `h` vaut exactement un caractère (plus de « bulle »
+  invisible).
+- Activer les ligatures dans les réglages puis revenir sur la même
+  ligne : l'indice se tisse DANS la ligne — le code qui suit est
+  décalé, jamais écrasé.
+- Activer les caractères non imprimables : le point médian de
+  l'espace situé sous un hint ancré vit APRÈS le hint, pas dessous.

@@ -1,5 +1,84 @@
 # Changelog
 
+## 4.14.1 — 2026-10-29 — Inlay hints : plus d'espaces fantômes, baseline commune, ligatures cèdent au tissage
+
+### Corrigé
+
+- **Le rendu des inlay hints laissait des ESPACES FANTÔMES** (rapport
+  terrain : « espaces fantômes et autres incohérences, consultez
+  Android Studio »). Le diagnostic, mené sur la référence (sources
+  JetBrains : `PresentationFactory.smallText`, `InlayTextMetrics` —
+  Android Studio dessine ses hints à taille éditeur −1 sur une
+  LARGEUR MESURÉE avec insets 1-3 px ; VS Code, éditeur à grille
+  monospace comme le nôtre, les dessine à la TAILLE DU CODE) : notre
+  hint était encré à 85 % de la police du code mais réservait UNE
+  CELLULE PLEINE par caractère — l'encre de « String » (padding LSP
+  compris) ne remplissait que ~5,2 de ses 7 cellules, laissant ~1,8
+  cellule de vide invisible entre le fantôme et le code, lisible
+  comme des espaces tapés. Sur une grille monospace, une police
+  réduite réserve inévitablement des cellules que son encre ne
+  remplit pas. La géométrie honnête : **UN caractère fantôme = UNE
+  cellule d'encre pleine** — le hint vit à la taille du code, le
+  padding LSP devient exactement UN espace propre (sémantique VS
+  Code, fidèle à l'intention de la spec) ; le côté spectral passe
+  par l'alpha (type 0,8, paramètre 0,62) et l'italique, jamais par
+  la taille.
+- **Le hint flottait AU-DESSUS du code** : baseline 0,75 × hauteur de
+  ligne contre 0,78 pour le code — 3 % de ligne de décalage vertical,
+  doublement visible avec l'ancienne police réduite. Le fantôme pose
+  désormais ses lettres sur la MÊME baseline que le code qu'il
+  habille (0,78, celle de `drawRawRange`), et le nudge magique
+  « +0,08 cellule » de l'ancrage disparaît : le hint commence à SA
+  colonne visuelle, le code qui suit à `hintX + longueur ×
+  charWidth` — ni trou ni chevauchement à la frontière.
+- **Mode ligatures : le hint ÉCRASAIT le code.** Le chemin
+  StaticLayout façonne le texte brut aux colonnes brutes — il ne
+  tisse pas les hints. Une ligne à hint dessinait donc son code SANS
+  décalage, puis le hint PAR-DESSUS (drawCachedInlays aux colonnes
+  visuelles) : du texte superposé. Les lignes portant des hints
+  retombent désormais sur le chemin tissé historique
+  (`drawRawRange`, celui du mode sans ligatures) — le tissage est
+  exact, seules les ligatures sont perdues sur CES lignes (rares :
+  une ligne à lambda ; `≠` et `->` y lisent très bien en deux
+  glyphes). La loupe, qui passe par le même peintre, est réparée du
+  même coup.
+- **Les marqueurs non imprimables (· → ¬) se dessinaient SOUS les
+  hints** : `drawNonPrintableChars` positionnait chaque marqueur à
+  `rawToVisual[col]` en ignorant les hints ancrés À cette colonne —
+  le commentaire promettait le contraire depuis des versions. Le
+  point médian d'un espace sous un hint ancré vit désormais APRÈS le
+  hint (même sémantique que `drawRawRange`), et le `¬` de fin de
+  ligne saute aussi les hints ancrés en bout de ligne.
+- **Limite documentée (pas de changement)** : en mode retour à la
+  ligne, les hints restent non tissés — les rangées, le caret et le
+  hit-test vivent tous sur la géométrie brute de la ligne
+  (`inlayHitAt` répond null sous wrap) ; tisser le dessin sans
+  migrer cette géométrie créerait une désynchronisation
+  dessin/caret/doigt pire que l'absence. La javadoc de
+  `drawWrappedLine` le documente désormais explicitement.
+
+### Changements visibles
+
+- Les hints (types de lambda, paramètres) sont un peu plus grands et
+  plus effacés : taille du code, alpha réduit, même baseline —
+  l'alignement vertical avec le code et l'espacement honnête
+  remplacent la mini-police flottante et ses trous invisibles.
+- En mode ligatures, plus aucune ligne à hint ne superpose fantôme et
+  code.
+
+### Pour l'hôte
+
+- **Aucune action obligatoire** — aucune API publique touchée : tout
+  vit dans le peintre de texte (`EditorTextPainter`).
+
+### Documentation
+
+- Nouveau test `InlayPhantomSpacingTest` (3 cas) : taille pleine,
+  baseline commune, frontière hint/code exacte (padding = un espace
+  net), tissage actif sous ligatures. Compteurs resynchronisés :
+  **3 117 tests** (cel-core 1 495, cel-ui 999, démo 257, cel-lsp
+  238, cel-textmate 96, cel-lsp-api 32 ; +3).
+
 ## 4.14.0 — 2026-10-29 — Quick fixes wrap/cast/surround, références et renommage, auto-import
 
 ### Ajouté

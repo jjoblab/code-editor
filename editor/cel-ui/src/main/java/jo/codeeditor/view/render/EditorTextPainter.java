@@ -135,11 +135,26 @@ public class EditorTextPainter {
         // minifiée de 500 Ko, l'itération caractère par caractère
         // déclenchait jusqu'à 500 000 drawText par frame.
         int[] win = visibleColWindow(lineText.length());
+        int inlayIdx = 0; // inlays triés par col — avancés en même temps que i
         for (int i = Math.max(0, win[0]); i < Math.min(lineText.length(), win[1]); i++) {
             char c = lineText.charAt(i);
             // Position sensible aux inlays — la colonne visuelle du caractère
-            // brut i est rawToVisual[i] + (inlays ancrés À i tissés avant lui).
+            // brut i est rawToVisual[i] + (inlays ancrés À i tissés avant
+            // lui). 4.14.1 : les hints ancrés À i sont bien COMPTÉS
+            // (avant, le · d'un espace sous un hint se dessinait DANS le
+            // hint — le commentaire le promettait, le code ne le faisait
+            // pas). Même sémantique que drawRawRange.
             int vis = (rawToVisual != null && i < rawToVisual.length) ? rawToVisual[i] : i;
+            while (inlays != null && inlayIdx < inlays.size()
+                    && inlays.get(inlayIdx).col < i) {
+                inlayIdx++;
+            }
+            int wovenHere = 0;
+            for (int k = inlayIdx; inlays != null && k < inlays.size()
+                    && inlays.get(k).col == i; k++) {
+                wovenHere += inlays.get(k).text.length();
+            }
+            vis += wovenHere;
             if (c == ' ') {
                 canvas.drawText("·", x + vis * charWidth + charWidth * 0.35f,
                     y + lineHeight * 0.78f, view.textPaint);
@@ -151,8 +166,15 @@ public class EditorTextPainter {
         // Indicateur de retour à la ligne final (¬) en fin de ligne —
         // seulement s'il tombe dans le viewport (sur une ligne minifiée,
         // la fin de ligne est à des centaines de milliers de colonnes).
+        // 4.14.1 : les hints ancrés EN FIN de ligne (col == length) sont
+        // tissés AVANT le ¬ — même sémantique que les caractères ci-dessus.
         int endVis = (rawToVisual != null && lineText.length() < rawToVisual.length)
             ? rawToVisual[lineText.length()] : lineText.length();
+        for (int k = 0; inlays != null && k < inlays.size(); k++) {
+            if (inlays.get(k).col == lineText.length()) {
+                endVis += inlays.get(k).text.length();
+            }
+        }
         float nlX = x + endVis * charWidth + charWidth * 0.2f;
         if (nlX >= -charWidth && nlX <= view.getWidth() + charWidth) {
             canvas.drawText("¬", nlX, y + lineHeight * 0.78f, view.textPaint);
@@ -473,11 +495,30 @@ public class EditorTextPainter {
      * été décalé à droite par {@link #drawRawRange}, donc le hint ne recouvre
      * JAMAIS le code.
      *
+     * <p>★ 4.14.1 — plus d'espaces fantômes : le hint est dessiné à la
+     * TAILLE DU CODE, sur la MÊME BASELINE que lui (0,78), sans décalage
+     * magique. Auparavant (I1, lot 2 J3) : police à 85 %, baseline 0,75,
+     * nudge +0,08 cellule — l'encre de « String » ne remplissait que
+     * ~5,2 des 7 cellules réservées (6 lettres + le padding LSP),
+     * laissant ~1,8 cellule de VIDE INVISIBLE (« espaces fantômes »)
+     * entre le hint et le code qui suit, et le hint flottait 3 % de
+     * ligne AU-DESSUS du code. Sur une grille monospace, la seule
+     * géométrie sans fantôme est : UN caractère fantôme = UNE cellule
+     * d'encre pleine (sémantique VS Code — le padding LSP devient
+     * exactement UN espace propre, ni plus ni moins). Android Studio
+     * rend ses hints plus petits (police du libellé, taille éditeur −1,
+     * LARGEUR MESURÉE + insets 1-3 px — voir PresentationFactory.smallText
+     * et InlayTextMetrics chez JetBrains) parce que son layout n'est pas
+     * une grille : chez nous une police réduite réserve inévitablement
+     * des cellules que son encre ne remplit pas — le fantôme renaîtrait.
+     * Le côté spectral passe donc par l'ALPHA (0,8 type / 0,62 paramètre)
+     * et l'italique, jamais par la taille.
+     *
      * <p>Style par GENRE (I1, lot 2 J3 — parité IntelliJ) : noms de
-     * paramètres en faux italique gris pâle (skew −0.25, alpha 0.75),
-     * types de variables gris DROITS (alpha 0.9) ; taille commune 85 % de
-     * la police du code, sans chip de fond. Avant I1, le kind mourait au
-     * pont et tous les hints rendaient en italique uniforme.
+     * paramètres en faux italique gris pâle (skew −0,25, alpha 0.62),
+     * types de variables gris DROITS (alpha 0.8) ; sans chip de fond.
+     * Avant I1, le kind mourait au pont et tous les hints rendaient en
+     * italique uniforme.
      */
     void drawCachedInlays(Canvas canvas, List<LineRenderCache.InlayPiece> inlays,
                            int[] rawToVisual, float lineY, Paint paint) {
@@ -485,13 +526,14 @@ public class EditorTextPainter {
         float lineHeight = view.metrics.getLineHeight();
         float textAreaLeft = view.metrics.getGutterWidth() + view.metrics.getPadLeft();
         paint.setTypeface(view.metrics.getTypeface());
-        paint.setTextSize(view.metrics.getTextSize() * 0.85f);
-        // Style par pièce (I1) : type DROIT alpha courant, paramètre
-        // italique plus effacé — le paint n'est réécrit QUE quand le
-        // genre change entre deux pièces (deux hints de genres
-        // différents sur une même ligne rendent avec DEUX styles).
-        int typeColor = view.applyAlphaToColor(view.theme.gutterText, 0.9f);
-        int paramColor = view.applyAlphaToColor(view.theme.gutterText, 0.75f);
+        paint.setTextSize(view.metrics.getTextSize());
+        // Style par pièce (I1) : type DROIT, paramètre italique plus
+        // effacé — le paint n'est réécrit QUE quand le genre change entre
+        // deux pièces (deux hints de genres différents sur une même ligne
+        // rendent avec DEUX styles). 4.14.1 : à taille pleine, l'ALPHA
+        // porte seul le côté spectral (0,8 / 0,62).
+        int typeColor = view.applyAlphaToColor(view.theme.gutterText, 0.8f);
+        int paramColor = view.applyAlphaToColor(view.theme.gutterText, 0.62f);
         boolean italic = false;
         paint.setTextSkewX(0f);
         paint.setColor(typeColor);
@@ -506,7 +548,7 @@ public class EditorTextPainter {
                 ? rawToVisual[p.col] : p.col;
             float x = textAreaLeft + vis * charWidth - view.scroll.hOffset;
             if (x + p.text.length() * charWidth >= view.metrics.getGutterWidth()) {
-                canvas.drawText(p.text, x + charWidth * 0.08f, lineY + lineHeight * 0.75f, paint);
+                canvas.drawText(p.text, x, lineY + lineHeight * 0.78f, paint);
             }
         }
         paint.setTextSkewX(0f);
@@ -588,13 +630,26 @@ public class EditorTextPainter {
         // commentaires reculent, les mots-clés avancent) — convention de
         // tous les éditeurs de code professionnels.
         //
+        // ★ 4.14.1 — les ligatures CÈDENT aux inlays : le StaticLayout
+        // façonne le texte BRUT aux colonnes BRUTES (canvas.translate(x +
+        // firstCol * charWidth)) — il ne sait pas tisser les hints ni
+        // décaler le code qui les suit. Avant ce garde, une ligne à hint
+        // en mode ligatures dessinait le code SANS décalage puis le hint
+        // PAR-DESSUS (drawCachedInlays aux colonnes visuelles) — du texte
+        // superposé. La ligne retombe sur le chemin tissé historique
+        // (drawRawRange, celui du mode sans ligatures) : le tissage est
+        // exact, seules les ligatures sont perdues sur CES lignes — un
+        // prix honnête (les lignes à hint sont rares, et ≠ ou -> y lisent
+        // très bien en deux glyphes).
+        //
         // ★ Le StaticLayout façonné est mémoïsé CONTENU-ADRESSÉ par
         // EditorView.shapedLayoutFor : ~25 % des lignes d'un fichier réel
         // sont identiques ("}", "    }") et le façonnage + le
         // SpannableStringBuilder par frame étaient le coût dominant du path
         // ligatures. Les lignes identiques partagent désormais UN seul
         // layout.
-        if (view.fontLigatures && styled != null && styled.spans != null) {
+        if (view.fontLigatures && styled != null && styled.spans != null
+                && (inlays == null || inlays.isEmpty())) {
             // ★ Fenêtre visible : ne façonner QUE la tranche visible. Un StaticLayout de la
             // ligne entière minifiée (500 Ko) coûtait plusieurs secondes
             // de façonnage et des dizaines de Mo ; la tranche est bornée
@@ -766,6 +821,17 @@ public class EditorTextPainter {
      * à {@code textAreaLeft + leadingWhitespaceCols * charWidth} pour
      * qu'un corps de méthode Java replié s'aligne sous le nom de la
      * méthode, pas sous la colonne 0.</p>
+     *
+     * <p>★ Limite documentée (4.14.1) — les inlay hints ne sont PAS
+     * tissés en mode wrap : les rangées, le caret
+     * (EditorHitMapper, colonnes brutes) et le hit-test des hints
+     * (inlayHitAt répond null sous wrap) vivent TOUS sur la géométrie
+     * brute de la ligne. Tisser les hints au dessin SANS migrer cette
+     * géométrie créerait une désynchronisation dessin/caret/doigt —
+     * pire que l'absence. Le système est cohérent : sous wrap, un hint
+     * est invisible et intouchable partout de la même façon. Migrer la
+     * géométrie du wrap vers des rangées conscientes des inlays est un
+     * chantier à part entière.</p>
      */
     void drawWrappedLine(Canvas canvas, EditorDocument doc,
                           List<StyledLine> styledLines, int lineNum,
