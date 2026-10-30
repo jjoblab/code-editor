@@ -988,6 +988,10 @@ public class EditorRenderer {
 
     public float[] signatureHelpPopupMetrics() { return assist.signatureHelpPopupMetrics(); }
 
+    /** (Phase 5) Taille du popup signature SANS ancrage — source du
+     *  placement coordonné (aucun cycle). */
+    public float[] signatureHelpSize() { return assist.signatureHelpSize(); }
+
     /** Délègue à {@link EditorAssistPopupPainter} (smoke test du badge de complétion). */
     void drawCompletionPopup(Canvas canvas) { assist.drawCompletionPopup(canvas); }
 

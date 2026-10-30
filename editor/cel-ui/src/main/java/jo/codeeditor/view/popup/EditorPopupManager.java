@@ -1,6 +1,7 @@
 package jo.codeeditor.view.popup;
 
 import jo.codeeditor.view.EditorView;
+import jo.codeeditor.view.popup.kit.PopupCoordinator;
 
 import androidx.annotation.RestrictTo;
 
@@ -124,7 +125,10 @@ public class EditorPopupManager {
 
     public boolean isCompletionVisible() { return completion.isCompletionVisible(); }
 
-    public void dismissCompletion() { completion.dismissCompletion(); }
+    public void dismissCompletion() {
+        coordinator.onDismissed(PopupCoordinator.Kind.COMPLETION);
+        completion.dismissCompletion();
+    }
 
     public boolean completionSelectUp() { return completion.completionSelectUp(); }
 
@@ -154,6 +158,46 @@ public class EditorPopupManager {
         return completion.completionDocSheetMetrics();
     }
 
+    /** (Phase 5) Hauteur coordonnée du popup de complétion (source du
+     *  placement signature ↔ complétion). */
+    public float completionCoordinatedHeight() {
+        return completion.completionCoordinatedHeight();
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    // Phase 5 — coordinateur : registre unique des popups
+    // ════════════════════════════════════════════════════════════════
+
+    /**
+     * Registre unique des popups ouverts + règles d'exclusion
+     * (PopupCoordinator du kit) — remplace les listes de fermetures
+     * croisées {@code closeOthers()} dupliquées classe par classe :
+     * les popups de FRAPPE (complétion + signature) coexistent (leur
+     * placement coordonné les sépare), tout popup de TAP referme le
+     * reste.
+     */
+    private final PopupCoordinator coordinator = new PopupCoordinator(this::dismissKind);
+
+    /** Le coordinateur (registre unique, phase 5). */
+    public PopupCoordinator coordinator() { return coordinator; }
+
+    /** Fermeture d'un popup décidée par le coordinateur (idempotente). */
+    private void dismissKind(PopupCoordinator.Kind kind) {
+        switch (kind) {
+            case COMPLETION: completion.dismissCompletion(); break;
+            case SIGNATURE: signature.dismissSignatureHelp(); break;
+            case QUICK_DOC: quickDoc.dismissQuickDoc(); break;
+            case CODE_ACTIONS: codeActions.dismissCodeActions(); break;
+            case NAV_MENU: navMenu.dismissNavMenu(); break;
+            case COLOR_PICKER: colorPicker.dismissColorPicker(); break;
+            case DIAGNOSTIC_POPUP: diagnostics.dismissDiagnosticPopup(); break;
+            case DIAGNOSTIC_LIST: diagnostics.dismissDiagnosticListSheet(); break;
+            case SQUIGGLE: squiggle.dismissSquigglePopup(); break;
+            case GO_TO_SYMBOL: goToSymbol.dismissGoToSymbol(); break;
+            default: break;
+        }
+    }
+
     /** Réglage du popup : honorer le drapeau « liste tronquée ». */
     public void setHonorIncompleteCompletion(boolean honor) {
         completion.setHonorIncompleteCompletion(honor);
@@ -178,7 +222,10 @@ public class EditorPopupManager {
 
     public void refreshSignatureHelpFromHost() { signature.refreshSignatureHelpFromHost(); }
 
-    public void dismissSignatureHelp() { signature.dismissSignatureHelp(); }
+    public void dismissSignatureHelp() {
+        coordinator.onDismissed(PopupCoordinator.Kind.SIGNATURE);
+        signature.dismissSignatureHelp();
+    }
 
     public void refreshSignatureHelp() { signature.refreshSignatureHelp(); }
 
@@ -195,7 +242,10 @@ public class EditorPopupManager {
         quickDoc.showQuickDocRaw(offset, raw);
     }
 
-    public void dismissQuickDoc() { quickDoc.dismissQuickDoc(); }
+    public void dismissQuickDoc() {
+        coordinator.onDismissed(PopupCoordinator.Kind.QUICK_DOC);
+        quickDoc.dismissQuickDoc();
+    }
 
     // ════════════════════════════════════════════════════════════════
     // Popup d'actions de code — corps délégués à EditorCodeActionsPopup
@@ -208,7 +258,10 @@ public class EditorPopupManager {
 
     public void showCodeActions(int line) { codeActions.showCodeActions(line); }
 
-    public void dismissCodeActions() { codeActions.dismissCodeActions(); }
+    public void dismissCodeActions() {
+        coordinator.onDismissed(PopupCoordinator.Kind.CODE_ACTIONS);
+        codeActions.dismissCodeActions();
+    }
 
     public boolean applySelectedCodeAction() { return codeActions.applySelectedCodeAction(); }
 
@@ -218,7 +271,10 @@ public class EditorPopupManager {
 
     public void showNavMenu(int line, int offset) { navMenu.showNavMenu(line, offset); }
 
-    public void dismissNavMenu() { navMenu.dismissNavMenu(); }
+    public void dismissNavMenu() {
+        coordinator.onDismissed(PopupCoordinator.Kind.NAV_MENU);
+        navMenu.dismissNavMenu();
+    }
 
     void navMenuPickOption(NavigationMenu.NavOption option) {
         navMenu.navMenuPickOption(option);
@@ -238,7 +294,10 @@ public class EditorPopupManager {
 
     public void showGoToSymbol() { goToSymbol.showGoToSymbol(); }
 
-    public void dismissGoToSymbol() { goToSymbol.dismissGoToSymbol(); }
+    public void dismissGoToSymbol() {
+        coordinator.onDismissed(PopupCoordinator.Kind.GO_TO_SYMBOL);
+        goToSymbol.dismissGoToSymbol();
+    }
 
     public void setGoToSymbolFilter(String filter) { goToSymbol.setGoToSymbolFilter(filter); }
 
@@ -284,11 +343,17 @@ public class EditorPopupManager {
         diagnostics.showDiagnosticPopup(diag, offset);
     }
 
-    public void dismissDiagnosticPopup() { diagnostics.dismissDiagnosticPopup(); }
+    public void dismissDiagnosticPopup() {
+        coordinator.onDismissed(PopupCoordinator.Kind.DIAGNOSTIC_POPUP);
+        diagnostics.dismissDiagnosticPopup();
+    }
 
     public void showDiagnosticListSheet(int line) { diagnostics.showDiagnosticListSheet(line); }
 
-    public void dismissDiagnosticListSheet() { diagnostics.dismissDiagnosticListSheet(); }
+    public void dismissDiagnosticListSheet() {
+        coordinator.onDismissed(PopupCoordinator.Kind.DIAGNOSTIC_LIST);
+        diagnostics.dismissDiagnosticListSheet();
+    }
 
     // ════════════════════════════════════════════════════════════════
     // Popup ancré de squiggle (D1) — corps délégués à EditorSquigglePopups
@@ -302,7 +367,10 @@ public class EditorPopupManager {
     /** Résout un hit du popup (rangée quick-fix / choix / « See all »). */
     public void handleSquiggleHit(int hit) { squiggle.handleSquiggleHit(hit); }
 
-    public void dismissSquigglePopup() { squiggle.dismissSquigglePopup(); }
+    public void dismissSquigglePopup() {
+        coordinator.onDismissed(PopupCoordinator.Kind.SQUIGGLE);
+        squiggle.dismissSquigglePopup();
+    }
 
     /**
      * Ouvre le NavMenu en mode débordement de la pill (T1) : liste
@@ -340,6 +408,9 @@ public class EditorPopupManager {
         colorPicker.releaseAt(x, y);
     }
 
-    public void dismissColorPicker() { colorPicker.dismissColorPicker(); }
+    public void dismissColorPicker() {
+        coordinator.onDismissed(PopupCoordinator.Kind.COLOR_PICKER);
+        colorPicker.dismissColorPicker();
+    }
 
 }

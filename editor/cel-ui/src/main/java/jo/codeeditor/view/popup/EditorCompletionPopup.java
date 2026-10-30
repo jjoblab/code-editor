@@ -1,6 +1,7 @@
 package jo.codeeditor.view.popup;
 
 import jo.codeeditor.view.EditorView;
+import jo.codeeditor.view.popup.kit.PopupPlacement;
 import jo.codeeditor.view.popup.kit.PopupTokens;
 import jo.codeeditor.view.state.CompletionState;
 
@@ -172,10 +173,12 @@ public class EditorCompletionPopup {
     private void applyFilteredItems(java.util.List<jo.codeeditor.completion.CompletionSession.Item> filtered,
                                     int tokenStart, String prefix) {
         view.completion.refilter(filtered, tokenStart, prefix, completionRowsVisible());
-        // La complétion qui s'ouvre referme le hover
-        // (exclusion mutuelle — le tooltip est refermé quand la complétion
-        // s'ouvre, et le hover est refusé tant qu'elle est ouverte).
-        if (view.quickDocVisible) popups.dismissQuickDoc();
+        // La complétion qui s'ouvre s'enregistre au coordinateur
+        // (phase 5) : les popups de FRAPPE coexistent — l'aide de
+        // signature reste OUVERTE (leur placement coordonné les sépare)
+        // — le hover, lui, est refermé (exclusion mutuelle historique).
+        popups.coordinator().onShown(
+                jo.codeeditor.view.popup.kit.PopupCoordinator.Kind.COMPLETION);
         // 4.7.0 : le lot affiché (et sa sélection préservée) peut porter
         // un candidat sans documentation — le séjour de résolution part
         // de zéro.
@@ -804,24 +807,14 @@ public class EditorCompletionPopup {
      * recouvrir la bande du caret.</p>
      */
     int completionRowsVisible() {
-        float density = view.getResources().getDisplayMetrics().density;
-        float rowH = CompletionState.ROW_HEIGHT_DP * density;
-        return completionRowsVisible(completionDocPanelHeight(density), rowH);
-    }
-
-    /** Variante paramétrée (l'ancre a déjà calculé la hauteur du panneau). */
-    private int completionRowsVisible(float panelH, float rowH) {
-        int maxRows = Math.min(CompletionState.MAX_ROWS, view.completion.items.size());
-        if (maxRows <= 1 || view.getHeight() <= 0 || view.session == null) {
-            return Math.max(1, maxRows);
+        // Phase 5 : l'ancre coordonnée est la source unique — les
+        // rangées visibles dérivent de sa hauteur (règles
+        // PopupPlacement, rangées réduites comprises).
+        if (!view.completion.visible || view.completion.items.isEmpty()) {
+            return 1;
         }
-        float[] band = completionCaretBand();
-        // Espaces disponibles SANS recouvrir la ligne du caret :
-        float below = view.getHeight() - (band[1] + COMPLETION_ANCHOR_GAP_PX);
-        float above = band[0] - COMPLETION_ANCHOR_GAP_PX;
-        float best = Math.max(below, above) - panelH;
-        int fit = (int) Math.floor(best / rowH);
-        return Math.max(1, Math.min(maxRows, fit));
+        float[] a = completionPopupAnchor();
+        return Math.max(1, Math.round((a[3] - a[5]) / a[4]));
     }
 
     /** Écart visuel (px) entre le popup et la ligne du caret. */
@@ -988,37 +981,81 @@ public class EditorCompletionPopup {
         float rowH = CompletionState.ROW_HEIGHT_DP * density;
         float width = CompletionState.WIDTH_DP * density;
         // ★ 4.4.0 : le panneau de documentation est calculé AVANT les
-        // rangées (source unique) et déduit de la place disponible —
-        // le popup complet (liste + panneau) ne recouvre jamais la bande
-        // du caret.
+        // rangées (source unique) et déduit de la place disponible.
         float panelH = completionDocPanelHeight(density);
-        int rowsToShow = completionRowsVisible(panelH, rowH);
-        float popupH = rowH * rowsToShow + panelH;
-        EditorDocument doc = view.session.getDocument();
-        int line = EditorView.clamp(doc.lineForOffset(view.completion.tokenStart), 0, doc.lineCount() - 1);
-        int col = view.completion.tokenStart - doc.lineStart(line);
-        // Ancrage tenant compte des inlays — le popup suit le X du caret tissé.
-        float anchorX = view.metrics.getGutterWidth() + view.metrics.getPadLeft()
-            + view.visualColFor(line, col) * view.metrics.getCharWidth() - view.scroll.hOffset;
-        // Bas/haut de la ligne fold+wrap-aware (l'ancienne formule brute
-        // padTop + (line+1)*lineHeight plaçait l'ancre au-dessus de la
-        // rangée visuelle réelle dès qu'une ligne précédente était wrappée
-        // ou pliée → le popup recouvrait la ligne de frappe).
-        float[] band = completionCaretBand();
-        float caretBottomY = band[1];
-        float caretTopY = band[0];
-        // D2 : pattern « popup ancré » factorisé (préfère EN DESSOUS de la
-        // ligne de frappe, bascule AU-DESSUS s'il ne tient pas — le popup
-        // ne recouvre JAMAIS la ligne du caret), clamp horizontal à la
-        // gouttière. Paramétrage identique au calcul historique :
-        // gap 4 px, yMargin 0, seuil X 0, inset X 4 px, ancre gauche.
-        float[] pos = EditorPopupAnchors.anchorAboveBelow(view,
-                anchorX, caretTopY, caretBottomY, width, popupH,
-                false, COMPLETION_ANCHOR_GAP_PX, 0f,
-                0f, 4f, false, view.metrics.getGutterWidth());
+        // ★ Phase 5 : placement COORDONNÉ avec la signature — bande du
+        // caret fold+wrap aware PARTAGÉE, X du début du token PARTAGÉ
+        // (bords gauches alignés), règles PopupPlacement : signature
+        // au-dessus, complétion en dessous, ligne du caret JAMAIS
+        // recouverte, aucun chevauchement — et les rangées se réduisent
+        // AVANT de recouvrir quoi que ce soit.
+        float hSig = 0f;
+        float[] tailleSig = view.signatureHelpSize();
+        if (tailleSig != null) hSig = tailleSig[1];
+        float[] c = coordonner(density, panelH, rowH, hSig);
+        int rowsToShow = (int) c[0];
+        float anchorY = c[1];
+        float popupH = c[2];
+        float anchorX = EditorPopupAnchors.popupAnchorX(view);
+        if (anchorX + width > view.getWidth()) {
+            anchorX = Math.max(view.metrics.getGutterWidth(),
+                    view.getWidth() - width - 4f);
+        }
+        if (anchorY < 0) anchorY = 0;
         // 6ᵉ élément (4.4.0) : hauteur du panneau de documentation —
         // peintre et hit-testeur en déduisent la zone de liste.
-        return new float[]{pos[0], pos[1], width, popupH, rowH, panelH};
+        return new float[]{anchorX, anchorY, width, popupH, rowH, panelH};
+    }
+
+    /**
+     * ★ Phase 5 — la HAUTEUR du popup de complétion sous la règle
+     * coordonnée (rangées réduites comprises, panneau compris) —
+     * appelable par le layout de la signature SANS cycle : la taille
+     * de la signature est pure (aucun placement).
+     */
+    float completionCoordinatedHeight() {
+        if (!view.completion.visible || view.completion.items.isEmpty()
+                || view.session == null || view.getHeight() <= 0) {
+            return 0f;
+        }
+        float density = view.getResources().getDisplayMetrics().density;
+        float rowH = CompletionState.ROW_HEIGHT_DP * density;
+        // Effet de bord idempotent : les rangées de doc et la
+        // présentation sont recalculées à l'identique.
+        float panelH = completionDocPanelHeight(density);
+        float hSig = 0f;
+        float[] tailleSig = view.signatureHelpSize();
+        if (tailleSig != null) hSig = tailleSig[1];
+        return coordonner(density, panelH, rowH, hSig)[2];
+    }
+
+    /**
+     * La règle coordonnée appliquée à la complétion : essaie les
+     * rangées max, et si la règle 4 (empilés en dessous) rogne la
+     * hauteur disponible, RÉDUIT les rangées avant de recouvrir — la
+     * bande du caret reste libre par construction.
+     *
+     * @return {rangées, Y du popup, hauteur du popup}
+     */
+    private float[] coordonner(float density, float panelH, float rowH, float hSig) {
+        float[] bande = EditorPopupAnchors.popupCaretBand(view);
+        float gap = EditorPopupAnchors.POPUP_GAP_DP * density;
+        int maxRows = Math.min(CompletionState.MAX_ROWS, view.completion.items.size());
+        int rows = Math.max(1, maxRows);
+        PopupPlacement.Placements p = PopupPlacement.place(view.getHeight(),
+                bande[0], bande[1], hSig, rowH * rows + panelH, gap, 0f);
+        if (p.rule == PopupPlacement.RULE_STACKED_BELOW
+                && p.cmpHeight + 0.5f < rowH * rows + panelH) {
+            // Règle 4 : la place restante commande — les rangées cèdent
+            // (minimum 1) AVANT tout recouvrement.
+            rows = Math.max(1, (int) Math.floor(
+                    Math.max(0f, p.cmpHeight - panelH) / rowH));
+            p = PopupPlacement.place(view.getHeight(), bande[0], bande[1],
+                    hSig, rowH * rows + panelH, gap, 0f);
+        }
+        float popupH = rowH * rows + panelH;
+        float y = p.aComplétion() ? p.cmpTop : bande[1] + gap;
+        return new float[]{rows, y, popupH};
     }
 
     /**

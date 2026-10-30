@@ -4392,11 +4392,11 @@ public class EditorView extends View {
         return popupManager.completionPopupAnchor();
     }
 
-    /** (Phase 4) Géométrie du bottom sheet de documentation (vue
-     *  étroite) : {left, top, right, bottom} px ou null. */
-    public float[] completionDocSheetMetrics() {
-        return popupManager.completionDocSheetMetrics();
-    }
+    /** (Phase 4) Géométrie du bottom sheet de doc (vue étroite), px ou null. */
+    public float[] completionDocSheetMetrics() { return popupManager.completionDocSheetMetrics(); }
+
+    /** (Phase 5) Hauteur de la complétion sous la règle coordonnée — source du layout signature. */
+    public float completionCoordinatedHeight() { return popupManager.completionCoordinatedHeight(); }
 
     /**
      * Géométrie du popup quick doc : {anchorX, anchorY, popupW,
@@ -4428,6 +4428,9 @@ public class EditorView extends View {
      * geste étend la signature fenêtrée en signature complète).
      */
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    /** (Phase 5) Taille du popup signature sans ancrage — source du placement coordonné. */
+    public float[] signatureHelpSize() { return renderer.signatureHelpSize(); }
+
     public float[] signatureHelpPopupMetrics() {
         return renderer.signatureHelpPopupMetrics();
     }

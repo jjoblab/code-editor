@@ -96,12 +96,10 @@ public class EditorDiagnosticPopups {
             return;
         }
         view.diagnosticListSheetLine = line;
-        if (view.completion.visible) popups.dismissCompletion();
-        if (view.quickDocVisible) popups.dismissQuickDoc();
-        if (view.signatureHelpVisible) popups.dismissSignatureHelp();
-        if (view.codeActionsPopupVisible) popups.dismissCodeActions();
-        if (view.navMenuVisible) popups.dismissNavMenu();
-        if (view.squigglePopupVisible) popups.dismissSquigglePopup();
+        // Phase 5 : le registre unique du coordinateur referme les
+        // popups exclusifs (liste dupliquée supprimée).
+        popups.coordinator().onShown(
+                jo.codeeditor.view.popup.kit.PopupCoordinator.Kind.DIAGNOSTIC_LIST);
         view.invalidate();
     }
 

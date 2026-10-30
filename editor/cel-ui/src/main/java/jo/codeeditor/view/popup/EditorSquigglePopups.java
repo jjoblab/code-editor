@@ -108,16 +108,15 @@ public class EditorSquigglePopups {
         return out;
     }
 
-    /** Fermeture croisée des popups exclusifs (le popup ancré est léger). */
+    /**
+     * Fermeture croisée des popups exclusifs — Phase 5 : le
+     * REGISTRE UNIQUE du coordinateur décide (les popups de frappe
+     * coexistent, tout popup de tap referme le reste) ; la liste de
+     * dismiss dupliquée disparaît.
+     */
     private void closeOthers() {
-        if (view.completion.visible) popups.dismissCompletion();
-        if (view.quickDocVisible) popups.dismissQuickDoc();
-        if (view.signatureHelpVisible) popups.dismissSignatureHelp();
-        if (view.codeActionsPopupVisible) popups.dismissCodeActions();
-        if (view.navMenuVisible) popups.dismissNavMenu();
-        if (view.colorPickerVisible) popups.dismissColorPicker();
-        if (view.diagnosticPopupVisible) popups.dismissDiagnosticPopup();
-        if (view.diagnosticListSheetLine >= 0) popups.dismissDiagnosticListSheet();
+        popups.coordinator().onShown(
+                jo.codeeditor.view.popup.kit.PopupCoordinator.Kind.SQUIGGLE);
     }
 
     /**

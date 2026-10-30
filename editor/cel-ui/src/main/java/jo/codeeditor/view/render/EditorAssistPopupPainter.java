@@ -3,6 +3,7 @@ package jo.codeeditor.view.render;
 import jo.codeeditor.view.EditorView;
 import jo.codeeditor.view.popup.kit.DocRenderModel;
 import jo.codeeditor.view.popup.kit.PopupCard;
+import jo.codeeditor.view.popup.kit.PopupPlacement;
 import jo.codeeditor.view.popup.kit.PopupTokens;
 import jo.codeeditor.view.popup.kit.SignatureDocSections;
 import jo.codeeditor.view.popup.kit.TextLayoutKit;
@@ -142,6 +143,83 @@ public class EditorAssistPopupPainter {
      *         sigLines (wrap de la signature en vue peek).
      */
     private float[] computeSignatureLayout() {
+        // Phase 5 : la TAILLE est calculée à part (aucune dépendance au
+        // placement — la complétion coordonnée la consomme sans cycle),
+        // l'ancrage coordonné suit.
+        float[] s = computeSignatureSize();
+        if (s == null) return null;
+        float width = s[0], popupH = s[1], rowH = s[2], stepperH = s[3];
+        int activeIdx = (int) s[4];
+        boolean hasBadge = s[5] >= 1;
+        float stepperTextSize = s[6], arrowW = s[7], countW = s[8], arrowPad = s[9];
+        float viewW = view.getWidth();
+        float density = view.getResources().getDisplayMetrics().density;
+
+        // ── Phase 5 : ancrage COORDONNÉ avec la complétion — la bande
+        // du caret est fold+wrap aware (docLineToY + rowsForDocLine :
+        // l'ancienne ancre plaçait le popup SUR une ligne wrappée), le
+        // X est celui du DÉBUT DU TOKEN (les bords gauches des deux
+        // popups s'alignent), et la règle PopupPlacement garantit :
+        // signature au-dessus, complétion en dessous, bande du caret
+        // JAMAIS recouverte, aucun chevauchement. Le clavier logiciel
+        // (adjustResize) réduit la hauteur réelle de vue — la règle
+        // s'adapte d'elle-même.
+        float[] bande = jo.codeeditor.view.popup.EditorPopupAnchors.popupCaretBand(view);
+        float hCmp = view.completion.visible
+                ? view.completionCoordinatedHeight() : 0f;
+        PopupPlacement.Placements place = PopupPlacement.place(
+                view.getHeight(), bande[0], bande[1], popupH, hCmp,
+                4 * density, 0f);
+        float anchorY = place.sigTop;
+        float anchorX = jo.codeeditor.view.popup.EditorPopupAnchors.popupAnchorX(view);
+        if (anchorY != anchorY) {   // NaN : signature seule sans règle
+            anchorY = Math.max(0, view.getHeight() - popupH - 4);
+        }
+        if (anchorX + width > viewW) {
+            anchorX = Math.max(view.metrics.getGutterWidth(), viewW - width - 4);
+        }
+        if (anchorY < 0) anchorY = 0;
+
+        // ── Flèches du stepper ‹ i/n › : centrées horizontalement sur
+        // la ligne du stepper, zones larges de flèche + marge (doigt).
+        float arrowH = stepperTextSize * 1.6f;
+        float stepperBase = anchorY + (rowH - arrowH) / 2f;
+        float countTotal = countW + 2 * (arrowW + 2 * arrowPad);
+        float leftCx = anchorX + (width - countTotal) / 2f + arrowPad;
+        float rightCx = anchorX + (width + countTotal) / 2f - arrowPad;
+
+        float[] out = new float[16];
+        out[SIG_ANCHOR_X] = anchorX;
+        out[SIG_ANCHOR_Y] = anchorY;
+        out[SIG_WIDTH] = width;
+        out[SIG_POPUP_H] = popupH;
+        out[SIG_ROW_H] = rowH;
+        out[SIG_STEPPER_H] = stepperH;
+        out[SIG_ACTIVE] = activeIdx;
+        // Flèche GAUCHE (‹) — rect tactile.
+        out[SIG_B_LEFT] = leftCx - arrowW / 2f - arrowPad;
+        out[SIG_B_TOP] = stepperBase;
+        out[SIG_B_RIGHT] = leftCx + arrowW / 2f + arrowPad;
+        out[SIG_B_BOTTOM] = stepperBase + arrowH;
+        out[SIG_HAS_BADGE] = hasBadge ? 1 : 0;
+        // Flèche DROITE (›) — rect tactile.
+        out[SIG_P_LEFT] = rightCx - arrowW / 2f - arrowPad;
+        out[SIG_P_TOP] = stepperBase;
+        out[SIG_P_RIGHT] = rightCx + arrowW / 2f + arrowPad;
+        out[SIG_P_BOTTOM] = stepperBase + arrowH;
+        return out;
+    }
+
+    /**
+     * La TAILLE du popup d'aide de signature (phase 5) : calcule TOUT
+     * sauf l'ancrage — largeur adaptative bornée, sections de doc,
+     * paramètres du stepper — et remplit les champs de rendu (sigLines,
+     * sigDoc). Retourne {width, popupH, rowH, stepperH, activeIdx,
+     * hasBadge, stepperTextSize, arrowW, countW, arrowPad}, ou null
+     * (popup absent). Pure de tout placement : la complétion coordonnée
+     * la consomme sans cycle.
+     */
+    private float[] computeSignatureSize() {
         if (!view.signatureHelpVisible || view.signatureHelpData == null
                 || view.signatureHelpData.signatures == null
                 || view.signatureHelpData.signatures.isEmpty()
@@ -152,7 +230,6 @@ public class EditorAssistPopupPainter {
         float rowH = SIGNATURE_HELP_ROW_HEIGHT_DP * density;
         boolean peeked = view.signatureHelpController != null
                 && view.signatureHelpController.isPeeked();
-
         // ── Index actif : l'override clavier/tactile du contrôleur
         // d'abord, sinon le choix du serveur.
         int activeIdx = view.getEffectiveActiveSignature();
@@ -269,54 +346,20 @@ public class EditorAssistPopupPainter {
         float docH = paramH + résuméH + retourH + extraH + filetsH + padBas;
         float popupH = stepperH + sigTextH + docH;
 
-        // ── Ancrage X = colonne du curseur, Y = au-dessus de la ligne
-        // du curseur (bascule en dessous sinon, clampés à la vue).
-        EditorDocument doc = view.session.getDocument();
-        Selection sel = view.clampSelection(view.session.getSelection(), doc);
-        int line = EditorView.clamp(doc.lineForOffset(sel.start), 0, doc.lineCount() - 1);
-        int col = sel.start - doc.lineStart(line);
-        float anchorX = view.metrics.getGutterWidth() + view.metrics.getPadLeft()
-            + view.visualColFor(line, col) * view.metrics.getCharWidth() - view.scroll.hOffset;
-        float caretY = view.docLineToY(line) - view.scroll.vOffset;
-        float anchorY = caretY - 4 - popupH;
-        if (anchorY < 0) {
-            anchorY = caretY + view.metrics.getLineHeight() + 4;
-        }
-        if (anchorY + popupH > view.getHeight()) {
-            anchorY = Math.max(0, view.getHeight() - popupH - 4);
-        }
-        if (anchorX + width > viewW) {
-            anchorX = Math.max(view.metrics.getGutterWidth(), viewW - width - 4);
-        }
+        return new float[]{width, popupH, rowH, stepperH, activeIdx,
+                hasBadge ? 1 : 0, stepperTextSize, arrowW, countW, arrowPad};
+    }
 
-        // ── Flèches du stepper ‹ i/n › : centrées horizontalement sur
-        // la ligne du stepper, zones larges de flèche + marge (doigt).
-        float arrowH = stepperTextSize * 1.6f;
-        float stepperBase = anchorY + (rowH - arrowH) / 2f;
-        float countTotal = countW + 2 * (arrowW + 2 * arrowPad);
-        float leftCx = anchorX + (width - countTotal) / 2f + arrowPad;
-        float rightCx = anchorX + (width + countTotal) / 2f - arrowPad;
-
-        float[] out = new float[16];
-        out[SIG_ANCHOR_X] = anchorX;
-        out[SIG_ANCHOR_Y] = anchorY;
-        out[SIG_WIDTH] = width;
-        out[SIG_POPUP_H] = popupH;
-        out[SIG_ROW_H] = rowH;
-        out[SIG_STEPPER_H] = stepperH;
-        out[SIG_ACTIVE] = activeIdx;
-        // Flèche GAUCHE (‹) — rect tactile.
-        out[SIG_B_LEFT] = leftCx - arrowW / 2f - arrowPad;
-        out[SIG_B_TOP] = stepperBase;
-        out[SIG_B_RIGHT] = leftCx + arrowW / 2f + arrowPad;
-        out[SIG_B_BOTTOM] = stepperBase + arrowH;
-        out[SIG_HAS_BADGE] = hasBadge ? 1 : 0;
-        // Flèche DROITE (›) — rect tactile.
-        out[SIG_P_LEFT] = rightCx - arrowW / 2f - arrowPad;
-        out[SIG_P_TOP] = stepperBase;
-        out[SIG_P_RIGHT] = rightCx + arrowW / 2f + arrowPad;
-        out[SIG_P_BOTTOM] = stepperBase + arrowH;
-        return out;
+    /**
+     * ★ Phase 5 — la TAILLE du popup d'aide de signature SANS ancrage :
+     * {width, height} ou null (popup absent). Source unique pour le
+     * placement coordonné signature ↔ complétion (la complétion a
+     * besoin de la hauteur de la signature AVANT d'ancrer la sienne —
+     * aucune dépendance circulaire : la taille ne dépend d'aucun
+     * placement).
+     */
+    float[] signatureHelpSize() {
+        return computeSignatureSize();
     }
 
     /**

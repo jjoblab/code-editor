@@ -257,15 +257,12 @@ public class EditorColorPickerPopup {
         view.onTextChanged();
     }
 
-    /** Fermeture croisée des popups exclusifs (la carte est légère). */
+    /**
+     * Fermeture croisée des popups exclusifs — Phase 5 : le registre
+     * unique du coordinateur décide (la liste dupliquée disparaît).
+     */
     private void closeOthers() {
-        if (view.completion.visible) popups.dismissCompletion();
-        if (view.quickDocVisible) popups.dismissQuickDoc();
-        if (view.signatureHelpVisible) popups.dismissSignatureHelp();
-        if (view.codeActionsPopupVisible) popups.dismissCodeActions();
-        if (view.navMenuVisible) popups.dismissNavMenu();
-        if (view.squigglePopupVisible) popups.dismissSquigglePopup();
-        if (view.diagnosticPopupVisible) popups.dismissDiagnosticPopup();
-        if (view.diagnosticListSheetLine >= 0) popups.dismissDiagnosticListSheet();
+        popups.coordinator().onShown(
+                jo.codeeditor.view.popup.kit.PopupCoordinator.Kind.COLOR_PICKER);
     }
 }

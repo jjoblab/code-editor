@@ -43,6 +43,11 @@ public final class EditorPopupAnchors {
 
     private EditorPopupAnchors() {}
 
+    /** ★ Phase 5 : écart visuel (dp) entre un popup de frappe et la
+     *  bande du caret — LA valeur partagée par la signature et la
+     *  complétion (règle g du placement coordonné). */
+    public static final float POPUP_GAP_DP = 4f;
+
     // ════════════════════════════════════════════════════════════════
     // D2 — pattern « popup ancré » factorisé
     // ════════════════════════════════════════════════════════════════
@@ -136,6 +141,53 @@ public final class EditorPopupAnchors {
         }
         if (x < leftBound) x = leftBound;
         return new float[]{x, y};
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    // Phase 5 — ancre PARTAGÉE des popups de frappe
+    // ════════════════════════════════════════════════════════════════
+
+    /**
+     * ★ Phase 5 — la bande du caret PARTAGÉE par la signature et la
+     * complétion : haut/bas ÉCRAN de la ligne de frappe (la ligne du
+     * TOKEN de complétion quand le popup vit — le caret y tape —,
+     * sinon la ligne du caret), fold-aware ET wrap-aware via
+     * {@code docLineToY} + {@code rowsForDocLine}. L'ancienne ancre de
+     * la signature ({@code docLineToY} seul, ni wrap ni plis) plaçait
+     * le popup SUR une ligne wrappée.
+     *
+     * @return {top, bottom} en px écran
+     */
+    public static float[] popupCaretBand(EditorView view) {
+        EditorDocument doc = view.session.getDocument();
+        int offset = view.completion.visible && view.completion.tokenStart >= 0
+                ? view.completion.tokenStart
+                : view.session.getSelection().start;
+        int line = EditorView.clamp(doc.lineForOffset(offset), 0, doc.lineCount() - 1);
+        float top = view.docLineToY(line) - view.scroll.vOffset;
+        float bottom = top + view.rowsForDocLine(line) * view.metrics.getLineHeight();
+        return new float[]{top, bottom};
+    }
+
+    /**
+     * ★ Phase 5 — le X d'ancre PARTAGÉ des popups de frappe : le début
+     * du TOKEN de complétion (l'appel en cours de frappe), clampé à la
+     * gouttière — les bords gauches de la signature et de la complétion
+     * S'ALIGNENT (l'ancienne ancre de la signature suivait la colonne
+     * du caret, celle de la complétion le token : leurs bords
+     * divergeaient).
+     */
+    public static float popupAnchorX(EditorView view) {
+        EditorDocument doc = view.session.getDocument();
+        int offset = view.completion.visible && view.completion.tokenStart >= 0
+                ? view.completion.tokenStart
+                : view.session.getSelection().start;
+        int line = EditorView.clamp(doc.lineForOffset(offset), 0, doc.lineCount() - 1);
+        int col = offset - doc.lineStart(line);
+        float x = view.metrics.getGutterWidth() + view.metrics.getPadLeft()
+                + view.visualColFor(line, col) * view.metrics.getCharWidth()
+                - view.scroll.hOffset;
+        return Math.max(view.metrics.getGutterWidth(), x);
     }
 
     // ════════════════════════════════════════════════════════════════
