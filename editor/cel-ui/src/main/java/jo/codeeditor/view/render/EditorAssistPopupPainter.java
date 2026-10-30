@@ -1,6 +1,7 @@
 package jo.codeeditor.view.render;
 
 import jo.codeeditor.view.EditorView;
+import jo.codeeditor.view.popup.kit.DocRenderModel;
 import jo.codeeditor.view.popup.kit.PopupCard;
 import jo.codeeditor.view.popup.kit.PopupTokens;
 import jo.codeeditor.view.popup.kit.TextLayoutKit;
@@ -247,24 +248,20 @@ public class EditorAssistPopupPainter {
                 }
             }
             if (activeSig.documentation != null && !activeSig.documentation.isEmpty()) {
-                jo.codeeditor.doc.QuickDoc.QuickDocContent parsed =
-                        jo.codeeditor.doc.QuickDoc.parseQuickDoc(
-                                activeSig.documentation, "java");
-                if (!parsed.description.isEmpty()) {
-                    for (String w : wrapText(parsed.description, docWidth, view.textPaint)) {
+                // Phase 3 : modèle de rendu UNIFIÉ de la documentation —
+                // la LANGUE vient de la session (jamais « java » en
+                // dur), les sections deviennent des blocs typés
+                // (param / return / throws / see / autre). Même rendu
+                // ligne à ligne que le moteur historique.
+                for (jo.codeeditor.view.popup.kit.DocRenderModel.Block b
+                        : jo.codeeditor.view.popup.kit.DocRenderModel.blocks(
+                                jo.codeeditor.view.popup.kit.DocRenderModel.parse(
+                                        activeSig.documentation, view.session))) {
+                    if (b.kind == DocRenderModel.KIND_SIGNATURE) continue;
+                    if (sigDocLines.size() >= SIGNATURE_DOC_MAX_LINES) break;
+                    for (String w : wrapText(b.ligne(), docWidth, view.textPaint)) {
                         if (sigDocLines.size() >= SIGNATURE_DOC_MAX_LINES) break;
                         sigDocLines.add(w);
-                    }
-                }
-                for (jo.codeeditor.doc.QuickDoc.DocSection s : parsed.sections) {
-                    if (sigDocLines.size() >= SIGNATURE_DOC_MAX_LINES) break;
-                    for (String item : s.items) {
-                        if (sigDocLines.size() >= SIGNATURE_DOC_MAX_LINES) break;
-                        String line = s.title + " " + item;
-                        for (String w : wrapText(line, docWidth, view.textPaint)) {
-                            if (sigDocLines.size() >= SIGNATURE_DOC_MAX_LINES) break;
-                            sigDocLines.add(w);
-                        }
                     }
                 }
             }
@@ -812,26 +809,42 @@ public class EditorAssistPopupPainter {
      * largeur — seule la couleur change au rendu).
      */
     private List<DocRow> buildQuickDocRows(float textWidth, Paint paint) {
+        // Phase 3 : les trois consommateurs de documentation (doc
+        // rapide, bande de signature, panneau de complétion) passent
+        // par le MÊME modèle de blocs — le quick doc rend SIGNATURE
+        // (fence), SUMMARY (corps) puis sections typées, à l'identique
+        // du rendu historique (titre de section posé une seule fois
+        // par changement de tag, items indentés dessous).
         List<DocRow> rows = new ArrayList<>();
         jo.codeeditor.doc.QuickDoc.QuickDocContent c = view.quickDocContent;
         if (c == null) return rows;
-        if (c.signature != null && !c.signature.isEmpty()) {
-            for (String line : c.signature.split("\n", -1)) {
-                for (String w : wrapText(line, textWidth - 16, paint)) {
-                    rows.add(new DocRow(DocRow.SIG, w));
+        String titrePrécédent = null;
+        for (DocRenderModel.Block b : DocRenderModel.blocks(c)) {
+            switch (b.kind) {
+                case DocRenderModel.KIND_SIGNATURE: {
+                    for (String line : b.text.split("\n", -1)) {
+                        for (String w : wrapText(line, textWidth - 16, paint)) {
+                            rows.add(new DocRow(DocRow.SIG, w));
+                        }
+                    }
+                    break;
                 }
-            }
-        }
-        if (c.description != null && !c.description.isEmpty()) {
-            for (String w : wrapText(c.description, textWidth, paint)) {
-                rows.add(new DocRow(DocRow.TEXT, w));
-            }
-        }
-        for (jo.codeeditor.doc.QuickDoc.DocSection s : c.sections) {
-            rows.add(new DocRow(DocRow.SECTION, s.title));
-            for (String item : s.items) {
-                for (String w : wrapText(item, textWidth - 12, paint)) {
-                    rows.add(new DocRow(DocRow.ITEM, "  " + w));
+                case DocRenderModel.KIND_SUMMARY: {
+                    for (String w : wrapText(b.text, textWidth, paint)) {
+                        rows.add(new DocRow(DocRow.TEXT, w));
+                    }
+                    break;
+                }
+                default: {
+                    if (!b.title.equals(titrePrécédent)) {
+                        rows.add(new DocRow(DocRow.SECTION, b.title));
+                        titrePrécédent = b.title;
+                    }
+                    String item = b.label.isEmpty() ? b.text : b.label + " " + b.text;
+                    for (String w : wrapText(item, textWidth - 12, paint)) {
+                        rows.add(new DocRow(DocRow.ITEM, "  " + w));
+                    }
+                    break;
                 }
             }
         }

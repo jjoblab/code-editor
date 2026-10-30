@@ -866,20 +866,20 @@ public class EditorCompletionPopup {
             view.textPaint.setTypeface(view.metrics.getTypeface());
             view.textPaint.setTextSize(view.metrics.getTextSize() * 0.75f);
             float docWidth = CompletionState.WIDTH_DP * density - 16 * density;
-            jo.codeeditor.doc.QuickDoc.QuickDocContent parsed =
-                    jo.codeeditor.doc.QuickDoc.parseQuickDoc(documentation, "java");
-            if (!parsed.description.isEmpty()) {
-                lines.addAll(jo.codeeditor.view.render.EditorAssistPopupPainter
-                        .wrapText(parsed.description, docWidth, view.textPaint));
-            }
-            for (jo.codeeditor.doc.QuickDoc.DocSection s : parsed.sections) {
-                if (lines.size() >= CompletionState.DOC_PANEL_MAX_LINES) break;
-                for (String item : s.items) {
-                    if (lines.size() >= CompletionState.DOC_PANEL_MAX_LINES) break;
-                    String line = s.title + " " + item;
-                    lines.addAll(jo.codeeditor.view.render.EditorAssistPopupPainter
-                            .wrapText(line, docWidth, view.textPaint));
+            // Phase 3 : modèle de rendu UNIFIÉ — même moteur que la
+            // bande doc de signature et la doc rapide ; la LANGUE vient
+            // de la session (plus de « java » en dur). Le bloc SIGNATURE
+            // (fence) est réservé à la refonte du panneau (phase 4).
+            for (jo.codeeditor.view.popup.kit.DocRenderModel.Block b
+                    : jo.codeeditor.view.popup.kit.DocRenderModel.blocks(
+                            jo.codeeditor.view.popup.kit.DocRenderModel.parse(
+                                    documentation, view.session))) {
+                if (b.kind == jo.codeeditor.view.popup.kit.DocRenderModel.KIND_SIGNATURE) {
+                    continue;
                 }
+                if (lines.size() >= CompletionState.DOC_PANEL_MAX_LINES) break;
+                lines.addAll(jo.codeeditor.view.render.EditorAssistPopupPainter
+                        .wrapText(b.ligne(), docWidth, view.textPaint));
             }
         } finally {
             view.textPaint.setTextSize(savedSize);
