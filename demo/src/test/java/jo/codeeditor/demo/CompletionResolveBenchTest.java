@@ -190,14 +190,14 @@ public class CompletionResolveBenchTest {
             assertNotNull("La documentation résolue finit par arriver", doc);
             assertTrue(doc.contains("Ajoute un élément"));
 
-            // Le panneau se remplit (l'ancre force le calcul des lignes
-            // plafonnées) sans bouger : la bande du caret reste
-            // respectée.
+            // Le panneau se remplit (l'ancre force le calcul des
+            // rangées typées — phase 4) sans bouger : la bande du caret
+            // reste respectée.
             scenario.onActivity(a -> {
                 float[] x = a.editor.completionPopupAnchor();
                 assertEquals("L'ancre 4.4.0 garde ses 6 éléments", 6, x.length);
                 assertTrue("Le panneau de documentation est rempli",
-                        !a.editor.completion.docPanelLines.isEmpty());
+                        !a.editor.completion.docPanelRows.isEmpty());
             });
         }
     }

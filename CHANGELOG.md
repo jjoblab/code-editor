@@ -1,5 +1,109 @@
 # Changelog
 
+## [Unreleased] — Refonte cohérente des popups (kit `view.popup.kit`)
+
+### Ajouté
+
+- **Kit de primitives partagées des popups** (`view.popup.kit`) :
+  `TextLayoutKit` (wrap linéaire et ellipse TAIL/HEAD/MIDDLE par
+  recherche dichotomique, mesure injectée — purs, testés sans
+  Canvas), `PopupTokens` (rayons carte/rangée/chip/sheet, espacements,
+  échelle typographique, couleurs sémantiques dérivées du thème),
+  `PopupCard` (surface verre + bordure hairline, filets, bandes
+  teintées, Typeface gras mémoïsé), `DocRenderModel` (documentation →
+  blocs typés [SIGNATURE, SUMMARY, PARAM, RETURNS, THROWS, SEE],
+  langue de la SESSION), `SignatureDocSections` (sections de la
+  signature), `PopupPlacement` (règle des quatre placements
+  coordonnés signature ↔ complétion) et `PopupCoordinator` (registre
+  unique des popups + règles d'exclusion).
+- **Aide de signature par sections (maquette)** : en-tête compact
+  `‹ i/n ›` séparé par un filet ; section PARAMÈTRE ACTIF sur bande
+  teintée (libellé « Parameter i/n », nom en accent + type en méta,
+  description dessous) ; filet ; section RÉSUMÉ (≤ 2 lignes) ; ligne
+  RETOURNE dédiée. Plafond de lignes conservé, géométrie toujours
+  calculée une fois et partagée rendu/hit-test.
+- **Panneau de documentation de complétion en trois blocs** : bande
+  SIGNATURE teintée (le fence du serveur, ignoré depuis 4.4.0, est
+  enfin affiché), RÉSUMÉ, lignes PARAM/RETOUR indentées ; rangées
+  typées (`CompletionState.DocRow`).
+- **Vue étroite (< 340 dp) : la documentation devient un bottom
+  sheet** en bas de vue — la liste de complétion garde TOUTES ses
+  rangées ; le glyphe ⓘ ne survit que si même le sheet ne tient pas.
+- **Placement coordonné signature ↔ complétion (comportement cible) :
+  pendant la frappe d'un appel, la signature est AU-DESSUS de la bande
+  du caret, la complétion EN DESSOUS, la ligne du caret LIBRE au
+  milieu** — règle en quatre temps (au-dessus/dessous, inversion,
+  empilés au-dessus complétion près du caret, empilés en dessous
+  complétion rognée), clamp final sans jamais entrer dans la bande ;
+  le clavier logiciel (adjustResize) est couvert par la hauteur
+  réelle de la vue.
+- **Clé d'icône STABLE des options du nav menu** :
+  `NavigationMenu.NavOption.key` (KEY_DECLARATION / IMPLEMENTATIONS /
+  TYPE_DECLARATION / SUPER, API additive) — l'icône ne dépend plus du
+  libellé anglais (une option traduite gardait l'icône par défaut).
+- **Couleurs sémantiques dans le thème** : `EditorTheme.popupScrim`
+  (voile des sheets), `EditorTheme.bulb` / `bulbSocket` / `bulbHalo`
+  (ampoule des code actions) — plus d'ambre ni d'argb en dur dans les
+  painters.
+
+### Changé
+
+- **Harmonisation des rayons et de la typographie** : un rayon de
+  CARTE (14 dp — quick doc 12, popup ancré 8, nav menu 8, code
+  actions 12, aller-au-symbole 6, cartes glass 18 → 14), un rayon de
+  SHEET (16 dp), une échelle typographique unique (title 0,90 / body
+  0,85 / meta 0,75 / micro 0,70) — 36 littéraux migrés vers les
+  jetons.
+- **Chaînes en dur → ressources** : `cel_diag_sheet_title`
+  (« Diagnostics (N) »), `cel_diag_sev_error/warning/info`
+  (ERR/WRN/INF), pluriels `cel_diag_more` / `cel_diag_problems`,
+  `cel_goto_filter` (« Filter: … »), `cel_signature_param_of` /
+  `cel_signature_summary` / `cel_signature_returns` — surchargeables
+  par l'hôte.
+- **Langue d'analyse de la documentation** : la bande doc de la
+  signature, le panneau de complétion et la doc rapide passent par le
+  modèle unifié — la langue vient de la session, JAMAIS de
+  l'identifiant « java » en dur.
+- **Ancrage unifié des popups de frappe** : bande du caret fold+wrap
+  aware partagée (`docLineToY` + `rowsForDocLine` — l'ancre de la
+  signature, `docLineToY` seul, plaçait le popup SUR une ligne
+  wrappée) et X du DÉBUT DU TOKEN clampé à la gouttière (les bords
+  gauches des deux popups s'alignent au lieu de diverger caret/token).
+- **Rangées de complétion : container et détail se distinguent** —
+  l'origine du symbole en micro atténué, l'identité (FQCN / signature)
+  en méta couleur de propriété.
+- **Fermetures croisées unifiées** : le registre du coordinateur
+  remplace les listes `closeOthers()` dupliquées (squiggle, sélecteur
+  de couleur, sheet groupée) ; complétion et signature coexistent.
+
+### Corrigé
+
+- **Le retour à la ligne ne coupait pas un mot plus large que la
+  ligne** : le moteur historique (mesure caractère par caractère,
+  O(n²)) laissait le mot déborder du panneau — le wrap du kit coupe
+  par caractères (dichotomie) et mesure mot à mot.
+- **Les ellipses perdaient un caractère utile** : les boucles à
+  retrait de DEUX caractères sur-coupaient systématiquement — la
+  coupe dichotomique garde le maximum de texte.
+- **Le message de la sheet de diagnostics était coupé à 60
+  caractères** : l'ellipse se fait désormais PAR LARGEUR.
+- **Le panneau doc de complétion ignorait la signature (fence) du
+  serveur** et fusionnait titre + item : le modèle unifié expose les
+  blocs, la bande teintée affiche le fence.
+
+### Performance
+
+- **Wrap linéaire** (une mesure par mot au lieu d'une par caractère)
+  sur les trois copies historiques (bande doc de signature, panneau
+  de complétion, quick doc) et les deux wraps inline des diagnostics.
+- **Ellipses dichotomiques** partout (une mesure par itération au
+  lieu d'une par caractère retiré).
+- **Typeface gras mémoïsé** : `Typeface.create(base, BOLD)` était
+  appelé à chaque segment de signature et à chaque frame — le couple
+  (base, gras) vit dans `PopupCard`, invalidé quand la police change.
+- **Aucune allocation par frame** dans les nouveaux rendus (RectF /
+  Path de travail passés en paramètre).
+
 ## 4.14.1 — 2026-10-29 — Inlay hints : plus d'espaces fantômes, baseline commune, ligatures cèdent au tissage
 
 ### Corrigé

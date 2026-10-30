@@ -243,6 +243,11 @@ budget() {
 # pour l'API publique des caractères déclencheurs de complétion de la
 # voie hôte (setCompletionTriggerCharacters + lecture lane, champ
 # volatile + javadoc). Mesuré : 4568 l. / 181 champs / 311 méthodes.
+# Chantier popups (phase 5) : les relais de coordination
+# (signatureHelpSize, completionCoordinatedHeight,
+# completionDocSheetMetrics) tiennent en 3 lignes compactes — mesuré
+# 4579 l. / 181 champs / 314 méthodes (le plafond 4580 tient, le
+# cliquet n'a pas bougé).
 budget editor/cel-ui/src/main/java/jo/codeeditor/view/EditorView.java 4580 182 315
 
 # Écart au ratchet (4.11.0, signature en trois paliers) : le peintre
@@ -257,6 +262,13 @@ budget editor/cel-ui/src/main/java/jo/codeeditor/view/EditorView.java 4580 182 3
 # findParameterRangesInLabel est statique et testée sans Canvas, comme
 # computeCompletionRowLayout et windowSignature. Mesuré : 1639 l. /
 # 9 champs / 2 méthodes publiques.
+# Chantier popups (phases 1-5) : le painter DÉLÈGUE au kit — le calcul
+# des sections de signature vit dans SignatureDocSections (pur), le
+# rendu des sections dans EditorSignatureDocPainter, la documentation
+# de complétion dans EditorCompletionDocPainter, le wrap/ellipse dans
+# TextLayoutKit. Malgré la refonte complète de la signature et de la
+# doc de complétion : mesuré 1659 l. / 9 champs / 2 méthodes publiques
+# (le plafond 1660 tient — un champ de MOINS qu'avant le chantier).
 budget editor/cel-ui/src/main/java/jo/codeeditor/view/render/EditorAssistPopupPainter.java 1660 10 3
 
 # Écart au ratchet (4.10.0, repli local sur réponse vide) : NOUVEAU

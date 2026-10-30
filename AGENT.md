@@ -36,6 +36,8 @@ Tests : JUnit 5 sur `cel-core` ; JUnit 4 + **Robolectric** sur `cel-ui` ;
 |---|---|
 | Sélection et poignées | `cel-ui/…/view/input/EditorSelectionGestures.java` (ancres, toolbar), `EditorInputHandler.java` (dispatch tactile, drag-select armé, loupe ON/OFF), `EditorTapResolver.java` (tap/double/triple) |
 | Rendu | `render/EditorRenderer.java` (pipeline complet, ordre des couches), `EditorTextPainter.java` (texte, spans, wrap), `EditorChromePainter.java` (loupe, minimap, chevrons, navmenu), `EditorShapedLayoutCache.java` (layouts ligatures par contenu), `cache/LineRenderCache.java` (rendu par ligne, révisions) |
+| Popups (kit partagé) | `popup/kit/TextLayoutKit.java` (wrap/ellipse purs, mesure injectée), `PopupTokens.java` (rayons/espacements/échelle typo/couleurs sémantiques), `PopupCard.java` (surface verre, filets, gras mémoïsé), `DocRenderModel.java` (doc → blocs typés, langue de session), `SignatureDocSections.java` (sections de la signature), `PopupPlacement.java` (règle des 4 placements coordonnés), `PopupCoordinator.java` (registre + exclusions) |
+| Popups (rendu/contrôle) | `render/EditorAssistPopupPainter.java` (complétion, signature, quick doc), `render/EditorSignatureDocPainter.java` + `EditorCompletionDocPainter.java` (sections/doc), `popup/EditorCompletionPopup.java` (ancrage coordonné), `EditorPopupAnchors.java` (bande du caret + X partagés), `EditorPopupManager.java` (coordinateur câblé), `state/CompletionState.java` (rangées doc typées) |
 | Session | `cel-core/…/session/EditorSession.java` (point d'entrée des mutations : `replaceRangeWithCaret`/`doReplaceRange`, undo/redo), `UndoManager.java`/`UndoRecorder.java` (coalescence des frappes) |
 | Rope | `cel-core/…/rope/Rope.java` (arbre équilibré par poids) |
 | IME | `cel-core/…/session/ImeBridge.java` (composition, replaceText), `cel-ui/…/view/EditorImeBridge.java` (InputConnection, texte extrait) |
@@ -55,8 +57,8 @@ export ANDROID_HOME=<sdk>          # + local.properties : sdk.dir=<sdk>
 ./gradlew publishToMavenLocal      # publication locale (~/.m2)
 ```
 
-Base de référence constatée (3.73.0-dev, démo refondue + mini LSP) : **2 516 tests verts, lint
-bloquant vert** — toute régression est la vôtre. Le nombre annoncé est contrôlé en
+Base de référence constatée (popups unifiés, kit `view.popup.kit`) : **3 185 tests verts,
+lint bloquant vert** — toute régression est la vôtre. Le nombre annoncé est contrôlé en
 CI (`scripts/check-doc-figures.sh`, échoue si l'écart dépasse 5 %).
 
 ## Conventions

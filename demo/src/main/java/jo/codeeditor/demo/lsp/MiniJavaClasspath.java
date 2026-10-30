@@ -291,10 +291,17 @@ final class MiniJavaClasspath {
     }
 
     /** Record ? — API récente, indisponible sur les vieux runtimes :
-     *  l'échec vaut « non », jamais une exception. */
+     *  l'échec vaut « non », jamais une exception. Class.isRecord exige
+     *  l'API 34 : avant, le repli structurel (superclasse
+     *  java.lang.Record) décide — même réponse, sans NewApi. */
     private static boolean estRecord(Class<?> c) {
         try {
-            return c.isRecord();
+            if (android.os.Build.VERSION.SDK_INT >= 34) {
+                return c.isRecord();
+            }
+            Class<?> superc = c.getSuperclass();
+            return superc != null
+                    && "java.lang.Record".equals(superc.getName());
         } catch (Throwable t) {
             return false;
         }
@@ -323,7 +330,10 @@ final class MiniJavaClasspath {
         if (t == null) return "?";
         String nom;
         try {
-            nom = t.getTypeName();
+            // Type.getTypeName exige l'API 28 : avant, toString() porte
+            // la même information (nom canonique du type réfléchi).
+            nom = android.os.Build.VERSION.SDK_INT >= 28
+                    ? t.getTypeName() : t.toString();
         } catch (Throwable x) {
             return "?";
         }

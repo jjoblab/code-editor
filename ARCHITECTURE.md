@@ -212,7 +212,25 @@ jo.codeeditor/
 │                   classes Editor*Popup (complétion, signature, quick doc,
 │                   code actions, go-to-symbol, go-to-line, rename,
 │                   références, diagnostics) + ancres et hit-test
-│                   (EditorPopupAnchors, EditorPopupHitTester)
+│                   (EditorPopupAnchors : bande du caret et X d'ancre
+│                   PARTAGÉS des popups de frappe, EditorPopupHitTester) ;
+│                   le coordinateur (registre unique + exclusions) vit
+│                   dans le kit ci-dessous et remplace les closeOthers()
+├── view/popup/kit/ — primitives PARTAGÉES des popups (chantier
+│                   « popups unifiés ») : TextLayoutKit (wrap linéaire +
+│                   ellipse TAIL/HEAD/MIDDLE dichotomique, mesure
+│                   injectée — PURS), PopupTokens (rayons/espacements/
+│                   échelle typo/couleurs sémantiques — le seul endroit
+│                   où changer l'apparence), PopupCard (surface verre,
+│                   filets, bandes, gras mémoïsé), DocRenderModel
+│                   (documentation → blocs typés SIGNATURE/SUMMARY/
+│                   PARAM/RETURNS/THROWS/SEE, langue de la session),
+│                   SignatureDocSections (sections de la signature),
+│                   PopupPlacement (règle des 4 placements coordonnés
+│                   signature ↔ complétion : bande du caret jamais
+│                   recouverte), PopupCoordinator (registre des popups
+│                   ouverts + règles d'exclusion — frappe coexistante,
+│                   tap exclusif)
 ├── view/preview/ — aperçu délégué au hôte : EditorPreviewController,
 │                   EditorPreviewSheet, EditorPreviewHost (contrat hôte),
 │                   EditorPreviewDrop/Geometry (carte « goutte d'eau » B27)
@@ -227,6 +245,37 @@ des **scells `@RestrictTo(LIBRARY_GROUP)`** : les membres concernés sont
 publics pour le compilateur mais contractuellement internes au groupe
 `jo.codeeditor` (appliqué par lint, annotation `compileOnly` absente du
 POM publié) — l'API publique d'`EditorView` reste strictement inchangée.
+
+#### Couche `view.popup.kit` — popups unifiés
+
+Tous les popups consomment les MÊMES primitives (un seul endroit où
+changer l'apparence d'une carte flottante) :
+
+- **Texte** : `TextLayoutKit` (pur, mesure injectée) — wrap mot à mot
+  (coupe les mots plus larges que la ligne), ellipse dichotomique.
+  Historique : 3 copies du wrap (mesure par caractère, O(n²)) et 6
+  boucles d'ellipse à retrait de 2 caractères.
+- **Design** : `PopupTokens` (rayons carte 14 / rangée 8 / chip 6 /
+  sheet 16 dp, espacements, échelle typo ×0,90/0,85/0,75/0,70,
+  couleurs sémantiques dérivées de l'`EditorTheme` — scrim, ampoule,
+  sévérités). Historique : 8 rayons coexistants (6 à 18 dp).
+- **Carte** : `PopupCard` — surface verre + bordure hairline (état du
+  paint restauré), filets, bandes teintées, Typeface gras mémoïsé.
+- **Documentation** : `DocRenderModel` — `QuickDocContent` → blocs
+  typés, LANGUE DE LA SESSION (jamais d'identifiant en dur) ;
+  consommé par la doc rapide, la bande doc de signature et le panneau
+  de complétion (3 présentations, un modèle).
+- **Placement coordonné** : `PopupPlacement` (pur) — pendant la frappe
+  d'un appel, la signature est AU-DESSUS de la bande du caret, la
+  complétion EN DESSOUS, la ligne du caret LIBRE au milieu ; règle en
+  4 temps, clamp final sans jamais entrer dans la bande (la complétion
+  réduit ses rangées avant de recouvrir), clavier logiciel couvert par
+  la hauteur réelle de la vue. Entrée commune : la bande fold+wrap
+  aware (`docLineToY` + `rowsForDocLine`) et le X du début du token.
+- **Coordination** : `PopupCoordinator` — registre unique des popups
+  ouverts + règles d'exclusion (complétion et signature coexistent,
+  tout popup de tap referme le reste) ; remplace les `closeOthers()`
+  dupliqués.
 
 L'ancienne génération de « god classes » a été démantelée en collaborateurs
 par composition (corps déplacés à l'identique, signatures package-privées,
