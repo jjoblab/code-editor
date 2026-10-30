@@ -4392,6 +4392,12 @@ public class EditorView extends View {
         return popupManager.completionPopupAnchor();
     }
 
+    /** (Phase 4) Géométrie du bottom sheet de documentation (vue
+     *  étroite) : {left, top, right, bottom} px ou null. */
+    public float[] completionDocSheetMetrics() {
+        return popupManager.completionDocSheetMetrics();
+    }
+
     /**
      * Géométrie du popup quick doc : {anchorX, anchorY, popupW,
      * popupH, contentH, rowH} ou null. Source unique rendu (renderer) /

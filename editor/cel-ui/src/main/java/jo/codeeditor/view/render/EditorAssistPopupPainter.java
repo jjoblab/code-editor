@@ -4,6 +4,7 @@ import jo.codeeditor.view.EditorView;
 import jo.codeeditor.view.popup.kit.DocRenderModel;
 import jo.codeeditor.view.popup.kit.PopupCard;
 import jo.codeeditor.view.popup.kit.PopupTokens;
+import jo.codeeditor.view.popup.kit.SignatureDocSections;
 import jo.codeeditor.view.popup.kit.TextLayoutKit;
 import jo.codeeditor.view.state.CompletionState;
 
@@ -82,8 +83,10 @@ public class EditorAssistPopupPainter {
      *  révèle la signature complète. */
     static final int SIGNATURE_WINDOW_THRESHOLD = 5;
     static final int SIGNATURE_WINDOW_RADIUS = 1;
-    /** Lignes max de la bande doc (paramètre actif + javadoc). */
+    /** Lignes max de la bande doc (paramètre actif + résumé + retour). */
     static final int SIGNATURE_DOC_MAX_LINES = 6;
+    /** Phase 4 : le RÉSUMÉ de la signature tient en deux lignes max. */
+    static final int SIGNATURE_SUMMARY_MAX_LINES = 2;
     // Popup de documentation rapide
     // Phase 2 : rayon de carte partagé (12 dp historiques propres).
     static final float QUICK_DOC_MAX_WIDTH_DP = 320f;
@@ -111,10 +114,9 @@ public class EditorAssistPopupPainter {
     // tactile du badge de surcharges (signatureHelpBadgeMetrics) —
     // mêmes bornes, mêmes mesures, aucune divergence possible.
     // Mono-thread (onDraw / tap sur le fil UI).
-    /** Lignes wrappées de la bande doc (paramètre actif puis javadoc). */
-    private final List<String> sigDocLines = new ArrayList<>();
-    /** Libellé du paramètre actif (tête de la bande doc, en accent). */
-    private String sigParamDocLabel = "";
+    /** (Phase 4) Sections de documentation de la signature — calcul
+     *  PUR du kit (SignatureDocSections), rempli par le layout. */
+    private SignatureDocSections sigDoc = SignatureDocSections.vide();
     /** Lignes affichées de la signature (1 hors peek, wrap en peek). */
     private final List<String> sigLines = new ArrayList<>();
 
@@ -223,56 +225,49 @@ public class EditorAssistPopupPainter {
         float width = Math.max(Math.min(contentW, maxW),
                 Math.min(SIGNATURE_HELP_MIN_WIDTH_DP * density, maxW));
 
-        // ── Bande doc : documentation du paramètre ACTIF en tête
-        // (label en accent), puis la javadoc de la signature (QuickDoc,
-        // sections @ en couleur de mot-clé). Plafond commun.
-        sigDocLines.clear();
-        sigParamDocLabel = "";
+        // ── Phase 4 : bande doc PRÉSENTÉE PAR SECTIONS (maquette) —
+        // le calcul PUR vit dans le kit (SignatureDocSections) : nom +
+        // type du paramètre actif, description, résumé ≤ 2 lignes,
+        // ligne RETOURNE dédiée, sections secondaires en peek. Plafond
+        // commun SIGNATURE_DOC_MAX_LINES conservé (lignes de contenu).
         view.textPaint.setTextSize(view.metrics.getTextSize() * PopupTokens.TEXT_META);
         float docWidth = width - 2 * padX;
-        if (activeSig != null) {
-            if (!activeSig.parameters.isEmpty()) {
-                int activeParam = Math.max(0, Math.min(activeSig.activeParameter,
-                        activeSig.parameters.size() - 1));
-                jo.codeeditor.completion.SignatureHelpController.Parameter param =
-                        activeSig.parameters.get(activeParam);
-                if (param != null && !param.documentation.isEmpty()) {
-                    sigParamDocLabel = param.label == null ? "" : param.label;
-                    String head = sigParamDocLabel.isEmpty()
-                            ? param.documentation
-                            : sigParamDocLabel + " — " + param.documentation;
-                    for (String w : wrapText(head, docWidth, view.textPaint)) {
-                        if (sigDocLines.size() >= SIGNATURE_DOC_MAX_LINES) break;
-                        sigDocLines.add(w);
-                    }
-                }
-            }
-            if (activeSig.documentation != null && !activeSig.documentation.isEmpty()) {
-                // Phase 3 : modèle de rendu UNIFIÉ de la documentation —
-                // la LANGUE vient de la session (jamais « java » en
-                // dur), les sections deviennent des blocs typés
-                // (param / return / throws / see / autre). Même rendu
-                // ligne à ligne que le moteur historique.
-                for (jo.codeeditor.view.popup.kit.DocRenderModel.Block b
-                        : jo.codeeditor.view.popup.kit.DocRenderModel.blocks(
-                                jo.codeeditor.view.popup.kit.DocRenderModel.parse(
-                                        activeSig.documentation, view.session))) {
-                    if (b.kind == DocRenderModel.KIND_SIGNATURE) continue;
-                    if (sigDocLines.size() >= SIGNATURE_DOC_MAX_LINES) break;
-                    for (String w : wrapText(b.ligne(), docWidth, view.textPaint)) {
-                        if (sigDocLines.size() >= SIGNATURE_DOC_MAX_LINES) break;
-                        sigDocLines.add(w);
-                    }
-                }
-            }
+        int nbParamètres = activeSig != null ? activeSig.parameters.size() : 0;
+        jo.codeeditor.completion.SignatureHelpController.Parameter paramètreActif = null;
+        if (nbParamètres > 0) {
+            int activeParam = Math.max(0, Math.min(activeSig.activeParameter,
+                    nbParamètres - 1));
+            paramètreActif = activeSig.parameters.get(activeParam);
         }
+        sigDoc = SignatureDocSections.of(paramètreActif,
+                activeSig != null ? activeSig.documentation : null,
+                view.session, docWidth,
+                t -> view.textPaint.measureText(t),
+                SIGNATURE_DOC_MAX_LINES, SIGNATURE_SUMMARY_MAX_LINES, peeked);
+        // ── Hauteurs des sections (une seule passe, le total vit dans
+        // l'ancre — partagée rendu / hit-test).
         float docRowH = view.metrics.getTextSize() * PopupTokens.TEXT_META * 1.3f;
-        float docH = sigDocLines.isEmpty() ? 0
-                : sigDocLines.size() * docRowH + 8 * density;
-        // En peek, la bande doc vit sous un séparateur (elle fait
-        // partie de la vue étendue) ; hors peek elle est collée.
-        float sigDivH = peeked && docH > 0 ? 5 * density : 0;
-        float popupH = stepperH + sigTextH + sigDivH + docH;
+        float nomRowH = view.metrics.getTextSize() * PopupTokens.TEXT_TITLE * 1.3f;
+        boolean hasParamSection = sigDoc.aParamètre();
+        boolean hasRésumé = !sigDoc.lignesRésumé.isEmpty();
+        boolean hasRetour = !sigDoc.ligneRetour.isEmpty();
+        boolean hasExtra = !sigDoc.lignesExtra.isEmpty();
+        float filetZone = 5 * density;
+        float paramH = hasParamSection
+                ? docRowH + nomRowH + sigDoc.lignesParamètre.size() * docRowH : 0f;
+        float résuméH = hasRésumé
+                ? docRowH + sigDoc.lignesRésumé.size() * docRowH : 0f;
+        float retourH = hasRetour ? docRowH : 0f;
+        float extraH = hasExtra ? sigDoc.lignesExtra.size() * docRowH : 0f;
+        // Filets : sous le stepper, entre la section paramètre et le
+        // résumé, avant les extras de peek.
+        float filetsH = (hasBadge ? filetZone : 0f)
+                + (hasRésumé && hasParamSection ? filetZone : 0f)
+                + (hasExtra && (hasRésumé || hasRetour) ? filetZone : 0f);
+        float padBas = (hasParamSection || hasRésumé || hasRetour || hasExtra)
+                ? 4 * density : 0f;
+        float docH = paramH + résuméH + retourH + extraH + filetsH + padBas;
+        float popupH = stepperH + sigTextH + docH;
 
         // ── Ancrage X = colonne du curseur, Y = au-dessus de la ligne
         // du curseur (bascule en dessous sinon, clampés à la vue).
@@ -503,7 +498,15 @@ public class EditorAssistPopupPainter {
                 view.signatureHelpData.signatures.get(activeIdx);
         int displayActiveParam = peeked ? activeSig.activeParameter
                 : windowedActiveParam(activeSig);
-        float sigTop = anchorY + stepperH;
+        // Phase 4 : le stepper vit sur sa propre bande, séparé de la
+        // signature par un FILET (maquette).
+        float filetZone = 5 * density;
+        if (hasStepper) {
+            card.drawDivider(canvas, anchorX + 4 * density,
+                    anchorX + width - 4 * density,
+                    anchorY + stepperH + filetZone * 0.5f);
+        }
+        float sigTop = anchorY + stepperH + (hasStepper ? filetZone : 0f);
         float availW = width - 2 * padX;
         for (int i = 0; i < sigLines.size(); i++) {
             String line = sigLines.get(i);
@@ -512,48 +515,19 @@ public class EditorAssistPopupPainter {
                     displayActiveParam, availW, peeked);
         }
 
-        // ── Bande documentation : paramètre ACTIF en tête (label en
-        // accent sur la première ligne si le wrap ne l'a pas coupé),
-        // puis la javadoc (sections @ en couleur de mot-clé). En peek,
-        // un filet sépare la signature complète de sa documentation.
-        if (!sigDocLines.isEmpty()) {
-            float sigTextH = sigLines.size() * rowH;
-            float docTop = sigTop + sigTextH + (peeked ? 5 * density : 0);
-            if (peeked) {
-                view.caretPaint.setStyle(Paint.Style.STROKE);
-                view.caretPaint.setStrokeWidth(1f);
-                view.caretPaint.setColor(view.theme.glassBorder);
-                canvas.drawLine(anchorX, docTop, anchorX + width, docTop,
-                        view.caretPaint);
-                docTop += 1;
-            }
-            view.selPaint.setColor(view.theme.selection);
-            canvas.drawRect(anchorX, docTop, anchorX + width,
-                    anchorY + l[SIG_POPUP_H], view.selPaint);
-            view.textPaint.setTextSize(view.metrics.getTextSize() * PopupTokens.TEXT_META);
+        // ── Phase 4 : bande doc PAR SECTIONS — le rendu vit dans
+        // EditorSignatureDocPainter (bande teintée, filets, libellés de
+        // section) ; les sections viennent du layout (source unique).
+        if (sigDoc.nbSections() > 0) {
+            float sigTextHL = sigLines.size() * rowH;
             float docRowH = view.metrics.getTextSize() * PopupTokens.TEXT_META * 1.3f;
-            float labelW = sigParamDocLabel.isEmpty()
-                    ? 0 : view.textPaint.measureText(sigParamDocLabel);
-            for (int i = 0; i < sigDocLines.size(); i++) {
-                String line = sigDocLines.get(i);
-                float baseline = docTop + 4 * density + i * docRowH
-                        + docRowH * 0.75f;
-                boolean accentHead = i == 0 && !sigParamDocLabel.isEmpty()
-                        && line.startsWith(sigParamDocLabel)
-                        && labelW < view.textPaint.measureText(line);
-                if (accentHead) {
-                    view.textPaint.setColor(view.theme.func);
-                    canvas.drawText(sigParamDocLabel, anchorX + padX, baseline, view.textPaint);
-                    view.textPaint.setColor(view.theme.textColor);
-                    canvas.drawText(line.substring(sigParamDocLabel.length()),
-                            anchorX + padX + labelW, baseline, view.textPaint);
-                } else {
-                    boolean isTag = !line.isEmpty() && line.charAt(0) == '@';
-                    view.textPaint.setColor(isTag
-                            ? view.theme.keyword : view.theme.textColor);
-                    canvas.drawText(line, anchorX + padX, baseline, view.textPaint);
-                }
-            }
+            float nomRowH = view.metrics.getTextSize() * PopupTokens.TEXT_TITLE * 1.3f;
+            int numParamètre = Math.max(0, Math.min(activeSig.activeParameter,
+                    activeSig.parameters.size() - 1)) + 1;
+            EditorSignatureDocPainter.drawSections(view, card, canvas,
+                    scratchRect, sigDoc, anchorX, width,
+                    sigTop + sigTextHL, padX, density, docRowH, nomRowH,
+                    filetZone, numParamètre, activeSig.parameters.size());
         }
         canvas.restore();
         // Réinitialiser l'état du paint.
@@ -1321,26 +1295,18 @@ public class EditorAssistPopupPainter {
             drawCompletionRow(canvas, item, anchorX, y, width, rowH, padX, density, darkTheme,
                     panelShown);
         }
-        // ★ 4.4.0 — Panneau de documentation sous la liste (miroir de la
-        // bande doc de l'aide de signature) : séparateur + fond teinté +
-        // lignes plafonnées calculées par l'ancrage.
-        if (panelShown && !view.completion.docPanelLines.isEmpty()) {
+        // ★ Phase 4 — Panneau de documentation en TROIS BLOCS sous la
+        // liste : séparateur, bande SIGNATURE teintée (le fence du
+        // serveur, enfin affiché), RÉSUMÉ, lignes PARAM/RETOUR
+        // indentées — les rangées viennent de l'ancrage (source unique).
+        if (panelShown && !view.completion.docPanelRows.isEmpty()) {
             float docTop = anchorY + rowsToShow * rowH;
-            view.caretPaint.setStyle(Paint.Style.STROKE);
-            view.caretPaint.setStrokeWidth(1f);
-            view.caretPaint.setColor(view.theme.glassBorder);
-            canvas.drawLine(anchorX, docTop, anchorX + width, docTop, view.caretPaint);
-            view.selPaint.setColor(view.theme.selection);
-            canvas.drawRect(anchorX, docTop, anchorX + width, anchorY + popupH, view.selPaint);
+            card.drawDivider(canvas, anchorX, anchorX + width, docTop);
             view.textPaint.setTextSize(view.metrics.getTextSize() * PopupTokens.TEXT_META);
             float docRowH = view.metrics.getTextSize() * PopupTokens.TEXT_META * 1.3f;
-            for (int i = 0; i < view.completion.docPanelLines.size(); i++) {
-                String l = view.completion.docPanelLines.get(i);
-                boolean isTag = !l.isEmpty() && l.charAt(0) == '@';
-                view.textPaint.setColor(isTag ? view.theme.keyword : view.theme.textColor);
-                float baseline = docTop + 4 * density + i * docRowH + docRowH * 0.75f;
-                canvas.drawText(l, anchorX + padX, baseline, view.textPaint);
-            }
+            EditorCompletionDocPainter.drawRows(view, card, canvas,
+                    scratchRect, view.completion.docPanelRows,
+                    anchorX, docTop, width, padX, density, docRowH);
         }
         // Réinitialiser la taille du paint de texte
         view.textPaint.setTextSize(view.metrics.getTextSize());
@@ -1356,6 +1322,19 @@ public class EditorAssistPopupPainter {
             canvas.drawRect(sbX, sbY, sbX + 2 * density, sbY + sbH, view.selPaint);
         }
         canvas.restore();
+    }
+
+    /**
+     * ★ Phase 4 — BOTTOM SHEET de documentation (vue étroite) : la
+     * documentation vit en BAS de vue quand le panneau intégré n'a pas
+     * la place — la liste de complétion garde toutes ses rangées. Le
+     * glyphe ⓘ ne survit que si même le sheet ne tient pas (décision
+     * de l'ancrage, DOC_GLYPH). Délégation au painter dédié (le rendu
+     * des trois blocs est PARTAGÉ panneau/sheet).
+     */
+    void drawCompletionDocSheet(Canvas canvas) {
+        EditorCompletionDocPainter.drawSheet(view, card, canvas,
+                scratchPath, scratchRect);
     }
 
     // ── Layout d'une rangée de complétion (4.9.1) ─────────────────
@@ -1453,7 +1432,11 @@ public class EditorAssistPopupPainter {
                                    float padX, float density, boolean darkTheme,
                                    boolean panelShown) {
         String label = item.label;
-        boolean docGlyph = !panelShown && item.documentation != null
+        // Phase 4 : le glyphe ⓘ ne survit que si NI le panneau NI le
+        // bottom sheet ne tiennent (présentation GLYPHE).
+        boolean docGlyph = view.completion.docPresentation
+                == CompletionState.DOC_GLYPH
+                && item.documentation != null
                 && !item.documentation.isEmpty();
 
         // ── Mesures préalables : le container (seconde ligne, GAUCHE)
@@ -1566,6 +1549,9 @@ public class EditorAssistPopupPainter {
         // lecture distincts, atténués. Le glyphe ⓘ vit en fin de
         // PREMIÈRE ligne (réserve dédiée). ──
         if (!container.isEmpty()) {
+            // Phase 4 : container et détail se DISTINGUENT — l'origine
+            // du symbole en micro ATTÉNUÉ, l'identité (FQCN / signature)
+            // en méta COULEUR DE PROPRIÉTÉ : deux axes, deux voix.
             view.textPaint.setTextSize(view.metrics.getTextSize() * PopupTokens.TEXT_MICRO);
             view.textPaint.setColor(view.theme.gutterText);
             canvas.drawText(container, m[CR_CONTAINER_LEFT],
@@ -1573,7 +1559,7 @@ public class EditorAssistPopupPainter {
         }
         if (!detail.isEmpty()) {
             view.textPaint.setTextSize(view.metrics.getTextSize() * PopupTokens.TEXT_META);
-            view.textPaint.setColor(view.theme.gutterText);
+            view.textPaint.setColor(view.theme.property);
             canvas.drawText(detail, m[CR_DETAIL_MAX_RIGHT] - detailW,
                     m[CR_DETAIL_BASE], view.textPaint);
         }

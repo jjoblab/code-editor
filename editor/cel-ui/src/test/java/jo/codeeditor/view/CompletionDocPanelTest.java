@@ -22,13 +22,15 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 /**
- * Panneau de documentation du popup de complétion (4.4.0) : le champ
- * {@code documentation} transporté depuis 4.3.0 est enfin AFFICHÉ —
- * panneau sous la liste sur vue suffisamment large, lignes plafonnées,
- * hauteur comptée dans l'ancre, garde « ne JAMAIS recouvrir la bande du
- * caret » préservée par construction, cédage quand la place manque,
- * glyphe de rangée sur vue étroite, et hit-test conscient du panneau
- * (un tap dans le panneau n'est pas une rangée).
+ * Documentation du popup de complétion (4.4.0, refonte phase 4) : le
+ * champ {@code documentation} transporté depuis 4.3.0 est affiché en
+ * TROIS BLOCS — bande signature teintée (fence du serveur), résumé,
+ * lignes PARAM/RETOUR indentées. Panneau sous la liste sur vue large
+ * (≥ 340 dp), BOTTOM SHEET en bas de vue sur vue étroite (la liste
+ * garde toutes ses rangées), glyphe ⓘ seulement si même le sheet ne
+ * tient pas ; lignes plafonnées, hauteur comptée dans l'ancre, garde
+ * « ne JAMAIS recouvrir la bande du caret », hit-test conscient du
+ * panneau ET du sheet (un tap dedans n'est pas une rangée).
  */
 @RunWith(RobolectricTestRunner.class)
 public class CompletionDocPanelTest {
@@ -75,9 +77,11 @@ public class CompletionDocPanelTest {
         assertEquals("l'ancre transporte la hauteur du panneau (6ᵉ élément)",
                 6, a.length);
         assertTrue("le panneau est montré sur vue large", a[5] > 0f);
-        assertTrue("les lignes plafonnées sont posées pour le peintre",
-                !view.completion.docPanelLines.isEmpty()
-                && view.completion.docPanelLines.size() <= CompletionState.DOC_PANEL_MAX_LINES);
+        assertTrue("les rangées plafonnées sont posées pour le peintre",
+                !view.completion.docPanelRows.isEmpty()
+                && view.completion.docPanelRows.size() <= CompletionState.DOC_PANEL_MAX_LINES);
+        assertEquals("vue large : présentation PANNEAU",
+                CompletionState.DOC_PANEL, view.completion.docPresentation);
         // popupH = rangées × rowH + panneau — la zone de liste en est
         // déduite.
         float rowH = a[4];
@@ -133,17 +137,53 @@ public class CompletionDocPanelTest {
         EditorView view = viewWithDoc(null, 1080, 1920);
         float[] a = view.completionPopupAnchor();
         assertEquals(0f, a[5], 0f);
-        assertTrue(view.completion.docPanelLines.isEmpty());
+        assertTrue(view.completion.docPanelRows.isEmpty());
+        assertEquals("sans documentation : présentation cachée",
+                CompletionState.DOC_HIDDEN, view.completion.docPresentation);
     }
 
     @Test
-    public void vueÉtroite_panneauRemplacéParLeGlyphe() {
+    public void vueÉtroite_bottomSheet_laListeGardeSaPlace() {
         // 300 dp < DOC_PANEL_MIN_VIEW_WIDTH_DP (340) : écran partagé —
-        // la documentation se réduit au glyphe de rangée.
+        // la documentation ne se réduit PLUS au glyphe : elle vit en
+        // BOTTOM SHEET en bas de vue, et la liste ne lui cède rien.
         EditorView view = viewWithDoc(LONG_DOC, 300, 640);
         float[] a = view.completionPopupAnchor();
-        assertEquals("vue étroite : pas de panneau", 0f, a[5], 0f);
-        assertTrue(view.completion.docPanelLines.isEmpty());
+        assertEquals("vue étroite : pas de panneau intégré", 0f, a[5], 0f);
+        assertEquals("vue étroite : présentation SHEET",
+                CompletionState.DOC_SHEET, view.completion.docPresentation);
+        assertTrue("les rangées vivent pour le sheet",
+                !view.completion.docPanelRows.isEmpty());
+        float[] sheet = view.completionDocSheetMetrics();
+        org.junit.Assert.assertNotNull("le sheet a sa géométrie", sheet);
+        // Le sheet vit en BAS de vue, dans la vue.
+        org.junit.Assert.assertTrue("le sheet reste dans la vue",
+                sheet[1] >= 0 && sheet[3] <= 640 + 0.5f && sheet[2] <= 300 + 0.5f);
+        // La liste garde TOUTE la hauteur : le popup ne porte que des
+        // rangées (aucune hauteur de panneau).
+        assertTrue("la liste ne cède pas de place au sheet",
+                (a[3] - a[5]) >= a[3] - 0.5f);
+        // Hit-test : un tap dans le sheet est possédé par la
+        // documentation (pas une rangée, pas un placement de caret).
+        EditorPopupHitTester hit = new EditorPopupHitTester(view);
+        float cx = (sheet[0] + sheet[2]) * 0.5f;
+        float cy = (sheet[1] + sheet[3]) * 0.5f;
+        org.junit.Assert.assertTrue(hit.hitCompletionDocPanel(cx, cy));
+        assertEquals("le tap dans le sheet n'est pas une rangée", -1,
+                hit.hitTestCompletionPopup(cx, cy));
+    }
+
+    @Test
+    public void vueÉtroite_sheetImpossible_glypheDeRangée() {
+        // Vue étroite ET trop basse pour le sheet : la documentation
+        // retombe au glyphe ⓘ (le sheet lui-même ne tient pas).
+        EditorView view = viewWithDoc(LONG_DOC, 300, 20);
+        float[] a = view.completionPopupAnchor();
+        assertEquals(0f, a[5], 0f);
+        assertEquals("sheet impossible : présentation GLYPHE",
+                CompletionState.DOC_GLYPH, view.completion.docPresentation);
+        assertTrue(view.completion.docPanelRows.isEmpty());
+        org.junit.Assert.assertNull(view.completionDocSheetMetrics());
     }
 
     @Test
@@ -166,7 +206,9 @@ public class CompletionDocPanelTest {
         EditorView serrée = viewWithDoc(LONG_DOC, 1080, hauteur);
         float[] a = serrée.completionPopupAnchor();
         assertEquals("place insuffisante : pas de panneau", 0f, a[5], 0f);
-        assertTrue(serrée.completion.docPanelLines.isEmpty());
+        assertEquals("place insuffisante (vue large) : glyphe",
+                CompletionState.DOC_GLYPH, serrée.completion.docPresentation);
+        assertTrue(serrée.completion.docPanelRows.isEmpty());
         assertTrue("la liste garde au moins une rangée", a[3] >= rowH - 0.5f);
     }
 
@@ -200,15 +242,32 @@ public class CompletionDocPanelTest {
         EditorView view = viewWithDoc(LONG_DOC, 1080, 1920);
         Bitmap bmp = Bitmap.createBitmap(1080, 1920, Bitmap.Config.ARGB_8888);
         view.draw(new Canvas(bmp));
-        assertTrue("les lignes du panneau vivent après le rendu",
-                !view.completion.docPanelLines.isEmpty());
+        assertTrue("les rangées du panneau vivent après le rendu",
+                !view.completion.docPanelRows.isEmpty());
     }
 
     @Test
-    public void dessine_vueÉtroite_glyphe_nePlantePas() {
+    public void dessine_vueÉtroite_sheet_nePlantePas() {
         EditorView view = viewWithDoc("Retourne un objet.", 300, 640);
         Bitmap bmp = Bitmap.createBitmap(300, 640, Bitmap.Config.ARGB_8888);
         view.draw(new Canvas(bmp));
-        assertTrue(view.completion.docPanelLines.isEmpty());
+        // Vue étroite : la documentation vit en sheet (pas de glyphe).
+        assertEquals(CompletionState.DOC_SHEET, view.completion.docPresentation);
+        assertTrue(!view.completion.docPanelRows.isEmpty());
+    }
+
+    @Test
+    public void basculeSheetSousSurLeSeuil() {
+        // Seuil DOC_PANEL_MIN_VIEW_WIDTH_DP (340 dp, densité 1) : la
+        // présentation bascule SHELL ↔ PANNEAU de part et d'autre.
+        // L'ancre est la source unique : elle pose la présentation.
+        EditorView étroite = viewWithDoc(LONG_DOC, 339, 640);
+        étroite.completionPopupAnchor();
+        assertEquals("sous le seuil : sheet",
+                CompletionState.DOC_SHEET, étroite.completion.docPresentation);
+        EditorView large = viewWithDoc(LONG_DOC, 341, 1920);
+        large.completionPopupAnchor();
+        assertEquals("sur le seuil : panneau intégré",
+                CompletionState.DOC_PANEL, large.completion.docPresentation);
     }
 }

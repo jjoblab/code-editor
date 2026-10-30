@@ -93,4 +93,9 @@
         <item quantity="other">%1$d problems on line %2$d</item>
     </plurals>
     <string name="cel_goto_filter">Filter: %1$s</string>
+
+    <!-- Phase 4 : présentation par sections de l'aide de signature -->
+    <string name="cel_signature_param_of">Parameter %1$d/%2$d</string>
+    <string name="cel_signature_summary">Summary</string>
+    <string name="cel_signature_returns">returns</string>
 </resources>

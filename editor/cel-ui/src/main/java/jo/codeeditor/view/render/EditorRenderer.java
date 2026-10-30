@@ -523,6 +523,12 @@ public class EditorRenderer {
         fade.onDraw(jo.codeeditor.view.popup.EditorPopupFade.Kind.COMPLETION,
                 canvas, () -> assist.drawCompletionPopup(canvas));
 
+        // 11 bis. Bottom sheet de documentation de complétion (vue
+        // étroite — phase 4) : la documentation vit SOUS la liste, en
+        // bas de vue ; même fondu que le popup qu'il accompagne.
+        fade.onDraw(jo.codeeditor.view.popup.EditorPopupFade.Kind.COMPLETION,
+                canvas, () -> assist.drawCompletionDocSheet(canvas));
+
         // 12. Popup d'aide de signature (dessiné en dernier — au-dessus de la ligne du curseur)
         fade.onDraw(jo.codeeditor.view.popup.EditorPopupFade.Kind.SIGNATURE,
                 canvas, () -> assist.drawSignatureHelpPopup(canvas));

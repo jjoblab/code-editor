@@ -53,6 +53,13 @@ public class EditorPopupHitTester {
      */
     public boolean hitCompletionDocPanel(float x, float y) {
         if (!view.completion.visible || view.completion.items.isEmpty()) return false;
+        // Phase 4 : le bottom sheet de documentation (vue étroite)
+        // possède AUSSI ses points — un tap dedans se consomme sans
+        // action (la documentation se lit, comme dans le panneau).
+        float[] sheet = view.completionDocSheetMetrics();
+        if (sheet != null) {
+            return x >= sheet[0] && x <= sheet[2] && y >= sheet[1] && y <= sheet[3];
+        }
         float[] anchor = view.completionPopupAnchor();
         float panelH = anchor.length > 5 ? anchor[5] : 0f;
         if (panelH <= 0f) return false;

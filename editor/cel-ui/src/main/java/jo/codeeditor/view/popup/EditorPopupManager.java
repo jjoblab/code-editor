@@ -149,6 +149,11 @@ public class EditorPopupManager {
 
     public float[] completionPopupAnchor() { return completion.completionPopupAnchor(); }
 
+    /** (Phase 4) Géométrie du bottom sheet de documentation (vue étroite). */
+    public float[] completionDocSheetMetrics() {
+        return completion.completionDocSheetMetrics();
+    }
+
     /** Réglage du popup : honorer le drapeau « liste tronquée ». */
     public void setHonorIncompleteCompletion(boolean honor) {
         completion.setHonorIncompleteCompletion(honor);

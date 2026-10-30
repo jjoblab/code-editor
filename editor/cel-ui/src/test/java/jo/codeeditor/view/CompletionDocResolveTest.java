@@ -130,7 +130,7 @@ public class CompletionDocResolveTest {
     @Test
     public void candidatSansDoc_séjourné_uneRequête_panneauRempli() {
         EditorView view = viewAvecLangage(item("obje", null));
-        assertEquals(0, view.completion.docPanelLines.size());
+        assertEquals(0, view.completion.docPanelRows.size());
 
         // Le séjour (exécution immédite sans fenêtre) : UNE requête part,
         // la documentation livrée remplit le panneau de l'item sélectionné.
@@ -141,7 +141,7 @@ public class CompletionDocResolveTest {
         assertEquals("La documentation résolue est posée sur l'item",
                 providerDoc, view.completion.items.get(0).documentation);
         assertTrue("le panneau est rempli pour le peintre",
-                !view.completion.docPanelLines.isEmpty());
+                !view.completion.docPanelRows.isEmpty());
     }
 
     @Test
@@ -332,7 +332,7 @@ public class CompletionDocResolveTest {
         EditorView view = viewAvecLangage(item("obje", null));
         view.popupManager.scheduleCompletionDocResolve();
         assertTrue("le panneau plafonne comme la documentation directe",
-                view.completion.docPanelLines.size() <= CompletionState.DOC_PANEL_MAX_LINES);
+                view.completion.docPanelRows.size() <= CompletionState.DOC_PANEL_MAX_LINES);
     }
 
     /** La bande verticale de la ligne du caret (px) — miroir simple de

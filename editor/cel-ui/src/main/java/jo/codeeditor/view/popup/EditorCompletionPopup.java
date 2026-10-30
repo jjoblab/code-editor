@@ -1,6 +1,7 @@
 package jo.codeeditor.view.popup;
 
 import jo.codeeditor.view.EditorView;
+import jo.codeeditor.view.popup.kit.PopupTokens;
 import jo.codeeditor.view.state.CompletionState;
 
 import androidx.annotation.RestrictTo;
@@ -827,74 +828,159 @@ public class EditorCompletionPopup {
     private static final int COMPLETION_ANCHOR_GAP_PX = 4;
 
     /**
-     * ★ 4.4.0 — Panneau de documentation de l'item SÉLECTIONNÉ : les
-     * lignes plafonnées sont calculées ICI (l'ancre est la source unique
-     * de géométrie) et posées dans {@code completion.docPanelLines} pour
-     * le peintre ; la hauteur du panneau est retournée. 0 si le panneau
-     * est absent : pas de documentation sur l'item sélectionné, vue
-     * trop étroite (la documentation se réduit alors au glyphe de
-     * rangée) ou place insuffisante pour AU MOINS une rangée + le
-     * panneau sans recouvrir la bande du caret.
+     * ★ 4.4.0 / Phase 4 — Documentation de l'item SÉLECTIONNÉ : les
+     * RANGÉES TYPIÉES sont calculées ICI (l'ancre est la source unique
+     * de géométrie) et posées dans {@code completion.docPanelRows} pour
+     * le peintre ; la hauteur du PANNEAU intégré est retournée (0 si
+     * la documentation vit ailleurs).
      *
-     * <p>Moteur identique à la bande documentation de l'aide de
-     * signature : QuickDoc (description + sections compactées), wrap
-     * plafonné, ligne = 0,75 × taille de texte × 1,3.</p>
+     * <p>Trois présentations (maquette) : vue LARGE (≥ 340 dp) →
+     * PANNEAU en trois blocs SOUS la liste (bande signature teintée,
+     * résumé, lignes PARAM/RETOUR indentées), déduit de la place
+     * disponible — le popup ne recouvre jamais la bande du caret ; vue
+     * ÉTROITE (&lt; 340 dp) → BOTTOM SHEET en bas de vue (la liste garde
+     * toute sa place), le glyphe ⓘ ne survit que si même le sheet ne
+     * tient pas.</p>
+     *
+     * <p>Moteur : modèle de rendu unifié (DocRenderModel), wrap
+     * plafonné DOC_PANEL_MAX_LINES, ligne = méta × 1,3.</p>
      */
     float completionDocPanelHeight(float density) {
-        view.completion.docPanelLines.clear();
+        view.completion.docPanelRows.clear();
+        view.completion.docPresentation = CompletionState.DOC_HIDDEN;
         if (view.getWidth() <= 0 || view.getHeight() <= 0) return 0f;
-        if (view.getWidth() < CompletionState.DOC_PANEL_MIN_VIEW_WIDTH_DP * density) {
-            return 0f;   // vue trop étroite : glyphe de rangée
-        }
         int sel = view.completion.selected;
         if (sel < 0 || sel >= view.completion.items.size()) return 0f;
         String documentation = view.completion.items.get(sel).documentation;
         if (documentation == null || documentation.isEmpty()) return 0f;
-        // Le panneau ne doit JAMAIS forcer le popup à recouvrir la bande
-        // du caret : au moins une rangée + le panneau doivent tenir d'un
-        // côté de la bande.
-        float[] band = completionCaretBand();
-        float below = view.getHeight() - (band[1] + COMPLETION_ANCHOR_GAP_PX);
-        float above = band[0] - COMPLETION_ANCHOR_GAP_PX;
-        float best = Math.max(below, above);
+
+        // ── Rangées typées en trois blocs (discipline du paint
+        // partagé : taille posée puis restaurée).
+        List<CompletionState.DocRow> rows = computeDocRows(documentation, density);
+        if (rows.isEmpty()) return 0f;
+        view.completion.docPanelRows.addAll(rows);
+        float docRowH = view.metrics.getTextSize() * PopupTokens.TEXT_META * 1.3f;
+        float docH = rows.size() * docRowH + 8 * density;
         float rowH = CompletionState.ROW_HEIGHT_DP * density;
-        // Mesure avec la discipline du paint partagé : taille posée puis
-        // RESTAURÉE (jamais d'état résiduel pour les couches suivantes).
+
+        // ── Vue LARGE : panneau intégré s'il tient avec AU MOINS une
+        // rangée sans recouvrir la bande du caret (garde historique).
+        if (view.getWidth() >= CompletionState.DOC_PANEL_MIN_VIEW_WIDTH_DP * density) {
+            float[] band = completionCaretBand();
+            float below = view.getHeight() - (band[1] + COMPLETION_ANCHOR_GAP_PX);
+            float above = band[0] - COMPLETION_ANCHOR_GAP_PX;
+            float best = Math.max(below, above);
+            if (docH + rowH > best) {
+                // Pas la place : la documentation se réduit au glyphe.
+                view.completion.docPresentation = CompletionState.DOC_GLYPH;
+                view.completion.docPanelRows.clear();
+                return 0f;
+            }
+            view.completion.docPresentation = CompletionState.DOC_PANEL;
+            return docH;
+        }
+
+        // ── Vue ÉTROITE : bottom sheet en bas de vue — la liste garde
+        // toute sa place ; le glyphe ne survit que si le sheet ne
+        // tient pas non plus.
+        float sheetH = docH + 8 * density;   // marges internes du sheet
+        if (sheetH + 8 * density <= view.getHeight()) {
+            view.completion.docPresentation = CompletionState.DOC_SHEET;
+            return 0f;   // la documentation ne consomme PAS la hauteur du popup
+        }
+        view.completion.docPresentation = CompletionState.DOC_GLYPH;
+        view.completion.docPanelRows.clear();
+        return 0f;
+    }
+
+    /**
+     * Les rangées typées de la documentation (trois blocs) : bande
+     * SIGNATURE (fence du serveur — enfin AFFICHÉ, ≤ 2 lignes, teintée
+     * au rendu), RÉSUMÉ, lignes PARAM/THROWS/SEE indentées, ligne
+     * RETOUR dédiée. Plafond commun DOC_PANEL_MAX_LINES.
+     */
+    private List<CompletionState.DocRow> computeDocRows(String documentation,
+            float density) {
+        List<CompletionState.DocRow> rows = new ArrayList<>();
         float savedSize = view.textPaint.getTextSize();
-        List<String> lines = new ArrayList<>();
         try {
             view.textPaint.setTypeface(view.metrics.getTypeface());
-            view.textPaint.setTextSize(view.metrics.getTextSize() * 0.75f);
+            view.textPaint.setTextSize(view.metrics.getTextSize() * PopupTokens.TEXT_META);
             float docWidth = CompletionState.WIDTH_DP * density - 16 * density;
-            // Phase 3 : modèle de rendu UNIFIÉ — même moteur que la
-            // bande doc de signature et la doc rapide ; la LANGUE vient
-            // de la session (plus de « java » en dur). Le bloc SIGNATURE
-            // (fence) est réservé à la refonte du panneau (phase 4).
             for (jo.codeeditor.view.popup.kit.DocRenderModel.Block b
                     : jo.codeeditor.view.popup.kit.DocRenderModel.blocks(
                             jo.codeeditor.view.popup.kit.DocRenderModel.parse(
                                     documentation, view.session))) {
-                if (b.kind == jo.codeeditor.view.popup.kit.DocRenderModel.KIND_SIGNATURE) {
-                    continue;
+                if (rows.size() >= CompletionState.DOC_PANEL_MAX_LINES) break;
+                switch (b.kind) {
+                    case jo.codeeditor.view.popup.kit.DocRenderModel.KIND_SIGNATURE: {
+                        // Bande signature teintée : le fence du serveur,
+                        // plafonné à 2 lignes.
+                        for (String line : b.text.split("\n", -1)) {
+                            if (rows.size() >= 2) break;
+                            for (String w : jo.codeeditor.view.render.EditorAssistPopupPainter
+                                    .wrapText(line, docWidth - 12, view.textPaint)) {
+                                if (rows.size() >= 2) break;
+                                rows.add(new CompletionState.DocRow(
+                                        CompletionState.DocRow.SIG, w));
+                            }
+                        }
+                        break;
+                    }
+                    case jo.codeeditor.view.popup.kit.DocRenderModel.KIND_SUMMARY: {
+                        for (String w : jo.codeeditor.view.render.EditorAssistPopupPainter
+                                .wrapText(b.text, docWidth, view.textPaint)) {
+                            if (rows.size() >= CompletionState.DOC_PANEL_MAX_LINES) break;
+                            rows.add(new CompletionState.DocRow(
+                                    CompletionState.DocRow.TEXT, w));
+                        }
+                        break;
+                    }
+                    case jo.codeeditor.view.popup.kit.DocRenderModel.KIND_RETURNS: {
+                        if (rows.size() < CompletionState.DOC_PANEL_MAX_LINES) {
+                            rows.add(new CompletionState.DocRow(
+                                    CompletionState.DocRow.RETURNS, b.text));
+                        }
+                        break;
+                    }
+                    default: {
+                        // Sections indentées (param / throws / see / autre).
+                        for (String w : jo.codeeditor.view.render.EditorAssistPopupPainter
+                                .wrapText(b.ligne(), docWidth - 12, view.textPaint)) {
+                            if (rows.size() >= CompletionState.DOC_PANEL_MAX_LINES) break;
+                            rows.add(new CompletionState.DocRow(
+                                    CompletionState.DocRow.PARAM, w));
+                        }
+                        break;
+                    }
                 }
-                if (lines.size() >= CompletionState.DOC_PANEL_MAX_LINES) break;
-                lines.addAll(jo.codeeditor.view.render.EditorAssistPopupPainter
-                        .wrapText(b.ligne(), docWidth, view.textPaint));
             }
         } finally {
             view.textPaint.setTextSize(savedSize);
         }
-        if (lines.isEmpty()) return 0f;
-        if (lines.size() > CompletionState.DOC_PANEL_MAX_LINES) {
-            lines = new ArrayList<>(lines.subList(0, CompletionState.DOC_PANEL_MAX_LINES));
+        return rows;
+    }
+
+    /**
+     * ★ Phase 4 — géométrie du BOTTOM SHEET de documentation (vue
+     * étroite) : {left, top, right, bottom} en px écran, ou null
+     * (sheet absent). Le sheet vit en BAS de vue, margé de 8 dp de
+     * chaque côté — la liste de complétion garde toute sa place.
+     */
+    float[] completionDocSheetMetrics() {
+        if (view.completion.docPresentation != CompletionState.DOC_SHEET
+                || view.completion.docPanelRows.isEmpty()
+                || view.getWidth() <= 0 || view.getHeight() <= 0) {
+            return null;
         }
-        float docRowH = view.metrics.getTextSize() * 0.75f * 1.3f;
-        float panelH = lines.size() * docRowH + 8 * density;
-        if (panelH + rowH > best) {
-            return 0f;   // pas la place : la documentation se réduit au glyphe
-        }
-        view.completion.docPanelLines.addAll(lines);
-        return panelH;
+        float density = view.getResources().getDisplayMetrics().density;
+        float docRowH = view.metrics.getTextSize() * PopupTokens.TEXT_META * 1.3f;
+        float sheetH = view.completion.docPanelRows.size() * docRowH + 16 * density;
+        float left = 8 * density;
+        float right = view.getWidth() - 8 * density;
+        float bottom = view.getHeight() - 8 * density;
+        float top = bottom - sheetH;
+        return new float[]{left, top, right, bottom};
     }
 
     float[] completionPopupAnchor() {

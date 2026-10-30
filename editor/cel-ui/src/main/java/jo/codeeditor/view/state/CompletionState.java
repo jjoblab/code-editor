@@ -76,13 +76,47 @@ public final class CompletionState {
     public boolean visible = false;
 
     /**
-     * (4.4.0) Lignes plafonnées du panneau de documentation de l'item
-     * SÉLECTIONNÉ — données de RENDU transitoires : recalculées par
-     * l'ancrage (source unique de géométrie) à chaque frame, lues par
-     * le peintre. Vide = pas de panneau (le peintre dessine alors le
-     * glyphe de rangée si la vue est trop étroite).
+     * (Phase 4) Rangées TYPIÉES de la documentation de l'item
+     * sélectionné — bande SIGNATURE (fence du serveur, teintée),
+     * RÉSUMÉ, lignes PARAM/RETOURS indentées. Données de rendu
+     * transitoires : recalculées par l'ancrage (source unique de
+     * géométrie) à chaque frame, lues par le peintre. Vide = pas de
+     * documentation à montrer.
      */
-    public final List<String> docPanelLines = new ArrayList<>();
+    public final List<DocRow> docPanelRows = new ArrayList<>();
+
+    /**
+     * (Phase 4) Présentation courante de la documentation — posée par
+     * l'ancrage : PANNEAU intégré au popup (vue large), SHEET basse
+     * (vue étroite), GLYPHE ⓘ (même le sheet ne tient pas), HIDDEN.
+     */
+    public int docPresentation = DOC_HIDDEN;
+
+    /** Présentations de la documentation de complétion. */
+    public static final int DOC_HIDDEN = 0;
+    public static final int DOC_PANEL = 1;
+    public static final int DOC_SHEET = 2;
+    public static final int DOC_GLYPH = 3;
+
+    /**
+     * Une rangée typée de la documentation : SIG (bande signature
+     * teintée), TEXT (résumé), PARAM (ligne indentée de section),
+     * RETURNS (ligne retour dédiée).
+     */
+    public static final class DocRow {
+        public static final int SIG = 0;
+        public static final int TEXT = 1;
+        public static final int PARAM = 2;
+        public static final int RETURNS = 3;
+
+        public final int type;
+        public final String text;
+
+        public DocRow(int type, String text) {
+            this.type = type;
+            this.text = text == null ? "" : text;
+        }
+    }
 
     // ── Cache de filtrage par token ──────────────────────────────
     // Le provider retourne un jeu de base pour un token ; les frappes
