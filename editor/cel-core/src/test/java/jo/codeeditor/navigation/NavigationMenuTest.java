@@ -187,4 +187,32 @@ class NavigationMenuTest {
         assertTrue(str.contains("method"));
         assertTrue(str.contains("MyClass"));
     }
+
+    @Test
+    void navOption_cléStableIndépendanteDuLibellé() {
+        // Phase 2 (popups) : l'icône du nav menu s'accroche à la CLÉ,
+        // jamais au libellé — une option au libellé traduit doit garder
+        // sa clé (l'ancien rendu comparait le libellé anglais en dur).
+        NavigationMenu.NavOption type = new NavigationMenu.NavOption(
+                "Déclaration de type",
+                NavigationMenu.NavOption.KEY_TYPE_DECLARATION,
+                java.util.Collections.emptyList());
+        assertEquals(NavigationMenu.NavOption.KEY_TYPE_DECLARATION, type.key);
+        assertNotEquals(type.label, type.key);
+
+        // Clés canoniques distinctes deux à deux.
+        java.util.Set<String> clés = java.util.Set.of(
+                NavigationMenu.NavOption.KEY_DECLARATION,
+                NavigationMenu.NavOption.KEY_IMPLEMENTATIONS,
+                NavigationMenu.NavOption.KEY_TYPE_DECLARATION,
+                NavigationMenu.NavOption.KEY_SUPER);
+        assertEquals(4, clés.size());
+
+        // Constructeur historique : clé vide (option générique), le
+        // libellé et les cibles restent portés.
+        NavigationMenu.NavOption légacy = new NavigationMenu.NavOption(
+                "Declaration", java.util.Collections.emptyList());
+        assertEquals("", légacy.key);
+        assertEquals("Declaration", légacy.label);
+    }
 }

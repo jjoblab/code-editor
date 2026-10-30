@@ -1,6 +1,7 @@
 package jo.codeeditor.view.render;
 
 import jo.codeeditor.view.EditorView;
+import jo.codeeditor.view.popup.kit.PopupTokens;
 import jo.codeeditor.view.popup.kit.TextLayoutKit;
 
 import androidx.annotation.RestrictTo;
@@ -121,11 +122,8 @@ public class EditorDiagnosticsPainter {
     }
 
     private int getSquiggleColor(int severity) {
-        switch (severity) {
-            case 3: return view.theme.error;
-            case 2: return view.theme.warning;
-            default: return view.theme.info;
-        }
+        // Source unique du mapping sévérité → couleur : les jetons.
+        return PopupTokens.severity(view.theme, severity);
     }
 
     // ════════════════════════════════════════════════════════════════
@@ -274,8 +272,9 @@ public class EditorDiagnosticsPainter {
         float radius = EditorView.DIAG_SHEET_RADIUS_DP * density;
         float padX = 16 * density;
 
-        // 1. Scrim sur l'éditeur au-dessus du panneau (tap = fermer).
-        view.bgPaint.setColor(android.graphics.Color.argb(96, 0, 0, 0));
+        // 1. Scrim sur l'éditeur au-dessus du panneau (tap = fermer) —
+        // couleur du thème (plus d'argb en dur).
+        view.bgPaint.setColor(view.theme.popupScrim);
         canvas.drawRect(0, 0, width, panelTop, view.bgPaint);
 
         // 2. Panneau — coins du HAUT arrondis uniquement (forme de sheet ancrée en bas).
@@ -301,7 +300,7 @@ public class EditorDiagnosticsPainter {
         view.selPaint.setAntiAlias(true);
         canvas.drawCircle(padX + 5 * density, closeCy, 5 * density, view.selPaint);
         view.textPaint.setTypeface(view.metrics.getTypeface());
-        view.textPaint.setTextSize(view.metrics.getTextSize() * 0.85f);
+        view.textPaint.setTextSize(view.metrics.getTextSize() * PopupTokens.TEXT_BODY);
         view.textPaint.setFakeBoldText(true);
         view.textPaint.setColor(color);
         // D4 : en-tête enrichi — sévérité · code · source · ligne:col ·
@@ -315,13 +314,13 @@ public class EditorDiagnosticsPainter {
         view.caretPaint.setColor(view.theme.gutterText);
         canvas.drawCircle(closeCx, closeCy, closeR * 0.62f, view.caretPaint);
         view.textPaint.setColor(view.theme.gutterText);
-        view.textPaint.setTextSize(view.metrics.getTextSize() * 0.9f);
+        view.textPaint.setTextSize(view.metrics.getTextSize() * PopupTokens.TEXT_TITLE);
         float xGlyphW = view.textPaint.measureText("×") * 0.5f;
         canvas.drawText("×", closeCx - xGlyphW, closeCy + view.metrics.getTextSize() * 0.32f, view.textPaint);
 
         // 4. Message — texte complet, wrappé, ≤ DIAG_SHEET_MAX_MSG_LINES.
         view.textPaint.setColor(view.theme.textColor);
-        view.textPaint.setTextSize(view.metrics.getTextSize() * 0.85f);
+        view.textPaint.setTextSize(view.metrics.getTextSize() * PopupTokens.TEXT_BODY);
         String msg = d.message != null ? d.message : "";
         float msgY = panelTop + EditorView.DIAG_SHEET_HEADER_DP * density
             + EditorView.DIAG_SHEET_MSG_LINE_DP * density * 0.8f;
@@ -345,13 +344,13 @@ public class EditorDiagnosticsPainter {
             canvas.drawLine(padX, actionStartY - EditorView.DIAG_SHEET_ACTIONS_BLOCK_DP * density * 0.72f,
                 width - padX, actionStartY - EditorView.DIAG_SHEET_ACTIONS_BLOCK_DP * density * 0.72f, view.caretPaint);
             view.textPaint.setColor(view.theme.gutterText);
-            view.textPaint.setTextSize(view.metrics.getTextSize() * 0.7f);
+            view.textPaint.setTextSize(view.metrics.getTextSize() * PopupTokens.TEXT_MICRO);
             view.textPaint.setFakeBoldText(true);
             canvas.drawText(view.getResources().getString(
                     jo.codeeditor.ui.R.string.cel_diag_quick_fixes), padX,
                 actionStartY - EditorView.DIAG_SHEET_ACTIONS_BLOCK_DP * density * 0.28f, view.textPaint);
             view.textPaint.setFakeBoldText(false);
-            view.textPaint.setTextSize(view.metrics.getTextSize() * 0.9f);
+            view.textPaint.setTextSize(view.metrics.getTextSize() * PopupTokens.TEXT_TITLE);
             for (int i = 0; i < actions.size(); i++) {
                 EditorView.CodeAction a = actions.get(i);
                 float rowY = actionStartY + i * actionRowH;
@@ -394,10 +393,11 @@ public class EditorDiagnosticsPainter {
         view.caretPaint.setColor(view.theme.glassBorder);
         canvas.drawLine(anchorX, anchorY, anchorX + width, anchorY, view.caretPaint);
         view.textPaint.setTypeface(view.metrics.getTypeface());
-        view.textPaint.setTextSize(view.metrics.getTextSize() * 0.85f);
-        // En-tête
+        view.textPaint.setTextSize(view.metrics.getTextSize() * PopupTokens.TEXT_BODY);
+        // En-tête — ressource (titre avec compte).
         view.textPaint.setColor(view.theme.keyword);
-        canvas.drawText("Diagnostics (" + diags.size() + ")",
+        canvas.drawText(view.getResources().getString(
+                        jo.codeeditor.ui.R.string.cel_diag_sheet_title, diags.size()),
             anchorX + 12 * density, anchorY + rowH * 0.7f, view.textPaint);
         // Rangées
         for (int i = 0; i < Math.min(rowsToShow - 1, diags.size()); i++) {
@@ -405,11 +405,20 @@ public class EditorDiagnosticsPainter {
             if (idx >= diags.size()) break;
             DiagnosticShift.Diagnostic d = diags.get(idx);
             float y = anchorY + (i + 1) * rowH;
-            String sev = d.severity == 3 ? "ERR" : d.severity == 2 ? "WRN" : "INF";
+            // Sévérités en ressources (surchargeables par l'hôte).
+            String sev = d.severity == 3
+                    ? view.getResources().getString(jo.codeeditor.ui.R.string.cel_diag_sev_error)
+                    : d.severity == 2
+                    ? view.getResources().getString(jo.codeeditor.ui.R.string.cel_diag_sev_warning)
+                    : view.getResources().getString(jo.codeeditor.ui.R.string.cel_diag_sev_info);
             view.textPaint.setColor(getSquiggleColor(d.severity));
             canvas.drawText(sev, anchorX + 12 * density, y + rowH * 0.7f, view.textPaint);
-            String msg = (d.message == null ? "" : d.message);
-            if (msg.length() > 60) msg = msg.substring(0, 57) + "...";
+            // Message ellipsé PAR LARGEUR (la coupe historique à 60
+            // caractères rognait trop étroit / pas assez selon la police).
+            String msg = d.message == null ? "" : d.message;
+            float msgAvail = Math.max(0f, width - 60 * density - 12 * density);
+            msg = TextLayoutKit.ellipsize(msg, msgAvail,
+                    TextLayoutKit.Truncate.TAIL, mesureTexte);
             view.textPaint.setColor(view.theme.textColor);
             canvas.drawText(msg, anchorX + 60 * density, y + rowH * 0.7f, view.textPaint);
         }
@@ -449,8 +458,9 @@ public class EditorDiagnosticsPainter {
         List<DiagnosticShift.Diagnostic> all =
                 view.session.getDiagnosticsForLine(view.diagnosticListSheetLine);
 
-        // 1. Scrim sur l'éditeur au-dessus du panneau (tap = fermer).
-        view.bgPaint.setColor(android.graphics.Color.argb(96, 0, 0, 0));
+        // 1. Scrim sur l'éditeur au-dessus du panneau (tap = fermer) —
+        // couleur du thème (plus d'argb en dur).
+        view.bgPaint.setColor(view.theme.popupScrim);
         canvas.drawRect(0, 0, width, panelTop, view.bgPaint);
 
         // 2. Panneau — coins du HAUT arrondis uniquement (forme de sheet ancrée en bas).
@@ -476,11 +486,12 @@ public class EditorDiagnosticsPainter {
         view.selPaint.setAntiAlias(true);
         canvas.drawCircle(padX + 5 * density, closeCy, 5 * density, view.selPaint);
         view.textPaint.setTypeface(view.metrics.getTypeface());
-        view.textPaint.setTextSize(view.metrics.getTextSize() * 0.85f);
+        view.textPaint.setTextSize(view.metrics.getTextSize() * PopupTokens.TEXT_BODY);
         view.textPaint.setFakeBoldText(true);
         view.textPaint.setColor(color);
-        String title = all.size() + (all.size() == 1 ? " problem" : " problems")
-                + " on line " + (view.diagnosticListSheetLine + 1);
+        String title = view.getResources().getQuantityString(
+                jo.codeeditor.ui.R.plurals.cel_diag_problems, all.size(),
+                all.size(), view.diagnosticListSheetLine + 1);
         canvas.drawText(title, padX + 14 * density,
                 closeCy + view.metrics.getTextSize() * 0.30f, view.textPaint);
         view.textPaint.setFakeBoldText(false);
@@ -489,7 +500,7 @@ public class EditorDiagnosticsPainter {
         view.caretPaint.setColor(view.theme.gutterText);
         canvas.drawCircle(closeCx, closeCy, closeR * 0.62f, view.caretPaint);
         view.textPaint.setColor(view.theme.gutterText);
-        view.textPaint.setTextSize(view.metrics.getTextSize() * 0.9f);
+        view.textPaint.setTextSize(view.metrics.getTextSize() * PopupTokens.TEXT_TITLE);
         float xGlyphW = view.textPaint.measureText("×") * 0.5f;
         canvas.drawText("×", closeCx - xGlyphW,
                 closeCy + view.metrics.getTextSize() * 0.32f, view.textPaint);
@@ -502,7 +513,7 @@ public class EditorDiagnosticsPainter {
             canvas.drawCircle(padX + 3.2f * density, rowY + rowH * 0.5f,
                     3.2f * density, view.selPaint);
             view.textPaint.setTypeface(view.metrics.getTypeface());
-            view.textPaint.setTextSize(view.metrics.getTextSize() * 0.9f);
+            view.textPaint.setTextSize(view.metrics.getTextSize() * PopupTokens.TEXT_TITLE);
             view.textPaint.setColor(view.theme.textColor);
             String msg = d.message != null ? d.message : "";
             float avail = width - padX * 2 - 12 * density;
@@ -518,7 +529,10 @@ public class EditorDiagnosticsPainter {
             view.textPaint.setTypeface(view.metrics.getTypeface());
             view.textPaint.setTextSize(view.metrics.getTextSize() * 0.8f);
             view.textPaint.setColor(view.theme.gutterText);
-            String extra = "…" + (all.size() - EditorView.DIAG_LIST_MAX_ROWS) + " more";
+            String extra = view.getResources().getQuantityString(
+                    jo.codeeditor.ui.R.plurals.cel_diag_more,
+                    all.size() - EditorView.DIAG_LIST_MAX_ROWS,
+                    all.size() - EditorView.DIAG_LIST_MAX_ROWS);
             canvas.drawText(extra, padX + 12 * density,
                     rowY + rowH * 0.5f + view.metrics.getTextSize() * 0.30f,
                     view.textPaint);
@@ -551,7 +565,7 @@ public class EditorDiagnosticsPainter {
                 jo.codeeditor.view.popup.EditorPopupAnchors.squigglePopupMetrics(view);
         if (m == null) return;
         float density = m.density;
-        float radius = 8 * density;
+        float radius = PopupTokens.RADIUS_CARD_DP * density;
         // UX-4 : les X du CONTENU viennent de la métrique (contentLeft =
         // m.x + padX) — le cadre ET son contenu suivent l'ancrage du mot.
         // Les largeurs disponibles restent calculées depuis le padding.
@@ -588,7 +602,7 @@ public class EditorDiagnosticsPainter {
             jo.codeeditor.view.popup.EditorPopupAnchors.SquigglePopupMetrics m,
             float density, float textX, float dotX) {
         view.textPaint.setTypeface(view.metrics.getTypeface());
-        view.textPaint.setTextSize(view.metrics.getTextSize() * 0.9f);
+        view.textPaint.setTextSize(view.metrics.getTextSize() * PopupTokens.TEXT_TITLE);
         for (int i = 0; i < m.rows && i < m.choices.size(); i++) {
             DiagnosticShift.Diagnostic d = m.choices.get(i);
             float rowY = m.rowTop + i * m.rowH;
@@ -624,7 +638,7 @@ public class EditorDiagnosticsPainter {
         view.selPaint.setColor(color);
         canvas.drawCircle(dotX, headCy, 3.2f * density, view.selPaint);
         view.textPaint.setTypeface(view.metrics.getTypeface());
-        view.textPaint.setTextSize(view.metrics.getTextSize() * 0.85f);
+        view.textPaint.setTextSize(view.metrics.getTextSize() * PopupTokens.TEXT_BODY);
         view.textPaint.setFakeBoldText(true);
         view.textPaint.setColor(color);
         String header = jo.codeeditor.view.popup.EditorPopupAnchors
@@ -635,7 +649,7 @@ public class EditorDiagnosticsPainter {
 
         // Message replié (≤ 3 lignes, motif de la fiche basse).
         view.textPaint.setColor(view.theme.textColor);
-        view.textPaint.setTextSize(view.metrics.getTextSize() * 0.85f);
+        view.textPaint.setTextSize(view.metrics.getTextSize() * PopupTokens.TEXT_BODY);
         String msg = d.message != null ? d.message : "";
         float maxMsgW = m.w - padX * 2;
         float msgY = m.y + m.headerH
@@ -662,13 +676,13 @@ public class EditorDiagnosticsPainter {
         List<EditorView.CodeAction> actions = view.codeActionsByLine.get(diagLine);
         if (actions != null && m.rows > 0) {
             view.textPaint.setColor(view.theme.gutterText);
-            view.textPaint.setTextSize(view.metrics.getTextSize() * 0.7f);
+            view.textPaint.setTextSize(view.metrics.getTextSize() * PopupTokens.TEXT_MICRO);
             view.textPaint.setFakeBoldText(true);
             canvas.drawText(view.getResources().getString(
                     jo.codeeditor.ui.R.string.cel_diag_quick_fixes), m.contentLeft,
                     m.rowTop - 3 * density, view.textPaint);
             view.textPaint.setFakeBoldText(false);
-            view.textPaint.setTextSize(view.metrics.getTextSize() * 0.9f);
+            view.textPaint.setTextSize(view.metrics.getTextSize() * PopupTokens.TEXT_TITLE);
             for (int i = 0; i < m.rows && i < actions.size(); i++) {
                 EditorView.CodeAction a = actions.get(i);
                 float rowY = m.rowTop + i * m.rowH;
@@ -689,7 +703,7 @@ public class EditorDiagnosticsPainter {
 
         // Rangée « See all » (accent + chevron ›).
         view.textPaint.setColor(view.theme.caret);
-        view.textPaint.setTextSize(view.metrics.getTextSize() * 0.9f);
+        view.textPaint.setTextSize(view.metrics.getTextSize() * PopupTokens.TEXT_TITLE);
         view.textPaint.setFakeBoldText(true);
         float seeAllCy = m.seeAllY + m.rowH * 0.5f;
         canvas.drawText(view.getResources().getString(

@@ -720,7 +720,9 @@ public class EditorView extends View {
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
     public static final int GO_TO_SYMBOL_MAX_ROWS = 10;
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
-    public static final float GO_TO_SYMBOL_RADIUS_DP = 6f;
+    // Phase 2 : rayon de carte partagé (jeton popup.kit).
+    public static final float GO_TO_SYMBOL_RADIUS_DP =
+            jo.codeeditor.view.popup.kit.PopupTokens.RADIUS_CARD_DP;
 
     /**
      * Résolveur du popup go-to-symbol. Retourne TOUS les symboles du

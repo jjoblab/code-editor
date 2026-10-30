@@ -744,7 +744,7 @@ public class EditorChromePainter {
         float x = m[0], y = m[1], w = m[2], h = m[3];
         float rowH = view.NAV_MENU_ROW_HEIGHT_DP * density;
         float headerH = view.NAV_MENU_HEADER_HEIGHT_DP * density;
-        float radius = 8 * density;
+        float radius = jo.codeeditor.view.popup.kit.PopupTokens.RADIUS_CARD_DP * density;
 
         // ── Carte glass (motif drawQuickDocPopup) ──────────────────
         RectF rect = scratchRect;
@@ -841,6 +841,16 @@ public class EditorChromePainter {
     }
 
     /**
+     * La clé d'icône d'une rangée option : l'IDENTIFIANT STABLE de
+     * l'option ({@code NavOption.key}, cf. KEY_*), jamais son libellé.
+     * Pure — testée sans Canvas (NavMenuIconKeyTest).
+     */
+    static String navOptionIconKey(Object ref) {
+        return ref instanceof NavigationMenu.NavOption
+                ? ((NavigationMenu.NavOption) ref).key : "";
+    }
+
+    /**
      * Icône 16dp d'une rangée, équivalents canvas des icônes de
      * navigation : code (chevrons ‹ ›, Declaration), layers (losange +
      * chevrons empilés, Implementations), box (hexagone, Type
@@ -858,14 +868,14 @@ public class EditorChromePainter {
         view.caretPaint.setColor(color);
         switch (row.type) {
             case EditorView.NavMenuRow.TYPE_OPTION: {
-                // navIcon(kind) : Declaration → icône code (M9 8l-4 4 4 4
-                // M15 8l4 4-4 4) ; Implementations → icône layers
-                // (M12 4l8 4-8 4-8-4zM4 12l8 4 8-4M4 16l8 4 8-4) ;
-                // Type declaration → icône box ; Super → icône pin
-                // (M9 4h6l-.8 5 2.3 2.5h-9L9.8 9z + M12 13.5V20).
-                String label = row.ref instanceof NavigationMenu.NavOption
-                        ? ((NavigationMenu.NavOption) row.ref).label : "";
-                if ("Type declaration".equals(label)) {
+                // L'icône s'accroche à la CLÉ STABLE de l'option —
+                // jamais à son libellé (traduisible par l'hôte : la
+                // comparaison historique sur le libellé anglais perdait
+                // l'icône dès la traduction).
+                // Declaration → icône code ; Implementations → layers ;
+                // Type declaration → box ; Super → pin.
+                String key = navOptionIconKey(row.ref);
+                if (NavigationMenu.NavOption.KEY_TYPE_DECLARATION.equals(key)) {
                     // Box : hexagone M12 3.3 l7.5 4.2 v9.2 L12 20.9 4.5 16.7 V7.5 z
                     // + arêtes internes (échelle /24 → 16dp : ×2/3).
                     android.graphics.Path p = new android.graphics.Path();
@@ -882,7 +892,7 @@ public class EditorChromePainter {
                     canvas.drawLine(cx, cy, cx + 5.0f * s, cy - 2.9f * s,
                             view.caretPaint);
                     canvas.drawLine(cx, cy, cx, cy + 5.8f * s, view.caretPaint);
-                } else if ("Implementations".equals(label)) {
+                } else if (NavigationMenu.NavOption.KEY_IMPLEMENTATIONS.equals(key)) {
                     // Layers : losange supérieur + deux chevrons descendants
                     // (grille 24, ×0.7 pour le poids visuel des autres icônes
                     // nav).
@@ -902,7 +912,7 @@ public class EditorChromePainter {
                             cx, cy + 8.4f * s, view.caretPaint);
                     canvas.drawLine(cx, cy + 8.4f * s,
                             cx + 5.6f * s, cy + 5.6f * s, view.caretPaint);
-                } else if ("Super".equals(label)) {
+                } else if (NavigationMenu.NavOption.KEY_SUPER.equals(key)) {
                     // Pin : tête trapézoïdale + tige verticale (grille 24,
                     // ×2/3 centré).
                     android.graphics.Path p = new android.graphics.Path();

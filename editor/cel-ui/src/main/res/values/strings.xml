@@ -76,4 +76,21 @@
     <!-- 4.8.0 : repli synthétique de l'aide de signature (sans
          résolveur) — numéro du paramètre actif, 1-based -->
     <string name="cel_signature_active_param">Parameter %1$d</string>
+
+    <!-- Harmonisation des popups : libellés en dur des sheets de
+         diagnostics et du filtre d'aller-au-symbole (valeurs par
+         défaut = littéraux historiques anglais, surchargeables). -->
+    <string name="cel_diag_sheet_title">Diagnostics (%1$d)</string>
+    <string name="cel_diag_sev_error">ERR</string>
+    <string name="cel_diag_sev_warning">WRN</string>
+    <string name="cel_diag_sev_info">INF</string>
+    <plurals name="cel_diag_more">
+        <item quantity="one">…%1$d more</item>
+        <item quantity="other">…%1$d more</item>
+    </plurals>
+    <plurals name="cel_diag_problems">
+        <item quantity="one">%1$d problem on line %2$d</item>
+        <item quantity="other">%1$d problems on line %2$d</item>
+    </plurals>
+    <string name="cel_goto_filter">Filter: %1$s</string>
 </resources>

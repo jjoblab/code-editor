@@ -2,6 +2,7 @@ package jo.codeeditor.view.render;
 
 import jo.codeeditor.view.EditorView;
 import jo.codeeditor.view.popup.kit.PopupCard;
+import jo.codeeditor.view.popup.kit.PopupTokens;
 import jo.codeeditor.view.popup.kit.TextLayoutKit;
 import jo.codeeditor.view.state.CompletionState;
 
@@ -60,9 +61,10 @@ public class EditorAssistPopupPainter {
     // Rayon de bordure du popup de complétion (les constantes hauteur de
     // ligne / largeur / nombre max de lignes restent sur EditorView car le
     // code tactile / de hit-test en a aussi besoin).
-    // 4.10.0 : 14 dp — les QUATRE coins (le style à deux ailes
-    // « coins hauts seuls » laissait la base carrée).
-    static final float COMPLETION_BORDER_RADIUS_DP = 14f;
+    // 4.10.0 : les QUATRE coins (le style à deux ailes « coins hauts
+    // seuls » laissait la base carrée). Phase 2 : le rayon vit dans les
+    // jetons partagés (PopupTokens.RADIUS_CARD_DP).
+    static final float COMPLETION_BORDER_RADIUS_DP = PopupTokens.RADIUS_CARD_DP;
     // Popup d'aide de signature
     static final float SIGNATURE_HELP_ROW_HEIGHT_DP = 22f;
     // 4.8.0 : largeur ADAPTATIVE — le contenu est mesuré, la largeur
@@ -72,8 +74,8 @@ public class EditorAssistPopupPainter {
     // pouvait sortir de l'écran).
     static final float SIGNATURE_HELP_MIN_WIDTH_DP = 200f;
     static final float SIGNATURE_HELP_MAX_WIDTH_DP = 320f;
-    // 4.10.0 : 14 dp — aligné sur le popup de complétion.
-    static final float SIGNATURE_HELP_RADIUS_DP = 14f;
+    // Phase 2 : rayon partagé avec la complétion (jeton carte).
+    static final float SIGNATURE_HELP_RADIUS_DP = PopupTokens.RADIUS_CARD_DP;
     /** 4.10.0 : fenêtrage — au-delà de 5 paramètres, seuls l'actif ± 1
      *  sont montrés (les autres en « … ») ; la vue peek (appui long)
      *  révèle la signature complète. */
@@ -82,10 +84,10 @@ public class EditorAssistPopupPainter {
     /** Lignes max de la bande doc (paramètre actif + javadoc). */
     static final int SIGNATURE_DOC_MAX_LINES = 6;
     // Popup de documentation rapide
-    // 12 dp — carte flottante.
+    // Phase 2 : rayon de carte partagé (12 dp historiques propres).
     static final float QUICK_DOC_MAX_WIDTH_DP = 320f;
     static final float QUICK_DOC_MAX_HEIGHT_DP = 300f;
-    static final float QUICK_DOC_RADIUS_DP = 12f;
+    static final float QUICK_DOC_RADIUS_DP = PopupTokens.RADIUS_CARD_DP;
     // Ampoule des code actions
     // Réduit à 5,5 dp — l'ampoule (+ son anneau de halo) déborde sinon de la
     // bande de plis (~16,8 dp) et de la hauteur de ligne ; 5,5 dp la garde
@@ -175,7 +177,7 @@ public class EditorAssistPopupPainter {
         // ── Mesure de la ligne de signature (hors peek, une seule
         // ligne ; en peek, wrap multi-lignes de la signature complète).
         view.textPaint.setTypeface(view.metrics.getTypeface());
-        view.textPaint.setTextSize(view.metrics.getTextSize() * 0.85f);
+        view.textPaint.setTextSize(view.metrics.getTextSize() * PopupTokens.TEXT_BODY);
         float padX = 8 * density;
         sigLines.clear();
         float sigTextH;
@@ -201,7 +203,7 @@ public class EditorAssistPopupPainter {
         // s'il y a un choix à faire — ligne AU-DESSUS de la signature.
         int total = view.signatureHelpData.signatures.size();
         boolean hasBadge = total > 1;
-        float stepperTextSize = view.metrics.getTextSize() * 0.7f;
+        float stepperTextSize = view.metrics.getTextSize() * PopupTokens.TEXT_MICRO;
         view.textPaint.setTextSize(stepperTextSize);
         String leftArrow = "\u2039";  // ‹
         String rightArrow = "\u203A"; // ›
@@ -225,7 +227,7 @@ public class EditorAssistPopupPainter {
         // sections @ en couleur de mot-clé). Plafond commun.
         sigDocLines.clear();
         sigParamDocLabel = "";
-        view.textPaint.setTextSize(view.metrics.getTextSize() * 0.75f);
+        view.textPaint.setTextSize(view.metrics.getTextSize() * PopupTokens.TEXT_META);
         float docWidth = width - 2 * padX;
         if (activeSig != null) {
             if (!activeSig.parameters.isEmpty()) {
@@ -267,7 +269,7 @@ public class EditorAssistPopupPainter {
                 }
             }
         }
-        float docRowH = view.metrics.getTextSize() * 0.75f * 1.3f;
+        float docRowH = view.metrics.getTextSize() * PopupTokens.TEXT_META * 1.3f;
         float docH = sigDocLines.isEmpty() ? 0
                 : sigDocLines.size() * docRowH + 8 * density;
         // En peek, la bande doc vit sous un séparateur (elle fait
@@ -468,7 +470,7 @@ public class EditorAssistPopupPainter {
         // le hit-test tactile la respecte (pas de cycle au-delà).
         if (hasStepper) {
             view.textPaint.setTypeface(view.metrics.getTypeface());
-            view.textPaint.setTextSize(view.metrics.getTextSize() * 0.7f);
+            view.textPaint.setTextSize(view.metrics.getTextSize() * PopupTokens.TEXT_MICRO);
             float stepperBase = anchorY;
             float cy = stepperBase + rowH * 0.5f
                     - (view.textPaint.ascent() + view.textPaint.descent()) / 2f;
@@ -499,7 +501,7 @@ public class EditorAssistPopupPainter {
         // L'actif reste garanti visible (ellipsizeAroundActive) et le
         // peek montre la signature entière par construction.
         view.textPaint.setTypeface(view.metrics.getTypeface());
-        view.textPaint.setTextSize(view.metrics.getTextSize() * 0.85f);
+        view.textPaint.setTextSize(view.metrics.getTextSize() * PopupTokens.TEXT_BODY);
         jo.codeeditor.completion.SignatureHelpController.Signature activeSig =
                 view.signatureHelpData.signatures.get(activeIdx);
         int displayActiveParam = peeked ? activeSig.activeParameter
@@ -531,8 +533,8 @@ public class EditorAssistPopupPainter {
             view.selPaint.setColor(view.theme.selection);
             canvas.drawRect(anchorX, docTop, anchorX + width,
                     anchorY + l[SIG_POPUP_H], view.selPaint);
-            view.textPaint.setTextSize(view.metrics.getTextSize() * 0.75f);
-            float docRowH = view.metrics.getTextSize() * 0.75f * 1.3f;
+            view.textPaint.setTextSize(view.metrics.getTextSize() * PopupTokens.TEXT_META);
+            float docRowH = view.metrics.getTextSize() * PopupTokens.TEXT_META * 1.3f;
             float labelW = sigParamDocLabel.isEmpty()
                     ? 0 : view.textPaint.measureText(sigParamDocLabel);
             for (int i = 0; i < sigDocLines.size(); i++) {
@@ -853,7 +855,7 @@ public class EditorAssistPopupPainter {
                 view.getWidth() * 0.8f);
         float maxH = QUICK_DOC_MAX_HEIGHT_DP * density;
         view.textPaint.setTypeface(view.metrics.getTypeface());
-        view.textPaint.setTextSize(view.metrics.getTextSize() * 0.85f);
+        view.textPaint.setTextSize(view.metrics.getTextSize() * PopupTokens.TEXT_BODY);
         float padX = 10 * density;
         float padY = 8 * density;
         float rowH = view.metrics.getTextSize() * 1.25f;
@@ -927,7 +929,7 @@ public class EditorAssistPopupPainter {
         float scrollY = view.quickDocScrollY;
 
         view.textPaint.setTypeface(view.metrics.getTypeface());
-        view.textPaint.setTextSize(view.metrics.getTextSize() * 0.85f);
+        view.textPaint.setTextSize(view.metrics.getTextSize() * PopupTokens.TEXT_BODY);
         List<DocRow> rows = buildQuickDocRows(popupW - 2 * padX, view.textPaint);
 
         // Fond + bordure — carte partagée du kit (rendu identique).
@@ -1067,7 +1069,7 @@ public class EditorAssistPopupPainter {
             float cy = view.docLineToY(line) - view.scroll.vOffset + lineHeight * 0.5f; // sensible aux plis
             // Dessiner le glyphe d'ampoule : cercle rempli (l'ampoule) + petit
             // rectangle de base (le culot) en ambre.
-            view.selPaint.setColor(android.graphics.Color.rgb(255, 193, 7)); // ambre 500
+            view.selPaint.setColor(view.theme.bulb);
             canvas.drawCircle(bulbX, cy - bulbR * 0.2f, bulbR, view.selPaint);
             // Culot : petit rectangle arrondi sous l'ampoule.
             float socketW = bulbR * 0.8f;
@@ -1075,13 +1077,13 @@ public class EditorAssistPopupPainter {
             android.graphics.RectF socket = scratchRect;
             socket.set(bulbX - socketW * 0.5f, cy + bulbR * 0.6f,
                 bulbX + socketW * 0.5f, cy + bulbR * 0.6f + socketH);
-            view.selPaint.setColor(android.graphics.Color.rgb(120, 90, 0));
+            view.selPaint.setColor(view.theme.bulbSocket);
             canvas.drawRoundRect(socket, bulbR * 0.15f, bulbR * 0.15f, view.selPaint);
             // Anneau de halo discret autour de l'ampoule pour la faire
             // ressortir sur les thèmes sombres.
             view.selPaint.setStyle(Paint.Style.STROKE);
             view.selPaint.setStrokeWidth(1f);
-            view.selPaint.setColor(android.graphics.Color.argb(60, 255, 193, 7));
+            view.selPaint.setColor(view.theme.bulbHalo);
             canvas.drawCircle(bulbX, cy - bulbR * 0.2f, bulbR + 1.5f * density, view.selPaint);
             view.selPaint.setStyle(Paint.Style.FILL);
         }
@@ -1115,7 +1117,7 @@ public class EditorAssistPopupPainter {
         rect.set(anchorX, anchorY, anchorX + width, anchorY + popupH);
         card.drawSurface(canvas, rect, radius);
         view.textPaint.setTypeface(view.metrics.getTypeface());
-        view.textPaint.setTextSize(view.metrics.getTextSize() * 0.9f);
+        view.textPaint.setTextSize(view.metrics.getTextSize() * PopupTokens.TEXT_TITLE);
         float padX = 8 * density;
         for (int i = 0; i < rowsToShow; i++) {
             EditorView.CodeAction a = actions.get(i);
@@ -1124,16 +1126,26 @@ public class EditorAssistPopupPainter {
                 view.selPaint.setColor(view.theme.selection);
                 canvas.drawRect(anchorX + 1, y, anchorX + width - 1, y + rowH, view.selPaint);
             }
-            view.textPaint.setColor(view.theme.textColor);
-            canvas.drawText(a.title, anchorX + padX, y + rowH * 0.7f, view.textPaint);
-            // Badge de type à droite
+            // Kind RÉSERVÉ à droite (taille meta, atténué) puis titre
+            // ellipsé sur la largeur restante — les deux axes ne se
+            // recouvrent plus jamais.
+            float kindW = 0f;
             if (!a.kind.isEmpty()) {
-                float titleW = view.textPaint.measureText(a.title);
+                view.textPaint.setTextSize(view.metrics.getTextSize() * PopupTokens.TEXT_META);
+                kindW = view.textPaint.measureText(a.kind) + 8 * density;
+                view.textPaint.setTextSize(view.metrics.getTextSize() * PopupTokens.TEXT_TITLE);
+            }
+            view.textPaint.setColor(view.theme.textColor);
+            String title = TextLayoutKit.ellipsize(a.title,
+                    width - 2 * padX - kindW, TextLayoutKit.Truncate.TAIL,
+                    t -> view.textPaint.measureText(t));
+            canvas.drawText(title, anchorX + padX, y + rowH * 0.7f, view.textPaint);
+            if (!a.kind.isEmpty()) {
                 view.textPaint.setColor(view.theme.gutterText);
-                view.textPaint.setTextSize(view.metrics.getTextSize() * 0.75f);
-                canvas.drawText(a.kind, anchorX + padX + titleW + 8 * density,
+                view.textPaint.setTextSize(view.metrics.getTextSize() * PopupTokens.TEXT_META);
+                canvas.drawText(a.kind, anchorX + width - padX - (kindW - 8 * density),
                     y + rowH * 0.7f, view.textPaint);
-                view.textPaint.setTextSize(view.metrics.getTextSize() * 0.9f);
+                view.textPaint.setTextSize(view.metrics.getTextSize() * PopupTokens.TEXT_TITLE);
             }
         }
         view.textPaint.setTextSize(view.metrics.getTextSize());
@@ -1161,10 +1173,11 @@ public class EditorAssistPopupPainter {
         card.drawSurface(canvas, rect, radius);
         // Champ de filtre (seul le texte est rendu — la saisie est gérée par l'hôte).
         view.textPaint.setTypeface(view.metrics.getTypeface());
-        view.textPaint.setTextSize(view.metrics.getTextSize() * 0.9f);
+        view.textPaint.setTextSize(view.metrics.getTextSize() * PopupTokens.TEXT_TITLE);
         view.textPaint.setColor(view.theme.gutterText);
         float padX = 8 * density;
-        String filterLabel = "Filter: " + view.goToSymbolFilter;
+        String filterLabel = view.getResources().getString(
+                jo.codeeditor.ui.R.string.cel_goto_filter, view.goToSymbolFilter);
         canvas.drawText(filterLabel, anchorX + padX, anchorY + filterH * 0.7f, view.textPaint);
         // Curseur en fin de filtre
         float caretX = anchorX + padX + view.textPaint.measureText(filterLabel);
@@ -1185,16 +1198,30 @@ public class EditorAssistPopupPainter {
                 view.selPaint.setColor(view.theme.selection);
                 canvas.drawRect(anchorX + 1, y, anchorX + width - 1, y + rowH, view.selPaint);
             }
-            view.textPaint.setColor(view.theme.textColor);
-            canvas.drawText(s.name, anchorX + padX, y + rowH * 0.7f, view.textPaint);
-            // Type + conteneur à droite
+            // Séparation honnête des axes : détail (type + conteneur)
+            // plafonné à 55 % de la largeur, ellipsé en queue, calé à
+            // droite ; nom ellipsé sur le reste — plus de recouvrement.
             String detail = s.kind + (s.container.isEmpty() ? "" : " — " + s.container);
-            if (!detail.isEmpty()) {
+            view.textPaint.setTextSize(view.metrics.getTextSize() * PopupTokens.TEXT_META);
+            float detailAvail = width * 0.55f;
+            String detailD = detail.isEmpty() ? "" : TextLayoutKit.ellipsize(
+                    detail, detailAvail, TextLayoutKit.Truncate.TAIL,
+                    t -> view.textPaint.measureText(t));
+            float detailW = detailD.isEmpty() ? 0f
+                    : view.textPaint.measureText(detailD);
+            view.textPaint.setTextSize(view.metrics.getTextSize() * PopupTokens.TEXT_TITLE);
+            view.textPaint.setColor(view.theme.textColor);
+            String nom = TextLayoutKit.ellipsize(s.name,
+                    width - 2 * padX - (detailW > 0 ? detailW + 8 * density : 0),
+                    TextLayoutKit.Truncate.TAIL,
+                    t -> view.textPaint.measureText(t));
+            canvas.drawText(nom, anchorX + padX, y + rowH * 0.7f, view.textPaint);
+            if (!detailD.isEmpty()) {
                 view.textPaint.setColor(view.theme.gutterText);
-                view.textPaint.setTextSize(view.metrics.getTextSize() * 0.75f);
-                canvas.drawText(detail, anchorX + width - padX - view.textPaint.measureText(detail),
+                view.textPaint.setTextSize(view.metrics.getTextSize() * PopupTokens.TEXT_META);
+                canvas.drawText(detailD, anchorX + width - padX - detailW,
                     y + rowH * 0.7f, view.textPaint);
-                view.textPaint.setTextSize(view.metrics.getTextSize() * 0.9f);
+                view.textPaint.setTextSize(view.metrics.getTextSize() * PopupTokens.TEXT_TITLE);
             }
         }
         view.textPaint.setTextSize(view.metrics.getTextSize());
@@ -1259,7 +1286,7 @@ public class EditorAssistPopupPainter {
         canvas.drawPath(bg, view.caretPaint);
 
         // Rangées
-        view.textPaint.setTextSize(view.metrics.getTextSize() * 0.9f);
+        view.textPaint.setTextSize(view.metrics.getTextSize() * PopupTokens.TEXT_TITLE);
         view.textPaint.setTypeface(view.metrics.getTypeface());
         float padX = 8 * density;
         // Clip au path arrondi — la sélection de rangée et le
@@ -1292,8 +1319,8 @@ public class EditorAssistPopupPainter {
             canvas.drawLine(anchorX, docTop, anchorX + width, docTop, view.caretPaint);
             view.selPaint.setColor(view.theme.selection);
             canvas.drawRect(anchorX, docTop, anchorX + width, anchorY + popupH, view.selPaint);
-            view.textPaint.setTextSize(view.metrics.getTextSize() * 0.75f);
-            float docRowH = view.metrics.getTextSize() * 0.75f * 1.3f;
+            view.textPaint.setTextSize(view.metrics.getTextSize() * PopupTokens.TEXT_META);
+            float docRowH = view.metrics.getTextSize() * PopupTokens.TEXT_META * 1.3f;
             for (int i = 0; i < view.completion.docPanelLines.size(); i++) {
                 String l = view.completion.docPanelLines.get(i);
                 boolean isTag = !l.isEmpty() && l.charAt(0) == '@';
@@ -1426,13 +1453,13 @@ public class EditorAssistPopupPainter {
         float halfW = (width - 2 * padX - (width > 0 ? 8 * density : 0)) * 0.5f;
         float containerW = 0f;
         if (!container.isEmpty()) {
-            view.textPaint.setTextSize(view.metrics.getTextSize() * 0.7f);
+            view.textPaint.setTextSize(view.metrics.getTextSize() * PopupTokens.TEXT_MICRO);
             container = ellipsizeTail(container, halfW);
             containerW = view.textPaint.measureText(container);
         }
         float detailW = 0f;
         if (!detail.isEmpty()) {
-            view.textPaint.setTextSize(view.metrics.getTextSize() * 0.75f);
+            view.textPaint.setTextSize(view.metrics.getTextSize() * PopupTokens.TEXT_META);
             float detailAvail = Math.max(0, width - 2 * padX - 8 * density
                     - (containerW > 0 ? containerW + 8 * density : 0));
             detail = ellipsizeTail(detail, detailAvail);
@@ -1472,7 +1499,7 @@ public class EditorAssistPopupPainter {
         canvas.drawText(badge.glyph, badgeLeft + (badgeSize - glyphW) * 0.5f,
                 glyphBaseY, view.textPaint);
         view.textPaint.setFakeBoldText(false);
-        view.textPaint.setTextSize(view.metrics.getTextSize() * 0.9f);
+        view.textPaint.setTextSize(view.metrics.getTextSize() * PopupTokens.TEXT_TITLE);
 
         // ── Libellé (première ligne) : caractères matchés au préfixe en
         // accent + gras, clippés à sa zone — le chip d'origine et la
@@ -1526,13 +1553,13 @@ public class EditorAssistPopupPainter {
         // lecture distincts, atténués. Le glyphe ⓘ vit en fin de
         // PREMIÈRE ligne (réserve dédiée). ──
         if (!container.isEmpty()) {
-            view.textPaint.setTextSize(view.metrics.getTextSize() * 0.7f);
+            view.textPaint.setTextSize(view.metrics.getTextSize() * PopupTokens.TEXT_MICRO);
             view.textPaint.setColor(view.theme.gutterText);
             canvas.drawText(container, m[CR_CONTAINER_LEFT],
                     m[CR_CONTAINER_BASE], view.textPaint);
         }
         if (!detail.isEmpty()) {
-            view.textPaint.setTextSize(view.metrics.getTextSize() * 0.75f);
+            view.textPaint.setTextSize(view.metrics.getTextSize() * PopupTokens.TEXT_META);
             view.textPaint.setColor(view.theme.gutterText);
             canvas.drawText(detail, m[CR_DETAIL_MAX_RIGHT] - detailW,
                     m[CR_DETAIL_BASE], view.textPaint);
@@ -1543,7 +1570,7 @@ public class EditorAssistPopupPainter {
             drawCompletionDocGlyph(canvas, m[CR_GLYPH_CX], m[CR_GLYPH_CY],
                     m[CR_GLYPH_SIZE]);
         }
-        view.textPaint.setTextSize(view.metrics.getTextSize() * 0.9f);
+        view.textPaint.setTextSize(view.metrics.getTextSize() * PopupTokens.TEXT_TITLE);
     }
 
     /**

@@ -96,7 +96,8 @@ public class EditorNavMenuPopup {
                 }
                 List<NavigationMenu.NavTarget> navTargets = toNavTargets(targets);
                 if (!navTargets.isEmpty()) {
-                    options.add(new NavigationMenu.NavOption("Declaration", navTargets));
+                    options.add(new NavigationMenu.NavOption("Declaration",
+                            NavigationMenu.NavOption.KEY_DECLARATION, navTargets));
                 }
             }
             // GO TO — Implementations (textDocument/implementation)
@@ -111,7 +112,8 @@ public class EditorNavMenuPopup {
                 }
                 List<NavigationMenu.NavTarget> navTargets = toNavTargets(targets);
                 if (!navTargets.isEmpty()) {
-                    options.add(new NavigationMenu.NavOption("Implementations", navTargets));
+                    options.add(new NavigationMenu.NavOption("Implementations",
+                            NavigationMenu.NavOption.KEY_IMPLEMENTATIONS, navTargets));
                 }
             }
             // GO TO — Type declaration (textDocument/typeDefinition)
@@ -126,7 +128,8 @@ public class EditorNavMenuPopup {
                 }
                 List<NavigationMenu.NavTarget> navTargets = toNavTargets(targets);
                 if (!navTargets.isEmpty()) {
-                    options.add(new NavigationMenu.NavOption("Type declaration", navTargets));
+                    options.add(new NavigationMenu.NavOption("Type declaration",
+                            NavigationMenu.NavOption.KEY_TYPE_DECLARATION, navTargets));
                 }
             }
             // GO TO — Super (textDocument/superDefinition) —
@@ -141,7 +144,8 @@ public class EditorNavMenuPopup {
                 }
                 List<NavigationMenu.NavTarget> navTargets = toNavTargets(targets);
                 if (!navTargets.isEmpty()) {
-                    options.add(new NavigationMenu.NavOption("Super", navTargets));
+                    options.add(new NavigationMenu.NavOption("Super",
+                            NavigationMenu.NavOption.KEY_SUPER, navTargets));
                 }
             }
             // QUICK FIXES vs INTENTIONS — kind « quickfix » vs le reste

@@ -64,19 +64,43 @@ public final class NavigationMenu {
         }
     }
 
-    /** Une option de navigation avec un libellé et ses cibles. */
+    /**
+     * Une option de navigation avec un libellé et ses cibles.
+     *
+     * <p>Le libellé est AFFICHÉ (et reste traduisible par l'hôte) ;
+     * l'identifiant {@link #key} est STABLE — l'icône du menu de
+     * navigation s'y accroche, jamais au libellé (une option au
+     * libellé traduit gardait son icône par défaut : la clé faisait
+     * défaut).</p>
+     */
     public static final class NavOption {
+        /** Clé stable : aller à la déclaration. */
+        public static final String KEY_DECLARATION = "declaration";
+        /** Clé stable : aller aux implémentations. */
+        public static final String KEY_IMPLEMENTATIONS = "implementations";
+        /** Clé stable : aller à la déclaration de type. */
+        public static final String KEY_TYPE_DECLARATION = "typeDeclaration";
+        /** Clé stable : aller au super (membre outrepassé / supertypes). */
+        public static final String KEY_SUPER = "super";
+
         public final String label;
+        /** Identifiant stable de l'option (cf. constantes KEY_*), vide si générique. */
+        public final String key;
         public final List<NavTarget> targets;
 
         public NavOption(String label, List<NavTarget> targets) {
+            this(label, "", targets);
+        }
+
+        public NavOption(String label, String key, List<NavTarget> targets) {
             this.label = label != null ? label : "";
+            this.key = key != null ? key : "";
             this.targets = targets != null ? Collections.unmodifiableList(targets) : Collections.emptyList();
         }
 
         @Override
         public String toString() {
-            return "NavOption(\"" + label + "\", targets=" + targets.size() + ")";
+            return "NavOption(\"" + label + "\", key=" + key + ", targets=" + targets.size() + ")";
         }
     }
 

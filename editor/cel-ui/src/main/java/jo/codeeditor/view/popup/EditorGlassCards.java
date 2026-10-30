@@ -52,7 +52,8 @@ public final class EditorGlassCards {
                 view.dp(320), LinearLayout.LayoutParams.WRAP_CONTENT));
         android.graphics.drawable.GradientDrawable bg =
                 new android.graphics.drawable.GradientDrawable();
-        bg.setCornerRadius(view.dp(18));
+        bg.setCornerRadius(view.dp(
+                (int) jo.codeeditor.view.popup.kit.PopupTokens.RADIUS_CARD_DP));
         bg.setColor(view.theme.glassBg);
         bg.setStroke(view.dp(1), view.theme.glassBorder);
         container.setBackground(bg);
@@ -74,7 +75,8 @@ public final class EditorGlassCards {
         field.setHintTextColor(view.theme.gutterText);
         android.graphics.drawable.GradientDrawable fieldBg =
                 new android.graphics.drawable.GradientDrawable();
-        fieldBg.setCornerRadius(view.dp(12));
+        fieldBg.setCornerRadius(view.dp(
+                (int) jo.codeeditor.view.popup.kit.PopupTokens.RADIUS_ROW_DP));
         fieldBg.setColor(view.theme.selection);
         fieldBg.setStroke(view.dp(1), view.theme.glassBorder);
         field.setBackground(fieldBg);
