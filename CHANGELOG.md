@@ -90,6 +90,11 @@
 - **Le panneau doc de complétion ignorait la signature (fence) du
   serveur** et fusionnait titre + item : le modèle unifié expose les
   blocs, la bande teintée affiche le fence.
+- **Le benchmark d'undo/redo tombait au CI sans changement de code**
+  (undo 2184 ms contre un budget de 2000 ms, redo 949 ms dans la même
+  exécution — bruit du runner partagé) : la mesure se fait désormais
+  en 3 tours et retient le MINIMUM par phase, comme les benchmarks
+  P-02 et lineText déjà durcis pour le même motif.
 
 ### Performance
 
