@@ -49,4 +49,18 @@ public class PopupTokensTest {
         assertEquals(l.error, PopupTokens.severity(l, 3));
         assertEquals(l.warning, PopupTokens.severity(l, 2));
     }
+
+    @Test
+    public void voileEtAmpoule_valeursHistoriquesDansLeThème() {
+        // Phase 2 (constat 9) : l'ambre de l'ampoule et le scrim des
+        // sheets vivaient en dur dans les painters — ils vivent dans
+        // le thème, aux valeurs historiques exactes.
+        for (EditorTheme t : new EditorTheme[]{
+                EditorTheme.dark(), EditorTheme.light(), EditorTheme.nord()}) {
+            assertEquals(0x60000000, PopupTokens.scrim(t));
+            assertEquals(0xFFFFC107, PopupTokens.bulb(t));
+            assertEquals(0xFF785A00, PopupTokens.bulbSocket(t));
+            assertEquals(0x3CFFC107, PopupTokens.bulbHalo(t));
+        }
+    }
 }

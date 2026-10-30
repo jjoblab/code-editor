@@ -91,6 +91,16 @@ public class EditorTheme {
     public final int glassBg;
     /** Bordure translucide des popups (alpha ~0.10). */
     public final int glassBorder;
+    /** Voile modal au-dessus de l'éditeur derrière une sheet basse
+     *  (noir @ alpha 96/255) — historiquement en dur dans le painter
+     *  des diagnostics, vit désormais dans le thème. */
+    public final int popupScrim;
+    /** Corps de l'ampoule des code actions (ambre 500). */
+    public final int bulb;
+    /** Culot de l'ampoule des code actions (ambre foncé). */
+    public final int bulbSocket;
+    /** Halo discret autour de l'ampoule (ambre @ alpha 60/255). */
+    public final int bulbHalo;
 
     // ── Attributs « virtuels » (lot 4 #26) ──────────────────────
     /**
@@ -177,6 +187,14 @@ public class EditorTheme {
         this.glassBorder = isDark
             ? 0x1AFFFFFF  // white @ alpha 0.10
             : 0x14000000;  // black @ alpha 0.08
+
+        // ★ Popups : voile modal des sheets et ampoule des code
+        // actions — les valeurs historiques des painters, un seul
+        // endroit désormais.
+        this.popupScrim = 0x60000000;   // noir @ alpha 96/255
+        this.bulb = 0xFFFFC107;         // ambre 500
+        this.bulbSocket = 0xFF785A00;   // ambre foncé
+        this.bulbHalo = 0x3CFFC107;     // ambre @ alpha 60/255
     }
 
     /** Couleur des lignes de succès console (BUILD SUCCESSFUL…) — dérivée du fond. */

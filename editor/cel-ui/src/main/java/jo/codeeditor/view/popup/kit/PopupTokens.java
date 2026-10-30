@@ -70,4 +70,16 @@ public final class PopupTokens {
             default: return t.info;
         }
     }
+
+    /** Voile modal au-dessus de l'éditeur derrière une sheet basse. */
+    public static int scrim(EditorTheme t) { return t.popupScrim; }
+
+    /** Corps de l'ampoule des code actions. */
+    public static int bulb(EditorTheme t) { return t.bulb; }
+
+    /** Culot de l'ampoule des code actions. */
+    public static int bulbSocket(EditorTheme t) { return t.bulbSocket; }
+
+    /** Halo discret autour de l'ampoule. */
+    public static int bulbHalo(EditorTheme t) { return t.bulbHalo; }
 }
