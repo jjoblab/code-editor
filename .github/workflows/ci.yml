@@ -59,7 +59,7 @@ jobs:
 
       - name: Mise en place Gradle (cache + validation du wrapper)
         # v4.4.4
-        uses: gradle/actions/setup-gradle@748248ddd2a24f49513d8f472f81c3a07d4d50e1
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6
         with:
           validate-wrappers: true
           cache-read-only: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master' }}
